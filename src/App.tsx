@@ -39,6 +39,7 @@ import {
   SelectedCardDetail,
   actionHintText,
 } from "./components/DuelPanel";
+import { CardLibraryPage, DeckBuilderPage } from "./components/DeckWorkshop";
 import { CardArtPreview, CardView } from "./components/CardView";
 import { DiscardModal, RulesModal } from "./components/Modals";
 import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
@@ -46,6 +47,8 @@ import type { DuelEvent, DuelEventPayload } from "./duelEvents";
 import brandMark from "./assets/mark.svg";
 
 let eventId = 1;
+
+type AppPage = "duel" | "cards" | "builder";
 
 type CardFlight = {
   id: number;
@@ -65,6 +68,7 @@ type FlightRect = {
 };
 
 export default function App() {
+  const [page, setPage] = useState<AppPage>("duel");
   const [seed, setSeed] = useState(1);
   const [game, setGame] = useState<GameState>(() => createGame(1));
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -292,6 +296,12 @@ export default function App() {
     });
   }
 
+  function changePage(nextPage: AppPage) {
+    if (nextPage !== "duel") resetDuelEvents();
+    setRulesOpen(false);
+    setPage(nextPage);
+  }
+
   useEffect(() => {
     if (!toast) return undefined;
     const timer = window.setTimeout(() => setToast(null), 1250);
@@ -319,6 +329,7 @@ export default function App() {
   }, [autoDismissDuelEvents, duelEvent?.id]);
 
   useEffect(() => {
+    if (page !== "duel") return;
     if (game.winner !== null || game.draw) return;
     showBanner({
       kind: "turn",
@@ -326,9 +337,10 @@ export default function App() {
       detail: `TURN ${game.turn} / 残りアクション ${game.actionsRemaining}`,
       tone: active.isHuman ? "human" : "ai",
     });
-  }, [game.turn, game.active]);
+  }, [page, game.turn, game.active]);
 
   useEffect(() => {
+    if (page !== "duel") return;
     if (game.winner === null && !game.draw) return;
     const score = `あなた ${human.life} - ${ai.life} 相手AI`;
     const winnerIndex = game.winner ?? 0;
@@ -339,9 +351,10 @@ export default function App() {
       tone: game.draw ? "draw" : game.winner === 0 ? "win" : "lose",
     });
     playSfx("end");
-  }, [game.winner, game.draw]);
+  }, [page, game.winner, game.draw]);
 
   useEffect(() => {
+    if (page !== "duel") return undefined;
     if (game.winner !== null || game.draw || game.pendingAttack || game.pendingTarget) return undefined;
     if (active.isHuman || game.actionsRemaining <= 0) return undefined;
     if (aiAnimating) return undefined;
@@ -357,7 +370,7 @@ export default function App() {
       }, commitDelay);
     }, 720);
     return () => window.clearTimeout(timer);
-  }, [game, duelEvent, aiAnimating]);
+  }, [page, game, duelEvent, aiAnimating]);
 
   useEffect(() => {
     return () => {
@@ -761,6 +774,26 @@ export default function App() {
       && game.players[game.pendingAttack.defenderIndex]?.isHuman,
   );
 
+  if (page !== "duel") {
+    return (
+      <main className="workspace-shell">
+        <WorkspaceHeader
+          page={page}
+          onChangePage={changePage}
+          seed={seed}
+          onSeedChange={setSeed}
+          onStartNewGame={startNewGame}
+          onOpenRules={() => setRulesOpen(true)}
+          audioEnabled={audioEnabled}
+          onToggleAudio={toggleAudio}
+        />
+        {page === "cards" ? <CardLibraryPage /> : <DeckBuilderPage />}
+        <EventToast toast={toast} />
+        {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
+      </main>
+    );
+  }
+
   return (
     <main className="stitch-shell">
       <header className="stitch-opponent-bar">
@@ -774,6 +807,16 @@ export default function App() {
         <div className="brand-mini">
           <img src={brandMark} alt="" />
           <span>BREAK DUEL</span>
+        </div>
+        <div className="duel-top-controls">
+          <PageTabs page={page} onChange={changePage} />
+          <label className="duel-seed">
+            <span>Seed</span>
+            <input type="number" value={seed} onChange={(event) => setSeed(Number(event.target.value) || 1)} />
+          </label>
+          <button type="button" onClick={startNewGame}>再戦</button>
+          <button type="button" onClick={() => setRulesOpen(true)}>ルール</button>
+          <button type="button" className={audioEnabled ? "audio-on" : ""} onClick={toggleAudio}>{audioEnabled ? "音ON" : "音OFF"}</button>
         </div>
         <div className="stitch-counts">
           <span className="ai-hand-source" data-owner={1} data-zone="hand-source" data-index={0}>手札 {ai.hand.length}</span>
@@ -884,6 +927,58 @@ export default function App() {
         <DiscardModal game={game} onClose={closeDiscardViewer} onSelect={selectDiscardCard} />
       )}
     </main>
+  );
+}
+
+function WorkspaceHeader({
+  page,
+  onChangePage,
+  seed,
+  onSeedChange,
+  onStartNewGame,
+  onOpenRules,
+  audioEnabled,
+  onToggleAudio,
+}: {
+  page: AppPage;
+  onChangePage: (page: AppPage) => void;
+  seed: number;
+  onSeedChange: (seed: number) => void;
+  onStartNewGame: () => void;
+  onOpenRules: () => void;
+  audioEnabled: boolean;
+  onToggleAudio: () => void;
+}) {
+  return (
+    <header className="workspace-header">
+      <div className="workspace-brand">
+        <img src={brandMark} alt="" />
+        <div>
+          <h1>BREAK DUEL</h1>
+          <p>カード管理とデッキ制作</p>
+        </div>
+      </div>
+      <PageTabs page={page} onChange={onChangePage} />
+      <div className="workspace-tools">
+        <label className="duel-seed">
+          <span>Seed</span>
+          <input type="number" value={seed} onChange={(event) => onSeedChange(Number(event.target.value) || 1)} />
+        </label>
+        <button type="button" onClick={onStartNewGame}>再戦</button>
+        <button type="button" onClick={onOpenRules}>ルール</button>
+        <button type="button" className={audioEnabled ? "audio-on" : ""} onClick={onToggleAudio}>{audioEnabled ? "音ON" : "音OFF"}</button>
+      </div>
+    </header>
+  );
+}
+
+function PageTabs({ page, onChange }: { page: AppPage; onChange: (page: AppPage) => void }) {
+  return (
+    <nav className="page-tabs" aria-label="ページ切替">
+      <button type="button" className={page === "duel" ? "active" : ""} onClick={() => onChange("duel")}>対戦</button>
+      <button type="button" className={page === "cards" ? "active" : ""} onClick={() => onChange("cards")}>カード一覧</button>
+      <button type="button" className={page === "builder" ? "active" : ""} onClick={() => onChange("builder")}>デッキ制作</button>
+    </nav>
   );
 }
 
