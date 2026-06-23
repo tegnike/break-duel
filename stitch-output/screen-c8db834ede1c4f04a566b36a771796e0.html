@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="ja"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Break Duel - Tactical Terminal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+        .scanline-effect {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, transparent, rgba(0, 240, 255, 0.05), transparent);
+            height: 100px;
+            animation: scanline 8s linear infinite;
+            pointer-events: none;
+            z-index: 50;
+        }
+        .grid-bg {
+            background-image: 
+                linear-gradient(to right, rgba(59, 73, 75, 0.1) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(59, 73, 75, 0.1) 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+        .glass-panel {
+            background: rgba(19, 19, 21, 0.9);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(132, 148, 149, 0.2);
+        }
+        .neon-border-cyan {
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+            border: 1px solid rgba(0, 240, 255, 0.5);
+        }
+        .health-pip { width: 14px; height: 6px; border-radius: 1px; }
+        .card-glow { box-shadow: 0 0 12px rgba(0, 240, 255, 0.4); border-color: #00f0ff !important; }
+        .hand-card-highlight { box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.6); }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #3b494b; border-radius: 10px; }
+        
+        .attr-fire { color: #ffb4ab; background: rgba(147, 0, 10, 0.2); border: 1px solid rgba(255, 180, 171, 0.3); }
+        .attr-water { color: #dbfcff; background: rgba(0, 105, 112, 0.2); border: 1px solid rgba(219, 252, 255, 0.3); }
+        .attr-wind { color: #b9cacb; background: rgba(59, 73, 75, 0.2); border: 1px solid rgba(185, 202, 203, 0.3); }
+        .attr-earth { color: #ffdea8; background: rgba(94, 66, 0, 0.2); border: 1px solid rgba(255, 222, 168, 0.3); }
+        .attr-command { color: #ffd7f5; background: rgba(129, 0, 129, 0.2); border: 1px solid rgba(255, 215, 245, 0.3); }
+        .attr-memory { color: #00dbe9; background: rgba(0, 79, 84, 0.2); border: 1px solid rgba(0, 219, 233, 0.3); }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                "on-background": "#e5e1e4",
+                "on-error": "#690005",
+                "surface-container": "#1f1f21",
+                "secondary-fixed-dim": "#ffabf3",
+                "outline": "#849495",
+                "tertiary-fixed": "#ffdea8",
+                "outline-variant": "#3b494b",
+                "on-primary-container": "#006970",
+                "on-secondary-fixed-variant": "#810081",
+                "primary": "#dbfcff",
+                "surface-container-high": "#2a2a2c",
+                "inverse-surface": "#e5e1e4",
+                "surface-container-highest": "#353437",
+                "primary-container": "#00f0ff",
+                "on-secondary-fixed": "#380038",
+                "on-surface": "#e5e1e4",
+                "primary-fixed-dim": "#00dbe9",
+                "error-container": "#93000a",
+                "inverse-on-surface": "#303032",
+                "on-primary": "#00363a",
+                "background": "#131315",
+                "surface": "#131315",
+                "on-tertiary-fixed": "#271900",
+                "on-secondary": "#5b005b",
+                "surface-tint": "#00dbe9",
+                "tertiary-container": "#ffd386",
+                "tertiary": "#fff4e8",
+                "on-tertiary": "#412d00",
+                "secondary-fixed": "#ffd7f5",
+                "on-tertiary-container": "#7d5800",
+                "surface-bright": "#39393b",
+                "surface-container-lowest": "#0e0e10",
+                "on-primary-fixed-variant": "#004f54",
+                "on-surface-variant": "#b9cacb",
+                "on-tertiary-fixed-variant": "#5e4200",
+                "secondary": "#ffabf3",
+                "on-primary-fixed": "#002022",
+                "inverse-primary": "#006970",
+                "secondary-container": "#fe00fe",
+                "surface-container-low": "#1b1b1d",
+                "error": "#ffb4ab",
+                "tertiary-fixed-dim": "#ffba20",
+                "on-error-container": "#ffdad6",
+                "primary-fixed": "#7df4ff",
+                "surface-dim": "#131315",
+                "on-secondary-container": "#500050",
+                "surface-variant": "#353437"
+              },
+              "spacing": {
+                "stack-lg": "32px",
+                "margin-mobile": "16px",
+                "unit": "4px",
+                "stack-md": "16px",
+                "margin-desktop": "32px",
+                "gutter": "16px",
+                "stack-sm": "8px"
+              },
+              "fontFamily": {
+                "body-lg": ["Noto Sans", "sans-serif"],
+                "headline-md": ["Noto Sans", "sans-serif"],
+                "data-mono": ["Space Mono", "monospace"],
+                "label-caps": ["Space Mono", "monospace"]
+              }
+            }
+          }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-lg min-h-screen overflow-hidden grid-bg flex flex-col">
+<div class="scanline-effect"></div>
+<!-- Top Area: Opponent Info -->
+<header class="h-16 px-margin-desktop flex items-center justify-between border-b border-outline-variant bg-surface-container-low/50 relative z-10">
+<div class="flex items-center gap-stack-md">
+<div class="px-stack-sm py-1 border border-primary-container/30 bg-primary/5">
+<span class="font-label-caps text-xs text-primary-container tracking-wider uppercase">制御デッキ</span>
+</div>
+<div class="flex flex-col">
+<h2 class="text-sm font-bold text-on-surface">相手AI</h2>
+<div class="flex gap-1 mt-0.5">
+<div class="health-pip bg-primary-container"></div>
+<div class="health-pip bg-primary-container"></div>
+<div class="health-pip bg-primary-container"></div>
+<div class="health-pip bg-primary-container"></div>
+<div class="health-pip bg-primary-container"></div>
+<span class="font-data-mono text-[10px] ml-2 text-primary">life 5</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-stack-lg font-data-mono text-xs text-on-surface-variant">
+<span>手札 4</span>
+<span>山札 15</span>
+<span>トラッシュ 1</span>
+</div>
+</header>
+<!-- Battle Field -->
+<main class="flex-grow flex flex-col items-center justify-center gap-12 relative px-margin-desktop">
+<!-- Opponent Field -->
+<section class="flex justify-center gap-stack-md items-center">
+<!-- Opponent Trash/Deck are now implied or minimal -->
+<div class="grid grid-cols-4 gap-stack-md">
+<!-- Opponent Field Slot 1 -->
+<div class="w-[110px] h-[155px] border border-outline-variant/30 bg-surface-container-low/20 rounded flex flex-col justify-end p-1 relative overflow-hidden group">
+<div class="absolute inset-0 bg-cover bg-center grayscale opacity-50" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBu7oZE1yxViwSPbyUtegTQ7SO_HqXFalwNOEcVHrTJQNJCfoBTMqfjh8nn5m7xAodZm7-qzgMS6vZYpIVOIp8jYrl3Vhmu0nTITov4afA6MrVb7dF5DkgNS42Kiu8H7aF-o6v_bjLG_4atEDRK4Pnpsi5BHnxYpUVpMi0aBmXTZSCg4dadx2ZeTu90BJClhwsflOQHfEH-T9sVrWHPDxYwrqGJ_eAOBgNNrdaH9FHu7VUC1C8hZm4F5si0b09-MtH6gtLQJ5VGjy8n')"></div>
+<div class="relative z-10 bg-surface-container-highest/90 p-1 rounded-sm border border-outline-variant/30">
+<p class="text-[9px] font-bold truncate">火のコアAI</p>
+<p class="text-[9px] text-primary/70 font-data-mono">1500 PW</p>
+</div>
+</div>
+<!-- Opponent Memory Slot (Firewall) -->
+<div class="w-[110px] h-[155px] border-2 border-primary-container/20 bg-primary-container/5 rounded flex flex-col items-center justify-center opacity-40">
+<span class="material-symbols-outlined text-3xl mb-1">security</span>
+<span class="text-[9px] font-label-caps">ファイアウォール</span>
+</div>
+<!-- Empty Slots -->
+<div class="w-[110px] h-[155px] border border-outline-variant/20 bg-surface-container-lowest/10 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-outline-variant/20">add</span>
+</div>
+<div class="w-[110px] h-[155px] border border-outline-variant/20 bg-surface-container-lowest/10 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-outline-variant/20">add</span>
+</div>
+</div>
+</section>
+<!-- Clash Visualization Space -->
+<div class="w-full max-w-2xl h-12 flex items-center justify-center">
+<div class="h-[1px] w-full bg-gradient-to-r from-transparent via-outline-variant/20 to-transparent"></div>
+</div>
+<!-- Player Field -->
+<section class="flex justify-center gap-stack-md items-center">
+<div class="grid grid-cols-4 gap-stack-md">
+<!-- Player Memory Slot (Cache) -->
+<div class="w-[110px] h-[155px] border-2 border-secondary-container/20 bg-secondary-container/5 rounded flex flex-col items-center justify-center opacity-40">
+<span class="material-symbols-outlined text-3xl mb-1 text-secondary">memory</span>
+<span class="text-[9px] font-label-caps">キャッシュ領域</span>
+</div>
+<!-- Empty Slot -->
+<div class="w-[110px] h-[155px] border border-outline-variant/20 bg-surface-container-lowest/10 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-outline-variant/20">add</span>
+</div>
+<!-- Active Card Slot -->
+<div class="w-[110px] h-[155px] bg-surface-container-high rounded p-1 neon-border-cyan card-glow relative group cursor-pointer transition-transform duration-200">
+<div class="w-full h-full bg-cover bg-center rounded-sm" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDZUYydlXmkM6R2XqfmkjBeqsNQM7fS7iyCz3An79YdmiopmcY3XO5G9NI0bci2x--4Fnpep9kNBN6HF15URbDMiiBVp-X-R9tk6PsWPPHX7ZGv44YCeEchiKOT4RoWTEUo-XGzQMOMC5DphzURk3vQzmHPUR1OXKn0h81TTlC-vT_AQHgbmq_kPk3EzR4K8RRihBvCiB1CcEiidql3P-jmFA2zo_e3gSi7eTER5mh6lT8OplgxUZo-QdI0M1zd40pu_9W3N2HYNOo3')"></div>
+<div class="absolute inset-x-0 bottom-0 p-1 bg-surface-container-highest/90 text-[9px] border-t border-primary/40 rounded-b">
+<p class="font-bold text-primary truncate">水のプロンプター</p>
+<p class="font-data-mono">3200 PW</p>
+</div>
+</div>
+<!-- Empty Slot -->
+<div class="w-[110px] h-[155px] border border-outline-variant/20 bg-surface-container-lowest/10 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-outline-variant/20">add</span>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Interface Area -->
+<div class="relative z-40">
+<!-- Player Status (Above Hand) -->
+<div class="px-margin-desktop py-2 flex items-center justify-between bg-surface-container-low/40 border-t border-outline-variant/30">
+<div class="flex items-center gap-stack-md">
+<h2 class="text-sm font-bold text-on-surface">あなた</h2>
+<div class="px-2 py-0.5 border border-secondary-container/30 bg-secondary/5">
+<span class="font-label-caps text-[10px] text-secondary-container uppercase">突破デッキ</span>
+</div>
+<div class="flex gap-1 ml-4">
+<div class="health-pip bg-secondary-container"></div>
+<div class="health-pip bg-secondary-container"></div>
+<div class="health-pip bg-secondary-container"></div>
+<div class="health-pip bg-secondary-container"></div>
+<div class="health-pip bg-secondary-container"></div>
+<span class="font-data-mono text-[10px] ml-2 text-secondary">life 5</span>
+</div>
+</div>
+<div class="flex gap-stack-lg font-data-mono text-[10px] text-on-surface-variant">
+<span>山札 13</span>
+<span>トラッシュ 2</span>
+</div>
+</div>
+<!-- Hand Display -->
+<footer class="h-28 px-margin-desktop flex items-end justify-center gap-unit bg-surface-container-low/80 pb-2">
+<!-- Card 1 -->
+<div class="w-20 h-24 bg-surface-container border border-outline-variant hover:-translate-y-4 transition-all cursor-pointer rounded-sm shadow-xl flex flex-col p-1">
+<div class="flex-grow bg-blue-900/10 rounded-sm mb-1 flex items-center justify-center">
+<span class="text-[8px] opacity-30">補給</span>
+</div>
+<span class="text-[8px] font-bold truncate">最適化</span>
+<span class="font-data-mono text-[8px] text-primary">1A</span>
+</div>
+<!-- Card 2 (Highlighted) -->
+<div class="w-20 h-24 bg-surface-container border border-primary-container/60 hand-card-highlight -translate-y-2 hover:-translate-y-4 transition-all cursor-pointer rounded-sm shadow-xl flex flex-col p-1 bg-primary-container/5">
+<div class="flex-grow bg-red-900/10 rounded-sm mb-1"></div>
+<span class="text-[8px] font-bold truncate">火のエージェント</span>
+<span class="font-data-mono text-[8px] text-primary">1A</span>
+</div>
+<!-- Card 3 -->
+<div class="w-20 h-24 bg-surface-container border border-outline-variant hover:-translate-y-4 transition-all cursor-pointer rounded-sm shadow-xl flex flex-col p-1">
+<div class="flex-grow bg-green-900/10 rounded-sm mb-1"></div>
+<span class="text-[8px] font-bold truncate">風のエージェント</span>
+<span class="font-data-mono text-[8px] text-primary">1A</span>
+</div>
+<!-- Card 4 -->
+<div class="w-20 h-24 bg-surface-container border border-secondary-container/40 bg-secondary-container/5 hover:-translate-y-4 transition-all cursor-pointer rounded-sm shadow-xl flex flex-col p-1">
+<div class="flex-grow bg-yellow-900/10 rounded-sm mb-1"></div>
+<span class="text-[8px] font-bold truncate">土のプロンプター</span>
+<span class="font-data-mono text-[8px] text-primary">2A</span>
+</div>
+<!-- Card 5 (Spent/Dimmed) -->
+<div class="w-20 h-24 bg-surface-container-low border border-outline-variant opacity-40 rounded-sm flex flex-col p-1">
+<div class="flex-grow bg-gray-800 rounded-sm mb-1"></div>
+<span class="text-[8px] font-bold truncate">緊急パッチ</span>
+<span class="font-data-mono text-[8px]">指令</span>
+</div>
+<!-- Card 6 -->
+<div class="w-20 h-24 bg-surface-container border border-outline-variant hover:-translate-y-4 transition-all cursor-pointer rounded-sm shadow-xl flex flex-col p-1">
+<div class="flex-grow bg-purple-900/10 rounded-sm mb-1"></div>
+<span class="text-[8px] font-bold truncate">妨害コード</span>
+<span class="font-data-mono text-[8px] text-primary">1A</span>
+</div>
+</footer>
+<!-- Command Dock (Bottom Floating Container) -->
+<div class="h-44 glass-panel border-t-2 border-primary-container/30 flex p-stack-md gap-stack-md">
+<!-- Selected Card Detail -->
+<div class="w-[340px] flex gap-stack-md border-r border-outline-variant/20 pr-stack-md">
+<div class="w-24 aspect-[3/4] bg-surface-container-lowest border border-outline-variant overflow-hidden flex-shrink-0">
+<img alt="水のプロンプター" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZUYydlXmkM6R2XqfmkjBeqsNQM7fS7iyCz3An79YdmiopmcY3XO5G9NI0bci2x--4Fnpep9kNBN6HF15URbDMiiBVp-X-R9tk6PsWPPHX7ZGv44YCeEchiKOT4RoWTEUo-XGzQMOMC5DphzURk3vQzmHPUR1OXKn0h81TTlC-vT_AQHgbmq_kPk3EzR4K8RRihBvCiB1CcEiidql3P-jmFA2zo_e3gSi7eTER5mh6lT8OplgxUZo-QdI0M1zd40pu_9W3N2HYNOo3"/>
+</div>
+<div class="flex-grow flex flex-col">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="text-primary-container font-bold text-sm leading-tight">水のプロンプター</h3>
+<div class="flex gap-1 mt-1">
+<span class="text-[8px] px-1 bg-primary/10 text-primary border border-primary/20">中型 / 水</span>
+</div>
+</div>
+<div class="text-right">
+<span class="font-data-mono text-base font-bold text-secondary">3200</span>
+<p class="text-[7px] text-on-surface-variant uppercase">POWER</p>
+</div>
+</div>
+<p class="mt-2 text-[10px] leading-relaxed text-on-surface-variant">
+                    相手の「火」属性カードの防御を無視して直接攻撃可能。
+                </p>
+<div class="mt-auto flex justify-between items-center text-[9px] text-primary-container/80">
+<span class="font-data-mono uppercase">COST: 2A</span>
+<span class="font-label-caps">PROMPTER_UNIT</span>
+</div>
+</div>
+</div>
+<!-- Middle: Resource & Buttons -->
+<div class="flex-grow flex flex-col gap-3">
+<!-- Action Resource -->
+<div class="flex items-center gap-stack-md px-2">
+<div class="flex flex-col">
+<span class="text-[10px] text-on-surface-variant font-label-caps">残りアクション</span>
+<span class="font-data-mono text-2xl font-bold text-primary-container leading-none">2</span>
+</div>
+<div class="flex gap-2 ml-2">
+<div class="w-4 h-4 rounded-full bg-primary-container shadow-[0_0_8px_rgba(0,240,255,0.6)]"></div>
+<div class="w-4 h-4 rounded-full bg-primary-container shadow-[0_0_8px_rgba(0,240,255,0.6)]"></div>
+<div class="w-4 h-4 rounded-full border border-primary-container/30 bg-primary-container/5"></div>
+</div>
+</div>
+<!-- Command Buttons -->
+<div class="flex gap-1 h-full">
+<button class="flex-1 bg-surface-container-highest hover:bg-primary-container/10 border border-outline-variant hover:border-primary-container/50 transition-all flex flex-col items-center justify-center text-[10px] font-bold gap-1">
+<span class="material-symbols-outlined text-base">upload</span>
+                    場に出す
+                </button>
+<button class="flex-1 bg-surface-container-highest hover:bg-primary-container/10 border border-outline-variant hover:border-primary-container/50 transition-all flex flex-col items-center justify-center text-[10px] font-bold gap-1">
+<span class="material-symbols-outlined text-base">upgrade</span>
+                    アップグレード
+                </button>
+<button class="flex-1 bg-surface-container-highest hover:bg-secondary-container/10 border border-outline-variant hover:border-secondary-container/50 transition-all flex flex-col items-center justify-center text-[10px] font-bold gap-1">
+<span class="material-symbols-outlined text-base">swords</span>
+                    攻撃
+                </button>
+<button class="flex-1 bg-surface-container-highest hover:bg-primary-container/10 border border-outline-variant hover:border-primary-container/50 transition-all flex flex-col items-center justify-center text-[10px] font-bold gap-1">
+<span class="material-symbols-outlined text-base">sync_alt</span>
+                    交換
+                </button>
+<button class="flex-[1.2] bg-error-container/10 hover:bg-error-container/30 border border-error/20 text-error transition-all flex flex-col items-center justify-center text-[10px] font-bold gap-1">
+<span class="material-symbols-outlined text-base">stop_circle</span>
+                    ターン終了
+                </button>
+</div>
+</div>
+<!-- Right Side: Side Panels -->
+<div class="w-[280px] flex flex-col gap-2 border-l border-outline-variant/20 pl-stack-md">
+<!-- Attribute Guide -->
+<div class="flex items-center justify-between p-1.5 bg-surface-container-lowest/50 rounded border border-outline-variant/10">
+<div class="flex items-center gap-1.5 text-[8px] font-bold">
+<span class="px-1 py-0.5 attr-water rounded-sm">水</span>
+<span class="opacity-30">→</span>
+<span class="px-1 py-0.5 attr-fire rounded-sm">火</span>
+<span class="opacity-30">→</span>
+<span class="px-1 py-0.5 attr-wind rounded-sm">風</span>
+<span class="opacity-30">→</span>
+<span class="px-1 py-0.5 attr-earth rounded-sm">土</span>
+<span class="opacity-30">→</span>
+<span class="px-1 py-0.5 attr-water rounded-sm">水</span>
+</div>
+<span class="material-symbols-outlined text-xs text-on-surface-variant">info</span>
+</div>
+<!-- Battle Log -->
+<div class="flex-grow glass-panel rounded border-outline-variant/20 p-2 flex flex-col overflow-hidden bg-black/20">
+<span class="text-[8px] text-on-surface-variant font-label-caps border-b border-outline-variant/20 pb-1 mb-1">BATTLE_LOG</span>
+<div class="flex-grow overflow-y-auto font-data-mono text-[9px] space-y-1">
+<p class="text-on-surface-variant">[10:04] 相手: 緊急パッチ 発動</p>
+<p class="text-secondary">[10:05] 水のプロンプター 召喚完了</p>
+<p class="text-on-surface-variant">[10:06] 残りアクション: 2</p>
+<p class="animate-pulse text-primary-container">[入力待機中...]</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+    // Interactive state simulation
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (btn) {
+            btn.classList.add('scale-95');
+            setTimeout(() => btn.classList.remove('scale-95'), 100);
+        }
+    });
+</script>
+</body></html>

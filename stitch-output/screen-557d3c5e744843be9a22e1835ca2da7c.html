@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Break Duel - Terminal Interface</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+        .scanline-effect {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, transparent, rgba(0, 240, 255, 0.05), transparent);
+            height: 100px;
+            animation: scanline 8s linear infinite;
+            pointer-events: none;
+        }
+        .grid-bg {
+            background-image: 
+                linear-gradient(to right, rgba(59, 73, 75, 0.2) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(59, 73, 75, 0.2) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .glass-panel {
+            background: rgba(31, 31, 33, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(132, 148, 149, 0.2);
+        }
+        .neon-border-cyan {
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.3), inset 0 0 5px rgba(0, 240, 255, 0.2);
+            border: 1px solid #00f0ff;
+        }
+        .neon-border-magenta {
+            box-shadow: 0 0 10px rgba(254, 0, 254, 0.3), inset 0 0 5px rgba(254, 0, 254, 0.2);
+            border: 1px solid #fe00fe;
+        }
+        .health-pip { width: 12px; height: 6px; border-radius: 1px; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #3b494b; border-radius: 10px; }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                "on-background": "#e5e1e4",
+                "on-error": "#690005",
+                "surface-container": "#1f1f21",
+                "secondary-fixed-dim": "#ffabf3",
+                "outline": "#849495",
+                "tertiary-fixed": "#ffdea8",
+                "outline-variant": "#3b494b",
+                "on-primary-container": "#006970",
+                "on-secondary-fixed-variant": "#810081",
+                "primary": "#dbfcff",
+                "surface-container-high": "#2a2a2c",
+                "inverse-surface": "#e5e1e4",
+                "surface-container-highest": "#353437",
+                "primary-container": "#00f0ff",
+                "on-secondary-fixed": "#380038",
+                "on-surface": "#e5e1e4",
+                "primary-fixed-dim": "#00dbe9",
+                "error-container": "#93000a",
+                "inverse-on-surface": "#303032",
+                "on-primary": "#00363a",
+                "background": "#131315",
+                "surface": "#131315",
+                "on-tertiary-fixed": "#271900",
+                "on-secondary": "#5b005b",
+                "surface-tint": "#00dbe9",
+                "tertiary-container": "#ffd386",
+                "tertiary": "#fff4e8",
+                "on-tertiary": "#412d00",
+                "secondary-fixed": "#ffd7f5",
+                "on-tertiary-container": "#7d5800",
+                "surface-bright": "#39393b",
+                "surface-container-lowest": "#0e0e10",
+                "on-primary-fixed-variant": "#004f54",
+                "on-surface-variant": "#b9cacb",
+                "on-tertiary-fixed-variant": "#5e4200",
+                "secondary": "#ffabf3",
+                "on-primary-fixed": "#002022",
+                "inverse-primary": "#006970",
+                "secondary-container": "#fe00fe",
+                "surface-container-low": "#1b1b1d",
+                "error": "#ffb4ab",
+                "tertiary-fixed-dim": "#ffba20",
+                "on-error-container": "#ffdad6",
+                "primary-fixed": "#7df4ff",
+                "surface-dim": "#131315",
+                "on-secondary-container": "#500050",
+                "surface-variant": "#353437"
+              },
+              "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+              },
+              "spacing": {
+                "stack-lg": "32px",
+                "margin-mobile": "16px",
+                "unit": "4px",
+                "stack-md": "16px",
+                "margin-desktop": "32px",
+                "gutter": "16px",
+                "stack-sm": "8px"
+              },
+              "fontFamily": {
+                "body-lg": ["Noto Sans"],
+                "headline-md": ["Noto Sans"],
+                "data-mono": ["Space Mono"],
+                "label-caps": ["Space Mono"]
+              },
+              "fontSize": {
+                "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                "data-mono": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "700"}]
+              }
+            }
+          }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-lg min-h-screen overflow-hidden grid-bg flex">
+<!-- Sidebar: Duel Console (SideNavBar Logic) -->
+<aside class="fixed right-0 top-0 h-screen w-[280px] bg-surface-container-high border-l border-outline-variant flex flex-col z-40 p-stack-md">
+<div class="mb-stack-lg">
+<h2 class="font-headline-md text-headline-md text-secondary-container leading-tight">DUEL CONSOLE</h2>
+<div class="flex items-center gap-2 mt-unit">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+<p class="font-data-mono text-[10px] text-on-surface-variant tracking-widest uppercase">SYSTEM_ACTIVE</p>
+</div>
+</div>
+<nav class="flex flex-col gap-stack-sm flex-grow">
+<!-- DEPLOY -->
+<button class="group flex items-center justify-between p-stack-md bg-surface-container hover:bg-surface-container-highest transition-all duration-100 border-r-2 border-primary bg-primary/10 text-primary">
+<div class="flex items-center gap-stack-md">
+<span class="material-symbols-outlined text-[20px]">rocket_launch</span>
+<span class="font-label-caps text-label-caps">DEPLOY</span>
+</div>
+<span class="font-data-mono text-[10px] opacity-50">[01]</span>
+</button>
+<!-- ATTACK -->
+<button class="group flex items-center justify-between p-stack-md bg-surface-container hover:bg-surface-container-highest text-on-surface-variant transition-all duration-100">
+<div class="flex items-center gap-stack-md">
+<span class="material-symbols-outlined text-[20px]">swords</span>
+<span class="font-label-caps text-label-caps">ATTACK</span>
+</div>
+<span class="font-data-mono text-[10px] opacity-50">[02]</span>
+</button>
+<!-- SWAP -->
+<button class="group flex items-center justify-between p-stack-md bg-surface-container hover:bg-surface-container-highest text-on-surface-variant transition-all duration-100">
+<div class="flex items-center gap-stack-md">
+<span class="material-symbols-outlined text-[20px]">sync_alt</span>
+<span class="font-label-caps text-label-caps">SWAP</span>
+</div>
+<span class="font-data-mono text-[10px] opacity-50">[03]</span>
+</button>
+<!-- END TURN -->
+<button class="group flex items-center justify-between p-stack-md bg-surface-container-low hover:bg-error-container hover:text-on-error-container text-error transition-all duration-100 mt-auto border border-error/20">
+<div class="flex items-center gap-stack-md">
+<span class="material-symbols-outlined text-[20px]">stop_circle</span>
+<span class="font-label-caps text-label-caps">END TURN</span>
+</div>
+<span class="font-data-mono text-[10px]">ターン終了</span>
+</button>
+</nav>
+<!-- SYSTEM_LOG -->
+<div class="mt-stack-lg h-48 bg-surface-container-lowest border border-outline-variant p-stack-sm font-data-mono text-[10px] flex flex-col gap-unit overflow-y-auto">
+<p class="text-on-surface-variant">&gt;&gt; [08:12:44] MEMORY_LINK ESTABLISHED</p>
+<p class="text-primary-container">&gt;&gt; [08:12:45] ALFA_CORE ACTIVATING...</p>
+<p class="text-on-surface-variant">&gt;&gt; [08:12:47] SYNC_RATE: 98.2%</p>
+<p class="text-secondary">&gt;&gt; [08:13:02] CARD_DEPLOY: FIREWALL</p>
+<p class="text-on-surface-variant">&gt;&gt; [08:13:05] ENEMY_ACTION: DETECTED</p>
+<div class="mt-auto animate-pulse flex items-center">
+<span class="w-2 h-3 bg-primary mx-unit"></span>
+<p>AWAITING_INPUT...</p>
+</div>
+</div>
+</aside>
+<!-- Main Theater -->
+<main class="flex-grow mr-[280px] h-screen relative flex flex-col p-margin-desktop gap-stack-lg">
+<div class="scanline-effect"></div>
+<!-- Top Area: Opponent -->
+<header class="flex justify-between items-start z-10">
+<div class="flex flex-col gap-unit">
+<div class="flex items-center gap-stack-md">
+<div class="w-12 h-12 bg-surface-container-high border border-primary-container/40 p-unit flex items-center justify-center">
+<img class="w-full h-full object-cover grayscale opacity-80" data-alt="A high-tech digital portrait of a cybernetic artificial intelligence profile named ALFA, featuring glowing cyan neural pathways on a dark metallic faceplate with minimalist data readouts. The background is a dense matrix of scrolling code and circuit patterns, illuminated in deep charcoal and neon cyan tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC-uV6oqCKUC9A9vwTGQrMrLAQduvKtXTPjUiLqiwq5yGneeD-lkFmLgHuIPMq-x6UYGsSWbDIJGqffjl5wyLwXhtdi6V83daQAZBYcbVCvB8ab-NegqtVLyJrPQwW_tPvChrTIS5RAKUYu8q2G0McWeo2Vg_a0PYLcuURtRhKDZMAMQ1Ff5ylpuK_M7ALAyG4XR3NyhxATJKjxFmso1xyU3xOzWtlB0fU9mk4iPsIWiNgZSx9IIGViuT3E1SaBiwkspZJjyzMx8YPC"/>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary leading-none">AI_ALFA_CORE</h1>
+<div class="flex gap-1 mt-unit">
+<!-- Cyan health pips -->
+<div class="health-pip bg-primary-container"></div>
+<div class="health-pip bg-primary-container"></div>
+<div class="health-pip bg-primary-container"></div>
+<div class="health-pip bg-primary-container"></div>
+<div class="health-pip bg-primary-container opacity-30"></div>
+<div class="health-pip bg-primary-container opacity-30"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Central Turn Display -->
+<div class="absolute left-1/2 -translate-x-1/2 top-4 flex flex-col items-center">
+<div class="px-stack-lg py-unit bg-surface-container-highest border-x border-primary-container/40">
+<span class="font-data-mono text-primary font-bold text-headline-md tracking-tighter">TURN: 08</span>
+</div>
+<span class="font-label-caps text-on-surface-variant mt-unit">TACTICAL_PHASE: MAIN</span>
+</div>
+<div class="flex gap-stack-md text-right">
+<div class="flex flex-col items-end">
+<span class="font-label-caps text-[10px] text-on-surface-variant">CACHE_CAPACITY</span>
+<span class="font-data-mono text-primary">4096 / 8192 MB</span>
+</div>
+<div class="w-12 h-12 flex items-center justify-center border border-outline-variant bg-surface-container">
+<span class="material-symbols-outlined text-primary">terminal</span>
+</div>
+</div>
+</header>
+<!-- Battle Grid (Theater of War) -->
+<section class="flex-grow flex flex-col items-center justify-center gap-stack-lg py-stack-md">
+<!-- Opponent Slots -->
+<div class="grid grid-cols-5 gap-stack-md">
+<!-- Empty Slot -->
+<div class="w-[140px] h-[200px] border border-outline-variant/30 bg-surface-container-low/20 rounded-lg flex items-center justify-center relative overflow-hidden">
+<span class="material-symbols-outlined text-outline-variant/20 text-4xl">cloud_off</span>
+</div>
+<!-- Card Slot: Firewall -->
+<div class="w-[140px] h-[200px] bg-surface-container-high rounded-lg p-unit neon-border-cyan relative group cursor-pointer transition-transform duration-200 hover:-translate-y-2">
+<div class="w-full h-full bg-cover bg-center rounded-md opacity-70 group-hover:opacity-100 transition-opacity" data-alt="A futuristic digital defensive structure called Firewall, depicted as a massive glowing blue hexagonal energy shield protecting a centralized server core in a dark void. Neon cyan digital sparks fly as virtual attacks deflect off the crystalline surface, creating a high-tech tactical aesthetic with deep blue and black contrasts." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBu7oZE1yxViwSPbyUtegTQ7SO_HqXFalwNOEcVHrTJQNJCfoBTMqfjh8nn5m7xAodZm7-qzgMS6vZYpIVOIp8jYrl3Vhmu0nTITov4afA6MrVb7dF5DkgNS42Kiu8H7aF-o6v_bjLG_4atEDRK4Pnpsi5BHnxYpUVpMi0aBmXTZSCg4dadx2ZeTu90BJClhwsflOQHfEH-T9sVrWHPDxYwrqGJ_eAOBgNNrdaH9FHu7VUC1C8hZm4F5si0b09-MtH6gtLQJ5VGjy8n')"></div>
+<div class="absolute inset-x-0 bottom-0 p-stack-sm bg-surface-container-highest/90 backdrop-blur-sm rounded-b-lg border-t border-primary/20">
+<p class="font-label-caps text-[10px] text-primary">FIREWALL</p>
+<p class="font-data-mono text-xs text-on-surface">1200 ATK</p>
+</div>
+</div>
+<div class="w-[140px] h-[200px] border border-outline-variant/30 bg-surface-container-low/20 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-outline-variant/20 text-4xl">security</span>
+</div>
+<!-- Card Slot: Neural Swarm -->
+<div class="w-[140px] h-[200px] bg-surface-container-high rounded-lg p-unit border border-outline-variant relative group opacity-60">
+<div class="w-full h-full bg-cover bg-center rounded-md grayscale group-hover:grayscale-0 transition-all" data-alt="A swarm of microscopic nanobots shaped like glowing insects, forming a swirling nebula of electric pink and neon cyan against a stark black circuit board landscape. The bots are intricately detailed with glowing eyes and articulated metal limbs, suggesting a highly complex neural network hive-mind. Dark techno-minimalism style." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAwdr7yF5yOV4YAn39hMra0Q3n29H6x7bq7-QMu8jiHRPWED4Enmj4liu1VN5pCUhVHixxcD0lezrmvgcoHd2NH9elNT8VKiS9UD5kNcnqmC2upLcVL398V3WwxjC7Ch7X47-Twem_X9mBP4m0jSlNKlX2PvKGx2OD7C5sTswuKPCkOt6Ck9RQIXC5FiEAtfg-FrEBdNni5Lsenkju7HwZn0vh2_pIeT6Dmp4cNKfPZQTAa9sd1rDdsAWr0sUVBu-mnFW_W_wDUcnJ3')"></div>
+<div class="absolute inset-x-0 bottom-0 p-stack-sm bg-surface-container-highest/90 rounded-b-lg">
+<p class="font-label-caps text-[10px]">NEURAL SWARM</p>
+<p class="font-data-mono text-xs">2400 ATK</p>
+</div>
+</div>
+<div class="w-[140px] h-[200px] border border-outline-variant/30 bg-surface-container-low/20 rounded-lg flex items-center justify-center"></div>
+</div>
+<!-- Active Detail Panel (Central Overlay) -->
+<div class="glass-panel w-[520px] p-stack-md flex gap-stack-lg border border-primary-container/20 rounded-xl relative z-20 shadow-2xl">
+<div class="w-1/2 aspect-[3/4] bg-surface-container-lowest border border-primary-container/40 relative overflow-hidden group">
+<img class="w-full h-full object-cover brightness-110" data-alt="The Water Prompter card artwork, showing a sleek, fluid-metal being emerging from a pool of bioluminescent turquoise liquid in a futuristic laboratory. The character is surrounded by floating Japanese holographic text and data streams, with cool lighting and sharp focus on the metallic reflections. Digital cyberpunk painting style with high contrast." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZUYydlXmkM6R2XqfmkjBeqsNQM7fS7iyCz3An79YdmiopmcY3XO5G9NI0bci2x--4Fnpep9kNBN6HF15URbDMiiBVp-X-R9tk6PsWPPHX7ZGv44YCeEchiKOT4RoWTEUo-XGzQMOMC5DphzURk3vQzmHPUR1OXKn0h81TTlC-vT_AQHgbmq_kPk3EzR4K8RRihBvCiB1CcEiidql3P-jmFA2zo_e3gSi7eTER5mh6lT8OplgxUZo-QdI0M1zd40pu_9W3N2HYNOo3"/>
+<div class="absolute top-2 right-2 px-unit bg-primary-container text-on-primary font-data-mono text-xs">SSR</div>
+</div>
+<div class="w-1/2 flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between">
+<h3 class="font-headline-md text-primary tracking-tight">WATER PROMPTER</h3>
+<span class="text-secondary font-label-caps text-[10px]">水のエージェント</span>
+</div>
+<p class="font-data-mono text-xs text-on-surface-variant mt-stack-sm leading-relaxed">
+                            A highly adaptive liquidity-based AI unit. Can bypass standard firewalls by mimicking authorized data streams. 
+                            <br/><br/>
+<span class="text-primary-container">SKILL: STREAM_OVERRIDE</span> - Reduce enemy DEF by 40% for one turn.
+                        </p>
+</div>
+<div class="pt-stack-md border-t border-outline-variant flex justify-between items-end">
+<div class="flex flex-col">
+<span class="font-label-caps text-[10px] text-on-surface-variant">LOAD_WEIGHT</span>
+<span class="font-headline-md text-secondary">3200</span>
+</div>
+<button class="bg-primary-container text-on-primary font-label-caps text-label-caps px-stack-md py-unit hover:scale-105 transition-transform duration-75">
+                            ACTIVATE
+                        </button>
+</div>
+</div>
+</div>
+<!-- Player Slots -->
+<div class="grid grid-cols-5 gap-stack-md">
+<div class="w-[140px] h-[200px] border border-outline-variant/30 bg-surface-container-low/20 rounded-lg flex items-center justify-center"></div>
+<div class="w-[140px] h-[200px] border border-outline-variant/30 bg-surface-container-low/20 rounded-lg flex items-center justify-center">
+<span class="material-symbols-outlined text-outline-variant/20 text-4xl">add</span>
+</div>
+<!-- Player Active Card -->
+<div class="w-[140px] h-[200px] bg-surface-container-high rounded-lg p-unit neon-border-magenta relative animate-pulse">
+<div class="w-full h-full bg-cover bg-center rounded-md" data-alt="Close up of a futuristic 'Water Prompter' agent made of shimmering liquid metal in a dark tech-lab. Teal and magenta glow creates a sharp cyberpunk contrast against the deep black shadows, with complex data patterns reflected on the fluid surface. High-energy digital art style." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAbLzZ7oycMrD0JbW9X6jxHW0UHi4hptFoUASlMZoQ4CvI1fz1nuH4jyjAnwTGFnhKPV-hvrXAt8ooZYdoiLLmWQePxRwFjp7qCxCqNU6XTdqKJ6x_ivcrVBRgfGPf7yf9JX7jriXnh2_NkstSK4_Gn0tLuQxXX4X6LlbTcB5HDELD-HG08e-MPGHdr1A4oNtQcq1ckMqtHJ5mD9YBqDNhMlgVMLGZO0T2kVy2aO6LsGk_iQSOnyOXb7gbJNSWst6IPNMD4Ln2sUjBC')"></div>
+<div class="absolute inset-x-0 bottom-0 p-stack-sm bg-secondary-container/90 backdrop-blur-sm rounded-b-lg">
+<p class="font-label-caps text-[10px] text-on-secondary">ACTIVE_UNIT</p>
+<p class="font-data-mono text-xs text-on-secondary font-bold">3200 ATK</p>
+</div>
+</div>
+<div class="w-[140px] h-[200px] border border-outline-variant/30 bg-surface-container-low/20 rounded-lg flex items-center justify-center"></div>
+<div class="w-[140px] h-[200px] border border-outline-variant/30 bg-surface-container-low/20 rounded-lg flex items-center justify-center"></div>
+</div>
+</section>
+<!-- Bottom Area: Player User -->
+<footer class="flex justify-between items-end z-10">
+<div class="flex items-end gap-stack-lg">
+<div class="flex flex-col gap-unit">
+<div class="flex items-center gap-stack-md">
+<div class="w-12 h-12 bg-surface-container-high border border-secondary-container/40 p-unit flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary-container text-4xl">person_search</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md text-secondary leading-none uppercase">USER_01_REDUX</h1>
+<div class="flex gap-1 mt-unit">
+<!-- Magenta health pips -->
+<div class="health-pip bg-secondary-container"></div>
+<div class="health-pip bg-secondary-container"></div>
+<div class="health-pip bg-secondary-container"></div>
+<div class="health-pip bg-secondary-container"></div>
+<div class="health-pip bg-secondary-container"></div>
+<div class="health-pip bg-secondary-container opacity-30"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Player Hand -->
+<div class="flex gap-unit pb-stack-sm">
+<!-- Small Hand Cards -->
+<div class="w-16 h-24 bg-surface-container border border-outline-variant hover:-translate-y-4 hover:border-secondary transition-all cursor-pointer relative group">
+<div class="absolute inset-0 opacity-20 grayscale bg-[url('placeholder')]" data-alt="A minimalist tech-card back with a central magenta circuit-eye motif on a deep black textured background."></div>
+<span class="absolute bottom-1 right-1 font-data-mono text-[8px]">01</span>
+</div>
+<div class="w-16 h-24 bg-surface-container border border-outline-variant hover:-translate-y-4 hover:border-secondary transition-all cursor-pointer relative group">
+<div class="absolute inset-0 opacity-20 grayscale bg-[url('placeholder')]" data-alt="A minimalist tech-card back with a central magenta circuit-eye motif on a deep black textured background."></div>
+<span class="absolute bottom-1 right-1 font-data-mono text-[8px]">02</span>
+</div>
+<div class="w-16 h-24 bg-surface-container border border-outline-variant hover:-translate-y-4 hover:border-secondary transition-all cursor-pointer relative group">
+<div class="absolute inset-0 opacity-20 grayscale bg-[url('placeholder')]" data-alt="A minimalist tech-card back with a central magenta circuit-eye motif on a deep black textured background."></div>
+<span class="absolute bottom-1 right-1 font-data-mono text-[8px]">03</span>
+</div>
+<div class="w-16 h-24 bg-surface-container border border-outline-variant hover:-translate-y-4 hover:border-secondary transition-all cursor-pointer relative group">
+<div class="absolute inset-0 opacity-20 grayscale bg-[url('placeholder')]" data-alt="A minimalist tech-card back with a central magenta circuit-eye motif on a deep black textured background."></div>
+<span class="absolute bottom-1 right-1 font-data-mono text-[8px]">04</span>
+</div>
+</div>
+</div>
+<div class="flex gap-stack-md">
+<div class="text-right">
+<span class="font-label-caps text-[10px] text-on-surface-variant">TRASH_BIN</span>
+<p class="font-data-mono text-error">12 ELEMENTS</p>
+</div>
+<div class="px-stack-md py-stack-sm bg-surface-container-high border border-secondary-container/20 flex flex-col items-center">
+<span class="font-label-caps text-[10px] text-on-surface-variant">REMAIN_DECK</span>
+<span class="font-headline-md text-secondary">18</span>
+</div>
+</div>
+</footer>
+</main>
+<!-- BottomNavBar (Logic from JSON) -->
+<nav class="fixed bottom-0 left-0 w-[calc(100%-280px)] z-50 flex justify-around items-center px-margin-desktop py-stack-sm h-24 bg-surface-container-lowest border-t border-outline-variant">
+<div class="flex flex-col items-center justify-center text-on-surface-variant p-stack-sm hover:text-primary transition-all group">
+<span class="material-symbols-outlined">style</span>
+<span class="font-label-caps text-label-caps">HAND</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant p-stack-sm hover:text-primary transition-all group">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-label-caps text-label-caps">CACHE</span>
+</div>
+<!-- Active Tab: Deck -->
+<div class="flex flex-col items-center justify-center bg-primary-container/20 text-primary-container rounded-lg p-stack-sm scale-105">
+<span class="material-symbols-outlined">layers</span>
+<span class="font-label-caps text-label-caps">DECK</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant p-stack-sm hover:text-primary transition-all group">
+<span class="material-symbols-outlined">delete_forever</span>
+<span class="font-label-caps text-label-caps">GRAVEYARD</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant p-stack-sm hover:text-primary transition-all group">
+<span class="material-symbols-outlined">list_alt</span>
+<span class="font-label-caps text-label-caps">LOGS</span>
+</div>
+</nav>
+<!-- Visual Glitch Overlay Script -->
+<script>
+        document.addEventListener('keydown', function(e) {
+            // Trigger a visual shake on SPACE key (attack simulation)
+            if(e.code === 'Space') {
+                const main = document.querySelector('main');
+                main.style.transition = 'transform 0.05s linear';
+                main.style.transform = 'translate(4px, -2px)';
+                setTimeout(() => {
+                    main.style.transform = 'translate(-4px, 2px)';
+                    setTimeout(() => {
+                        main.style.transform = 'translate(0, 0)';
+                    }, 50);
+                }, 50);
+            }
+        });
+
+        // Periodic system log update simulation
+        const logs = [
+            ">> [08:14:02] PACKET_LOSS: 0.02%",
+            ">> [08:14:15] ENEMY_BUFF: CORE_HARDEN",
+            ">> [08:14:22] CACHE_CLEANUP_INITIATED",
+            ">> [08:14:30] SYNC_STABLE: 99.1%",
+            ">> [08:14:45] NEW_DRAW: ENCRYPTION_KEY"
+        ];
+        const logPanel = document.querySelector('.overflow-y-auto');
+        let logIndex = 0;
+
+        setInterval(() => {
+            const p = document.createElement('p');
+            p.className = 'text-on-surface-variant animate-pulse';
+            p.textContent = logs[logIndex % logs.length];
+            logPanel.appendChild(p);
+            logPanel.scrollTop = logPanel.scrollHeight;
+            logIndex++;
+            setTimeout(() => p.classList.remove('animate-pulse'), 1000);
+        }, 5000);
+    </script>
+</body></html>

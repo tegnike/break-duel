@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Break Duel mark">
+  <rect width="96" height="96" rx="18" fill="#111827"/>
+  <path d="M48 11 78 28v40L48 85 18 68V28z" fill="#f8fafc"/>
+  <path d="M48 18 71 31v33L48 78 25 64V31z" fill="#111827"/>
+  <path d="M48 25 64 34v23L48 67 32 57V34z" fill="#2dd4bf"/>
+  <path d="M48 25v42M32 34l32 23M64 34 32 57" stroke="#111827" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="48" cy="46" r="8" fill="#f59e0b"/>
+</svg>
