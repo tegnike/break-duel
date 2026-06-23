@@ -2810,7 +2810,8 @@ h2 {
   filter: invert(1) drop-shadow(0 3px 7px rgba(0, 0, 0, 0.35));
 }
 
-.kenney-art.art-ai img {
+.kenney-art.art-ai img,
+.kenney-art.art-generated img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -2819,7 +2820,8 @@ h2 {
   filter: saturate(1.08) contrast(1.04);
 }
 
-.kenney-art.art-ai::after {
+.kenney-art.art-ai::after,
+.kenney-art.art-generated::after {
   display: block;
   inset: 0;
   background:
@@ -2833,7 +2835,8 @@ h2 {
   bottom: 4px;
 }
 
-.kenney-art.art-ai span {
+.kenney-art.art-ai span,
+.kenney-art.art-generated span {
   display: none;
 }
 
@@ -2842,7 +2845,8 @@ h2 {
   height: 28px;
 }
 
-.field-row .kenney-art.art-ai img {
+.field-row .kenney-art.art-ai img,
+.field-row .kenney-art.art-generated img {
   width: 100%;
   height: 100%;
 }
@@ -4785,7 +4789,8 @@ h1 {
   filter: invert(1) drop-shadow(0 5px 12px rgba(0, 0, 0, 0.4));
 }
 
-.selected-art-preview.art-ai img {
+.selected-art-preview.art-ai img,
+.selected-art-preview.art-generated img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -4794,7 +4799,8 @@ h1 {
   filter: saturate(1.08) contrast(1.04);
 }
 
-.selected-art-preview.art-ai::after {
+.selected-art-preview.art-ai::after,
+.selected-art-preview.art-generated::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -4818,7 +4824,8 @@ h1 {
   font-weight: 900;
 }
 
-.selected-art-preview.art-ai span {
+.selected-art-preview.art-ai span,
+.selected-art-preview.art-generated span {
   display: none;
 }
 

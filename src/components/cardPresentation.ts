@@ -23,6 +23,14 @@ import aiWind1Art from "../assets/card-art/ai-wind-1.webp";
 import aiWind2Art from "../assets/card-art/ai-wind-2.webp";
 import aiWind3Art from "../assets/card-art/ai-wind-3.webp";
 import aiWind4Art from "../assets/card-art/ai-wind-4.webp";
+import cmdDisruptArt from "../assets/card-art/cmd-disrupt.webp";
+import cmdOptimizeArt from "../assets/card-art/cmd-optimize.webp";
+import cmdPatchArt from "../assets/card-art/cmd-patch.webp";
+import cmdRelearnArt from "../assets/card-art/cmd-relearn.webp";
+import cmdSandboxArt from "../assets/card-art/cmd-sandbox.webp";
+import memCacheArt from "../assets/card-art/mem-cache.webp";
+import memFirewallArt from "../assets/card-art/mem-firewall.webp";
+import memPipelineArt from "../assets/card-art/mem-pipeline.webp";
 import cardIcon from "../assets/kenney/card.png";
 import cardTargetIcon from "../assets/kenney/card_target.png";
 import cardsReturnIcon from "../assets/kenney/cards_return.png";
@@ -56,6 +64,17 @@ const AI_CARD_ART: Record<string, string> = {
   "AI-EARTH-4": aiEarth4Art,
 };
 
+const SUPPORT_CARD_ART: Record<string, string> = {
+  "CMD-OPTIMIZE": cmdOptimizeArt,
+  "CMD-PATCH": cmdPatchArt,
+  "CMD-DISRUPT": cmdDisruptArt,
+  "CMD-RELEARN": cmdRelearnArt,
+  "CMD-SANDBOX": cmdSandboxArt,
+  "MEM-FIREWALL": memFirewallArt,
+  "MEM-CACHE": memCacheArt,
+  "MEM-PIPELINE": memPipelineArt,
+};
+
 export function cardColor(card: Card): string {
   if (card.type === "event") return COMMAND_COLOR;
   if (card.type === "memory") return MEMORY_COLOR;
@@ -69,8 +88,9 @@ export function cardCoreText(card: Card): string | number {
 }
 
 export function cardArtClass(card: Card): string {
-  if (card.type === "event") return `art-command art-${card.effect}`;
-  if (card.type === "memory") return `art-memory art-${card.effect}`;
+  const generatedClass = SUPPORT_CARD_ART[card.id] ? " art-generated" : "";
+  if (card.type === "event") return `art-command art-${card.effect}${generatedClass}`;
+  if (card.type === "memory") return `art-memory art-${card.effect}${generatedClass}`;
   return `art-ai art-${ATTRIBUTES[card.attribute!].code.toLowerCase()} art-power-${card.power}`;
 }
 
@@ -93,6 +113,9 @@ export function cardArtGlyph(card: Card): string {
 }
 
 export function cardArtAsset(card: Card): string {
+  const generatedSupportArt = SUPPORT_CARD_ART[card.id];
+  if (generatedSupportArt) return generatedSupportArt;
+
   if (card.type === "event") {
     if (card.effect === "optimize") return cardsShuffleIcon;
     if (card.effect === "patch") return timerIcon;
