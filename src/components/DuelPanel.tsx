@@ -51,7 +51,7 @@ export function SelectedCardDetail({ card, zone, game }: { card: Card | null; zo
       <div className="detail-meta">{parts.join(" / ")}</div>
       <div className="detail-effect">{roleText(card)}</div>
       {card.type === "ai" && card.attribute && (
-        <div className="detail-affinity">AI効果: {aiEffectText(card)}</div>
+        <div className="detail-affinity">個別効果: {aiEffectText(card)}</div>
       )}
     </div>
   );
@@ -63,11 +63,11 @@ export function AffinityGuide({ game, selected }: { game: GameState; selected: C
     : null;
   return (
     <div className="affinity-guide" aria-label="属性特性">
-      <div className="affinity-title">AI効果</div>
+      <div className="affinity-title">召喚獣の個性</div>
       <div className="affinity-chain">
         {attributePill("火")}<span>攻撃</span>{attributePill("水")}<span>ドロー</span>{attributePill("風")}<span>テンポ</span>{attributePill("土")}<span>防御</span>
       </div>
-      <div className="affinity-note">属性相性はありません。属性ごとの傾向はありますが、効果は一部AIカードだけが個別に持ちます。</div>
+      <div className="affinity-note">属性相性はありません。属性ごとの傾向はありますが、効果は一部の召喚獣だけが個別に持ちます。</div>
       {selected?.type === "ai" && selected.attribute && (
         <span className="affinity-selected">
           {attributePill(selected.attribute)}
@@ -84,7 +84,7 @@ function OpponentDefensePreview({ game, attackCard }: { game: GameState; attackC
   const rows = opponent.field
     .map((card, index) => ({ card, index }))
     .filter(({ index }) => !opponent.spentFieldIndexes.has(index));
-  if (rows.length === 0) return <div className="affinity-preview">相手の未消耗AIなし。攻撃は通りやすいです。</div>;
+  if (rows.length === 0) return <div className="affinity-preview">相手の未消耗召喚獣なし。攻撃は通りやすいです。</div>;
   return (
     <div className="affinity-preview">
       <div className="affinity-preview-title">相手の場の防御候補</div>
@@ -170,7 +170,7 @@ export function DefensePanel({
   return (
     <div className="defense-panel">
       <h3>{attackCard.name}への防御を選択</h3>
-      <div className="defense-context">攻撃値 {attackCombatValue(attackCard)} / 場ブロックは同値なら相打ち、上回れば防御AIが残ります。手札ブロックは使い切りです。</div>
+      <div className="defense-context">攻撃値 {attackCombatValue(attackCard)} / 場ブロックは同値なら相打ち、上回れば防御側が残ります。手札ブロックは使い切りです。</div>
       <div className="defense-choice-grid">
         {fieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} attackCard={attackCard} defender={defender} onClick={() => onResolve({ type: "field", index })} />)}
         {handOptions.map(({ card, index }) => <DefenseChoiceButton key={`hand-${index}`} source="手札" card={card} attackCard={attackCard} defender={defender} hand onClick={() => onResolve({ type: "hand", index })} />)}
@@ -189,7 +189,7 @@ function DefenseChoiceButton({ source, card, attackCard, defender, hand = false,
     ? "防御成功 / このカードをトラッシュ"
     : defenseValue === attackValue
       ? "相打ち / 両方トラッシュ"
-      : "防御AIが残る / 攻撃AI退場";
+      : "防御側が残る / 攻撃側退場";
   return (
     <button type="button" className="defense-choice" style={{ "--card-color": cardColor(card) } as React.CSSProperties} title={`${source}: ${card.name} / ${defenseMathText(attackCard, card, defender)}`} onClick={onClick}>
       <div className="defense-choice-head">
@@ -220,13 +220,13 @@ export function LogList({ entries }: { entries: string[] }) {
 }
 
 export function actionHintText(game: GameState, card: Card | null, zone: string | null): string {
-  if (!card) return canHumanAct(game) ? "手札と場の明るい枠が、いま使える候補です。" : "相手AIの行動中です。";
-  if (!canHumanAct(game)) return "相手AIの行動中です。";
+  if (!card) return canHumanAct(game) ? "手札と場の明るい枠が、いま使える候補です。" : "ライバルの行動中です。";
+  if (!canHumanAct(game)) return "ライバルの行動中です。";
   const human = game.players[0];
   const opponent = game.players[1];
   if (zone === "hand") {
     if (card.type === "event") return commandUsable(game, card, human, opponent) ? `${card.name}を使用できます。` : `${card.name}は条件を満たすと使用できます。`;
-    if (card.type === "memory") return human.memory ? "配置すると現在のメモリーはトラッシュされます。" : "メモリー枠に配置できます。";
+    if (card.type === "memory") return human.memory ? "配置すると現在の遺物はトラッシュされます。" : "遺物枠に配置できます。";
     const sourceIndex = bestUpgradeSource(human, card);
     if (sourceIndex !== null && upgradeCost(card) <= game.actionsRemaining) return `${human.field[sourceIndex].name}を元に${upgradeCost(card)}アクションでアップグレードできます。`;
     if (human.field.length < 3 && playCost(card) <= game.actionsRemaining) return "場に出せます。";

@@ -63,8 +63,8 @@ export function cardColor(card: Card): string {
 }
 
 export function cardCoreText(card: Card): string | number {
-  if (card.type === "event") return "CMD";
-  if (card.type === "memory") return "MEM";
+  if (card.type === "event") return "術";
+  if (card.type === "memory") return "遺";
   return card.power ?? "";
 }
 
@@ -76,18 +76,18 @@ export function cardArtClass(card: Card): string {
 
 export function cardArtGlyph(card: Card): string {
   if (card.type === "event") {
-    if (card.effect === "optimize") return "OPT";
-    if (card.effect === "patch") return "FIX";
-    if (card.effect === "disrupt") return "JAM";
-    if (card.effect === "relearn") return "RCL";
-    if (card.effect === "sandbox") return "SB";
-    return "CMD";
+    if (card.effect === "optimize") return "整";
+    if (card.effect === "patch") return "癒";
+    if (card.effect === "disrupt") return "縛";
+    if (card.effect === "relearn") return "巻";
+    if (card.effect === "sandbox") return "結";
+    return "術";
   }
   if (card.type === "memory") {
-    if (card.effect === "firewall") return "FW";
-    if (card.effect === "cache") return "CA";
-    if (card.effect === "pipeline") return "PL";
-    return "MEM";
+    if (card.effect === "firewall") return "紋";
+    if (card.effect === "cache") return "鞄";
+    if (card.effect === "pipeline") return "水";
+    return "遺";
   }
   return ATTRIBUTES[card.attribute!].code.slice(0, 1);
 }
@@ -117,7 +117,7 @@ export function cardArtAsset(card: Card): string {
 
 export function cardTypeLabel(card: Card): string {
   if (card.type === "event") return "指令";
-  if (card.type === "memory") return "メモリー";
+  if (card.type === "memory") return "遺物";
   return card.attribute ?? "";
 }
 
@@ -128,14 +128,14 @@ export function roleLabel(card: Card): string {
   if (card.power === 2) return "防御";
   if (card.power === 3) return "中型";
   if (card.power === 4) return "切札";
-  return "AI";
+  return "召喚獣";
 }
 
 export function roleText(card: Card): string {
   if (card.effect === "optimize") return "1アクション。手札1〜2枚を捨て2枚引く";
-  if (card.effect === "patch") return "1アクション。自分の消耗AI1体を回復";
-  if (card.effect === "disrupt") return "1アクション。相手の未消耗AI1体を消耗";
-  if (card.effect === "relearn") return "1アクション。トラッシュのAI1枚を回収";
+  if (card.effect === "patch") return "1アクション。自分の消耗召喚獣1体を回復";
+  if (card.effect === "disrupt") return "1アクション。相手の未消耗召喚獣1体を消耗";
+  if (card.effect === "relearn") return "1アクション。トラッシュの召喚獣1枚を回収";
   if (card.effect === "sandbox") return "1アクション。このターン、次のpower 4攻撃後退場を1回防ぐ";
   if (card.effect === "firewall") return "同属性防御時、手札1枚を捨て power +1";
   if (card.effect === "cache") return "ターン開始時、手札2枚以下なら1枚引く";
@@ -145,12 +145,12 @@ export function roleText(card: Card): string {
   if (card.power === 2) return `1アクション${trait}`;
   if (card.power === 3) return `${CONFIG.largeAiPlayCost}アクション${trait}`;
   if (card.power === 4) return `${CONFIG.largeAiPlayCost}アクション。攻撃後退場${trait}`;
-  return "AI";
+  return "召喚獣";
 }
 
 export function selectedText(card: Card): string {
   if (card.type === "event") return `${card.name} / 指令 / ${roleText(card)}`;
-  if (card.type === "memory") return `${card.name} / メモリー / ${roleText(card)}`;
+  if (card.type === "memory") return `${card.name} / 遺物 / ${roleText(card)}`;
   return `${card.name} / ${card.attribute} / power ${card.power} / ${roleText(card)}`;
 }
 

@@ -54,14 +54,14 @@ export function CardLibraryPage() {
       <div className="workshop-heading">
         <div>
           <h2>カード一覧</h2>
-          <p>{CARD_LIST.length}種類 / AI 16種 / 指令5種 / メモリー3種</p>
+          <p>{CARD_LIST.length}種類 / 召喚獣16種 / 指令5種 / 遺物3種</p>
         </div>
         <div className="workshop-filters">
           <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}>
             <option value="all">すべて</option>
-            <option value="ai">AI</option>
+            <option value="ai">召喚獣</option>
             <option value="event">指令</option>
-            <option value="memory">メモリー</option>
+            <option value="memory">遺物</option>
           </select>
           <select value={attributeFilter} onChange={(event) => setAttributeFilter(event.target.value as AttributeFilter)}>
             <option value="all">全属性</option>
@@ -225,9 +225,9 @@ export function DeckBuilderPage() {
           <div className="builder-toolbar">
             <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}>
               <option value="all">すべて</option>
-              <option value="ai">AI</option>
+              <option value="ai">召喚獣</option>
               <option value="event">指令</option>
-              <option value="memory">メモリー</option>
+              <option value="memory">遺物</option>
             </select>
             <select value={attributeFilter} onChange={(event) => setAttributeFilter(event.target.value as AttributeFilter)}>
               <option value="all">全属性</option>
@@ -331,7 +331,7 @@ function CardInspector({ card, compact = false }: { card: Card | null; compact?:
         <p>{selectedText(card)}</p>
         <dl>
           <div><dt>ID</dt><dd>{card.id}</dd></div>
-          <div><dt>種別</dt><dd>{card.type === "ai" ? "AI" : card.type === "event" ? "指令" : "メモリー"}</dd></div>
+          <div><dt>種別</dt><dd>{card.type === "ai" ? "召喚獣" : card.type === "event" ? "指令" : "遺物"}</dd></div>
           {card.attribute && <div><dt>属性</dt><dd>{card.attribute}</dd></div>}
           {card.power && <div><dt>power</dt><dd>{card.power}</dd></div>}
         </dl>
@@ -349,9 +349,9 @@ function DeckStats({ cardIds }: { cardIds: string[] }) {
   const powerCounts = [1, 2, 3, 4].map((power) => cards.filter((card) => card.power === power).length);
   return (
     <div className="deck-stats">
-      <StatChip label="AI" value={aiCount} />
+      <StatChip label="召喚獣" value={aiCount} />
       <StatChip label="指令" value={eventCount} />
-      <StatChip label="メモリー" value={memoryCount} />
+      <StatChip label="遺物" value={memoryCount} />
       {powerCounts.map((count, index) => <StatChip label={`P${index + 1}`} value={count} key={index} />)}
     </div>
   );

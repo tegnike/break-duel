@@ -86,9 +86,9 @@ def can_defend(
 
 def attack_combat_value(attack_ai: Card) -> int:
     if attack_ai.type != CardType.AI:
-        raise ValueError("Attack checks require AI character cards.")
+        raise ValueError("Attack checks require summon cards.")
     if attack_ai.power is None:
-        raise ValueError("AI character cards require power.")
+        raise ValueError("Summon cards require power.")
     return attack_ai.power + (1 if attack_ai.effect == AiEffect.ATTACK_PLUS_1.value else 0)
 
 
@@ -101,11 +101,11 @@ def defense_combat_value(
     defense_power_bonus: int = 0,
 ) -> int:
     if attack_ai.type != CardType.AI or defense_ai.type != CardType.AI:
-        raise ValueError("Defense checks require AI character cards.")
+        raise ValueError("Defense checks require summon cards.")
     if attack_ai.attribute is None or defense_ai.attribute is None:
-        raise ValueError("AI character cards require attributes.")
+        raise ValueError("Summon cards require attributes.")
     if attack_ai.power is None or defense_ai.power is None:
-        raise ValueError("AI character cards require power.")
+        raise ValueError("Summon cards require power.")
 
     return (
         defense_ai.power
@@ -122,7 +122,7 @@ def defense_combat_value(
 
 def defense_effect_bonus(defense_ai: Card) -> int:
     if defense_ai.type != CardType.AI:
-        raise ValueError("Defense checks require AI character cards.")
+        raise ValueError("Defense checks require summon cards.")
     return 1 if defense_ai.effect == AiEffect.DEFENSE_PLUS_1.value else 0
 
 
@@ -171,11 +171,23 @@ def build_ai_card_pool() -> list[Card]:
         (Attribute.WIND, "WIND", "風"),
         (Attribute.EARTH, "EARTH", "土"),
     ]
-    names_by_power = {
-        1: "チャットボット",
-        2: "プロンプター",
-        3: "エージェント",
-        4: "コアAI",
+    names_by_id = {
+        "AI-FIRE-1": "火蜥蜴サラマンダー",
+        "AI-FIRE-2": "溶岩甲獣バサルト",
+        "AI-FIRE-3": "紅蓮火翼ガルーダ",
+        "AI-FIRE-4": "黒焔の古竜ヴァルガ",
+        "AI-WATER-1": "水精リュミナ",
+        "AI-WATER-2": "水晶甲羅セルキー",
+        "AI-WATER-3": "奔流海獣オルカーン",
+        "AI-WATER-4": "蒼潮リヴァイアサン",
+        "AI-WIND-1": "綿風小狐フルーフ",
+        "AI-WIND-2": "翡翠風刃マンティス",
+        "AI-WIND-3": "天翔風鹿シルフィード",
+        "AI-WIND-4": "雲海の翼鯨ミストラル",
+        "AI-EARTH-1": "苔帽子のモール",
+        "AI-EARTH-2": "古代甲羅ガメル",
+        "AI-EARTH-3": "岩角多脚獣グラン",
+        "AI-EARTH-4": "山脈の古巨獣ガイアス",
     }
     effects = {
         (Attribute.FIRE, 2): AiEffect.ATTACK_PLUS_1.value,
@@ -191,10 +203,11 @@ def build_ai_card_pool() -> list[Card]:
     cards: list[Card] = []
     for attribute, code, label in rows:
         for power in (1, 2, 3, 4):
+            card_id = f"AI-{code}-{power}"
             cards.append(
                 Card(
-                    id=f"AI-{code}-{power}",
-                    name=f"{label}の{names_by_power[power]}",
+                    id=card_id,
+                    name=names_by_id[card_id],
                     type=CardType.AI,
                     attribute=attribute,
                     power=power,
@@ -208,31 +221,31 @@ def build_command_card_pool() -> list[Card]:
     return [
         Card(
             id="CMD-OPTIMIZE",
-            name="最適化",
+            name="戦術整理",
             type=CardType.EVENT,
             effect=CommandEffect.OPTIMIZE.value,
         ),
         Card(
             id="CMD-PATCH",
-            name="緊急パッチ",
+            name="癒し薬草",
             type=CardType.EVENT,
             effect=CommandEffect.PATCH.value,
         ),
         Card(
             id="CMD-DISRUPT",
-            name="妨害コード",
+            name="絡め蔦",
             type=CardType.EVENT,
             effect=CommandEffect.DISRUPT.value,
         ),
         Card(
             id="CMD-RELEARN",
-            name="再学習",
+            name="追憶の巻物",
             type=CardType.EVENT,
             effect=CommandEffect.RELEARN.value,
         ),
         Card(
             id="CMD-SANDBOX",
-            name="サンドボックス",
+            name="守護結界",
             type=CardType.EVENT,
             effect=CommandEffect.SANDBOX.value,
         ),
@@ -243,19 +256,19 @@ def build_memory_card_pool() -> list[Card]:
     return [
         Card(
             id="MEM-FIREWALL",
-            name="ファイアウォール",
+            name="守護の紋章",
             type=CardType.MEMORY,
             effect=MemoryEffect.FIREWALL.value,
         ),
         Card(
             id="MEM-CACHE",
-            name="キャッシュ領域",
+            name="旅人の鞄",
             type=CardType.MEMORY,
             effect=MemoryEffect.CACHE.value,
         ),
         Card(
             id="MEM-PIPELINE",
-            name="パイプライン",
+            name="精霊の水脈",
             type=CardType.MEMORY,
             effect=MemoryEffect.PIPELINE.value,
         ),

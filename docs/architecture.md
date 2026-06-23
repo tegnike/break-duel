@@ -8,7 +8,7 @@
 
 `Break Duel` は、Python シミュレータと React + TypeScript ブラウザ UI の 2 系統で構成されています。
 
-- Python 側: ルール検証、AI 自動対戦、バランス確認、単体テスト
+- Python 側: ルール検証、自動対戦、バランス確認、単体テスト
 - Browser 側: 実際に人間が対戦する UI
 - `docs/game-spec.md`: 現行ルールの正仕様
 - `web/`: `npm run build` で生成される配信成果物
@@ -22,13 +22,13 @@ ai_break_duel/
   cards.py          Python 側カード定義とデッキ定義
   models.py         Python 側状態型と設定
   engine.py         Python 側ルール解決
-  ai.py             Python 側AI判断
+  ai.py             Python 側自動判断
   cli.py            シミュレーションCLI
 
 src/
   main.tsx          React entry
   App.tsx           アプリ状態、通知、音、イベント配線
-  game.ts           TypeScript 側カード定義、設定、純粋ルール、AI判断
+  game.ts           TypeScript 側カード定義、設定、純粋ルール、自動判断
   game/
     actions.ts      TypeScript 側ゲーム状態を変更する操作処理
     selectors.ts    UI用の状態参照
@@ -95,7 +95,7 @@ React 側は外部状態管理ライブラリを使っていません。`App.tsx
 
 重要な状態:
 
-- `players`: 2 プレイヤーの山札、手札、場、メモリー、トラッシュ、ライフ
+- `players`: 2 プレイヤーの山札、手札、場、遺物、トラッシュ、ライフ
 - `active`: 現在のターンプレイヤー
 - `turn`: 手番数
 - `actionsRemaining`: 残りアクション
@@ -113,19 +113,19 @@ React 側は外部状態管理ライブラリを使っていません。`App.tsx
 - カード定義
 - デッキ定義
 - 防御値計算
-- AI 個別効果
+- 召喚獣個別効果
 - 使用条件
-- AI 行動選択
+- 自動行動選択
 - 勝敗判定
 
 `src/game/actions.ts` は、`GameState` を変更する操作処理を置きます。
 
-- AI を場に出す
+- 召喚獣を場に出す
 - アップグレードする
 - 指令を使う
 - 攻撃を開始する
 - 防御を解決する
-- AI の自動行動を実行する
+- 自動プレイヤーの行動を実行する
 - 手札コストを捨てる
 
 `src/components/` は表示だけを担当します。カード効果や勝敗判定をここに増やさないでください。

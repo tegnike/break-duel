@@ -3,7 +3,7 @@
 <html class="dark" lang="ja"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>AI Break Duel - Tactical Terminal</title>
+<title>Break Duel - Tactical Board</title>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
@@ -132,7 +132,7 @@
 <span class="font-label-caps text-xs text-primary-container tracking-wider uppercase">制御デッキ</span>
 </div>
 <div class="flex flex-col">
-<h2 class="text-sm font-bold text-on-surface">相手AI</h2>
+<h2 class="text-sm font-bold text-on-surface">ライバル</h2>
 <div class="flex gap-1 mt-0.5">
 <div class="health-pip bg-primary-container"></div>
 <div class="health-pip bg-primary-container"></div>
@@ -159,14 +159,14 @@
 <div class="w-[110px] h-[155px] border border-outline-variant/30 bg-surface-container-low/20 rounded flex flex-col justify-end p-1 relative overflow-hidden group">
 <div class="absolute inset-0 bg-cover bg-center grayscale opacity-50" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBu7oZE1yxViwSPbyUtegTQ7SO_HqXFalwNOEcVHrTJQNJCfoBTMqfjh8nn5m7xAodZm7-qzgMS6vZYpIVOIp8jYrl3Vhmu0nTITov4afA6MrVb7dF5DkgNS42Kiu8H7aF-o6v_bjLG_4atEDRK4Pnpsi5BHnxYpUVpMi0aBmXTZSCg4dadx2ZeTu90BJClhwsflOQHfEH-T9sVrWHPDxYwrqGJ_eAOBgNNrdaH9FHu7VUC1C8hZm4F5si0b09-MtH6gtLQJ5VGjy8n')"></div>
 <div class="relative z-10 bg-surface-container-highest/90 p-1 rounded-sm border border-outline-variant/30">
-<p class="text-[9px] font-bold truncate">火のコアAI</p>
+<p class="text-[9px] font-bold truncate">黒焔の古竜ヴァルガ</p>
 <p class="text-[9px] text-primary/70 font-data-mono">1500 PW</p>
 </div>
 </div>
 <!-- Opponent Memory Slot (Firewall) -->
 <div class="w-[110px] h-[155px] border-2 border-primary-container/20 bg-primary-container/5 rounded flex flex-col items-center justify-center opacity-40">
 <span class="material-symbols-outlined text-3xl mb-1">security</span>
-<span class="text-[9px] font-label-caps">ファイアウォール</span>
+<span class="text-[9px] font-label-caps">守護の紋章</span>
 </div>
 <!-- Empty Slots -->
 <div class="w-[110px] h-[155px] border border-outline-variant/20 bg-surface-container-lowest/10 rounded flex items-center justify-center">
@@ -187,7 +187,7 @@
 <!-- Player Memory Slot (Cache) -->
 <div class="w-[110px] h-[155px] border-2 border-secondary-container/20 bg-secondary-container/5 rounded flex flex-col items-center justify-center opacity-40">
 <span class="material-symbols-outlined text-3xl mb-1 text-secondary">memory</span>
-<span class="text-[9px] font-label-caps">キャッシュ領域</span>
+<span class="text-[9px] font-label-caps">旅人の鞄</span>
 </div>
 <!-- Empty Slot -->
 <div class="w-[110px] h-[155px] border border-outline-variant/20 bg-surface-container-lowest/10 rounded flex items-center justify-center">
@@ -197,7 +197,7 @@
 <div class="w-[110px] h-[155px] bg-surface-container-high rounded p-1 neon-border-cyan card-glow relative group cursor-pointer transition-transform duration-200">
 <div class="w-full h-full bg-cover bg-center rounded-sm" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDZUYydlXmkM6R2XqfmkjBeqsNQM7fS7iyCz3An79YdmiopmcY3XO5G9NI0bci2x--4Fnpep9kNBN6HF15URbDMiiBVp-X-R9tk6PsWPPHX7ZGv44YCeEchiKOT4RoWTEUo-XGzQMOMC5DphzURk3vQzmHPUR1OXKn0h81TTlC-vT_AQHgbmq_kPk3EzR4K8RRihBvCiB1CcEiidql3P-jmFA2zo_e3gSi7eTER5mh6lT8OplgxUZo-QdI0M1zd40pu_9W3N2HYNOo3')"></div>
 <div class="absolute inset-x-0 bottom-0 p-1 bg-surface-container-highest/90 text-[9px] border-t border-primary/40 rounded-b">
-<p class="font-bold text-primary truncate">水のプロンプター</p>
+<p class="font-bold text-primary truncate">奔流海獣オルカーン</p>
 <p class="font-data-mono">3200 PW</p>
 </div>
 </div>
@@ -244,19 +244,19 @@
 <!-- Card 2 (Highlighted) -->
 <div class="w-20 h-24 bg-surface-container border border-primary-container/60 hand-card-highlight -translate-y-2 hover:-translate-y-4 transition-all cursor-pointer rounded-sm shadow-xl flex flex-col p-1 bg-primary-container/5">
 <div class="flex-grow bg-red-900/10 rounded-sm mb-1"></div>
-<span class="text-[8px] font-bold truncate">火のエージェント</span>
+<span class="text-[8px] font-bold truncate">紅蓮火翼ガルーダ</span>
 <span class="font-data-mono text-[8px] text-primary">1A</span>
 </div>
 <!-- Card 3 -->
 <div class="w-20 h-24 bg-surface-container border border-outline-variant hover:-translate-y-4 transition-all cursor-pointer rounded-sm shadow-xl flex flex-col p-1">
 <div class="flex-grow bg-green-900/10 rounded-sm mb-1"></div>
-<span class="text-[8px] font-bold truncate">風のエージェント</span>
+<span class="text-[8px] font-bold truncate">天翔風鹿シルフィード</span>
 <span class="font-data-mono text-[8px] text-primary">1A</span>
 </div>
 <!-- Card 4 -->
 <div class="w-20 h-24 bg-surface-container border border-secondary-container/40 bg-secondary-container/5 hover:-translate-y-4 transition-all cursor-pointer rounded-sm shadow-xl flex flex-col p-1">
 <div class="flex-grow bg-yellow-900/10 rounded-sm mb-1"></div>
-<span class="text-[8px] font-bold truncate">土のプロンプター</span>
+<span class="text-[8px] font-bold truncate">岩角多脚獣グラン</span>
 <span class="font-data-mono text-[8px] text-primary">2A</span>
 </div>
 <!-- Card 5 (Spent/Dimmed) -->
@@ -277,12 +277,12 @@
 <!-- Selected Card Detail -->
 <div class="w-[340px] flex gap-stack-md border-r border-outline-variant/20 pr-stack-md">
 <div class="w-24 aspect-[3/4] bg-surface-container-lowest border border-outline-variant overflow-hidden flex-shrink-0">
-<img alt="水のプロンプター" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZUYydlXmkM6R2XqfmkjBeqsNQM7fS7iyCz3An79YdmiopmcY3XO5G9NI0bci2x--4Fnpep9kNBN6HF15URbDMiiBVp-X-R9tk6PsWPPHX7ZGv44YCeEchiKOT4RoWTEUo-XGzQMOMC5DphzURk3vQzmHPUR1OXKn0h81TTlC-vT_AQHgbmq_kPk3EzR4K8RRihBvCiB1CcEiidql3P-jmFA2zo_e3gSi7eTER5mh6lT8OplgxUZo-QdI0M1zd40pu_9W3N2HYNOo3"/>
+<img alt="奔流海獣オルカーン" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZUYydlXmkM6R2XqfmkjBeqsNQM7fS7iyCz3An79YdmiopmcY3XO5G9NI0bci2x--4Fnpep9kNBN6HF15URbDMiiBVp-X-R9tk6PsWPPHX7ZGv44YCeEchiKOT4RoWTEUo-XGzQMOMC5DphzURk3vQzmHPUR1OXKn0h81TTlC-vT_AQHgbmq_kPk3EzR4K8RRihBvCiB1CcEiidql3P-jmFA2zo_e3gSi7eTER5mh6lT8OplgxUZo-QdI0M1zd40pu_9W3N2HYNOo3"/>
 </div>
 <div class="flex-grow flex flex-col">
 <div class="flex justify-between items-start">
 <div>
-<h3 class="text-primary-container font-bold text-sm leading-tight">水のプロンプター</h3>
+<h3 class="text-primary-container font-bold text-sm leading-tight">奔流海獣オルカーン</h3>
 <div class="flex gap-1 mt-1">
 <span class="text-[8px] px-1 bg-primary/10 text-primary border border-primary/20">中型 / 水</span>
 </div>
@@ -361,7 +361,7 @@
 <span class="text-[8px] text-on-surface-variant font-label-caps border-b border-outline-variant/20 pb-1 mb-1">BATTLE_LOG</span>
 <div class="flex-grow overflow-y-auto font-data-mono text-[9px] space-y-1">
 <p class="text-on-surface-variant">[10:04] 相手: 緊急パッチ 発動</p>
-<p class="text-secondary">[10:05] 水のプロンプター 召喚完了</p>
+<p class="text-secondary">[10:05] 奔流海獣オルカーン 召喚完了</p>
 <p class="text-on-surface-variant">[10:06] 残りアクション: 2</p>
 <p class="animate-pulse text-primary-container">[入力待機中...]</p>
 </div>

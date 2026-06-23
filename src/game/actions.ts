@@ -189,7 +189,7 @@ export function useCommandAtInDraft(
         : discardLowPriorityCards(player, 1);
       player.hand.push(recovered);
       text += ` ${recovered.name}をトラッシュから回収。`;
-      if (fuel.length > 0) text += ` ${fuel[0].name}を学習コストとしてトラッシュ。`;
+      if (fuel.length > 0) text += ` ${fuel[0].name}を代償としてトラッシュ。`;
     }
   } else if (used.effect === "sandbox") {
     player.sandboxShield = 1;
@@ -364,15 +364,15 @@ function overheatAttackerIfNeeded(
   if (attacker.sandboxShield > 0) {
     attacker.sandboxShield -= 1;
     attacker.spentFieldIndexes.add(fieldIndex);
-    addLog(draft, `${attacker.name}はサンドボックスで${attackCard.name}のオーバーヒートを防いだ。`);
+    addLog(draft, `${attacker.name}は守護結界で${attackCard.name}の攻撃後退場を防いだ。`);
     return;
   }
   attacker.discard.push(removeFieldCard(attacker, fieldIndex));
   const drawn = drawsAfterOverheat(attackCard) ? draw(attacker, 1) : 0;
-  addLog(draft, `${attacker.name}の${attackCard.name}は攻撃後にオーバーヒートして退場。${drawn ? `${drawn}枚引いた。` : ""}`);
+  addLog(draft, `${attacker.name}の${attackCard.name}は攻撃後に力を使い切って退場。${drawn ? `${drawn}枚引いた。` : ""}`);
   effects.showDuelEvent?.({
     kind: "trash",
-    title: "オーバーヒート退場",
+    title: "攻撃後退場",
     detail: `${attacker.name}の${attackCard.name}は攻撃後にトラッシュへ送られました。`,
     fromLabel: "場",
     toLabel: "トラッシュ",
@@ -443,17 +443,17 @@ export function performAiActionInDraft(
     const replaced = player.memory;
     if (replaced) player.discard.push(replaced);
     player.memory = memory;
-    addLog(draft, `${player.name}は${memory.name}をメモリーに配置。${replaced ? `${replaced.name}はトラッシュへ。` : ""}`);
+    addLog(draft, `${player.name}は${memory.name}を遺物に配置。${replaced ? `${replaced.name}はトラッシュへ。` : ""}`);
     effects.showDuelEvent?.({
       kind: "memory",
-      title: `${player.name}がメモリ配置`,
-      detail: `${memory.name}をメモリに配置。${replaced ? `${replaced.name}はトラッシュへ。` : ""}`,
+      title: `${player.name}が遺物配置`,
+      detail: `${memory.name}を遺物に配置。${replaced ? `${replaced.name}はトラッシュへ。` : ""}`,
       fromLabel: "手札",
-      toLabel: "メモリ",
+      toLabel: "遺物",
       tone: player.isHuman ? "magenta" : "cyan",
       cards: [
-        { card: memory, label: "メモリ", state: "neutral" },
-        ...(replaced ? [{ card: replaced, label: "旧メモリ", state: "trash" as const }] : []),
+        { card: memory, label: "遺物", state: "neutral" },
+        ...(replaced ? [{ card: replaced, label: "旧遺物", state: "trash" as const }] : []),
       ],
     });
     afterAction(draft);

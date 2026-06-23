@@ -145,11 +145,23 @@ export function addLog(game: GameState, message: string): void {
 }
 
 export function cardPool(): Card[] {
-  const names: Record<number, string> = {
-    1: "チャットボット",
-    2: "プロンプター",
-    3: "エージェント",
-    4: "コアAI",
+  const monsterNames: Record<string, string> = {
+    "AI-FIRE-1": "火蜥蜴サラマンダー",
+    "AI-FIRE-2": "溶岩甲獣バサルト",
+    "AI-FIRE-3": "紅蓮火翼ガルーダ",
+    "AI-FIRE-4": "黒焔の古竜ヴァルガ",
+    "AI-WATER-1": "水精リュミナ",
+    "AI-WATER-2": "水晶甲羅セルキー",
+    "AI-WATER-3": "奔流海獣オルカーン",
+    "AI-WATER-4": "蒼潮リヴァイアサン",
+    "AI-WIND-1": "綿風小狐フルーフ",
+    "AI-WIND-2": "翡翠風刃マンティス",
+    "AI-WIND-3": "天翔風鹿シルフィード",
+    "AI-WIND-4": "雲海の翼鯨ミストラル",
+    "AI-EARTH-1": "苔帽子のモール",
+    "AI-EARTH-2": "古代甲羅ガメル",
+    "AI-EARTH-3": "岩角多脚獣グラン",
+    "AI-EARTH-4": "山脈の古巨獣ガイアス",
   };
   const aiEffects = new Map<string, AiEffect>([
     ["AI-FIRE-2", "attack_plus_1"],
@@ -169,7 +181,7 @@ export function cardPool(): Card[] {
         const effect: CardEffect = aiEffects.get(id) ?? "";
         return {
           id,
-          name: `${attribute}の${names[power]}`,
+          name: monsterNames[id],
           type: "ai" as const,
           attribute,
           power,
@@ -179,14 +191,14 @@ export function cardPool(): Card[] {
     );
   return [
     ...aiCards,
-    { id: "CMD-OPTIMIZE", name: "最適化", type: "event", effect: "optimize" },
-    { id: "CMD-PATCH", name: "緊急パッチ", type: "event", effect: "patch" },
-    { id: "CMD-DISRUPT", name: "妨害コード", type: "event", effect: "disrupt" },
-    { id: "CMD-RELEARN", name: "再学習", type: "event", effect: "relearn" },
-    { id: "CMD-SANDBOX", name: "サンドボックス", type: "event", effect: "sandbox" },
-    { id: "MEM-FIREWALL", name: "ファイアウォール", type: "memory", effect: "firewall" },
-    { id: "MEM-CACHE", name: "キャッシュ領域", type: "memory", effect: "cache" },
-    { id: "MEM-PIPELINE", name: "パイプライン", type: "memory", effect: "pipeline" },
+    { id: "CMD-OPTIMIZE", name: "戦術整理", type: "event", effect: "optimize" },
+    { id: "CMD-PATCH", name: "癒し薬草", type: "event", effect: "patch" },
+    { id: "CMD-DISRUPT", name: "絡め蔦", type: "event", effect: "disrupt" },
+    { id: "CMD-RELEARN", name: "追憶の巻物", type: "event", effect: "relearn" },
+    { id: "CMD-SANDBOX", name: "守護結界", type: "event", effect: "sandbox" },
+    { id: "MEM-FIREWALL", name: "守護の紋章", type: "memory", effect: "firewall" },
+    { id: "MEM-CACHE", name: "旅人の鞄", type: "memory", effect: "cache" },
+    { id: "MEM-PIPELINE", name: "精霊の水脈", type: "memory", effect: "pipeline" },
   ];
 }
 
@@ -194,7 +206,7 @@ export const CARD_BY_ID = new Map(cardPool().map((card) => [card.id, card]));
 
 export const DECKS = {
   break: {
-    name: "突破デッキ",
+    name: "紅蓮突破デッキ",
     cards: [
       "AI-FIRE-1",
       "AI-FIRE-1",
@@ -219,7 +231,7 @@ export const DECKS = {
     ],
   },
   control: {
-    name: "制御デッキ",
+    name: "大地守護デッキ",
     cards: [
       "AI-EARTH-1",
       "AI-EARTH-1",
@@ -409,7 +421,7 @@ export function createGame(seed: number): GameState {
     seed,
     players: [
       makePlayer("あなた", true, "break", rng),
-      makePlayer("相手AI", false, "control", rng),
+      makePlayer("ライバル", false, "control", rng),
     ],
     active: 0,
     turn: 0,
@@ -580,9 +592,9 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "draw_on_play") return "登場時 1枚引く";
   if (card.effect === "filter_on_play") return "登場時 2枚引いて1枚捨てる";
   if (card.effect === "no_spend_after_attack") return "攻撃しても消耗しない";
-  if (card.effect === "spend_enemy_on_play") return "登場時、相手の未消耗AI1体を消耗";
+  if (card.effect === "spend_enemy_on_play") return "登場時、相手の未消耗召喚獣1体を消耗";
   if (card.effect === "defense_plus_1") return "防御値 +1";
-  if (card.effect === "recover_ai_on_play") return "登場時、手札1枚以下ならトラッシュのAI1枚を回収";
+  if (card.effect === "recover_ai_on_play") return "登場時、手札1枚以下ならトラッシュの召喚獣1枚を回収";
   return "効果なし";
 }
 

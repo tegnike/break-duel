@@ -13,7 +13,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="break-duel")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    simulate = subparsers.add_parser("simulate", help="Run many AI matches.")
+    simulate = subparsers.add_parser("simulate", help="Run many automated matches.")
     simulate.add_argument("--games", type=int, default=1000)
     simulate.add_argument("--seed", type=int, default=1)
     simulate.add_argument("--out", type=Path, default=Path("tmp"))
@@ -79,7 +79,7 @@ def main() -> None:
         action="store_false",
     )
 
-    match = subparsers.add_parser("match", help="Run one AI match and print its log.")
+    match = subparsers.add_parser("match", help="Run one automated match and print its log.")
     match.add_argument("--seed", type=int, default=1)
     match.add_argument("--first-deck", choices=[item.value for item in DeckArchetype])
     match.add_argument("--second-deck", choices=[item.value for item in DeckArchetype])

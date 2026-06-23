@@ -261,7 +261,7 @@ export default function App() {
         card,
         from: { ownerIndex: 1, zone: "hand-source", index: 0 },
         to: { ownerIndex: 1, zone: "memory", index: 0 },
-        label: "CPU メモリ",
+        label: "ライバル 遺物",
         tone: "ai",
         durationMs: 1700,
       });
@@ -342,7 +342,7 @@ export default function App() {
   useEffect(() => {
     if (page !== "duel") return;
     if (game.winner === null && !game.draw) return;
-    const score = `あなた ${human.life} - ${ai.life} 相手AI`;
+    const score = `あなた ${human.life} - ${ai.life} ライバル`;
     const winnerIndex = game.winner ?? 0;
     showBanner({
       kind: "result",
@@ -503,7 +503,7 @@ export default function App() {
       card: memoryCard,
       from: { ownerIndex: 0, zone: "hand", index: game.selected.index },
       to: { ownerIndex: 0, zone: "memory", index: 0 },
-      label: "メモリへ",
+      label: "遺物へ",
     });
     mutate((draft) => {
       if (draft.selected?.zone !== "hand") return;
@@ -514,11 +514,11 @@ export default function App() {
       const replaced = player.memory;
       if (replaced) player.discard.push(replaced);
       player.memory = memoryCard;
-      addLog(draft, `${player.name}は${memoryCard.name}をメモリーに配置。${replaced ? `${replaced.name}はトラッシュへ。` : ""}`);
+      addLog(draft, `${player.name}は${memoryCard.name}を遺物に配置。${replaced ? `${replaced.name}はトラッシュへ。` : ""}`);
       draft.selected = null;
       afterAction(draft);
     });
-    showToast("メモリー配置", selectedHandCardName(game));
+    showToast("遺物配置", selectedHandCardName(game));
     playSfx("command");
   }
 
@@ -594,8 +594,8 @@ export default function App() {
           kind: "hand-discard",
           reason: "relearn",
           playerIndex: draft.active,
-          title: `${command.name}の学習コストを選択`,
-          prompt: "トラッシュからAIを回収するため、手札を1枚選んで捨てます。",
+          title: `${command.name}の代償を選択`,
+          prompt: "トラッシュから召喚獣を回収するため、手札を1枚選んで捨てます。",
           min: 1,
           max: 1,
           excludeIndexes: [sourceIndex],
@@ -737,7 +737,7 @@ export default function App() {
   const playButtonLabel = selectedCard?.type === "event"
     ? "使用"
     : selectedCard?.type === "memory"
-      ? "メモリー配置"
+      ? "遺物配置"
       : "場に出す";
   const selectedHand = game.selected?.zone === "hand";
   const selectedField = game.selected?.zone === "field";
@@ -1036,7 +1036,7 @@ function MemorySlot({ player, ownerIndex, isOpponent }: { player: PlayerState; o
   if (player.memory) {
     return <CardView card={player.memory} ownerIndex={ownerIndex} zone="memory" index={0} showCost={false} />;
   }
-  return <div className="field-slot memory-empty" data-owner={ownerIndex} data-zone="memory" data-index={0}>メモリ</div>;
+  return <div className="field-slot memory-empty" data-owner={ownerIndex} data-zone="memory" data-index={0}>遺物</div>;
 }
 
 function CardFlightLayer({ flight }: { flight: CardFlight | null }) {

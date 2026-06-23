@@ -216,10 +216,10 @@ def _play_ai(state: GameState, action: Action) -> None:
     if action.source_index is None:
         raise ValueError("PLAY_AI requires a hand index.")
     if len(player.field_ai) >= state.config.field_ai_limit:
-        raise ValueError("AI field is full.")
+        raise ValueError("Summon field is full.")
     card = player.hand.pop(action.source_index)
     if card.type != CardType.AI:
-        raise ValueError("Only AI character cards can be played with PLAY_AI.")
+        raise ValueError("Only summon cards can be played with PLAY_AI.")
     player.field_ai.append(card)
     field_index = len(player.field_ai) - 1
     drawn = 0
@@ -255,7 +255,7 @@ def _play_memory(state: GameState, action: Action) -> None:
     card = player.hand.pop(action.source_index)
     if card.type != CardType.MEMORY:
         player.hand.insert(action.source_index, card)
-        raise ValueError("Only memory cards can be played with PLAY_MEMORY.")
+        raise ValueError("Only relic cards can be played with PLAY_MEMORY.")
     replaced = player.memory
     if replaced is not None:
         player.discard.append(replaced)
@@ -282,10 +282,10 @@ def _upgrade_ai(state: GameState, action: Action) -> None:
     source = player.field_ai[action.target_index]
     if card.type != CardType.AI:
         player.hand.insert(action.source_index, card)
-        raise ValueError("Only AI character cards can upgrade.")
+        raise ValueError("Only summon cards can upgrade.")
     if not _can_upgrade(source, card):
         player.hand.insert(action.source_index, card)
-        raise ValueError("Upgrade requires a lower-power AI with the same attribute.")
+        raise ValueError("Upgrade requires a lower-power summon with the same attribute.")
 
     player.discard.append(source)
     player.ai_lost += 1
@@ -325,7 +325,7 @@ def _attack(state: GameState, action: Action) -> None:
     if action.source_index is None:
         raise ValueError("ATTACK requires a field index.")
     if action.source_index in attacker.spent_field_ai:
-        raise ValueError("This AI has already acted this turn.")
+        raise ValueError("This summon has already acted this turn.")
     attack_ai = attacker.field_ai[action.source_index]
     defense_index = choose_defender(
         attack_ai,
@@ -418,7 +418,7 @@ def _attack(state: GameState, action: Action) -> None:
             else:
                 defender.spent_field_ai.add(defense_index)
         else:
-            # The phase-1 AI should not choose this, but the engine supports it.
+            # The phase-1 automated player should not choose this, but the engine supports it.
             lost_ai = _remove_field_ai(defender, defense_index)
             defender.discard.append(lost_ai)
             defender.ai_lost += 1
@@ -507,10 +507,10 @@ def _use_command(state: GameState, action: Action) -> None:
             ready_index = _highest_power_spent_ai(player)
         if ready_index is None:
             player.hand.insert(action.source_index, command)
-            raise ValueError("Patch requires a spent AI.")
+            raise ValueError("Patch requires a spent summon.")
         if ready_index not in player.spent_field_ai:
             player.hand.insert(action.source_index, command)
-            raise ValueError("Patch target must be a spent AI.")
+            raise ValueError("Patch target must be a spent summon.")
         player.spent_field_ai.remove(ready_index)
         player.discard.append(command)
         result |= {"readied_ai": player.field_ai[ready_index].id}
@@ -520,7 +520,7 @@ def _use_command(state: GameState, action: Action) -> None:
             target_index = _highest_power_ready_ai(opponent)
         if target_index is None:
             player.hand.insert(action.source_index, command)
-            raise ValueError("Disrupt requires a ready opposing AI.")
+            raise ValueError("Disrupt requires a ready opposing summon.")
         if target_index < 0 or target_index >= len(opponent.field_ai):
             player.hand.insert(action.source_index, command)
             raise ValueError("Disrupt target is out of range.")
@@ -536,13 +536,13 @@ def _use_command(state: GameState, action: Action) -> None:
             target_index = _highest_power_ai_in_discard(player)
         if target_index is None:
             player.hand.insert(action.source_index, command)
-            raise ValueError("Relearn requires an AI in discard.")
+            raise ValueError("Relearn requires a summon in discard.")
         if target_index < 0 or target_index >= len(player.discard):
             player.hand.insert(action.source_index, command)
             raise ValueError("Relearn target is out of range.")
         if player.discard[target_index].type != CardType.AI:
             player.hand.insert(action.source_index, command)
-            raise ValueError("Relearn target must be an AI.")
+            raise ValueError("Relearn target must be a summon.")
         recovered = player.discard.pop(target_index)
         fuel = _discard_low_priority_cards(player, 1)
         player.hand.append(recovered)
@@ -561,7 +561,7 @@ def _use_command(state: GameState, action: Action) -> None:
         target_index = _ready_power_4_ai(player)
         if target_index is None:
             player.hand.insert(action.source_index, command)
-            raise ValueError("Sandbox requires a ready power 4 AI.")
+            raise ValueError("Sandbox requires a ready power 4 summon.")
         player.pending_effects["sandbox_shield"] = 1
         player.discard.append(command)
         result |= {"sandbox_target": player.field_ai[target_index].id}
