@@ -307,8 +307,6 @@ def _defense_power_bonus(
     attack_ai=None,
 ) -> int:
     bonus = 0
-    if card.type == CardType.AI and card.power == 2:
-        bonus += power_2_defense_bonus
     if (
         defender is not None
         and attack_ai is not None

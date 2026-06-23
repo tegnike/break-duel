@@ -213,8 +213,9 @@ export function DeckBuilderPage() {
           <p>20枚 / 同名2枚まで / JSON保存</p>
         </div>
         <div className="workshop-actions">
-          <button type="button" onClick={() => loadPreset("break")}>突破</button>
-          <button type="button" onClick={() => loadPreset("control")}>制御</button>
+          {(Object.keys(DECKS) as (keyof typeof DECKS)[]).map((deckId) => (
+            <button type="button" key={deckId} onClick={() => loadPreset(deckId)}>{DECKS[deckId].name}</button>
+          ))}
           <button type="button" onClick={clearDeck}>クリア</button>
         </div>
       </div>

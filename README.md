@@ -12,9 +12,14 @@ structure and handoff notes.
 See [`docs/evolution-design.md`](docs/evolution-design.md) for the next-phase
 design plan.
 
-- Two 20-card decks:
+- Standard 20-card decks:
   - Player 1 uses `突破デッキ`, focused on fire/water pressure and disruption.
   - Player 2 uses `制御デッキ`, focused on wind/earth defense and recursion.
+- Four mono-attribute 20-card decks are available for balance leagues:
+  - `fire`: pressure, disruption, sandboxed power-4 attacks.
+  - `water`: draw, filtering, and recursion.
+  - `wind`: tempo, ready/spent control, and reusable attackers.
+  - `earth`: defense, firewall, and recursion.
 - Two actions every turn.
 - The game ends by life judgement after 60 player turns if neither player has
   lost by life damage.
@@ -29,11 +34,15 @@ design plan.
   higher-power hand AI for 1 less action than normal play, minimum 1 action.
 - There is no default hand limit. Hand size is controlled through card effects
   and hand defense instead of automatic end-of-turn cleanup.
-- AI roles by power:
-  - power 1: costs 1 action and draws 1 card when played.
-  - power 2: costs 1 action and gets +1 power while defending.
-  - power 3: costs 2 actions and can defend immediately after entering.
-  - power 4: costs 2 actions, enters spent, and goes to discard after attacking.
+- AI cards have base power roles plus selected individual effects:
+  - power 1/2: costs 1 action and works well as upgrade material.
+  - power 3: costs 2 actions as a mid-size AI.
+  - power 4: costs 2 actions and goes to discard after attacking.
+  - only some AI cards have effects such as attack value +1, draw on play,
+    no spent state after attacking, or defense value +1.
+  - attribute themes are intentionally loose: fire pressures and keeps its core
+    online, water draws and filters, wind spends opposing AI, and earth defends
+    or recovers AI from discard.
 - Command cards cost 1 action and go to discard after use:
   - `最適化`: discard up to 2 hand cards, then draw 2 cards.
   - `緊急パッチ`: ready 1 spent friendly AI.
@@ -50,11 +59,11 @@ design plan.
   - In the browser UI, human players choose which hand card to discard for
     discard-cost effects such as `最適化`, `再学習`, `ファイアウォール`,
     and `パイプライン`.
-- Attribute-based defense checks. Any AI can attempt to defend against any
-  attribute, but attribute matchup changes the defense value:
-  - defense value = defender power + defense bonus + attribute modifier.
-  - advantaged defender gets +1.
-  - disadvantaged defender gets -1.
+- Attribute matchup is not used. Any AI can attempt to defend against any
+  attribute, and attribute differences are expressed through individual AI card
+  effects:
+  - attack value = attacker power + attacker AI effect.
+  - defense value = defender power + defender AI effect + defense bonus.
   - equal defense and attack values trade; higher defense value lets the blocker
     survive spent.
 - Once per turn, a player may defend from hand with any AI character that
@@ -69,7 +78,7 @@ design plan.
 - Field defense is resolved by numbers: if defense value equals attack value,
   both AI go to discard; if defense value is higher, only the attacker goes to
   discard and the defender stays on the field spent. Lower-power AI can still
-  matter through attribute advantage or the power-2 defense bonus.
+  matter through individual AI effects.
 - Failed or undefended attacks deal 1 life damage. They do not draw a card.
 - If the deck is empty, draw effects simply draw 0 cards. Discard is not
   automatically reshuffled into the deck.
@@ -95,8 +104,15 @@ asset pack under Creative Commons CC0.
 python3 -m ai_break_duel.cli simulate --games 1000 --seed 1 --out tmp
 ```
 
-Use `--same-attribute-lenient` to reproduce the first draft where same-attribute
-defense succeeds at equal power.
+Run a mono-attribute round-robin league:
+
+```bash
+python3 -m ai_break_duel.cli league --games-per-pair 1000 --seed 4701 --out tmp/feature_league_4701
+```
+
+The legacy `--advantage-bonus`, `--disadvantage-penalty`, and
+`--same-attribute-*` options are retained for CLI compatibility, but current
+rules do not use attribute matchup bonuses.
 
 Hand defense is limited to once per turn by default. Use
 `--hand-defense-limit 0` to disable hand defense. Use
@@ -106,6 +122,12 @@ The command writes:
 
 - `tmp/summary.json`
 - `tmp/matches.jsonl`
+
+The league command writes `league-summary.json` under the selected output
+directory.
+
+The latest 4-deck mono-attribute balance check with seed `4701` produced deck
+win rates in roughly the 46% to 53% range.
 
 ## Play UI
 

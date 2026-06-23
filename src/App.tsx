@@ -549,7 +549,7 @@ export default function App() {
       player.field[sourceIndex] = card;
       player.spentFieldIndexes.delete(sourceIndex);
       let text = `${player.name}は${source.name}を元に${card.name}へアップグレード。`;
-      text += applyPlayEffects(draft, player, card, sourceIndex, cost);
+      text += applyPlayEffects(draft, player, card, sourceIndex, cost, source);
       addLog(draft, text);
       draft.selected = null;
       if (!draft.pendingTarget) afterAction(draft, cost);

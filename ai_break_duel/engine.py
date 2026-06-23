@@ -7,16 +7,29 @@ from .ai import choose_defender, choose_hand_defender
 from .cards import (
     CardType,
     CommandEffect,
+    DeckArchetype,
     MemoryEffect,
+    attack_combat_value,
+    build_deck,
     build_player_deck,
     can_defend,
     defense_combat_value,
+    draws_after_overheat,
+    draws_on_play,
+    filters_on_play,
+    keeps_ready_after_attack,
+    recovers_ai_on_play,
+    spends_enemy_on_play,
     validate_same_name_limit,
 )
 from .models import Action, ActionType, GameConfig, GameState, PlayerState
 
 
-def new_game(seed: int, config: GameConfig | None = None) -> GameState:
+def new_game(
+    seed: int,
+    config: GameConfig | None = None,
+    decks: tuple[DeckArchetype, DeckArchetype] | None = None,
+) -> GameState:
     config = config or GameConfig()
     rng = Random(seed)
     players = [
@@ -25,7 +38,7 @@ def new_game(seed: int, config: GameConfig | None = None) -> GameState:
     ]
     initial_hands = []
     for index, player in enumerate(players):
-        deck = build_player_deck(index)
+        deck = build_deck(decks[index]) if decks is not None else build_player_deck(index)
         validate_same_name_limit(deck)
         rng.shuffle(deck)
         player.deck = deck
@@ -212,8 +225,9 @@ def _play_ai(state: GameState, action: Action) -> None:
     drawn = 0
     if state.config.power_4_enters_spent and card.power == 4:
         player.spent_field_ai.add(field_index)
-    if state.config.power_1_draws_on_play and card.power == 1:
+    if state.config.power_1_draws_on_play and draws_on_play(card):
         drawn = player.draw(1, state.rng)
+    enter_effect = _apply_ai_enter_effect(state, player, card)
     pipeline = _apply_pipeline_memory(state, player, card)
     state.stats.record_card_usage(card.id, "played")
     state.log.append(
@@ -223,6 +237,10 @@ def _play_ai(state: GameState, action: Action) -> None:
             "result": "played",
             "action_cost": _play_cost(state, card),
             "draw_count": drawn,
+            "effect_draw_count": enter_effect["draw_count"],
+            "effect_discarded_card": enter_effect["discarded_card"],
+            "effect_spent_ai": enter_effect["spent_ai"],
+            "effect_recovered_ai": enter_effect["recovered_ai"],
             "pipeline_draw_count": pipeline["draw_count"],
             "pipeline_discarded_card": pipeline["discarded_card"],
             "field": _field_state(state),
@@ -276,8 +294,9 @@ def _upgrade_ai(state: GameState, action: Action) -> None:
     drawn = 0
     if state.config.power_4_enters_spent and card.power == 4:
         player.spent_field_ai.add(action.target_index)
-    if state.config.power_1_draws_on_play and card.power == 1:
+    if state.config.power_1_draws_on_play and draws_on_play(card):
         drawn = player.draw(1, state.rng)
+    enter_effect = _apply_ai_enter_effect(state, player, card, excluded_recover_card=source)
     pipeline = _apply_pipeline_memory(state, player, card)
     state.stats.record_card_usage(card.id, "upgraded")
     state.stats.record_card_usage(source.id, "upgrade_source")
@@ -289,6 +308,10 @@ def _upgrade_ai(state: GameState, action: Action) -> None:
             "result": "upgraded",
             "action_cost": _upgrade_cost(state, card),
             "draw_count": drawn,
+            "effect_draw_count": enter_effect["draw_count"],
+            "effect_discarded_card": enter_effect["discarded_card"],
+            "effect_spent_ai": enter_effect["spent_ai"],
+            "effect_recovered_ai": enter_effect["recovered_ai"],
             "pipeline_draw_count": pipeline["draw_count"],
             "pipeline_discarded_card": pipeline["discarded_card"],
             "field": _field_state(state),
@@ -331,7 +354,7 @@ def _attack(state: GameState, action: Action) -> None:
 
     state.stats.attacks += 1
     state.stats.record_card_usage(attack_ai.id, "attacked")
-    if state.config.exhaust_after_attack:
+    if state.config.exhaust_after_attack and not keeps_ready_after_attack(attack_ai):
         attacker.spent_field_ai.add(action.source_index)
 
     if defense_index is None:
@@ -379,7 +402,8 @@ def _attack(state: GameState, action: Action) -> None:
                     attack_ai,
                 ),
             )
-            defense_result = "success_trade" if defense_value == attack_ai.power else "success"
+            attack_value = attack_combat_value(attack_ai)
+            defense_result = "success_trade" if defense_value == attack_value else "success"
             firewall_discarded_card = _discard_firewall_fuel(
                 state,
                 defender,
@@ -388,7 +412,7 @@ def _attack(state: GameState, action: Action) -> None:
             )
             attacker.discard.append(_remove_field_ai(attacker, action.source_index))
             attacker.ai_lost += 1
-            if defense_value == attack_ai.power:
+            if defense_value == attack_value:
                 defender.discard.append(_remove_field_ai(defender, defense_index))
                 defender.ai_lost += 1
             else:
@@ -424,6 +448,7 @@ def _attack(state: GameState, action: Action) -> None:
             "draw_count": draw_count,
             "attacker_overheated": attacker_overheated,
             "sandbox_command_used": overheat["sandbox_command_used"],
+            "overheat_draw_count": overheat["overheat_draw_count"],
             "firewall_discarded_card": firewall_discarded_card.id if firewall_discarded_card else None,
             "life": [player.life for player in state.players],
             "field": _field_state(state),
@@ -636,6 +661,7 @@ def _overheat_attacker_after_attack(
     result = {
         "overheated": False,
         "sandbox_command_used": False,
+        "overheat_draw_count": 0,
     }
     if not state.config.power_4_overheats_after_attack:
         return result
@@ -655,6 +681,9 @@ def _overheat_attacker_after_attack(
         return result
     attacker.discard.append(_remove_field_ai(attacker, attack_index))
     attacker.ai_lost += 1
+    if draws_after_overheat(attack_ai):
+        result["overheat_draw_count"] = attacker.draw(1, state.rng)
+        state.stats.record_card_usage(attack_ai.id, "overheat_draw")
     state.stats.record_card_usage(attack_ai.id, "overheated")
     result["overheated"] = True
     return result
@@ -712,8 +741,6 @@ def _defense_power_bonus(
     attack_ai=None,
 ) -> int:
     bonus = 0
-    if card.type == CardType.AI and card.power == 2:
-        bonus += state.config.power_2_defense_bonus
     if (
         attack_ai is not None
         and defender.memory is not None
@@ -790,11 +817,11 @@ def _ready_power_4_ai(player: PlayerState) -> int | None:
     return max(candidates, key=lambda item: item[1].id)[0]
 
 
-def _highest_power_ai_in_discard(player: PlayerState) -> int | None:
+def _highest_power_ai_in_discard(player: PlayerState, excluded_card=None) -> int | None:
     candidates = [
         (index, card)
         for index, card in enumerate(player.discard)
-        if card.type == CardType.AI
+        if card.type == CardType.AI and card is not excluded_card
     ]
     if not candidates:
         return None
@@ -857,6 +884,41 @@ def _apply_turn_start_memory(state: GameState) -> int:
     if drawn:
         state.stats.record_card_usage(player.memory.id, "turn_start_draw")
     return drawn
+
+
+def _apply_ai_enter_effect(
+    state: GameState,
+    player: PlayerState,
+    played_card,
+    excluded_recover_card=None,
+) -> dict[str, Any]:
+    result = {
+        "draw_count": 0,
+        "discarded_card": None,
+        "spent_ai": None,
+        "recovered_ai": None,
+    }
+    if filters_on_play(played_card):
+        result["draw_count"] = player.draw(2, state.rng)
+        if player.hand:
+            discarded = _discard_low_priority_cards(player, 1)
+            result["discarded_card"] = discarded[0].id if discarded else None
+        state.stats.record_card_usage(played_card.id, "filtered")
+    if spends_enemy_on_play(played_card):
+        target_index = _highest_power_ready_ai(state.opponent())
+        if target_index is not None:
+            target = state.opponent().field_ai[target_index]
+            state.opponent().spent_field_ai.add(target_index)
+            result["spent_ai"] = target.id
+            state.stats.record_card_usage(played_card.id, "spent_enemy")
+    if recovers_ai_on_play(played_card) and len(player.hand) <= 1:
+        target_index = _highest_power_ai_in_discard(player, excluded_card=excluded_recover_card)
+        if target_index is not None:
+            recovered = player.discard.pop(target_index)
+            player.hand.append(recovered)
+            result["recovered_ai"] = recovered.id
+            state.stats.record_card_usage(played_card.id, "recovered_ai")
+    return result
 
 
 def _apply_pipeline_memory(

@@ -1,8 +1,17 @@
 export type Attribute = "火" | "水" | "風" | "土";
 export type CardType = "ai" | "event" | "memory";
+export type AiEffect =
+  | "attack_plus_1"
+  | "draw_after_overheat"
+  | "draw_on_play"
+  | "filter_on_play"
+  | "no_spend_after_attack"
+  | "spend_enemy_on_play"
+  | "defense_plus_1"
+  | "recover_ai_on_play";
 export type CommandEffect = "optimize" | "patch" | "disrupt" | "relearn" | "sandbox";
 export type MemoryEffect = "firewall" | "cache" | "pipeline";
-export type CardEffect = CommandEffect | MemoryEffect | "";
+export type CardEffect = AiEffect | CommandEffect | MemoryEffect | "";
 export type Zone = "hand" | "field" | "memory" | "discard";
 
 export type Card = {
@@ -93,13 +102,6 @@ export const ATTRIBUTES: Record<Attribute, { code: string; color: string }> = {
   土: { code: "EARTH", color: "#a36a24" },
 };
 
-export const ADVANTAGE: Record<Attribute, Attribute> = {
-  水: "火",
-  火: "風",
-  風: "土",
-  土: "水",
-};
-
 export const COMMAND_COLOR = "#8b5cf6";
 export const MEMORY_COLOR = "#f59e0b";
 
@@ -124,7 +126,7 @@ export const CONFIG = {
   power1DrawsOnPlay: true,
   power2DefenseBonus: 1,
   largeAiPlayCost: 2,
-  power4EntersSpent: true,
+  power4EntersSpent: false,
   power4OverheatsAfterAttack: true,
   handLimit: null as number | null,
 };
@@ -149,15 +151,31 @@ export function cardPool(): Card[] {
     3: "エージェント",
     4: "コアAI",
   };
-  const aiCards = (Object.entries(ATTRIBUTES) as [Attribute, { code: string; color: string }][])
+  const aiEffects = new Map<string, AiEffect>([
+    ["AI-FIRE-2", "attack_plus_1"],
+    ["AI-FIRE-4", "draw_after_overheat"],
+    ["AI-WATER-1", "draw_on_play"],
+    ["AI-WATER-2", "filter_on_play"],
+    ["AI-WATER-3", "draw_on_play"],
+    ["AI-WIND-1", "no_spend_after_attack"],
+    ["AI-WIND-3", "spend_enemy_on_play"],
+    ["AI-EARTH-2", "defense_plus_1"],
+    ["AI-EARTH-4", "recover_ai_on_play"],
+  ]);
+  const aiCards: Card[] = (Object.entries(ATTRIBUTES) as [Attribute, { code: string; color: string }][])
     .flatMap(([attribute, meta]) =>
-      [1, 2, 3, 4].map((power) => ({
-        id: `AI-${meta.code}-${power}`,
-        name: `${attribute}の${names[power]}`,
-        type: "ai" as const,
-        attribute,
-        power,
-      })),
+      [1, 2, 3, 4].map((power) => {
+        const id = `AI-${meta.code}-${power}`;
+        const effect: CardEffect = aiEffects.get(id) ?? "";
+        return {
+          id,
+          name: `${attribute}の${names[power]}`,
+          type: "ai" as const,
+          attribute,
+          power,
+          effect,
+        };
+      }),
     );
   return [
     ...aiCards,
@@ -223,6 +241,106 @@ export const DECKS = {
       "CMD-PATCH",
       "CMD-OPTIMIZE",
       "MEM-FIREWALL",
+    ],
+  },
+  fire: {
+    name: "火単色デッキ",
+    cards: [
+      "AI-FIRE-1",
+      "AI-FIRE-1",
+      "AI-FIRE-2",
+      "AI-FIRE-2",
+      "AI-FIRE-3",
+      "AI-FIRE-3",
+      "AI-FIRE-4",
+      "AI-FIRE-4",
+      "CMD-DISRUPT",
+      "CMD-DISRUPT",
+      "CMD-SANDBOX",
+      "CMD-SANDBOX",
+      "CMD-PATCH",
+      "CMD-PATCH",
+      "CMD-OPTIMIZE",
+      "CMD-OPTIMIZE",
+      "MEM-PIPELINE",
+      "MEM-PIPELINE",
+      "MEM-CACHE",
+      "MEM-CACHE",
+    ],
+  },
+  water: {
+    name: "水単色デッキ",
+    cards: [
+      "AI-WATER-1",
+      "AI-WATER-1",
+      "AI-WATER-2",
+      "AI-WATER-2",
+      "AI-WATER-3",
+      "AI-WATER-3",
+      "AI-WATER-4",
+      "AI-WATER-4",
+      "CMD-OPTIMIZE",
+      "CMD-OPTIMIZE",
+      "CMD-RELEARN",
+      "CMD-RELEARN",
+      "CMD-PATCH",
+      "CMD-PATCH",
+      "CMD-DISRUPT",
+      "CMD-DISRUPT",
+      "MEM-CACHE",
+      "MEM-CACHE",
+      "MEM-PIPELINE",
+      "MEM-PIPELINE",
+    ],
+  },
+  wind: {
+    name: "風単色デッキ",
+    cards: [
+      "AI-WIND-1",
+      "AI-WIND-1",
+      "AI-WIND-2",
+      "AI-WIND-2",
+      "AI-WIND-3",
+      "AI-WIND-3",
+      "AI-WIND-4",
+      "AI-WIND-4",
+      "CMD-DISRUPT",
+      "CMD-DISRUPT",
+      "CMD-PATCH",
+      "CMD-PATCH",
+      "CMD-SANDBOX",
+      "CMD-SANDBOX",
+      "CMD-RELEARN",
+      "CMD-RELEARN",
+      "MEM-PIPELINE",
+      "MEM-PIPELINE",
+      "MEM-FIREWALL",
+      "MEM-FIREWALL",
+    ],
+  },
+  earth: {
+    name: "土単色デッキ",
+    cards: [
+      "AI-EARTH-1",
+      "AI-EARTH-1",
+      "AI-EARTH-2",
+      "AI-EARTH-2",
+      "AI-EARTH-3",
+      "AI-EARTH-3",
+      "AI-EARTH-4",
+      "AI-EARTH-4",
+      "CMD-SANDBOX",
+      "CMD-SANDBOX",
+      "CMD-PATCH",
+      "CMD-PATCH",
+      "CMD-OPTIMIZE",
+      "CMD-OPTIMIZE",
+      "CMD-DISRUPT",
+      "CMD-DISRUPT",
+      "MEM-FIREWALL",
+      "MEM-FIREWALL",
+      "MEM-PIPELINE",
+      "MEM-PIPELINE",
     ],
   },
 } as const;
@@ -442,26 +560,58 @@ export function bestUpgradeSource(player: PlayerState, targetCard: Card): number
 }
 
 export function matchupModifier(defenseAttribute: Attribute, attackAttribute: Attribute): number {
-  if (defenseAttribute === attackAttribute) return 0;
-  if (ADVANTAGE[defenseAttribute] === attackAttribute) return CONFIG.advantageBonus;
-  if (ADVANTAGE[attackAttribute] === defenseAttribute) return -CONFIG.disadvantagePenalty;
+  void defenseAttribute;
+  void attackAttribute;
   return 0;
 }
 
 export function matchupLabel(defenseAttribute: Attribute, attackAttribute: Attribute): string {
   if (defenseAttribute === attackAttribute) return "同属性";
-  if (ADVANTAGE[defenseAttribute] === attackAttribute) return "有利";
-  if (ADVANTAGE[attackAttribute] === defenseAttribute) return "不利";
-  return "中立";
+  return "別属性";
 }
 
-export function weakAgainst(attribute: Attribute): Attribute {
-  return (Object.entries(ADVANTAGE) as [Attribute, Attribute][])
-    .find(([, target]) => target === attribute)?.[0] ?? attribute;
+export function attackCombatValue(card: Card): number {
+  return (card.power ?? 0) + (card.effect === "attack_plus_1" ? 1 : 0);
+}
+
+export function aiEffectText(card: Card): string {
+  if (card.effect === "attack_plus_1") return "攻撃値 +1";
+  if (card.effect === "draw_after_overheat") return "攻撃後退場時に1枚引く";
+  if (card.effect === "draw_on_play") return "登場時 1枚引く";
+  if (card.effect === "filter_on_play") return "登場時 2枚引いて1枚捨てる";
+  if (card.effect === "no_spend_after_attack") return "攻撃しても消耗しない";
+  if (card.effect === "spend_enemy_on_play") return "登場時、相手の未消耗AI1体を消耗";
+  if (card.effect === "defense_plus_1") return "防御値 +1";
+  if (card.effect === "recover_ai_on_play") return "登場時、手札1枚以下ならトラッシュのAI1枚を回収";
+  return "効果なし";
+}
+
+export function drawsOnPlay(card: Card): boolean {
+  return card.type === "ai" && card.effect === "draw_on_play";
+}
+
+export function keepsReadyAfterAttack(card: Card): boolean {
+  return card.type === "ai" && card.effect === "no_spend_after_attack";
+}
+
+export function drawsAfterOverheat(card: Card): boolean {
+  return card.type === "ai" && card.effect === "draw_after_overheat";
+}
+
+export function filtersOnPlay(card: Card): boolean {
+  return card.type === "ai" && card.effect === "filter_on_play";
+}
+
+export function spendsEnemyOnPlay(card: Card): boolean {
+  return card.type === "ai" && card.effect === "spend_enemy_on_play";
+}
+
+export function recoversAiOnPlay(card: Card): boolean {
+  return card.type === "ai" && card.effect === "recover_ai_on_play";
 }
 
 export function defensePowerBonus(card: Card, defender: PlayerState | null = null, attackCard: Card | null = null, options: { firewallPaid?: boolean } = {}): number {
-  let bonus = card.power === 2 ? CONFIG.power2DefenseBonus : 0;
+  let bonus = card.effect === "defense_plus_1" ? CONFIG.power2DefenseBonus : 0;
   if (
     defender?.memory?.effect === "firewall"
     && (defender.hand.length > 0 || options.firewallPaid)
@@ -481,7 +631,7 @@ export function defenseCombatValue(attackCard: Card, defenseCard: Card, defender
 }
 
 export function canDefend(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null): boolean {
-  return defenseCombatValue(attackCard, defenseCard, defender) >= (attackCard.power ?? 0);
+  return defenseCombatValue(attackCard, defenseCard, defender) >= attackCombatValue(attackCard);
 }
 
 export function legalFieldDefenders(defender: PlayerState, attackCard: Card): { card: Card; index: number }[] {
@@ -505,12 +655,13 @@ export function defenseMathText(attackCard: Card, defenseCard: Card, defender: P
   if (!attackCard.attribute || !defenseCard.attribute) return "";
   const label = matchupLabel(defenseCard.attribute, attackCard.attribute);
   const defenseValue = defenseCombatValue(attackCard, defenseCard, defender);
-  const result = defenseValue > (attackCard.power ?? 0)
+  const attackValue = attackCombatValue(attackCard);
+  const result = defenseValue > attackValue
     ? "勝ち"
-    : defenseValue === (attackCard.power ?? 0)
+    : defenseValue === attackValue
       ? "相打ち"
       : "不足";
-  return `${label} / 防御値${defenseValue} vs 攻撃${attackCard.power} / ${result}`;
+  return `${label} / 防御値${defenseValue} vs 攻撃値${attackValue} / ${result}`;
 }
 
 export function needsFirewallFuel(defender: PlayerState, defenseCard: Card, attackCard: Card): boolean {
@@ -561,10 +712,10 @@ export function highestPowerReadyAi(player: PlayerState): number | null {
   return options[0].index;
 }
 
-export function highestPowerAiInDiscard(player: PlayerState): number | null {
+export function highestPowerAiInDiscard(player: PlayerState, excludedCard?: Card): number | null {
   const options = player.discard
     .map((card, index) => ({ card, index }))
-    .filter(({ card }) => card.type === "ai");
+    .filter(({ card }) => card.type === "ai" && card !== excludedCard);
   if (options.length === 0) return null;
   options.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
   return options[0].index;

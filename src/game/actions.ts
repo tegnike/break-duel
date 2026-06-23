@@ -7,6 +7,7 @@ import {
   type PlayerState,
   addLog,
   activePlayer,
+  attackCombatValue,
   canActivePlayerAttack,
   canDefend,
   canUpgrade,
@@ -18,16 +19,22 @@ import {
   discardFirewallFuel,
   discardLowPriorityCards,
   draw,
+  drawsAfterOverheat,
+  drawsOnPlay,
+  filtersOnPlay,
   finishTurn,
   highestPowerAiInDiscard,
   highestPowerReadyAi,
   highestPowerSpentAi,
   legalHandDefenders,
   lowestPriorityHand,
+  keepsReadyAfterAttack,
   needsFirewallFuel,
   opponentPlayer,
   playCost,
+  recoversAiOnPlay,
   removeFieldCard,
+  spendsEnemyOnPlay,
   upgradeCost,
   useAction,
 } from "../game";
@@ -65,15 +72,45 @@ export function applyPlayEffects(
   card: Card,
   fieldIndex: number,
   actionCost: number,
+  excludedRecoverCard?: Card,
 ): string {
   let text = "";
   if (CONFIG.power4EntersSpent && card.power === 4) {
     player.spentFieldIndexes.add(fieldIndex);
     text += " 出たターンは消耗。";
   }
-  if (CONFIG.power1DrawsOnPlay && card.power === 1) {
+  if (CONFIG.power1DrawsOnPlay && drawsOnPlay(card)) {
     const drawn = draw(player, 1);
     text += ` ${drawn}枚引いた。`;
+  }
+  if (filtersOnPlay(card)) {
+    const drawn = draw(player, 2);
+    text += ` ${drawn}枚引いた。`;
+    if (player.hand.length > 0) {
+      const discardIndex = lowestPriorityHand(player);
+      const discarded = player.hand.splice(discardIndex, 1)[0];
+      player.discard.push(discarded);
+      text += ` ${discarded.name}を捨てた。`;
+    }
+  }
+  if (spendsEnemyOnPlay(card)) {
+    const playerIndex = draft.players.indexOf(player);
+    const opponent = playerIndex >= 0 ? draft.players[1 - playerIndex] : null;
+    if (opponent) {
+      const targetIndex = highestPowerReadyAi(opponent);
+      if (targetIndex !== null) {
+        opponent.spentFieldIndexes.add(targetIndex);
+        text += ` ${opponent.name}の${opponent.field[targetIndex].name}を消耗。`;
+      }
+    }
+  }
+  if (recoversAiOnPlay(card) && player.hand.length <= 1) {
+    const targetIndex = highestPowerAiInDiscard(player, excludedRecoverCard);
+    if (targetIndex !== null) {
+      const recovered = player.discard.splice(targetIndex, 1)[0];
+      player.hand.push(recovered);
+      text += ` ${recovered.name}をトラッシュから回収。`;
+    }
   }
   if (player.memory?.effect === "pipeline" && card.power === 1 && !player.pipelineUsed) {
     player.pipelineUsed = true;
@@ -198,7 +235,7 @@ export function beginAttackInDraft(
       cards: [{ card: attackCard, label: "攻撃", state: "neutral" }],
     });
   }
-  if (CONFIG.exhaustAfterAttack) attacker.spentFieldIndexes.add(fieldIndex);
+  if (CONFIG.exhaustAfterAttack && !keepsReadyAfterAttack(attackCard)) attacker.spentFieldIndexes.add(fieldIndex);
   draft.pendingAttack = { attackerIndex, defenderIndex, fieldIndex };
   draft.selected = null;
   if (!defender.isHuman) resolveDefenseInDraft(draft, chooseAiDefense(defender, attackCard), effects);
@@ -239,18 +276,19 @@ export function resolveDefenseInDraft(
       ? discardHandCards(draft, defenderIndex, [choice.firewallDiscardIndex])[0]
       : discardFirewallFuel(defender, defenseCard, attackCard);
     const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: Boolean(firewallFuel) });
-    const isTrade = defenseValue === (attackCard.power ?? 0);
+    const attackValue = attackCombatValue(attackCard);
+    const isTrade = defenseValue === attackValue;
     const fuelText = firewallFuel ? ` ${defender.memory!.name}で${firewallFuel.name}をトラッシュ。` : "";
     addLog(
       draft,
       isTrade
-        ? `${defender.name}は場の${defenseCard.name}で防御成功。防御値${defenseValue}と攻撃${attackCard.power}が同値で相打ち。両方トラッシュ。${fuelText}`
-        : `${defender.name}は場の${defenseCard.name}で防御成功。防御値${defenseValue}が攻撃${attackCard.power}を上回り、${attackCard.name}は退場。${defenseCard.name}は場に残って消耗。${fuelText}`,
+        ? `${defender.name}は場の${defenseCard.name}で防御成功。防御値${defenseValue}と攻撃値${attackValue}が同値で相打ち。両方トラッシュ。${fuelText}`
+        : `${defender.name}は場の${defenseCard.name}で防御成功。防御値${defenseValue}が攻撃値${attackValue}を上回り、${attackCard.name}は退場。${defenseCard.name}は場に残って消耗。${fuelText}`,
     );
     effects.showDuelEvent?.({
       kind: "battle",
       title: isTrade ? "相打ち" : `${defender.name}の防御成功`,
-      detail: `${attackCard.name} 攻撃${attackCard.power} vs 場の${defenseCard.name} 防御${defenseValue}。${isTrade ? "同値なので両方トラッシュ。" : "防御側は場に残ります。"}${fuelText}`,
+      detail: `${attackCard.name} 攻撃値${attackValue} vs 場の${defenseCard.name} 防御${defenseValue}。${isTrade ? "同値なので両方トラッシュ。" : "防御側は場に残ります。"}${fuelText}`,
       fromLabel: `${attacker.name}の場`,
       toLabel: isTrade ? "両方トラッシュ" : `${attackCard.name}はトラッシュ`,
       resultLabel: isTrade ? "相打ち" : "防御側が残る",
@@ -330,7 +368,8 @@ function overheatAttackerIfNeeded(
     return;
   }
   attacker.discard.push(removeFieldCard(attacker, fieldIndex));
-  addLog(draft, `${attacker.name}の${attackCard.name}は攻撃後にオーバーヒートして退場。`);
+  const drawn = drawsAfterOverheat(attackCard) ? draw(attacker, 1) : 0;
+  addLog(draft, `${attacker.name}の${attackCard.name}は攻撃後にオーバーヒートして退場。${drawn ? `${drawn}枚引いた。` : ""}`);
   effects.showDuelEvent?.({
     kind: "trash",
     title: "オーバーヒート退場",
@@ -382,7 +421,7 @@ export function performAiActionInDraft(
     player.field[action.fieldIndex] = card;
     player.spentFieldIndexes.delete(action.fieldIndex);
     let text = `${player.name}は${source.name}を元に${card.name}へアップグレード。`;
-    text += applyPlayEffects(draft, player, card, action.fieldIndex, upgradeCost(card));
+    text += applyPlayEffects(draft, player, card, action.fieldIndex, upgradeCost(card), source);
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "upgrade",

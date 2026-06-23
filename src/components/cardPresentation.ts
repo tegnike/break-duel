@@ -3,6 +3,7 @@ import {
   COMMAND_COLOR,
   CONFIG,
   MEMORY_COLOR,
+  aiEffectText,
   type Card,
   playCost,
 } from "../game";
@@ -139,10 +140,11 @@ export function roleText(card: Card): string {
   if (card.effect === "firewall") return "同属性防御時、手札1枚を捨て power +1";
   if (card.effect === "cache") return "ターン開始時、手札2枚以下なら1枚引く";
   if (card.effect === "pipeline") return "1ターンに1回、power 1登場時に1枚引いて1枚捨てる";
-  if (card.power === 1) return "1アクション。登場時1枚引く";
-  if (card.power === 2) return `1アクション。防御時 power +${CONFIG.power2DefenseBonus}`;
-  if (card.power === 3) return `${CONFIG.largeAiPlayCost}アクション。即防御可`;
-  if (card.power === 4) return `${CONFIG.largeAiPlayCost}アクション。登場時消耗。攻撃後退場`;
+  const trait = card.effect ? ` / ${aiEffectText(card)}` : "";
+  if (card.power === 1) return `1アクション${trait}`;
+  if (card.power === 2) return `1アクション${trait}`;
+  if (card.power === 3) return `${CONFIG.largeAiPlayCost}アクション${trait}`;
+  if (card.power === 4) return `${CONFIG.largeAiPlayCost}アクション。攻撃後退場${trait}`;
   return "AI";
 }
 

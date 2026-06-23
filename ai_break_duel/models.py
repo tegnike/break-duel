@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import Enum
 from random import Random
 from typing import Any
 
 from .cards import Card
 
 
-class ActionType(StrEnum):
+class ActionType(str, Enum):
     PLAY_AI = "play_ai"
     PLAY_MEMORY = "play_memory"
     UPGRADE_AI = "upgrade_ai"
@@ -18,14 +18,14 @@ class ActionType(StrEnum):
     END_TURN = "end_turn"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Action:
     type: ActionType
     source_index: int | None = None
     target_index: int | None = None
 
 
-@dataclass(slots=True)
+@dataclass
 class PlayerState:
     name: str
     life: int = 5
@@ -62,7 +62,7 @@ class PlayerState:
         ]
 
 
-@dataclass(slots=True)
+@dataclass
 class GameConfig:
     life: int = 5
     initial_hand: int = 5
@@ -88,12 +88,12 @@ class GameConfig:
     power_1_draws_on_play: bool = True
     power_2_defense_bonus: int = 1
     large_ai_play_cost: int = 2
-    power_4_enters_spent: bool = True
+    power_4_enters_spent: bool = False
     power_4_overheats_after_attack: bool = True
     hand_limit: int | None = None
 
 
-@dataclass(slots=True)
+@dataclass
 class GameStats:
     successful_defenses: int = 0
     failed_defenses: int = 0
@@ -112,7 +112,7 @@ class GameStats:
         bucket[outcome] = bucket.get(outcome, 0) + 1
 
 
-@dataclass(slots=True)
+@dataclass
 class GameState:
     seed: int
     rng: Random

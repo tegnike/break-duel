@@ -7,6 +7,7 @@ import json
 from statistics import mean, median
 from typing import Any
 
+from .cards import DeckArchetype
 from .ai import choose_action
 from .engine import (
     apply_action,
@@ -19,14 +20,18 @@ from .engine import (
 from .models import GameConfig
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class MatchResult:
     summary: dict[str, Any]
     log: list[dict[str, Any]]
 
 
-def run_match(seed: int, config: GameConfig | None = None) -> MatchResult:
-    state = new_game(seed, config)
+def run_match(
+    seed: int,
+    config: GameConfig | None = None,
+    decks: tuple[DeckArchetype, DeckArchetype] | None = None,
+) -> MatchResult:
+    state = new_game(seed, config, decks)
     while state.winner is None and not state.draw:
         start_turn(state)
         while state.actions_remaining > 0 and state.winner is None and not state.draw:
@@ -43,8 +48,9 @@ def run_simulation(
     seed: int,
     out_dir: Path | None = None,
     config: GameConfig | None = None,
+    decks: tuple[DeckArchetype, DeckArchetype] | None = None,
 ) -> dict[str, Any]:
-    results = [run_match(seed + offset, config) for offset in range(games)]
+    results = [run_match(seed + offset, config, decks) for offset in range(games)]
     summaries = [result.summary for result in results]
     summary = summarize_results(summaries, seed)
 
@@ -65,6 +71,81 @@ def run_simulation(
                 )
 
     return summary
+
+
+def run_league(
+    games_per_pair: int,
+    seed: int,
+    out_dir: Path | None = None,
+    config: GameConfig | None = None,
+    decks: tuple[DeckArchetype, ...] = (
+        DeckArchetype.FIRE,
+        DeckArchetype.WATER,
+        DeckArchetype.WIND,
+        DeckArchetype.EARTH,
+    ),
+) -> dict[str, Any]:
+    if games_per_pair <= 0:
+        raise ValueError("games_per_pair must be positive.")
+    if len(decks) < 2:
+        raise ValueError("At least two decks are required.")
+
+    standings: dict[str, dict[str, int]] = {
+        deck.value: {"wins": 0, "losses": 0, "draws": 0, "games": 0}
+        for deck in decks
+    }
+    pair_results = []
+    current_seed = seed
+
+    for first in decks:
+        for second in decks:
+            if first == second:
+                continue
+            summaries = []
+            for _ in range(games_per_pair):
+                result = run_match(current_seed, config, (first, second))
+                current_seed += 1
+                summaries.append(result.summary)
+
+                first_row = standings[first.value]
+                second_row = standings[second.value]
+                first_row["games"] += 1
+                second_row["games"] += 1
+                if result.summary["winner"] == "player_1":
+                    first_row["wins"] += 1
+                    second_row["losses"] += 1
+                elif result.summary["winner"] == "player_2":
+                    second_row["wins"] += 1
+                    first_row["losses"] += 1
+                else:
+                    first_row["draws"] += 1
+                    second_row["draws"] += 1
+
+            pair_results.append(
+                {
+                    "first_deck": first.value,
+                    "second_deck": second.value,
+                    "summary": summarize_results(summaries, current_seed - games_per_pair),
+                }
+            )
+
+    league = {
+        "seed": seed,
+        "games_per_ordered_pair": games_per_pair,
+        "total_games": games_per_pair * len(decks) * (len(decks) - 1),
+        "decks": [deck.value for deck in decks],
+        "standings": _standings_with_rates(standings),
+        "pairs": pair_results,
+    }
+
+    if out_dir is not None:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "league-summary.json").write_text(
+            json.dumps(league, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+    return league
 
 
 def summarize_results(summaries: list[dict[str, Any]], seed: int) -> dict[str, Any]:
@@ -143,3 +224,23 @@ def _merge_nested_counter(items: Any) -> dict[str, dict[str, int]]:
             counter = merged.setdefault(key, Counter())
             counter.update(values)
     return {key: dict(counter) for key, counter in sorted(merged.items())}
+
+
+def _standings_with_rates(standings: dict[str, dict[str, int]]) -> dict[str, dict[str, Any]]:
+    rows = {}
+    for deck, values in standings.items():
+        decisive_games = values["wins"] + values["losses"]
+        rows[deck] = {
+            **values,
+            "win_rate": _rate(values["wins"], decisive_games),
+        }
+    return dict(
+        sorted(
+            rows.items(),
+            key=lambda item: (
+                item[1]["win_rate"] is None,
+                -(item[1]["win_rate"] or 0),
+                item[0],
+            ),
+        )
+    )

@@ -1,7 +1,6 @@
 import * as React from "react";
 import { useEffect, useRef } from "react";
 import {
-  ADVANTAGE,
   ATTRIBUTES,
   type Attribute,
   type Card,
@@ -9,6 +8,8 @@ import {
   type GameState,
   type PlayerState,
   activePlayer,
+  aiEffectText,
+  attackCombatValue,
   bestUpgradeSource,
   canActivePlayerAttack,
   canHumanAct,
@@ -19,11 +20,9 @@ import {
   defensePowerBonus,
   legalFieldDefenders,
   legalHandDefenders,
-  matchupModifier,
   opponentPlayer,
   playCost,
   upgradeCost,
-  weakAgainst,
 } from "../game";
 import { CardView } from "./CardView";
 import { cardColor, cardTypeLabel, roleText, selectedText } from "./cardPresentation";
@@ -52,7 +51,7 @@ export function SelectedCardDetail({ card, zone, game }: { card: Card | null; zo
       <div className="detail-meta">{parts.join(" / ")}</div>
       <div className="detail-effect">{roleText(card)}</div>
       {card.type === "ai" && card.attribute && (
-        <div className="detail-affinity">防御時: {card.attribute}は{ADVANTAGE[card.attribute]}に有利 / {weakAgainst(card.attribute)}に不利</div>
+        <div className="detail-affinity">AI効果: {aiEffectText(card)}</div>
       )}
     </div>
   );
@@ -63,17 +62,16 @@ export function AffinityGuide({ game, selected }: { game: GameState; selected: C
     ? <OpponentDefensePreview game={game} attackCard={selected} />
     : null;
   return (
-    <div className="affinity-guide" aria-label="属性相性">
-      <div className="affinity-title">属性相性</div>
+    <div className="affinity-guide" aria-label="属性特性">
+      <div className="affinity-title">AI効果</div>
       <div className="affinity-chain">
-        {attributePill("水")}<span>→</span>{attributePill("火")}<span>→</span>{attributePill("風")}<span>→</span>{attributePill("土")}<span>→</span>{attributePill("水")}
+        {attributePill("火")}<span>攻撃</span>{attributePill("水")}<span>ドロー</span>{attributePill("風")}<span>テンポ</span>{attributePill("土")}<span>防御</span>
       </div>
-      <div className="affinity-note">矢印の左が防御側なら有利。防御値 = power + 防御ボーナス + 属性補正。有利 +1 / 不利 -1。</div>
+      <div className="affinity-note">属性相性はありません。属性ごとの傾向はありますが、効果は一部AIカードだけが個別に持ちます。</div>
       {selected?.type === "ai" && selected.attribute && (
         <span className="affinity-selected">
           {attributePill(selected.attribute)}
-          有利: {attributePill(ADVANTAGE[selected.attribute])}
-          弱点: {attributePill(weakAgainst(selected.attribute))}
+          {aiEffectText(selected)}
         </span>
       )}
       {attackPreview}
@@ -93,11 +91,12 @@ function OpponentDefensePreview({ game, attackCard }: { game: GameState; attackC
       <div className="affinity-defense-list">
         {rows.map(({ card }) => {
           const defenseValue = defenseCombatValue(attackCard, card, opponent);
-          const result = defenseValue > (attackCard.power ?? 0) ? "防御側が残る" : defenseValue === attackCard.power ? "相打ち" : "防御不可";
+          const attackValue = attackCombatValue(attackCard);
+          const result = defenseValue > attackValue ? "防御側が残る" : defenseValue === attackValue ? "相打ち" : "防御不可";
           return (
             <div className="affinity-defense-row" style={{ "--card-color": cardColor(card) } as React.CSSProperties} key={card.id}>
               <div className="affinity-defense-main">{card.name} / {card.attribute} / power {card.power}</div>
-              <div className="affinity-defense-sub">防御値 {defenseValue} vs 攻撃 {attackCard.power} / {result}</div>
+              <div className="affinity-defense-sub">防御値 {defenseValue} vs 攻撃値 {attackValue} / {result}</div>
             </div>
           );
         })}
@@ -171,7 +170,7 @@ export function DefensePanel({
   return (
     <div className="defense-panel">
       <h3>{attackCard.name}への防御を選択</h3>
-      <div className="defense-context">攻撃値 {attackCard.power} / 場ブロックは同値なら相打ち、上回れば防御AIが残ります。手札ブロックは使い切りです。</div>
+      <div className="defense-context">攻撃値 {attackCombatValue(attackCard)} / 場ブロックは同値なら相打ち、上回れば防御AIが残ります。手札ブロックは使い切りです。</div>
       <div className="defense-choice-grid">
         {fieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} attackCard={attackCard} defender={defender} onClick={() => onResolve({ type: "field", index })} />)}
         {handOptions.map(({ card, index }) => <DefenseChoiceButton key={`hand-${index}`} source="手札" card={card} attackCard={attackCard} defender={defender} hand onClick={() => onResolve({ type: "hand", index })} />)}
@@ -184,11 +183,11 @@ export function DefensePanel({
 
 function DefenseChoiceButton({ source, card, attackCard, defender, hand = false, onClick }: { source: string; card: Card; attackCard: Card; defender: PlayerState; hand?: boolean; onClick: () => void }) {
   const defenseValue = defenseCombatValue(attackCard, card, defender);
-  const modifier = matchupModifier(card.attribute!, attackCard.attribute!);
-  const modifierText = modifier > 0 ? `+${modifier}` : String(modifier);
+  const traitBonus = card.effect === "defense_plus_1" ? 1 : 0;
+  const attackValue = attackCombatValue(attackCard);
   const result = hand
     ? "防御成功 / このカードをトラッシュ"
-    : defenseValue === attackCard.power
+    : defenseValue === attackValue
       ? "相打ち / 両方トラッシュ"
       : "防御AIが残る / 攻撃AI退場";
   return (
@@ -199,7 +198,7 @@ function DefenseChoiceButton({ source, card, attackCard, defender, hand = false,
       </div>
       <div className="defense-choice-body">
         <span>{card.attribute} / power {card.power}</span>
-        <span>防御値 {defenseValue} = {card.power} + {defensePowerBonus(card, defender, attackCard)} + {modifierText}</span>
+        <span>防御値 {defenseValue} = {card.power} + {defensePowerBonus(card, defender, attackCard) - traitBonus} + {traitBonus}</span>
         <span className="defense-choice-result">{result}</span>
       </div>
     </button>

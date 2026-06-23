@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum
 from typing import Iterable
 
 
-class CardType(StrEnum):
+class CardType(str, Enum):
     AI = "ai"
     EVENT = "event"
     MEMORY = "memory"
 
 
-class CommandEffect(StrEnum):
+class CommandEffect(str, Enum):
     OPTIMIZE = "optimize"
     PATCH = "patch"
     DISRUPT = "disrupt"
@@ -19,25 +19,40 @@ class CommandEffect(StrEnum):
     SANDBOX = "sandbox"
 
 
-class MemoryEffect(StrEnum):
+class MemoryEffect(str, Enum):
     FIREWALL = "firewall"
     CACHE = "cache"
     PIPELINE = "pipeline"
 
 
-class DeckArchetype(StrEnum):
+class AiEffect(str, Enum):
+    ATTACK_PLUS_1 = "attack_plus_1"
+    DRAW_AFTER_OVERHEAT = "draw_after_overheat"
+    DRAW_ON_PLAY = "draw_on_play"
+    FILTER_ON_PLAY = "filter_on_play"
+    NO_SPEND_AFTER_ATTACK = "no_spend_after_attack"
+    SPEND_ENEMY_ON_PLAY = "spend_enemy_on_play"
+    DEFENSE_PLUS_1 = "defense_plus_1"
+    RECOVER_AI_ON_PLAY = "recover_ai_on_play"
+
+
+class DeckArchetype(str, Enum):
     BREAK = "break"
     CONTROL = "control"
+    FIRE = "fire"
+    WATER = "water"
+    WIND = "wind"
+    EARTH = "earth"
 
 
-class Attribute(StrEnum):
+class Attribute(str, Enum):
     FIRE = "火"
     WATER = "水"
     WIND = "風"
     EARTH = "土"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class Card:
     id: str
     name: str
@@ -45,18 +60,6 @@ class Card:
     attribute: Attribute | None = None
     power: int | None = None
     effect: str = ""
-
-
-ADVANTAGE: dict[Attribute, Attribute] = {
-    Attribute.WATER: Attribute.FIRE,
-    Attribute.FIRE: Attribute.WIND,
-    Attribute.WIND: Attribute.EARTH,
-    Attribute.EARTH: Attribute.WATER,
-}
-
-
-def has_attribute_advantage(defender: Attribute, attacker: Attribute) -> bool:
-    return ADVANTAGE[defender] == attacker
 
 
 def can_defend(
@@ -77,8 +80,16 @@ def can_defend(
             disadvantage_penalty=disadvantage_penalty,
             defense_power_bonus=defense_power_bonus,
         )
-        >= (attack_ai.power or 0)
+        >= attack_combat_value(attack_ai)
     )
+
+
+def attack_combat_value(attack_ai: Card) -> int:
+    if attack_ai.type != CardType.AI:
+        raise ValueError("Attack checks require AI character cards.")
+    if attack_ai.power is None:
+        raise ValueError("AI character cards require power.")
+    return attack_ai.power + (1 if attack_ai.effect == AiEffect.ATTACK_PLUS_1.value else 0)
 
 
 def defense_combat_value(
@@ -99,6 +110,7 @@ def defense_combat_value(
     return (
         defense_ai.power
         + defense_power_bonus
+        + defense_effect_bonus(defense_ai)
         + defense_attribute_modifier(
             defense_ai.attribute,
             attack_ai.attribute,
@@ -108,6 +120,36 @@ def defense_combat_value(
     )
 
 
+def defense_effect_bonus(defense_ai: Card) -> int:
+    if defense_ai.type != CardType.AI:
+        raise ValueError("Defense checks require AI character cards.")
+    return 1 if defense_ai.effect == AiEffect.DEFENSE_PLUS_1.value else 0
+
+
+def draws_on_play(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.DRAW_ON_PLAY.value
+
+
+def keeps_ready_after_attack(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.NO_SPEND_AFTER_ATTACK.value
+
+
+def draws_after_overheat(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.DRAW_AFTER_OVERHEAT.value
+
+
+def filters_on_play(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.FILTER_ON_PLAY.value
+
+
+def spends_enemy_on_play(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.SPEND_ENEMY_ON_PLAY.value
+
+
+def recovers_ai_on_play(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.RECOVER_AI_ON_PLAY.value
+
+
 def defense_attribute_modifier(
     defender: Attribute,
     attacker: Attribute,
@@ -115,12 +157,10 @@ def defense_attribute_modifier(
     advantage_bonus: int = 1,
     disadvantage_penalty: int = 1,
 ) -> int:
-    if defender == attacker:
-        return 0
-    if has_attribute_advantage(defender, attacker):
-        return advantage_bonus
-    if has_attribute_advantage(attacker, defender):
-        return -disadvantage_penalty
+    _ = defender
+    _ = attacker
+    _ = advantage_bonus
+    _ = disadvantage_penalty
     return 0
 
 
@@ -137,6 +177,17 @@ def build_ai_card_pool() -> list[Card]:
         3: "エージェント",
         4: "コアAI",
     }
+    effects = {
+        (Attribute.FIRE, 2): AiEffect.ATTACK_PLUS_1.value,
+        (Attribute.FIRE, 4): AiEffect.DRAW_AFTER_OVERHEAT.value,
+        (Attribute.WATER, 1): AiEffect.DRAW_ON_PLAY.value,
+        (Attribute.WATER, 2): AiEffect.FILTER_ON_PLAY.value,
+        (Attribute.WATER, 3): AiEffect.DRAW_ON_PLAY.value,
+        (Attribute.WIND, 1): AiEffect.NO_SPEND_AFTER_ATTACK.value,
+        (Attribute.WIND, 3): AiEffect.SPEND_ENEMY_ON_PLAY.value,
+        (Attribute.EARTH, 2): AiEffect.DEFENSE_PLUS_1.value,
+        (Attribute.EARTH, 4): AiEffect.RECOVER_AI_ON_PLAY.value,
+    }
     cards: list[Card] = []
     for attribute, code, label in rows:
         for power in (1, 2, 3, 4):
@@ -147,6 +198,7 @@ def build_ai_card_pool() -> list[Card]:
                     type=CardType.AI,
                     attribute=attribute,
                     power=power,
+                    effect=effects.get((attribute, power), ""),
                 )
             )
     return cards
@@ -277,6 +329,106 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-PATCH",
                 "CMD-OPTIMIZE",
                 "MEM-FIREWALL",
+            ]
+        )
+    if archetype == DeckArchetype.FIRE:
+        return _deck_from_ids(
+            [
+                "AI-FIRE-1",
+                "AI-FIRE-1",
+                "AI-FIRE-2",
+                "AI-FIRE-2",
+                "AI-FIRE-3",
+                "AI-FIRE-3",
+                "AI-FIRE-4",
+                "AI-FIRE-4",
+                "CMD-DISRUPT",
+                "CMD-DISRUPT",
+                "CMD-SANDBOX",
+                "CMD-SANDBOX",
+                "CMD-PATCH",
+                "CMD-PATCH",
+                "CMD-OPTIMIZE",
+                "CMD-OPTIMIZE",
+                "MEM-PIPELINE",
+                "MEM-PIPELINE",
+                "MEM-CACHE",
+                "MEM-CACHE",
+            ]
+        )
+    if archetype == DeckArchetype.WATER:
+        return _deck_from_ids(
+            [
+                "AI-WATER-1",
+                "AI-WATER-1",
+                "AI-WATER-2",
+                "AI-WATER-2",
+                "AI-WATER-3",
+                "AI-WATER-3",
+                "AI-WATER-4",
+                "AI-WATER-4",
+                "CMD-OPTIMIZE",
+                "CMD-OPTIMIZE",
+                "CMD-RELEARN",
+                "CMD-RELEARN",
+                "CMD-PATCH",
+                "CMD-PATCH",
+                "CMD-DISRUPT",
+                "CMD-DISRUPT",
+                "MEM-CACHE",
+                "MEM-CACHE",
+                "MEM-PIPELINE",
+                "MEM-PIPELINE",
+            ]
+        )
+    if archetype == DeckArchetype.WIND:
+        return _deck_from_ids(
+            [
+                "AI-WIND-1",
+                "AI-WIND-1",
+                "AI-WIND-2",
+                "AI-WIND-2",
+                "AI-WIND-3",
+                "AI-WIND-3",
+                "AI-WIND-4",
+                "AI-WIND-4",
+                "CMD-DISRUPT",
+                "CMD-DISRUPT",
+                "CMD-PATCH",
+                "CMD-PATCH",
+                "CMD-SANDBOX",
+                "CMD-SANDBOX",
+                "CMD-RELEARN",
+                "CMD-RELEARN",
+                "MEM-PIPELINE",
+                "MEM-PIPELINE",
+                "MEM-FIREWALL",
+                "MEM-FIREWALL",
+            ]
+        )
+    if archetype == DeckArchetype.EARTH:
+        return _deck_from_ids(
+            [
+                "AI-EARTH-1",
+                "AI-EARTH-1",
+                "AI-EARTH-2",
+                "AI-EARTH-2",
+                "AI-EARTH-3",
+                "AI-EARTH-3",
+                "AI-EARTH-4",
+                "AI-EARTH-4",
+                "CMD-SANDBOX",
+                "CMD-SANDBOX",
+                "CMD-PATCH",
+                "CMD-PATCH",
+                "CMD-OPTIMIZE",
+                "CMD-OPTIMIZE",
+                "CMD-DISRUPT",
+                "CMD-DISRUPT",
+                "MEM-FIREWALL",
+                "MEM-FIREWALL",
+                "MEM-PIPELINE",
+                "MEM-PIPELINE",
             ]
         )
     raise ValueError(f"Unsupported deck archetype: {archetype}")
