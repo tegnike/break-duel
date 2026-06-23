@@ -440,8 +440,15 @@ export default function App() {
     });
   }
 
-  function selectField(index: number) {
-    if (!canHumanAct(game)) return;
+  function selectField(ownerIndex: number, index: number) {
+    const pending = game.pendingTarget;
+    if (pending?.kind === "disrupt" && ownerIndex === 1 - game.active) {
+      const targetPlayer = game.players[ownerIndex];
+      if (!targetPlayer.field[index] || targetPlayer.spentFieldIndexes.has(index)) return;
+      useCommandAt(pending.sourceIndex, index);
+      return;
+    }
+    if (ownerIndex !== 0 || !canHumanAct(game)) return;
     mutate((draft) => {
       draft.selected = { zone: "field", index };
     });
@@ -1004,7 +1011,7 @@ function FieldGrid({
   ownerIndex: number;
   game: GameState;
   isOpponent?: boolean;
-  onSelectField: (index: number) => void;
+  onSelectField: (ownerIndex: number, index: number) => void;
 }) {
   return (
     <div className={`field-grid ${isOpponent ? "opponent" : "human"}`}>
@@ -1012,6 +1019,9 @@ function FieldGrid({
       {Array.from({ length: CONFIG.fieldLimit }).map((_, index) => {
         const card = player.field[index];
         if (!card) return <div className="field-slot empty" key={`empty-${ownerIndex}-${index}`} data-owner={ownerIndex} data-zone="field" data-index={index}>+</div>;
+        const isDisruptTarget = game.pendingTarget?.kind === "disrupt"
+          && ownerIndex === 1 - game.active
+          && !player.spentFieldIndexes.has(index);
         return (
           <CardView
             key={`${card.id}-${index}`}
@@ -1020,11 +1030,11 @@ function FieldGrid({
             zone="field"
             index={index}
             selected={ownerIndex === 0 && game.selected?.zone === "field" && game.selected.index === index}
-            selectable={ownerIndex === 0 && canHumanAct(game)}
+            selectable={isDisruptTarget || (ownerIndex === 0 && canHumanAct(game))}
             spent={player.spentFieldIndexes.has(index)}
-            actionState={ownerIndex === 0 ? fieldActionState(game, player, index) : "idle"}
+            actionState={isDisruptTarget ? "usable" : ownerIndex === 0 ? fieldActionState(game, player, index) : "idle"}
             showCost={false}
-            onClick={() => onSelectField(index)}
+            onClick={() => onSelectField(ownerIndex, index)}
           />
         );
       })}
