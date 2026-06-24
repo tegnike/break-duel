@@ -225,6 +225,7 @@ export function roleText(card: Card): string {
   if (card.effect === "cache") return "ターン開始時、手札2枚以下なら山札からカードを1枚引く";
   if (card.effect === "pipeline") return "1ターンに1回、power 1登場時、山札からカードを1枚引く";
   if (card.effect === "accelerator") return "1ターンに1回使える。場の召喚獣1体をトラッシュしてもよい。その場合、アクション+1する";
+  if (card.effect === "resonator") return "自分がチャージした後、手札2枚以下なら山札からカードを1枚引く";
   const trait = card.effect ? ` / ${aiEffectText(card)}` : "";
   if (card.power === 1) return `1アクション${trait}`;
   if (card.power === 2) return `1アクション${trait}`;

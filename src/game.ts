@@ -26,7 +26,11 @@ export type AiEffect =
   | "return_after_overheat"
   | "return_after_overheat_cannot_hand_defend"
   | "draw_on_successful_defense"
-  | "draw_on_successful_defense_enters_spent";
+  | "draw_on_successful_defense_enters_spent"
+  | "charge_pressure"
+  | "charge_draw"
+  | "charge_ready_ally"
+  | "charge_guard";
 export type CommandEffect =
   | "optimize"
   | "patch"
@@ -38,7 +42,7 @@ export type CommandEffect =
   | "water_rite"
   | "wind_rite"
   | "earth_rite";
-export type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator";
+export type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator" | "resonator";
 export type CardEffect = AiEffect | CommandEffect | MemoryEffect | "";
 export type Zone = "hand" | "field" | "memory" | "discard";
 
@@ -67,6 +71,7 @@ export type PlayerState = {
   pipelineUsed: boolean;
   acceleratorUsed: boolean;
   chargeUsed: boolean;
+  chargeGuard: number;
   sandboxShield: number;
   spentFieldIndexes: Set<number>;
 };
@@ -207,6 +212,7 @@ export function cardPool(): Card[] {
     "AI-FIRE-3B": "噴角イグナロス",
     "AI-FIRE-4": "終火の影ヴァルガ",
     "AI-FIRE-4B": "劫火王アグニール",
+    "AI-FIRE-1C": "炉芯鼠チロ",
     "AI-WATER-1": "透海リュミナ",
     "AI-WATER-1B": "泡踊りのミナモ",
     "AI-WATER-2": "氷晶亀セルキー",
@@ -215,6 +221,7 @@ export function cardPool(): Card[] {
     "AI-WATER-3B": "環流の賢ネレイド",
     "AI-WATER-4": "潮輪リヴァイア",
     "AI-WATER-4B": "星淵のアステル",
+    "AI-WATER-1C": "雫読みミルティ",
     "AI-WIND-1": "そよぎ狐フルーフ",
     "AI-WIND-1B": "風鈴の子リュフ",
     "AI-WIND-2": "翡翠鎌マンティス",
@@ -223,6 +230,7 @@ export function cardPool(): Card[] {
     "AI-WIND-3B": "稜線駆けアルエット",
     "AI-WIND-4": "雲海航路ミストラル",
     "AI-WIND-4B": "天蓋裂きヴァユ",
+    "AI-WIND-2C": "追風リネット",
     "AI-EARTH-1": "苔掘りモール",
     "AI-EARTH-1B": "芽吹きの杖ペルナ",
     "AI-EARTH-2": "碑甲ガメル",
@@ -231,6 +239,7 @@ export function cardPool(): Card[] {
     "AI-EARTH-3B": "琥珀角アンバーン",
     "AI-EARTH-4": "眠れる山ガイアス",
     "AI-EARTH-4B": "地核の環バサリア",
+    "AI-EARTH-2C": "石灯りノーム",
   };
   const aiEffects = new Map<string, AiEffect>([
     ["AI-FIRE-1B", "block_pressure"],
@@ -239,6 +248,7 @@ export function cardPool(): Card[] {
     ["AI-FIRE-3B", "reckless_attack_plus_1"],
     ["AI-FIRE-4", "draw_after_overheat"],
     ["AI-FIRE-4B", "low_life_no_hand_defense_self_damage"],
+    ["AI-FIRE-1C", "charge_pressure"],
     ["AI-WATER-1", "draw_on_play"],
     ["AI-WATER-1B", "draw_on_play_cannot_hand_defend"],
     ["AI-WATER-2", "filter_on_play"],
@@ -246,17 +256,20 @@ export function cardPool(): Card[] {
     ["AI-WATER-3", "draw_on_play"],
     ["AI-WATER-3B", "filter_on_play"],
     ["AI-WATER-4B", "draw_two_after_overheat_opponent_draw"],
+    ["AI-WATER-1C", "charge_draw"],
     ["AI-WIND-1", "no_spend_after_attack"],
     ["AI-WIND-1B", "no_spend_after_attack"],
     ["AI-WIND-2B", "spend_enemy_on_play"],
     ["AI-WIND-3", "spend_enemy_on_play"],
     ["AI-WIND-3B", "ready_ally_on_play_draw"],
     ["AI-WIND-4B", "return_after_overheat_cannot_hand_defend"],
+    ["AI-WIND-2C", "charge_ready_ally"],
     ["AI-EARTH-1B", "draw_on_successful_defense"],
     ["AI-EARTH-2", "defense_plus_1"],
     ["AI-EARTH-3B", "recover_ai_on_play"],
     ["AI-EARTH-4", "recover_ai_on_play"],
     ["AI-EARTH-4B", "draw_on_successful_defense_enters_spent"],
+    ["AI-EARTH-2C", "charge_guard"],
   ]);
   const aiCards: Card[] = (Object.entries(ATTRIBUTES) as [Attribute, { code: string; color: string }][])
     .flatMap(([attribute, meta]) =>
@@ -273,8 +286,15 @@ export function cardPool(): Card[] {
         };
       })),
     );
+  const chargeCycleCards: Card[] = [
+    { id: "AI-FIRE-1C", name: monsterNames["AI-FIRE-1C"], type: "ai", attribute: "火", power: 1, effect: "charge_pressure" },
+    { id: "AI-WATER-1C", name: monsterNames["AI-WATER-1C"], type: "ai", attribute: "水", power: 1, effect: "charge_draw" },
+    { id: "AI-WIND-2C", name: monsterNames["AI-WIND-2C"], type: "ai", attribute: "風", power: 2, effect: "charge_ready_ally" },
+    { id: "AI-EARTH-2C", name: monsterNames["AI-EARTH-2C"], type: "ai", attribute: "土", power: 2, effect: "charge_guard" },
+  ];
   return [
     ...aiCards,
+    ...chargeCycleCards,
     { id: "CMD-OPTIMIZE", name: "陣形リライト", type: "event", effect: "optimize" },
     { id: "CMD-PATCH", name: "若葉の息吹", type: "event", effect: "patch" },
     { id: "CMD-DISRUPT", name: "黒蔦の足止め", type: "event", effect: "disrupt" },
@@ -289,6 +309,7 @@ export function cardPool(): Card[] {
     { id: "MEM-CACHE", name: "灯火の旅嚢", type: "memory", effect: "cache" },
     { id: "MEM-PIPELINE", name: "星泉の導脈", type: "memory", effect: "pipeline" },
     { id: "MEM-ACCELERATOR", name: "刻火の加速炉", type: "memory", effect: "accelerator" },
+    { id: "MEM-RESONATOR", name: "蓄光の祭壇", type: "memory", effect: "resonator" },
   ];
 }
 
@@ -299,8 +320,8 @@ export const DECKS = {
     name: "紅蓮突破デッキ",
     description: "火と水を混ぜた攻め寄りの基本デッキ。突破力と手札補充を両立します。",
     cards: [
-      "AI-FIRE-1",
       "AI-FIRE-1B",
+      "AI-FIRE-1C",
       "AI-FIRE-2",
       "AI-FIRE-2",
       "AI-FIRE-2B",
@@ -310,7 +331,7 @@ export const DECKS = {
       "AI-FIRE-4",
       "AI-FIRE-4B",
       "AI-WATER-1",
-      "AI-WATER-1B",
+      "AI-WATER-1C",
       "AI-WATER-2",
       "AI-WATER-2B",
       "AI-WATER-3B",
@@ -328,11 +349,11 @@ export const DECKS = {
       "AI-EARTH-1",
       "AI-EARTH-1B",
       "AI-EARTH-2",
-      "AI-EARTH-2B",
+      "AI-EARTH-2C",
       "AI-EARTH-3",
       "AI-WIND-1",
       "AI-WIND-1B",
-      "AI-WIND-2",
+      "AI-WIND-2C",
       "AI-WIND-2B",
       "AI-WIND-3",
       "AI-WIND-3B",
@@ -360,6 +381,7 @@ export const DECKS = {
       "AI-FIRE-4",
       "AI-FIRE-4B",
       "AI-FIRE-1B",
+      "AI-FIRE-1C",
       "AI-FIRE-2",
       "AI-FIRE-2B",
       "AI-FIRE-3B",
@@ -368,7 +390,6 @@ export const DECKS = {
       "CMD-PATCH",
       "CMD-FIRE-RITE",
       "CMD-FIRE-RITE",
-      "CMD-OPTIMIZE",
       "CMD-OPTIMIZE",
       "MEM-CACHE",
     ],
@@ -387,16 +408,16 @@ export const DECKS = {
       "AI-WATER-4B",
       "AI-WATER-1",
       "AI-WATER-1B",
+      "AI-WATER-1C",
       "AI-WATER-2",
       "AI-WATER-2B",
       "AI-WATER-3B",
       "AI-WATER-4B",
       "CMD-OPTIMIZE",
-      "CMD-OPTIMIZE",
       "CMD-RELEARN",
       "CMD-WATER-RITE",
       "CMD-WATER-RITE",
-      "MEM-CACHE",
+      "MEM-RESONATOR",
     ],
   },
   wind: {
@@ -506,6 +527,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     pipelineUsed: false,
     acceleratorUsed: false,
     chargeUsed: false,
+    chargeGuard: 0,
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
   };
@@ -530,6 +552,7 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     pipelineUsed: false,
     acceleratorUsed: false,
     chargeUsed: false,
+    chargeGuard: 0,
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
   };
@@ -668,6 +691,7 @@ export function startTurn(game: GameState): void {
   player.pipelineUsed = false;
   player.acceleratorUsed = false;
   player.chargeUsed = false;
+  player.chargeGuard = 0;
   player.sandboxShield = 0;
   player.turnsStarted += 1;
   const drawnCards = shouldDrawForTurn(game) ? drawCards(player, 1) : [];
@@ -815,6 +839,10 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "return_after_overheat_cannot_hand_defend") return "攻撃後退場時、手札に戻る。消耗で出る。手札防御に使えない";
   if (card.effect === "draw_on_successful_defense") return "場防御成功時、山札からカードを1枚引く";
   if (card.effect === "draw_on_successful_defense_enters_spent") return "場防御成功時、山札からカードを1枚引く。消耗で出る";
+  if (card.effect === "charge_pressure") return "チャージ時、相手の手札が3枚以上なら1枚トラッシュ";
+  if (card.effect === "charge_draw") return "チャージ時、山札からカードを1枚引く";
+  if (card.effect === "charge_ready_ally") return "チャージ時、自分の消耗召喚獣1体を回復";
+  if (card.effect === "charge_guard") return "チャージ時、次の自分ターンまで場防御値 +1";
   return "効果なし";
 }
 
@@ -884,6 +912,15 @@ export function drawsOnSuccessfulDefense(card: Card): boolean {
   return card.type === "ai" && (card.effect === "draw_on_successful_defense" || card.effect === "draw_on_successful_defense_enters_spent");
 }
 
+export function hasChargeEffect(card: Card): boolean {
+  return card.type === "ai" && (
+    card.effect === "charge_pressure"
+    || card.effect === "charge_draw"
+    || card.effect === "charge_ready_ally"
+    || card.effect === "charge_guard"
+  );
+}
+
 export function entersSpentOnPlay(card: Card): boolean {
   return card.type === "ai" && (
     card.effect === "spend_enemy_on_play_enters_spent"
@@ -922,6 +959,9 @@ export function defensePowerBonus(card: Card, defender: PlayerState | null = nul
     && attackCard
     && card.attribute !== attackCard.attribute
   ) {
+    bonus += 1;
+  }
+  if (fieldDefense && defender?.chargeGuard) {
     bonus += 1;
   }
   return bonus;
@@ -1198,7 +1238,7 @@ export function bestUpgrade(game: GameState, player: PlayerState): { handIndex: 
 
 export function bestMemory(player: PlayerState): number | null {
   if (player.memory) return null;
-  const priority: Record<string, number> = { cache: 4, pipeline: 3, accelerator: 3, firewall: 2 };
+  const priority: Record<string, number> = { cache: 4, resonator: 4, pipeline: 3, accelerator: 3, firewall: 2 };
   const options = player.hand
     .map((card, index) => ({ card, index }))
     .filter(({ card }) => card.type === "memory");
@@ -1293,6 +1333,8 @@ export function chooseAiAction(game: GameState): AiAction {
 export function bestChargeFuel(game: GameState, player: PlayerState): number | null {
   if (!canUseCharge(game, player)) return null;
   if (canActivePlayerAttack(game) && attackableField(player).length > 0) return null;
+  const playerIndex = game.players.indexOf(player);
+  const opponent = playerIndex >= 0 ? game.players[1 - playerIndex] : null;
   const before = game.actionsRemaining;
   const after = Math.min(3, before + 1);
   const candidates = player.hand
@@ -1303,9 +1345,18 @@ export function bestChargeFuel(game: GameState, player: PlayerState): number | n
     const remaining = player.hand.filter((_, index) => index !== fuel.index);
     const enablesLargePlay = remaining.some((card) => card.type === "ai" && playCost(card) > before && playCost(card) <= after);
     const enablesTwoStepTurn = before === 2 && remaining.some((card) => card.type === "ai" && playCost(card) === 2) && remaining.length >= 2;
-    if (enablesLargePlay || enablesTwoStepTurn) return fuel.index;
+    if (enablesLargePlay || enablesTwoStepTurn || chargeFuelHasImmediateValue(player, opponent, fuel.card, remaining)) return fuel.index;
   }
   return null;
+}
+
+function chargeFuelHasImmediateValue(player: PlayerState, opponent: PlayerState | null, card: Card, remainingHand: Card[]): boolean {
+  if (card.effect === "charge_pressure") return Boolean(opponent && opponent.hand.length >= 3);
+  if (card.effect === "charge_draw") return player.deck.length > 0;
+  if (card.effect === "charge_ready_ally") return highestPowerSpentAi(player) !== null;
+  if (card.effect === "charge_guard") return player.field.length > 0;
+  if (player.memory?.effect === "resonator") return remainingHand.length <= 2 && player.deck.length > 0;
+  return false;
 }
 
 export function checkWinner(game: GameState): void {

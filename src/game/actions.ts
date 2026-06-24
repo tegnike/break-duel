@@ -113,12 +113,43 @@ export function chargeHandCardInDraft(draft: GameState, playerIndex: number, han
   const before = draft.actionsRemaining;
   draft.actionsRemaining = Math.min(3, draft.actionsRemaining + 1);
   draft.chargedActionsRemaining += draft.actionsRemaining > before ? 1 : 0;
-  addLog(draft, `${player.name}は${charged.name}をチャージし、残りアクションを${before}から${draft.actionsRemaining}に増やした。`);
+  const effectText = applyChargeEffects(draft, playerIndex, charged);
+  addLog(draft, `${player.name}は${charged.name}をチャージし、残りアクションを${before}から${draft.actionsRemaining}に増やした。${effectText}`);
   draft.selected = null;
   draft.pendingTarget = null;
   checkResourceExhaustion(draft);
   checkTurnLimit(draft);
   return charged;
+}
+
+function applyChargeEffects(draft: GameState, playerIndex: number, charged: Card): string {
+  const player = draft.players[playerIndex];
+  const opponent = draft.players[1 - playerIndex];
+  const texts: string[] = [];
+  if (charged.effect === "charge_pressure" && opponent.hand.length >= 3) {
+    discardLowPriorityCards(opponent, 1);
+    texts.push(`${opponent.name}の手札を1枚トラッシュ。`);
+  }
+  if (charged.effect === "charge_draw") {
+    const drawnCards = drawCards(player, 1);
+    texts.push(`${visibleDrawText(player, drawnCards)}。`);
+  }
+  if (charged.effect === "charge_ready_ally") {
+    const targetIndex = highestPowerSpentAi(player);
+    if (targetIndex !== null) {
+      player.spentFieldIndexes.delete(targetIndex);
+      texts.push(`${player.field[targetIndex].name}を回復。`);
+    }
+  }
+  if (charged.effect === "charge_guard") {
+    player.chargeGuard = 1;
+    texts.push("次の自分ターンまで場防御値+1。");
+  }
+  if (player.memory?.effect === "resonator" && player.hand.length <= 2) {
+    const drawnCards = drawCards(player, 1);
+    texts.push(`${player.memory.name}で${visibleDrawText(player, drawnCards)}。`);
+  }
+  return texts.length > 0 ? ` ${texts.join(" ")}` : "";
 }
 
 export function applyPlayEffects(

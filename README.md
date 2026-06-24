@@ -47,13 +47,15 @@ design plan.
 - There is no default hand limit. Hand size is controlled through card effects
   and hand defense instead of automatic end-of-turn cleanup.
 - Summon cards have base power roles plus selected individual effects:
-  - The summon pool has 32 cards: 4 attributes x 4 power values x A/B variants.
+  - The summon pool has 36 cards: 4 attributes x 4 power values x A/B variants,
+    plus one charge-focused summon for each attribute.
   - power 1/2: costs 1 action and works well as upgrade material.
   - power 3: costs 2 actions as a mid-size summon.
   - power 4: costs 2 actions and goes to discard after attacking.
   - selected summon cards have effects such as attack value +1, draw on play,
     hand-defense punishment, blocked-attack draw, ready/spent control,
-    return-to-hand after attack, defense value +1, or successful-defense draw.
+    charge-time effects, return-to-hand after attack, defense value +1, or
+    successful-defense draw.
     Some stronger effects carry drawbacks such as self-damage, entering spent,
     letting the opponent draw, or being unusable for hand defense.
   - attribute themes are intentionally distinct: fire forces damage/resource
@@ -70,6 +72,8 @@ design plan.
 - Relic cards reinforce strategies while also spending hand resources:
   - `灯火の旅嚢`: draws only when its controller starts the turn with 2 or
     fewer cards.
+  - `蓄光の祭壇`: after its controller charges, draws 1 card if that player has
+    2 or fewer cards in hand.
   - `竜盾の紋章`: discards 1 hand card to add +1 to off-attribute field
     defense.
   - In the browser UI, human players choose which hand card to discard for

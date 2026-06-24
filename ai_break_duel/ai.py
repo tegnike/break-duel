@@ -401,9 +401,33 @@ def _best_charge_fuel(state: GameState) -> int | None:
             )
             and len(remaining) >= 2
         )
-        if enables_large_play or enables_two_step_turn:
+        if (
+            enables_large_play
+            or enables_two_step_turn
+            or _charge_fuel_has_immediate_value(state, player, player.hand[fuel_index], remaining)
+        ):
             return fuel_index
     return None
+
+
+def _charge_fuel_has_immediate_value(
+    state: GameState,
+    player,
+    card,
+    remaining_hand,
+) -> bool:
+    opponent = state.opponent()
+    if card.effect == "charge_pressure":
+        return len(opponent.hand) >= 3
+    if card.effect == "charge_draw":
+        return bool(player.deck)
+    if card.effect == "charge_ready_ally":
+        return bool(player.spent_field_ai)
+    if card.effect == "charge_guard":
+        return bool(player.field_ai)
+    if player.memory is not None and player.memory.effect == "resonator":
+        return len(remaining_hand) <= 2 and bool(player.deck)
+    return False
 
 
 def _can_charge_card(card) -> bool:
@@ -446,6 +470,8 @@ def _defense_power_bonus(
         and card.attribute != attack_ai.attribute
         and _firewall_should_pay(card, defender, attack_ai)
     ):
+        bonus += 1
+    if defender is not None and defender.pending_effects.get("charge_guard"):
         bonus += 1
     return bonus
 

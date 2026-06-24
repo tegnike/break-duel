@@ -6,6 +6,7 @@ from typing import Any
 from .ai import choose_defender, choose_hand_defender
 from .cards import (
     Attribute,
+    AiEffect,
     CardType,
     CommandEffect,
     DeckArchetype,
@@ -81,6 +82,7 @@ def start_turn(state: GameState) -> None:
     state.active().pending_effects["pipeline_used"] = False
     state.active().pending_effects["accelerator_used"] = False
     state.active().pending_effects["charge_used"] = False
+    state.active().pending_effects.pop("charge_guard", None)
     state.active().pending_effects.pop("sandbox_shield", None)
     state.active().turns_started += 1
     drawn = state.active().draw(1, state.rng) if _should_draw_for_turn(state) else 0
@@ -560,6 +562,7 @@ def _charge(state: GameState, action: Action) -> None:
     if state.actions_remaining > before:
         state.charged_actions_remaining += 1
     player.pending_effects["charge_used"] = True
+    charge_effect = _apply_charge_effect(state, player, card)
     state.stats.record_card_usage(card.id, "charged")
     state.log.append(
         _action_log_base(state, action)
@@ -568,9 +571,47 @@ def _charge(state: GameState, action: Action) -> None:
             "result": "charged",
             "actions_remaining": state.actions_remaining,
             "charged_actions_remaining": state.charged_actions_remaining,
+            "charge_effect": charge_effect,
             "field": _field_state(state),
         }
     )
+
+
+def _apply_charge_effect(state: GameState, player: PlayerState, charged_card) -> dict[str, Any]:
+    opponent = state.opponent()
+    result: dict[str, Any] = {
+        "opponent_discarded_card": None,
+        "draw_count": 0,
+        "readied_ai": None,
+        "charge_guard": False,
+        "resonator_draw_count": 0,
+    }
+    if charged_card.effect == AiEffect.CHARGE_PRESSURE.value and len(opponent.hand) >= 3:
+        discarded = _discard_low_priority_cards(opponent, 1)
+        result["opponent_discarded_card"] = discarded[0].id if discarded else None
+        state.stats.record_card_usage(charged_card.id, "charge_pressure")
+    if charged_card.effect == AiEffect.CHARGE_DRAW.value:
+        result["draw_count"] = player.draw(1, state.rng)
+        state.stats.record_card_usage(charged_card.id, "charge_draw")
+    if charged_card.effect == AiEffect.CHARGE_READY_ALLY.value:
+        target_index = _highest_power_spent_ai(player)
+        if target_index is not None:
+            target = player.field_ai[target_index]
+            player.spent_field_ai.remove(target_index)
+            result["readied_ai"] = target.id
+            state.stats.record_card_usage(charged_card.id, "charge_ready_ally")
+    if charged_card.effect == AiEffect.CHARGE_GUARD.value:
+        player.pending_effects["charge_guard"] = 1
+        result["charge_guard"] = True
+        state.stats.record_card_usage(charged_card.id, "charge_guard")
+    if (
+        player.memory is not None
+        and player.memory.effect == MemoryEffect.RESONATOR.value
+        and len(player.hand) <= 2
+    ):
+        result["resonator_draw_count"] = player.draw(1, state.rng)
+        state.stats.record_card_usage(player.memory.id, "charge_draw")
+    return result
 
 
 def _use_command(state: GameState, action: Action) -> None:
@@ -990,6 +1031,8 @@ def _defense_power_bonus(
         and card.attribute != attack_ai.attribute
         and _firewall_should_pay(state, defender, card, attack_ai)
     ):
+        bonus += 1
+    if defender.pending_effects.get("charge_guard"):
         bonus += 1
     return bonus
 

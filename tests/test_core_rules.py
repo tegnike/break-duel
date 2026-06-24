@@ -328,13 +328,17 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[0].field_ai[0].id, "AI-FIRE-1")
         self.assertEqual(state.players[0].hand, [])
 
-    def test_ai_card_pool_has_two_variants_for_each_attribute_power_pair(self) -> None:
+    def test_ai_card_pool_has_two_base_variants_and_charge_cycle_cards(self) -> None:
         ai_ids = {item.id for item in AI_CARD_POOL}
-        self.assertEqual(len(ai_ids), 32)
+        self.assertEqual(len(ai_ids), 36)
         for code in ("FIRE", "WATER", "WIND", "EARTH"):
             for power in (1, 2, 3, 4):
                 self.assertIn(f"AI-{code}-{power}", ai_ids)
                 self.assertIn(f"AI-{code}-{power}B", ai_ids)
+        self.assertIn("AI-FIRE-1C", ai_ids)
+        self.assertIn("AI-WATER-1C", ai_ids)
+        self.assertIn("AI-WIND-2C", ai_ids)
+        self.assertIn("AI-EARTH-2C", ai_ids)
 
     def test_block_pressure_discards_after_successful_hand_defense(self) -> None:
         state = new_game(1, no_opening_hands())
@@ -749,6 +753,68 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.charged_actions_remaining, 1)
         with self.assertRaisesRegex(ValueError, "cannot attack"):
             apply_action(state, Action(ActionType.ATTACK, 0))
+
+    def test_fire_charge_summon_discards_opponent_hand_when_opponent_has_three_or_more(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-FIRE-1C")]
+        state.players[1].hand = [card("AI-WATER-1"), card("AI-WATER-2"), card("AI-WATER-3")]
+        state.players[0].turns_started = 1
+        state.turn = 1
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-WATER-2", "AI-WATER-3"])
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-WATER-1"])
+
+    def test_water_charge_summon_draws_one_card(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-WATER-1C")]
+        state.players[0].deck = [card("AI-FIRE-1")]
+        state.players[0].turns_started = 1
+        state.turn = 1
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-1"])
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-WATER-1C"])
+
+    def test_wind_charge_summon_readies_spent_summon(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].field_ai = [card("AI-WIND-1")]
+        state.players[0].spent_field_ai = {0}
+        state.players[0].hand = [card("AI-WIND-2C")]
+        state.players[0].turns_started = 1
+        state.turn = 1
+        start_turn(state)
+        state.players[0].spent_field_ai = {0}
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual(state.players[0].spent_field_ai, set())
+
+    def test_earth_charge_summon_adds_next_defense_bonus_until_next_turn(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].field_ai = [card("AI-EARTH-3")]
+        state.players[0].hand = [card("AI-EARTH-2C")]
+        state.players[0].turns_started = 1
+        state.turn = 1
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual(state.players[0].pending_effects["charge_guard"], 1)
+        state.players[1].field_ai = [card("AI-FIRE-3B")]
+        end_turn(state)
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.stats.successful_defenses, 1)
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-EARTH-2C", "AI-EARTH-3"])
+
+    def test_resonator_memory_draws_after_charge_when_hand_is_low(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].memory = memory("MEM-RESONATOR")
+        state.players[0].hand = [card("AI-FIRE-1")]
+        state.players[0].deck = [card("AI-WATER-1")]
+        state.players[0].turns_started = 1
+        state.turn = 1
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-WATER-1"])
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-FIRE-1"])
 
     def test_accelerator_added_action_can_be_used_to_attack(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
