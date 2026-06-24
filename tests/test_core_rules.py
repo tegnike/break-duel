@@ -5,6 +5,7 @@ import unittest
 from ai_break_duel.cards import (
     AI_CARD_POOL,
     COMMAND_CARD_POOL,
+    CardType,
     DeckArchetype,
     MEMORY_CARD_POOL,
     Attribute,
@@ -188,6 +189,57 @@ class CoreRuleTests(unittest.TestCase):
         self.assertNotEqual(player_1_deck, player_2_deck)
         self.assertIn("MEM-CACHE", player_1_deck)
         self.assertIn("MEM-FIREWALL", player_2_deck)
+
+    def test_fixed_decks_cover_card_pool_and_required_card_types(self) -> None:
+        used_card_ids = set()
+        for archetype in DeckArchetype:
+            deck = build_deck(archetype)
+            self.assertEqual(len(deck), 20, archetype.value)
+            validate_same_name_limit(deck)
+            used_card_ids.update(card.id for card in deck)
+
+            self.assertGreaterEqual(
+                sum(1 for card in deck if card.type == CardType.AI),
+                2,
+                archetype.value,
+            )
+            self.assertGreaterEqual(
+                sum(1 for card in deck if card.type == CardType.EVENT),
+                2,
+                archetype.value,
+            )
+            self.assertGreaterEqual(
+                sum(1 for card in deck if card.type == CardType.MEMORY),
+                2,
+                archetype.value,
+            )
+
+        all_card_ids = {
+            card.id
+            for card in [*AI_CARD_POOL, *COMMAND_CARD_POOL, *MEMORY_CARD_POOL]
+        }
+        self.assertFalse(all_card_ids - used_card_ids)
+
+    def test_single_color_decks_use_only_their_attribute_summons(self) -> None:
+        expected_attributes = {
+            DeckArchetype.FIRE: Attribute.FIRE,
+            DeckArchetype.WATER: Attribute.WATER,
+            DeckArchetype.WIND: Attribute.WIND,
+            DeckArchetype.EARTH: Attribute.EARTH,
+        }
+
+        for archetype, attribute in expected_attributes.items():
+            deck = build_deck(archetype)
+            summon_ids = {card.id for card in deck if card.type == CardType.AI}
+            expected_summon_ids = {
+                card.id for card in AI_CARD_POOL if card.attribute == attribute
+            }
+            self.assertTrue(expected_summon_ids <= summon_ids, archetype.value)
+            self.assertEqual(
+                {card.attribute for card in deck if card.type == CardType.AI},
+                {attribute},
+                archetype.value,
+            )
 
     def test_undefended_attack_deals_damage_without_drawing(self) -> None:
         state = new_game(1, no_opening_hands())

@@ -24,8 +24,9 @@ design plan.
   - `water`: draw, filtering, refill finishers, and recursion.
   - `wind`: tempo, ready/spent control, reusable attackers, returning finishers.
   - `earth`: defense, firewall, successful-defense draw, and recursion.
-  - Each mono-attribute deck keeps summon cards within one attribute, then
-    doubles theme-defining summons as needed for balance.
+  - Each preset deck contains at least two summon, command, and relic cards.
+    Each mono-attribute deck keeps summon cards within one attribute and uses
+    every summon from that attribute at least once.
 - Turns normally start with two actions. The first player's first turn starts
   with one action.
 - Once per turn, the active player may charge a power 1/2 summon, command, or
@@ -147,10 +148,9 @@ The command writes:
 The league command writes `league-summary.json` under the selected output
 directory.
 
-The latest balanced-deck checks used seed `21001`: `break` vs `control` over
-5000 games landed at 56.8% for first-player `break`; the six-deck ordered league
-with 1000 games per pair landed at 56.0% `earth`, 51.8% `control`, 49.5%
-`water`, 48.6% `break`, 47.4% `wind`, and 46.6% `fire`.
+The latest balanced-deck check used seed `260626`: the six-deck ordered league
+with 1000 games per ordered pair landed at 54.7% `break`, 53.5% `earth`,
+51.0% `control`, 50.6% `fire`, 45.5% `wind`, and 44.7% `water`.
 
 ## Play UI
 
