@@ -368,7 +368,7 @@ def build_ai_card_pool() -> list[Card]:
         "AI-WIND-1B": AiEffect.NO_SPEND_AFTER_ATTACK.value,
         "AI-WIND-2B": AiEffect.SPEND_ENEMY_ON_PLAY.value,
         "AI-WIND-3": AiEffect.SPEND_ENEMY_ON_PLAY.value,
-        "AI-WIND-3B": AiEffect.READY_ALLY_ON_PLAY_DRAW.value,
+        "AI-WIND-3B": AiEffect.READY_ALLY_ON_PLAY.value,
         "AI-WIND-4B": AiEffect.RETURN_AFTER_OVERHEAT_CANNOT_HAND_DEFEND.value,
         "AI-WIND-2C": AiEffect.CHARGE_READY_ALLY.value,
         "AI-EARTH-1B": AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE.value,

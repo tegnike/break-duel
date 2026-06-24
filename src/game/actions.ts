@@ -379,10 +379,8 @@ export function useCommandAtInDraft(
     }
   } else if (used.effect === "water_rite") {
     if (!hasAttributeAi(player, "水")) return;
-    const drawnCards = drawCards(player, 2);
-    const discarded = discardLowPriorityCards(player, 1);
+    const drawnCards = drawCards(player, 1);
     text += ` ${visibleDrawText(player, drawnCards)}。`;
-    if (discarded.length > 0) text += ` ${cardNameList(discarded)}を捨てた。`;
   } else if (used.effect === "wind_rite") {
     if (!hasAttributeAi(player, "風")) return;
     const disruptedIndex = highestPowerReadyAi(opponent);

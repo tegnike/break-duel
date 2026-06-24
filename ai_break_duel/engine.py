@@ -747,11 +747,9 @@ def _use_command(state: GameState, action: Action) -> None:
             player.hand.insert(action.source_index, command)
             raise ValueError("Water rite requires a deck card to draw.")
         player.discard.append(command)
-        drawn = player.draw(2, state.rng)
-        discarded = _discard_low_priority_cards(player, 1)
+        drawn = player.draw(1, state.rng)
         result |= {
             "draw_count": drawn,
-            "water_rite_discarded_card": discarded[0].id if discarded else None,
         }
     elif command.effect == CommandEffect.WIND_RITE.value:
         if not _has_attribute_ai(player, Attribute.WIND):

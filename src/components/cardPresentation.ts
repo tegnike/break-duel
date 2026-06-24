@@ -228,7 +228,7 @@ export function roleText(card: Card): string {
   if (card.effect === "sandbox") return "1アクション。このターン、次のpower 4攻撃後退場を1回防ぐ";
   if (card.effect === "trinity") return "1アクション。場が3枚なら全てトラッシュし、相手ライフ-1";
   if (card.effect === "fire_rite") return "1アクション。場に火の召喚獣がいる時、相手の手札1枚をトラッシュ。なければ相手ライフ-1";
-  if (card.effect === "water_rite") return "1アクション。場に水の召喚獣がいる時、山札からカードを2枚引き、手札1枚を捨てる";
+  if (card.effect === "water_rite") return "1アクション。場に水の召喚獣がいる時、山札からカードを1枚引く";
   if (card.effect === "wind_rite") return "1アクション。場に風の召喚獣がいる時、相手1体を消耗し、自分の風1体を回復";
   if (card.effect === "earth_rite") return "1アクション。場に土の召喚獣がいる時、トラッシュの召喚獣1枚を回収";
   if (card.effect === "firewall") return "他属性防御時、手札を1枚捨てるなら power +1";
