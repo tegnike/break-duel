@@ -684,8 +684,10 @@ export function shouldDrawForTurn(game: GameState): boolean {
 }
 
 export function canActivePlayerAttack(game: GameState): boolean {
+  const player = activePlayer(game);
   return (
     game.actionsRemaining > game.chargedActionsRemaining
+    && !player.chargeUsed
     && !(game.turn === 1 && game.active === 0 && !CONFIG.firstPlayerFirstTurnCanAttack)
   );
 }
@@ -1290,6 +1292,7 @@ export function chooseAiAction(game: GameState): AiAction {
 
 export function bestChargeFuel(game: GameState, player: PlayerState): number | null {
   if (!canUseCharge(game, player)) return null;
+  if (canActivePlayerAttack(game) && attackableField(player).length > 0) return null;
   const before = game.actionsRemaining;
   const after = Math.min(3, before + 1);
   const candidates = player.hand

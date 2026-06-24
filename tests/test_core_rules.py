@@ -699,6 +699,8 @@ class CoreRuleTests(unittest.TestCase):
     def test_charge_discards_one_hand_card_and_adds_restricted_action(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].hand = [card("AI-FIRE-1"), card("AI-WATER-3")]
+        state.players[0].turns_started = 1
+        state.turn = 1
         start_turn(state)
         apply_action(state, Action(ActionType.CHARGE, 0))
         self.assertEqual(state.actions_remaining, 3)
@@ -706,9 +708,19 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[0].discard], ["AI-FIRE-1"])
         self.assertTrue(state.players[0].pending_effects["charge_used"])
 
+    def test_charge_can_be_used_on_players_first_turn(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=1))
+        state.players[0].hand = [card("AI-FIRE-1"), card("AI-WATER-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual(state.actions_remaining, 2)
+        self.assertEqual(state.charged_actions_remaining, 1)
+
     def test_power_3_or_higher_summons_cannot_be_charged(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].hand = [card("AI-WATER-3")]
+        state.players[0].turns_started = 1
+        state.turn = 1
         start_turn(state)
         with self.assertRaisesRegex(ValueError, "cannot be charged"):
             apply_action(state, Action(ActionType.CHARGE, 0))
@@ -716,21 +728,24 @@ class CoreRuleTests(unittest.TestCase):
     def test_charged_action_is_spent_first_by_non_attack_actions(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].hand = [card("AI-FIRE-1"), card("AI-WATER-1")]
+        state.players[0].turns_started = 1
+        state.turn = 1
         start_turn(state)
         apply_action(state, Action(ActionType.CHARGE, 0))
         apply_action(state, Action(ActionType.PLAY_AI, 0))
         self.assertEqual(state.actions_remaining, 2)
         self.assertEqual(state.charged_actions_remaining, 0)
 
-    def test_charged_action_cannot_be_used_to_attack(self) -> None:
+    def test_charging_prevents_attacking_for_the_rest_of_turn(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=1))
         state.players[0].field_ai = [card("AI-WIND-1")]
         state.players[0].hand = [card("AI-FIRE-1")]
         state.players[1].deck = [card("AI-EARTH-1")]
+        state.players[0].turns_started = 1
+        state.turn = 1
         start_turn(state)
         apply_action(state, Action(ActionType.CHARGE, 0))
-        apply_action(state, Action(ActionType.ATTACK, 0))
-        self.assertEqual(state.actions_remaining, 1)
+        self.assertEqual(state.actions_remaining, 3)
         self.assertEqual(state.charged_actions_remaining, 1)
         with self.assertRaisesRegex(ValueError, "cannot attack"):
             apply_action(state, Action(ActionType.ATTACK, 0))

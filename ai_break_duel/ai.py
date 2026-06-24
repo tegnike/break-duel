@@ -78,6 +78,8 @@ def choose_action(state: GameState) -> Action:
 def _can_active_player_attack(state: GameState) -> bool:
     if state.actions_remaining <= state.charged_actions_remaining:
         return False
+    if state.active().pending_effects.get("charge_used"):
+        return False
     if (
         state.active().turns_started == 1
         and not state.config.each_player_first_turn_can_attack
@@ -371,6 +373,8 @@ def _can_use_charge(state: GameState) -> bool:
 
 def _best_charge_fuel(state: GameState) -> int | None:
     if not _can_use_charge(state):
+        return None
+    if _can_active_player_attack(state) and _attackable_field_ai(state.active()):
         return None
     player = state.active()
     before = state.actions_remaining

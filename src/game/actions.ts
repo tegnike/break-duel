@@ -734,7 +734,7 @@ export function performAiActionInDraft(
     effects.showDuelEvent?.({
       kind: "command",
       title: `${player.name}がチャージ`,
-      detail: `${charged.name}をトラッシュへ送り、このターンのアクションを1増やしました。`,
+      detail: `${charged.name}をトラッシュへ送り、このターンのアクションを1増やしました。このターンは攻撃できません。`,
       fromLabel: "手札",
       toLabel: "トラッシュ",
       tone: player.isHuman ? "magenta" : "cyan",

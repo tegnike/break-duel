@@ -340,7 +340,7 @@ export function actionHintText(game: GameState, card: Card | null, zone: string 
   if (zone === "hand") {
     if (card.type === "event") return commandUsable(game, card, human, opponent) ? `${card.name}を使用できます。` : `${card.name}は条件を満たすと使用できます。`;
     if (card.type === "memory") return human.memory ? "配置すると現在の遺物はトラッシュされます。" : "遺物枠に配置できます。";
-    if (canUseCharge(game, human) && canChargeCard(card)) return "チャージで手札からトラッシュし、このターンのアクションを1増やせます。";
+    if (canUseCharge(game, human) && canChargeCard(card)) return "チャージで手札からトラッシュし、このターンのアクションを1増やせます。このターンは攻撃できません。";
     const sourceIndex = bestUpgradeSource(human, card);
     if (sourceIndex !== null && upgradeCost(card) <= game.actionsRemaining) return `${human.field[sourceIndex].name}を元に${upgradeCost(card)}アクションでアップグレードできます。`;
     if (human.field.length < 3 && playCost(card) <= game.actionsRemaining) return "場に出せます。";
@@ -349,7 +349,7 @@ export function actionHintText(game: GameState, card: Card | null, zone: string 
   }
   if (zone === "field") {
     if ((game.selected?.ownerIndex ?? 0) !== 0) return selectedText(card);
-    if (!canActivePlayerAttack(game)) return game.actionsRemaining <= game.chargedActionsRemaining ? "チャージで得たアクションでは攻撃できません。" : "先攻初ターンは攻撃できません。";
+    if (!canActivePlayerAttack(game)) return human.chargeUsed ? "チャージしたターンは攻撃できません。" : "先攻初ターンは攻撃できません。";
     if (human.spentFieldIndexes.has(game.selected?.index ?? -1)) return "消耗中のため行動できません。";
     const defense = chooseAiDefense(opponent, card);
     return defense.type === "none" ? "攻撃するとダメージが通る見込みです。" : "攻撃すると防御される可能性があります。";

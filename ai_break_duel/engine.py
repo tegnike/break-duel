@@ -1142,6 +1142,8 @@ def _can_charge_card(card) -> bool:
 def _can_active_player_attack(state: GameState) -> bool:
     if state.actions_remaining <= state.charged_actions_remaining:
         return False
+    if state.active().pending_effects.get("charge_used"):
+        return False
     if (
         state.active().turns_started == 1
         and not state.config.each_player_first_turn_can_attack

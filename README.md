@@ -29,7 +29,7 @@ design plan.
 - Two actions every turn.
 - Once per turn, the active player may charge a power 1/2 summon, command, or
   relic from hand to discard to gain +1 action for that turn, up to 3 actions.
-  The charged action is visually marked and cannot be used to attack.
+  A player that charges cannot attack for the rest of that turn.
 - The game ends by life judgement after 60 player turns if neither player has
   lost by life damage.
 - The first player starts with 5 cards.
