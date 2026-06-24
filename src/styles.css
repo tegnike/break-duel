@@ -642,7 +642,9 @@ select {
 
 .deck-list {
   display: grid;
-  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  align-content: start;
+  gap: 10px;
   max-height: calc(100vh - 344px);
   min-height: 300px;
   margin-top: 10px;
@@ -661,40 +663,90 @@ select {
   font-weight: 800;
 }
 
-.deck-row-item {
+.deck-card-item {
+  position: relative;
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
-  gap: 9px;
-  align-items: center;
-  min-height: 38px;
-  border-left: 4px solid var(--card-color);
-  border-radius: 6px;
-  padding: 5px 8px;
-  background: color-mix(in srgb, var(--card-color) 10%, #111923);
-  text-align: left;
+  min-height: 178px;
+  border: 1px solid color-mix(in srgb, var(--card-color) 48%, #ffffff 8%);
+  border-radius: 8px;
+  padding: 7px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
+    color-mix(in srgb, var(--card-color) 12%, #111923);
 }
 
-.deck-row-item span {
-  color: #849495;
-  font-family: "Space Mono", ui-monospace, monospace;
+.deck-card-item:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--card-color) 76%, #ffffff 18%);
+}
+
+.deck-card-item .card {
+  width: 100%;
+  height: 100%;
+  min-height: 164px;
+  grid-template-rows: 42px 54px 40px 24px;
+  padding: 8px;
+}
+
+.deck-card-item .card-header {
+  min-height: 42px;
+  max-height: 42px;
+  overflow: hidden;
+}
+
+.deck-card-item .card-name {
+  display: -webkit-box;
+  min-height: 30px;
+  max-height: 30px;
+  padding-right: 30px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   font-size: 12px;
-  font-weight: 900;
+  line-height: 1.25;
 }
 
-.deck-row-item strong {
-  min-width: 0;
-  color: #f7fbfb;
-  font-size: 13px;
+.deck-card-item .card-id {
+  display: block;
+  height: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.deck-row-item em {
-  color: #849495;
+.deck-card-item .card-art {
+  height: 54px;
+  min-height: 0;
+  margin-top: 0;
+}
+
+.deck-card-item .card-core {
+  min-height: 40px;
+  margin: 0;
+}
+
+.deck-card-item .card-foot {
+  min-height: 24px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.deck-card-number {
+  position: absolute;
+  z-index: 2;
+  top: 11px;
+  left: 11px;
+  display: grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: #e9fdff;
+  background: rgba(8, 15, 23, 0.84);
   font-family: "Space Mono", ui-monospace, monospace;
   font-size: 11px;
-  font-style: normal;
+  font-weight: 900;
 }
 
 .deck-save-actions {
@@ -897,12 +949,18 @@ select {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .deck-row-item {
-    grid-template-columns: 26px minmax(0, 1fr);
+  .deck-list {
+    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
   }
 
-  .deck-row-item em {
-    grid-column: 2;
+  .deck-card-item {
+    min-height: 168px;
+  }
+
+  .deck-card-item .card {
+    min-height: 154px;
+    grid-template-rows: 40px 50px 38px 22px;
+    padding: 7px;
   }
 }
 

@@ -278,15 +278,16 @@ export function DeckBuilderPage() {
             {deckCards.length === 0 ? <div className="empty-deck">カードを追加してください</div> : deckCards.map((card, index) => (
               <button
                 type="button"
-                className="deck-row-item"
+                className="deck-card-item"
                 style={{ "--card-color": cardColor(card) } as React.CSSProperties}
                 key={`${card.id}-${index}`}
+                aria-label={`${index + 1}枚目の${card.name}をデッキから外す`}
+                title={`${card.name}をデッキから外す`}
                 onClick={() => removeCard(index)}
                 onMouseEnter={() => setSelectedId(card.id)}
               >
-                <span>{index + 1}</span>
-                <strong>{card.name}</strong>
-                <em>{card.id}</em>
+                <span className="deck-card-number">{index + 1}</span>
+                <CardView card={card} ownerIndex={4} zone="hand" index={index} showCost />
               </button>
             ))}
           </div>
