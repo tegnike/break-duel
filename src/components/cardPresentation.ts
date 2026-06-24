@@ -11,12 +11,14 @@ import aiEarth1Art from "../assets/card-art/ai-earth-1.webp";
 import aiEarth1bArt from "../assets/card-art/ai-earth-1b.webp";
 import aiEarth2Art from "../assets/card-art/ai-earth-2.webp";
 import aiEarth2bArt from "../assets/card-art/ai-earth-2b.webp";
+import aiEarth2cArt from "../assets/card-art/ai-earth-2c.webp";
 import aiEarth3Art from "../assets/card-art/ai-earth-3.webp";
 import aiEarth3bArt from "../assets/card-art/ai-earth-3b.webp";
 import aiEarth4Art from "../assets/card-art/ai-earth-4.webp";
 import aiEarth4bArt from "../assets/card-art/ai-earth-4b.webp";
 import aiFire1Art from "../assets/card-art/ai-fire-1.webp";
 import aiFire1bArt from "../assets/card-art/ai-fire-1b.webp";
+import aiFire1cArt from "../assets/card-art/ai-fire-1c.webp";
 import aiFire2Art from "../assets/card-art/ai-fire-2.webp";
 import aiFire2bArt from "../assets/card-art/ai-fire-2b.webp";
 import aiFire3Art from "../assets/card-art/ai-fire-3.webp";
@@ -25,6 +27,7 @@ import aiFire4Art from "../assets/card-art/ai-fire-4.webp";
 import aiFire4bArt from "../assets/card-art/ai-fire-4b.webp";
 import aiWater1Art from "../assets/card-art/ai-water-1.webp";
 import aiWater1bArt from "../assets/card-art/ai-water-1b.webp";
+import aiWater1cArt from "../assets/card-art/ai-water-1c.webp";
 import aiWater2Art from "../assets/card-art/ai-water-2.webp";
 import aiWater2bArt from "../assets/card-art/ai-water-2b.webp";
 import aiWater3Art from "../assets/card-art/ai-water-3.webp";
@@ -35,6 +38,7 @@ import aiWind1Art from "../assets/card-art/ai-wind-1.webp";
 import aiWind1bArt from "../assets/card-art/ai-wind-1b.webp";
 import aiWind2Art from "../assets/card-art/ai-wind-2.webp";
 import aiWind2bArt from "../assets/card-art/ai-wind-2b.webp";
+import aiWind2cArt from "../assets/card-art/ai-wind-2c.webp";
 import aiWind3Art from "../assets/card-art/ai-wind-3.webp";
 import aiWind3bArt from "../assets/card-art/ai-wind-3b.webp";
 import aiWind4Art from "../assets/card-art/ai-wind-4.webp";
@@ -53,6 +57,7 @@ import memAcceleratorArt from "../assets/card-art/mem-accelerator.webp";
 import memCacheArt from "../assets/card-art/mem-cache.webp";
 import memFirewallArt from "../assets/card-art/mem-firewall.webp";
 import memPipelineArt from "../assets/card-art/mem-pipeline.webp";
+import memResonatorArt from "../assets/card-art/mem-resonator.webp";
 import cardIcon from "../assets/kenney/card.png";
 import cardTargetIcon from "../assets/kenney/card_target.png";
 import cardsReturnIcon from "../assets/kenney/cards_return.png";
@@ -70,6 +75,7 @@ import timerIcon from "../assets/kenney/timer_CW_75.png";
 const AI_CARD_ART: Record<string, string> = {
   "AI-FIRE-1": aiFire1Art,
   "AI-FIRE-1B": aiFire1bArt,
+  "AI-FIRE-1C": aiFire1cArt,
   "AI-FIRE-2": aiFire2Art,
   "AI-FIRE-2B": aiFire2bArt,
   "AI-FIRE-3": aiFire3Art,
@@ -78,6 +84,7 @@ const AI_CARD_ART: Record<string, string> = {
   "AI-FIRE-4B": aiFire4bArt,
   "AI-WATER-1": aiWater1Art,
   "AI-WATER-1B": aiWater1bArt,
+  "AI-WATER-1C": aiWater1cArt,
   "AI-WATER-2": aiWater2Art,
   "AI-WATER-2B": aiWater2bArt,
   "AI-WATER-3": aiWater3Art,
@@ -88,6 +95,7 @@ const AI_CARD_ART: Record<string, string> = {
   "AI-WIND-1B": aiWind1bArt,
   "AI-WIND-2": aiWind2Art,
   "AI-WIND-2B": aiWind2bArt,
+  "AI-WIND-2C": aiWind2cArt,
   "AI-WIND-3": aiWind3Art,
   "AI-WIND-3B": aiWind3bArt,
   "AI-WIND-4": aiWind4Art,
@@ -96,6 +104,7 @@ const AI_CARD_ART: Record<string, string> = {
   "AI-EARTH-1B": aiEarth1bArt,
   "AI-EARTH-2": aiEarth2Art,
   "AI-EARTH-2B": aiEarth2bArt,
+  "AI-EARTH-2C": aiEarth2cArt,
   "AI-EARTH-3": aiEarth3Art,
   "AI-EARTH-3B": aiEarth3bArt,
   "AI-EARTH-4": aiEarth4Art,
@@ -117,6 +126,7 @@ const SUPPORT_CARD_ART: Record<string, string> = {
   "MEM-FIREWALL": memFirewallArt,
   "MEM-CACHE": memCacheArt,
   "MEM-PIPELINE": memPipelineArt,
+  "MEM-RESONATOR": memResonatorArt,
 };
 
 export function cardColor(card: Card): string {

@@ -24,9 +24,11 @@ description: Add or modify AI Break Duel cards end-to-end across the React/TypeS
    - Avoid `ただし`; split drawbacks into separate short sentences, e.g. `消耗で出る。手札防御に使えない。`
    - Opponent draw logs must not reveal opponent card names.
 
-4. Add art only when requested.
+4. Add generated art for every new card unless the user explicitly opts out.
    - Use the `imagegen` skill for generated raster art.
    - Default card art should be 16:9 landscape WebP under `src/assets/card-art/`.
+   - Vary the art direction/style prompt for each card instead of reusing one
+     fixed house style across a batch.
    - Import the asset in `src/components/cardPresentation.ts` and map it in `SUPPORT_CARD_ART` or `AI_CARD_ART`.
 
 5. Update docs and tests.
