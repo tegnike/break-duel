@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   CONFIG,
+  DECKS,
+  STARTER_DECK_IDS,
   type AiAction,
   type DefenseChoice,
   type Card,
+  type DeckId,
   type GameState,
   type PlayerState,
   addLog,
@@ -47,6 +50,7 @@ import type { DuelEvent, DuelEventPayload } from "./duelEvents";
 import brandMark from "./assets/mark.svg";
 
 let eventId = 1;
+const INITIAL_SEED = randomSeed();
 
 type AppPage = "duel" | "cards" | "builder";
 
@@ -67,11 +71,23 @@ type FlightRect = {
   height: number;
 };
 
+function randomSeed(): number {
+  if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
+    const values = new Uint32Array(1);
+    crypto.getRandomValues(values);
+    return values[0] || 1;
+  }
+  return Math.floor(Date.now() % 4294967295) || 1;
+}
+
 export default function App() {
   const [page, setPage] = useState<AppPage>("duel");
-  const [seed, setSeed] = useState(1);
-  const [game, setGame] = useState<GameState>(() => createGame(1));
+  const [seed, setSeed] = useState(INITIAL_SEED);
+  const [playerDeckId, setPlayerDeckId] = useState<DeckId>("fire");
+  const [game, setGame] = useState<GameState>(() => createGame(INITIAL_SEED, "fire"));
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [starterDeckModalOpen, setStarterDeckModalOpen] = useState(true);
+  const [starterDeckChosen, setStarterDeckChosen] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [duelEvent, setDuelEvent] = useState<DuelEvent | null>(null);
   const [cardFlight, setCardFlight] = useState<CardFlight | null>(null);
@@ -80,7 +96,7 @@ export default function App() {
   const [banner, setBanner] = useState<Banner>(() => ({
     kind: "start",
     title: "BREAK DUEL",
-    detail: "Seed 1 / 先攻: あなた / 60手番制限",
+    detail: `Seed ${INITIAL_SEED} / 先攻: あなた / ${CONFIG.maxTurns}手番制限`,
     id: eventId++,
   }));
   const [audioEnabled, setAudioEnabled] = useState(false);
@@ -116,7 +132,7 @@ export default function App() {
   }
 
   function queueDuelEvent(event: DuelEventPayload) {
-    if (event.kind === "play" || event.kind === "memory" || event.kind === "upgrade") return;
+    if (event.kind === "play" || event.kind === "memory" || event.kind === "upgrade" || event.kind === "command") return;
     duelEventQueue.current.push(event);
     if (duelEventScheduler.current !== null) return;
     duelEventScheduler.current = window.setTimeout(() => {
@@ -283,23 +299,36 @@ export default function App() {
     return action.type === "attack" ? 360 : 180;
   }
 
-  function startNewGame() {
-    const nextSeed = seed || 1;
-    setGame(createGame(nextSeed));
+  function startNewGame(deckId: DeckId = playerDeckId) {
+    const nextSeed = randomSeed();
+    setSeed(nextSeed);
+    setPlayerDeckId(deckId);
+    const nextGame = createGame(nextSeed, deckId);
+    setGame(nextGame);
     resetDuelEvents();
     setRulesOpen(false);
-    showToast("対戦開始", `Seed ${nextSeed}`);
+    setStarterDeckModalOpen(false);
+    setStarterDeckChosen(true);
+    showToast("対戦開始", `${DECKS[deckId].name} / 相手: ${nextGame.players[1].deckName}`);
     showBanner({
       kind: "start",
       title: "BREAK DUEL",
-      detail: `Seed ${nextSeed} / 先攻: あなた / ${CONFIG.maxTurns}手番制限`,
+      detail: `Seed ${nextSeed} / 相手: ${nextGame.players[1].deckName} / ${CONFIG.maxTurns}手番制限`,
     });
+  }
+
+  function openStarterDeckModal() {
+    resetDuelEvents();
+    setRulesOpen(false);
+    setPage("duel");
+    setStarterDeckModalOpen(true);
   }
 
   function changePage(nextPage: AppPage) {
     if (nextPage !== "duel") resetDuelEvents();
     setRulesOpen(false);
     setPage(nextPage);
+    if (nextPage === "duel") setStarterDeckModalOpen(true);
   }
 
   useEffect(() => {
@@ -436,7 +465,7 @@ export default function App() {
   function selectHand(index: number) {
     if (!canHumanAct(game)) return;
     mutate((draft) => {
-      draft.selected = { zone: "hand", index };
+      draft.selected = { zone: "hand", ownerIndex: 0, index };
     });
   }
 
@@ -448,9 +477,15 @@ export default function App() {
       useCommandAt(pending.sourceIndex, index);
       return;
     }
-    if (ownerIndex !== 0 || !canHumanAct(game)) return;
     mutate((draft) => {
-      draft.selected = { zone: "field", index };
+      draft.selected = { zone: "field", ownerIndex, index };
+    });
+  }
+
+  function selectMemory(ownerIndex: number) {
+    mutate((draft) => {
+      if (!draft.players[ownerIndex]?.memory) return;
+      draft.selected = { zone: "memory", ownerIndex, index: 0 };
     });
   }
 
@@ -746,8 +781,9 @@ export default function App() {
     : selectedCard?.type === "memory"
       ? "遺物配置"
       : "場に出す";
-  const selectedHand = game.selected?.zone === "hand";
-  const selectedField = game.selected?.zone === "field";
+  const selectedOwnerIndex = game.selected?.ownerIndex ?? 0;
+  const selectedHand = game.selected?.zone === "hand" && selectedOwnerIndex === 0;
+  const selectedField = game.selected?.zone === "field" && selectedOwnerIndex === 0;
   const selectedHandCard = selectedHand ? active.hand[game.selected!.index] : null;
   const playDisabled = !canHumanAct(game) || !selectedHand || !selectedHandCard || (
     selectedHandCard.type === "event"
@@ -788,8 +824,7 @@ export default function App() {
           page={page}
           onChangePage={changePage}
           seed={seed}
-          onSeedChange={setSeed}
-          onStartNewGame={startNewGame}
+          onStartNewGame={openStarterDeckModal}
           onOpenRules={() => setRulesOpen(true)}
           audioEnabled={audioEnabled}
           onToggleAudio={toggleAudio}
@@ -819,9 +854,9 @@ export default function App() {
           <PageTabs page={page} onChange={changePage} />
           <label className="duel-seed">
             <span>Seed</span>
-            <input type="number" value={seed} onChange={(event) => setSeed(Number(event.target.value) || 1)} />
+            <input type="number" value={seed} readOnly aria-label="現在のSeed" />
           </label>
-          <button type="button" onClick={startNewGame}>再戦</button>
+          <button type="button" onClick={openStarterDeckModal}>再戦</button>
           <button type="button" onClick={() => setRulesOpen(true)}>ルール</button>
           <button type="button" className={audioEnabled ? "audio-on" : ""} onClick={toggleAudio}>{audioEnabled ? "音ON" : "音OFF"}</button>
         </div>
@@ -833,9 +868,9 @@ export default function App() {
       </header>
 
       <section className="stitch-battlefield" aria-label="対戦盤面">
-        <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent onSelectField={selectField} />
+        <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent onSelectField={selectField} onSelectMemory={selectMemory} />
         <div className="clash-line" aria-hidden="true" />
-        <FieldGrid player={human} ownerIndex={0} game={game} onSelectField={selectField} />
+        <FieldGrid player={human} ownerIndex={0} game={game} onSelectField={selectField} onSelectMemory={selectMemory} />
       </section>
 
       <section className="stitch-player-status">
@@ -920,9 +955,9 @@ export default function App() {
           <AffinityGuide game={game} selected={selectedCard} />
           <LogList entries={game.log} />
         </div>
-        {!showDefenseInDuelEvent && defensePanel}
       </section>
 
+      {!showDefenseInDuelEvent && defensePanel}
       <EventToast toast={toast} />
       <CardFlightLayer flight={cardFlight} />
       <DuelActionReel event={duelEvent} autoDismiss={autoDismissDuelEvents} onClose={dismissDuelEvent}>
@@ -930,6 +965,14 @@ export default function App() {
       </DuelActionReel>
       <GameBanner banner={cardFlight ? null : banner} turn={game.turn} />
       {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
+      {starterDeckModalOpen && (
+        <StarterDeckModal
+          selectedDeckId={playerDeckId}
+          canClose={starterDeckChosen}
+          onClose={() => setStarterDeckModalOpen(false)}
+          onSelect={startNewGame}
+        />
+      )}
       {game.discardViewerOwner !== null && (
         <DiscardModal game={game} onClose={closeDiscardViewer} onSelect={selectDiscardCard} />
       )}
@@ -937,11 +980,54 @@ export default function App() {
   );
 }
 
+function StarterDeckModal({
+  selectedDeckId,
+  canClose,
+  onClose,
+  onSelect,
+}: {
+  selectedDeckId: DeckId;
+  canClose: boolean;
+  onClose: () => void;
+  onSelect: (deckId: DeckId) => void;
+}) {
+  return (
+    <div className="modal-backdrop starter-deck-backdrop" role="dialog" aria-modal="true" aria-labelledby="starter-deck-title" onClick={(event) => {
+      if (canClose && event.currentTarget === event.target) onClose();
+    }}>
+      <section className="starter-deck-modal">
+        <div className="modal-head">
+          <div>
+            <h2 id="starter-deck-title">スターターデッキを選択</h2>
+            <p>相手は選んだデッキ以外からランダムに決まります。</p>
+          </div>
+          {canClose && <button type="button" onClick={onClose}>閉じる</button>}
+        </div>
+        <div className="starter-deck-grid">
+          {STARTER_DECK_IDS.map((deckId) => {
+            const deck = DECKS[deckId];
+            return (
+              <button
+                type="button"
+                key={deckId}
+                className={selectedDeckId === deckId ? "selected" : ""}
+                onClick={() => onSelect(deckId)}
+              >
+                <span>{deck.name}</span>
+                <em>{deck.description}</em>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function WorkspaceHeader({
   page,
   onChangePage,
   seed,
-  onSeedChange,
   onStartNewGame,
   onOpenRules,
   audioEnabled,
@@ -950,7 +1036,6 @@ function WorkspaceHeader({
   page: AppPage;
   onChangePage: (page: AppPage) => void;
   seed: number;
-  onSeedChange: (seed: number) => void;
   onStartNewGame: () => void;
   onOpenRules: () => void;
   audioEnabled: boolean;
@@ -969,7 +1054,7 @@ function WorkspaceHeader({
       <div className="workspace-tools">
         <label className="duel-seed">
           <span>Seed</span>
-          <input type="number" value={seed} onChange={(event) => onSeedChange(Number(event.target.value) || 1)} />
+          <input type="number" value={seed} readOnly aria-label="現在のSeed" />
         </label>
         <button type="button" onClick={onStartNewGame}>再戦</button>
         <button type="button" onClick={onOpenRules}>ルール</button>
@@ -1006,22 +1091,27 @@ function FieldGrid({
   game,
   isOpponent = false,
   onSelectField,
+  onSelectMemory,
 }: {
   player: PlayerState;
   ownerIndex: number;
   game: GameState;
   isOpponent?: boolean;
   onSelectField: (ownerIndex: number, index: number) => void;
+  onSelectMemory: (ownerIndex: number) => void;
 }) {
   return (
     <div className={`field-grid ${isOpponent ? "opponent" : "human"}`}>
-      <MemorySlot player={player} ownerIndex={ownerIndex} isOpponent={isOpponent} />
+      <MemorySlot player={player} ownerIndex={ownerIndex} isOpponent={isOpponent} game={game} onSelectMemory={onSelectMemory} />
       {Array.from({ length: CONFIG.fieldLimit }).map((_, index) => {
         const card = player.field[index];
         if (!card) return <div className="field-slot empty" key={`empty-${ownerIndex}-${index}`} data-owner={ownerIndex} data-zone="field" data-index={index}>+</div>;
         const isDisruptTarget = game.pendingTarget?.kind === "disrupt"
           && ownerIndex === 1 - game.active
           && !player.spentFieldIndexes.has(index);
+        const isSelected = game.selected?.zone === "field"
+          && (game.selected.ownerIndex ?? 0) === ownerIndex
+          && game.selected.index === index;
         return (
           <CardView
             key={`${card.id}-${index}`}
@@ -1029,8 +1119,8 @@ function FieldGrid({
             ownerIndex={ownerIndex}
             zone="field"
             index={index}
-            selected={ownerIndex === 0 && game.selected?.zone === "field" && game.selected.index === index}
-            selectable={isDisruptTarget || (ownerIndex === 0 && canHumanAct(game))}
+            selected={isSelected}
+            selectable
             spent={player.spentFieldIndexes.has(index)}
             actionState={isDisruptTarget ? "usable" : ownerIndex === 0 ? fieldActionState(game, player, index) : "idle"}
             showCost={false}
@@ -1042,9 +1132,33 @@ function FieldGrid({
   );
 }
 
-function MemorySlot({ player, ownerIndex, isOpponent }: { player: PlayerState; ownerIndex: number; isOpponent: boolean }) {
+function MemorySlot({
+  player,
+  ownerIndex,
+  isOpponent,
+  game,
+  onSelectMemory,
+}: {
+  player: PlayerState;
+  ownerIndex: number;
+  isOpponent: boolean;
+  game: GameState;
+  onSelectMemory: (ownerIndex: number) => void;
+}) {
   if (player.memory) {
-    return <CardView card={player.memory} ownerIndex={ownerIndex} zone="memory" index={0} showCost={false} />;
+    const isSelected = game.selected?.zone === "memory" && (game.selected.ownerIndex ?? 0) === ownerIndex;
+    return (
+      <CardView
+        card={player.memory}
+        ownerIndex={ownerIndex}
+        zone="memory"
+        index={0}
+        selected={isSelected}
+        selectable
+        showCost={false}
+        onClick={() => onSelectMemory(ownerIndex)}
+      />
+    );
   }
   return <div className="field-slot memory-empty" data-owner={ownerIndex} data-zone="memory" data-index={0}>遺物</div>;
 }

@@ -37,13 +37,15 @@ export function SelectedCardDetail({ card, zone, game }: { card: Card | null; zo
     );
   }
   const canShowUpgradeCost = zone === "hand" && card.type === "ai" && bestUpgradeSource(game.players[0], card) !== null;
+  const selectedOwnerIndex = game.selected?.ownerIndex ?? 0;
+  const selectedOwner = game.players[selectedOwnerIndex] ?? game.players[0];
   const parts = [
     cardTypeLabel(card),
     card.attribute ? `${card.attribute}属性` : null,
     card.power ? `power ${card.power}` : null,
     `${playCost(card)}アクション`,
     canShowUpgradeCost ? `アップグレード ${upgradeCost(card)}アクション` : null,
-    zone === "field" && game.players[0].spentFieldIndexes.has(game.selected?.index ?? -1) ? "消耗中" : null,
+    zone === "field" && selectedOwner.spentFieldIndexes.has(game.selected?.index ?? -1) ? "消耗中" : null,
   ].filter(Boolean);
   return (
     <div className="selected-card">
@@ -58,7 +60,7 @@ export function SelectedCardDetail({ card, zone, game }: { card: Card | null; zo
 }
 
 export function AffinityGuide({ game, selected }: { game: GameState; selected: Card | null }) {
-  const attackPreview = selected?.type === "ai" && game.selected?.zone === "field"
+  const attackPreview = selected?.type === "ai" && game.selected?.zone === "field" && (game.selected.ownerIndex ?? 0) === 0
     ? <OpponentDefensePreview game={game} attackCard={selected} />
     : null;
   return (
@@ -234,6 +236,7 @@ export function actionHintText(game: GameState, card: Card | null, zone: string 
     return "残りアクションが足りません。";
   }
   if (zone === "field") {
+    if ((game.selected?.ownerIndex ?? 0) !== 0) return selectedText(card);
     if (!canActivePlayerAttack(game)) return "先攻初ターンは攻撃できません。";
     if (human.spentFieldIndexes.has(game.selected?.index ?? -1)) return "消耗中のため行動できません。";
     const defense = chooseAiDefense(opponent, card);

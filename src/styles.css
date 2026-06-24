@@ -4548,6 +4548,8 @@ h1 {
   position: relative;
   display: grid;
   grid-template-rows: 64px minmax(0, 1fr) 42px 162px 184px;
+  width: 100%;
+  min-width: 0;
   height: 100vh;
   overflow: hidden;
   color: #e5e1e4;
@@ -4656,6 +4658,84 @@ h1 {
 
 .duel-top-controls .page-tabs {
   flex: none;
+}
+
+.starter-deck-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.starter-deck-grid button {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  min-height: 88px;
+  border-radius: 6px;
+  padding: 13px 14px;
+  text-align: left;
+  background: rgba(27, 27, 29, 0.72);
+}
+
+.starter-deck-grid button.selected {
+  border-color: rgba(0, 240, 255, 0.68);
+  background:
+    linear-gradient(180deg, rgba(0, 240, 255, 0.13), rgba(0, 240, 255, 0.04)),
+    rgba(27, 27, 29, 0.86);
+  box-shadow: 0 0 18px rgba(0, 240, 255, 0.12);
+}
+
+.starter-deck-grid span {
+  color: #f7fbfb;
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.starter-deck-grid em {
+  display: -webkit-box;
+  color: #b9cacb;
+  overflow: hidden;
+  font-size: 13px;
+  font-style: normal;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.starter-deck-backdrop {
+  background:
+    radial-gradient(circle at 50% 34%, rgba(0, 240, 255, 0.14), transparent 38%),
+    rgba(3, 7, 12, 0.78);
+  backdrop-filter: blur(8px);
+}
+
+.starter-deck-modal {
+  width: min(1120px, 100%);
+  border: 1px solid rgba(0, 240, 255, 0.44);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(0, 240, 255, 0.08), transparent 42%),
+    #111923;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.62), 0 0 40px rgba(0, 240, 255, 0.12);
+  overflow: hidden;
+}
+
+.starter-deck-modal .modal-head {
+  align-items: flex-start;
+}
+
+.starter-deck-modal .modal-head p {
+  margin-top: 4px;
+  color: #b9cacb;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.starter-deck-modal .starter-deck-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 18px;
 }
 
 .text-link {
@@ -4882,6 +4962,8 @@ h1 {
 }
 
 .stitch-command-dock {
+  position: relative;
+  z-index: 25;
   display: grid;
   grid-template-columns: 420px minmax(0, 1fr) 280px;
   min-height: 0;
@@ -4892,6 +4974,10 @@ h1 {
   backdrop-filter: blur(12px);
   box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.3);
   overflow: hidden;
+}
+
+.stitch-shell > .stitch-command-dock {
+  z-index: 25 !important;
 }
 
 .dock-detail {
@@ -5183,10 +5269,14 @@ h1 {
 }
 
 .stitch-command-dock > .defense-panel:not(:empty) {
-  position: fixed;
+  display: none;
+}
+
+.stitch-shell > .defense-panel:not(:empty) {
+  position: fixed !important;
   left: 50%;
   bottom: 188px;
-  z-index: 10;
+  z-index: 50 !important;
   width: min(860px, calc(100vw - 48px));
   transform: translateX(-50%);
 }
@@ -5236,6 +5326,7 @@ h1 {
 
   .stitch-opponent-bar,
   .stitch-player-status {
+    min-width: 0;
     align-items: flex-start;
     flex-direction: column;
     gap: 10px;
@@ -5249,6 +5340,16 @@ h1 {
   .stitch-counts {
     flex-wrap: wrap;
     gap: 12px;
+  }
+
+  .duel-top-controls {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .starter-deck-modal .starter-deck-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .stitch-battlefield {
@@ -5287,6 +5388,10 @@ h1 {
 }
 
 @media (max-width: 560px) {
+  .starter-deck-modal .starter-deck-grid {
+    grid-template-columns: 1fr;
+  }
+
   .dock-detail {
     grid-template-columns: 1fr;
     gap: 10px;

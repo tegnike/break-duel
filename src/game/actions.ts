@@ -187,6 +187,7 @@ export function useCommandAtInDraft(
   const opponent = opponentPlayer(draft);
   const command = player.hand[sourceIndex];
   if (!command || command.type !== "event") return;
+  const relearnTarget = command.effect === "relearn" ? highestPowerAiInDiscard(player) : null;
   const selectedDiscardCards = discardIndexes.length > 0
     ? discardHandCards(draft, draft.active, discardIndexes)
     : [];
@@ -214,9 +215,8 @@ export function useCommandAtInDraft(
       text += ` ${opponent.name}の${opponent.field[resolvedTarget].name}を消耗。`;
     }
   } else if (used.effect === "relearn") {
-    const target = highestPowerAiInDiscard(player);
-    if (target !== null) {
-      const recovered = player.discard.splice(target, 1)[0];
+    if (relearnTarget !== null) {
+      const recovered = player.discard.splice(relearnTarget, 1)[0];
       const fuel = selectedDiscardCards.length > 0
         ? selectedDiscardCards
         : discardLowPriorityCards(player, 1);

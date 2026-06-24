@@ -60,8 +60,9 @@ export type PlayerState = {
 };
 
 export type Selection = {
-  zone: "hand" | "field";
+  zone: "hand" | "field" | "memory";
   index: number;
+  ownerIndex?: number;
 } | null;
 
 export type PendingAttack = {
@@ -257,6 +258,7 @@ export const CARD_BY_ID = new Map(cardPool().map((card) => [card.id, card]));
 export const DECKS = {
   break: {
     name: "紅蓮突破デッキ",
+    description: "火と水を混ぜた攻め寄りの基本デッキ。突破力と手札補充を両立します。",
     cards: [
       "AI-FIRE-1",
       "AI-FIRE-1B",
@@ -282,6 +284,7 @@ export const DECKS = {
   },
   control: {
     name: "大地守護デッキ",
+    description: "土と風で守りながら盤面を整える基本デッキ。粘り強く反撃します。",
     cards: [
       "AI-EARTH-1",
       "AI-EARTH-1B",
@@ -307,6 +310,7 @@ export const DECKS = {
   },
   fire: {
     name: "火単色デッキ",
+    description: "攻撃強化と防御妨害で早くライフを詰める速攻型。短期決戦が得意です。",
     cards: [
       "AI-FIRE-1",
       "AI-FIRE-1B",
@@ -332,6 +336,7 @@ export const DECKS = {
   },
   water: {
     name: "水単色デッキ",
+    description: "ドローと手札交換で必要札を探し続ける安定型。息切れしにくい構成です。",
     cards: [
       "AI-WATER-1",
       "AI-WATER-1B",
@@ -357,6 +362,7 @@ export const DECKS = {
   },
   wind: {
     name: "風単色デッキ",
+    description: "相手を消耗させ、自分の召喚獣を再行動させるテンポ型。盤面差で押します。",
     cards: [
       "AI-WIND-1",
       "AI-WIND-1B",
@@ -382,6 +388,7 @@ export const DECKS = {
   },
   earth: {
     name: "土単色デッキ",
+    description: "高い防御値と回収効果で耐える持久型。攻撃を受け止めて勝ち筋を作ります。",
     cards: [
       "AI-EARTH-1",
       "AI-EARTH-1B",
@@ -407,6 +414,10 @@ export const DECKS = {
   },
 } as const;
 
+export type DeckId = keyof typeof DECKS;
+
+export const STARTER_DECK_IDS = ["fire", "water", "wind", "earth"] as const satisfies readonly DeckId[];
+
 export function cloneCard(card: Card): Card {
   return { ...card };
 }
@@ -418,11 +429,18 @@ export function shuffle(cards: Card[], rng: () => number): void {
   }
 }
 
-export function makeDeck(deckId: keyof typeof DECKS): Card[] {
+export function makeDeck(deckId: DeckId): Card[] {
   return DECKS[deckId].cards.map((cardId) => cloneCard(CARD_BY_ID.get(cardId)!));
 }
 
-export function makePlayer(name: string, isHuman: boolean, deckId: keyof typeof DECKS, rng: () => number): PlayerState {
+export function randomStarterDeckId(rng: () => number, excludeDeckId?: DeckId): DeckId {
+  const candidates = STARTER_DECK_IDS.filter((deckId) => deckId !== excludeDeckId);
+  const pool = candidates.length > 0 ? candidates : STARTER_DECK_IDS;
+  const index = Math.floor(rng() * pool.length);
+  return pool[index];
+}
+
+export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: () => number): PlayerState {
   const deck = makeDeck(deckId);
   shuffle(deck, rng);
   return {
@@ -464,14 +482,15 @@ export function cloneGame(game: GameState): GameState {
   };
 }
 
-export function createGame(seed: number): GameState {
+export function createGame(seed: number, playerDeckId: DeckId = "fire", opponentDeckId?: DeckId): GameState {
   const rng = makeRng(seed);
+  const rivalDeckId = opponentDeckId ?? randomStarterDeckId(rng, playerDeckId);
   const game: GameState = {
     rng,
     seed,
     players: [
-      makePlayer("あなた", true, "break", rng),
-      makePlayer("ライバル", false, "control", rng),
+      makePlayer("あなた", true, playerDeckId, rng),
+      makePlayer("ライバル", false, rivalDeckId, rng),
     ],
     active: 0,
     turn: 0,
@@ -488,7 +507,7 @@ export function createGame(seed: number): GameState {
   };
   draw(game.players[0], CONFIG.firstPlayerInitialHand);
   draw(game.players[1], CONFIG.secondPlayerInitialHand);
-  addLog(game, `Seed ${seed} で対戦開始。`);
+  addLog(game, `Seed ${seed} で対戦開始。あなた: ${DECKS[playerDeckId].name} / ライバル: ${DECKS[rivalDeckId].name}。`);
   startTurn(game);
   return game;
 }
