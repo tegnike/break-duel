@@ -215,6 +215,11 @@ select {
   padding: 22px 24px 30px;
 }
 
+.builder-page {
+  min-height: calc(100vh - 76px);
+  padding-bottom: max(30px, env(safe-area-inset-bottom));
+}
+
 .workshop-heading {
   display: flex;
   align-items: end;
@@ -454,15 +459,20 @@ select {
   grid-template-columns: 310px minmax(360px, 1fr) 360px;
   gap: 16px;
   align-items: start;
+  height: calc(100vh - 204px);
+  min-height: 480px;
+  overflow: hidden;
 }
 
 .builder-pool,
 .deck-editor,
 .builder-side {
   min-width: 0;
+  max-height: 100%;
   border: 1px solid rgba(59, 73, 75, 0.62);
   border-radius: 8px;
   background: rgba(14, 14, 16, 0.78);
+  overflow: hidden;
 }
 
 .builder-pool,
@@ -470,10 +480,25 @@ select {
   padding: 12px;
 }
 
+.builder-pool,
+.deck-editor {
+  display: grid;
+  min-height: 0;
+}
+
+.builder-pool {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.deck-editor {
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+}
+
 .builder-side {
   display: grid;
   gap: 14px;
   padding: 12px;
+  overflow-y: auto;
 }
 
 .builder-toolbar {
@@ -488,7 +513,7 @@ select {
 .builder-card-list {
   display: grid;
   gap: 6px;
-  max-height: calc(100vh - 184px);
+  min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -645,8 +670,7 @@ select {
   grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
   align-content: start;
   gap: 10px;
-  max-height: calc(100vh - 344px);
-  min-height: 300px;
+  min-height: 0;
   margin-top: 10px;
   overflow-y: auto;
   padding-right: 4px;
@@ -869,6 +893,13 @@ select {
     overflow: visible;
   }
 
+  .builder-pool,
+  .deck-editor,
+  .builder-side {
+    max-height: none;
+    overflow: visible;
+  }
+
   .card-inspector {
     position: static;
   }
@@ -876,7 +907,6 @@ select {
   .library-grid,
   .builder-card-list,
   .deck-list {
-    max-height: none;
     height: auto;
   }
 
