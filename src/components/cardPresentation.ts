@@ -195,16 +195,16 @@ export function roleLabel(card: Card): string {
 }
 
 export function roleText(card: Card): string {
-  if (card.effect === "optimize") return "1アクション。手札1枚を捨て2枚引く";
+  if (card.effect === "optimize") return "1アクション。手札1枚を捨て、山札からカードを2枚引く";
   if (card.effect === "patch") return "1アクション。自分の消耗召喚獣1体を回復";
   if (card.effect === "disrupt") return "1アクション。相手の未消耗召喚獣1体を消耗";
   if (card.effect === "relearn") return "1アクション。トラッシュの召喚獣1枚を回収";
   if (card.effect === "sandbox") return "1アクション。このターン、次のpower 4攻撃後退場を1回防ぐ";
   if (card.effect === "trinity") return "1アクション。場が3枚なら全てトラッシュし、相手ライフ-1";
   if (card.effect === "firewall") return "他属性防御時、手札を1枚捨てるなら power +1";
-  if (card.effect === "cache") return "ターン開始時、手札2枚以下なら1枚引く";
-  if (card.effect === "pipeline") return "1ターンに1回、power 1登場時、必ず1枚引く";
-  if (card.effect === "accelerator") return "1ターンに1回使える。場の召喚獣1体をトラッシュしてもよい。その場合、残りアクション+1（最大3）";
+  if (card.effect === "cache") return "ターン開始時、手札2枚以下なら山札からカードを1枚引く";
+  if (card.effect === "pipeline") return "1ターンに1回、power 1登場時、山札からカードを1枚引く";
+  if (card.effect === "accelerator") return "1ターンに1回使える。場の召喚獣1体をトラッシュしてもよい。その場合、アクション+1する";
   const trait = card.effect ? ` / ${aiEffectText(card)}` : "";
   if (card.power === 1) return `1アクション${trait}`;
   if (card.power === 2) return `1アクション${trait}`;

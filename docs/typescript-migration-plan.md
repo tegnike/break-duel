@@ -398,7 +398,7 @@ python3 -m ai_break_duel.cli simulate --games 1000 --seed 4101 --out tmp/react_t
 ## 注意点
 
 - React化により、直接DOMを書き換える処理は基本的に廃止する。
-- ただしアニメーションはDOM座標が必要なため、`ref` と効果専用コンポーネントで扱う。
+- アニメーションはDOM座標が必要なため、`ref` と効果専用コンポーネントで扱う。
 - 現行の `state` 直接変更をそのまま持ち込まない。
 - トラッシュモーダルの選択状態はメイン選択と分離する。
 - 防御候補表示は `defenseCombatValue` と同じ計算を使う。

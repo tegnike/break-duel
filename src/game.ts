@@ -569,9 +569,9 @@ export function cardNameList(cards: Card[]): string {
 
 export function visibleDrawText(player: PlayerState, drawnCards: Card[]): string {
   const count = drawnCards.length;
-  if (count <= 0) return "0枚引いた";
-  if (!player.isHuman) return `${count}枚引いた`;
-  return `${count}枚引いた（${cardNameList(drawnCards)}）`;
+  if (count <= 0) return "山札からカードを0枚引いた";
+  if (!player.isHuman) return `山札からカードを${count}枚引いた`;
+  return `山札からカードを${count}枚引いた（${cardNameList(drawnCards)}）`;
 }
 
 export function startTurn(game: GameState): void {
@@ -697,31 +697,31 @@ export function attackCombatValue(card: Card): number {
 
 export function aiEffectText(card: Card): string {
   if (card.effect === "attack_plus_1") return "攻撃値 +1";
-  if (card.effect === "reckless_attack_plus_1") return "攻撃値 +1。ただし手札防御に使えない";
-  if (card.effect === "draw_after_overheat") return "攻撃後退場時に1枚引く";
-  if (card.effect === "draw_two_after_overheat") return "攻撃後退場時に2枚引く";
-  if (card.effect === "draw_two_after_overheat_opponent_draw") return "攻撃後退場時に2枚引く。ただし登場時、相手は1枚引く";
-  if (card.effect === "draw_on_play") return "登場時 1枚引く";
-  if (card.effect === "draw_on_play_cannot_hand_defend") return "登場時 1枚引く。ただし手札防御に使えない";
-  if (card.effect === "filter_on_play") return "登場時 2枚引いて1枚捨てる";
+  if (card.effect === "reckless_attack_plus_1") return "攻撃値 +1。手札防御に使えない";
+  if (card.effect === "draw_after_overheat") return "攻撃後退場時、山札からカードを1枚引く";
+  if (card.effect === "draw_two_after_overheat") return "攻撃後退場時、山札からカードを2枚引く";
+  if (card.effect === "draw_two_after_overheat_opponent_draw") return "攻撃後退場時、山札からカードを2枚引く。登場時、相手は山札からカードを1枚引く";
+  if (card.effect === "draw_on_play") return "登場時、山札からカードを1枚引く";
+  if (card.effect === "draw_on_play_cannot_hand_defend") return "登場時、山札からカードを1枚引く。手札防御に使えない";
+  if (card.effect === "filter_on_play") return "登場時、山札からカードを2枚引いて1枚捨てる";
   if (card.effect === "no_spend_after_attack") return "攻撃しても消耗しない";
   if (card.effect === "spend_enemy_on_play") return "登場時、相手の未消耗召喚獣1体を消耗";
-  if (card.effect === "spend_enemy_on_play_enters_spent") return "登場時、相手の未消耗召喚獣1体を消耗。ただし自身も消耗で出る";
+  if (card.effect === "spend_enemy_on_play_enters_spent") return "登場時、相手の未消耗召喚獣1体を消耗。自身も消耗で出る";
   if (card.effect === "defense_plus_1") return "防御値 +1";
-  if (card.effect === "defense_plus_1_enters_spent") return "防御値 +1。ただし消耗で出る";
+  if (card.effect === "defense_plus_1_enters_spent") return "防御値 +1。消耗で出る";
   if (card.effect === "recover_ai_on_play") return "登場時、手札1枚以下ならトラッシュの召喚獣1枚を回収";
   if (card.effect === "block_pressure") return "攻撃が防御された時、相手は手札1枚を捨てる";
   if (card.effect === "hand_defense_pierce") return "手札防御されても1ダメージ";
   if (card.effect === "low_life_no_hand_defense") return "相手ライフ2以下なら手札防御不可";
-  if (card.effect === "low_life_no_hand_defense_self_damage") return "相手ライフ2以下なら手札防御不可。ただし登場時、自分に1ダメージ";
-  if (card.effect === "draw_on_blocked_attack") return "攻撃が防御された時、1枚引く";
-  if (card.effect === "draw_on_blocked_attack_cannot_hand_defend") return "攻撃が防御された時、1枚引く。ただし手札防御に使えない";
+  if (card.effect === "low_life_no_hand_defense_self_damage") return "相手ライフ2以下なら手札防御不可。登場時、自分に1ダメージ";
+  if (card.effect === "draw_on_blocked_attack") return "攻撃が防御された時、山札からカードを1枚引く";
+  if (card.effect === "draw_on_blocked_attack_cannot_hand_defend") return "攻撃が防御された時、山札からカードを1枚引く。手札防御に使えない";
   if (card.effect === "ready_ally_on_play") return "登場時、自分の消耗召喚獣1体を回復";
-  if (card.effect === "ready_ally_on_play_draw") return "登場時 1枚引き、自分の消耗召喚獣1体を回復";
+  if (card.effect === "ready_ally_on_play_draw") return "登場時、山札からカードを1枚引き、自分の消耗召喚獣1体を回復";
   if (card.effect === "return_after_overheat") return "攻撃後退場時、トラッシュではなく手札に戻る";
-  if (card.effect === "return_after_overheat_cannot_hand_defend") return "攻撃後退場時、手札に戻る。ただし消耗で出て、手札防御に使えない";
-  if (card.effect === "draw_on_successful_defense") return "場防御成功時、1枚引く";
-  if (card.effect === "draw_on_successful_defense_enters_spent") return "場防御成功時、1枚引く。ただし消耗で出る";
+  if (card.effect === "return_after_overheat_cannot_hand_defend") return "攻撃後退場時、手札に戻る。消耗で出る。手札防御に使えない";
+  if (card.effect === "draw_on_successful_defense") return "場防御成功時、山札からカードを1枚引く";
+  if (card.effect === "draw_on_successful_defense_enters_spent") return "場防御成功時、山札からカードを1枚引く。消耗で出る";
   return "効果なし";
 }
 

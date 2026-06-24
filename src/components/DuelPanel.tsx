@@ -154,7 +154,7 @@ export function DefensePanel({
           <div className="defense-actions pending-actions">
             <button type="button" disabled={pending.selectedIndexes.length < pending.min} onClick={onConfirmPending}>
               {pending.reason === "optimize"
-                ? "捨てて2枚引く"
+                ? "捨てて山札からカードを2枚引く"
                 : pending.reason === "firewall"
                   ? pending.selectedIndexes.length > 0 ? "このカードで強化" : "使わず防御"
                   : "このカードを捨てる"}
