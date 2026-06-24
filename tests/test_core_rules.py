@@ -633,12 +633,25 @@ class CoreRuleTests(unittest.TestCase):
 
     def test_relearn_returns_ai_from_discard(self) -> None:
         state = new_game(1, no_opening_hands())
-        state.players[0].hand = [command("CMD-RELEARN")]
+        state.players[0].hand = [command("CMD-RELEARN"), card("AI-FIRE-1")]
         state.players[0].discard = [card("AI-FIRE-1"), card("AI-WATER-4")]
         start_turn(state)
         apply_action(state, Action(ActionType.USE_COMMAND, 0))
         self.assertEqual(state.players[0].hand[0].id, "AI-WATER-4")
+        self.assertEqual([item.id for item in state.players[0].discard], [
+            "AI-FIRE-1",
+            "AI-FIRE-1",
+            "CMD-RELEARN",
+        ])
         self.assertEqual(state.players[0].discard[-1].id, "CMD-RELEARN")
+
+    def test_relearn_requires_another_hand_card_to_discard(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [command("CMD-RELEARN")]
+        state.players[0].discard = [card("AI-WATER-4")]
+        start_turn(state)
+        with self.assertRaisesRegex(ValueError, "another hand card"):
+            apply_action(state, Action(ActionType.USE_COMMAND, 0))
 
     def test_trinity_trashes_full_field_and_deals_one_damage(self) -> None:
         state = new_game(1, no_opening_hands())

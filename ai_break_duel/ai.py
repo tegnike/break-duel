@@ -298,7 +298,7 @@ def _command_is_usable(state: GameState, source_index: int) -> bool:
     if card.effect == CommandEffect.DISRUPT.value:
         return any(index not in opponent.spent_field_ai for index, _ in enumerate(opponent.field_ai))
     if card.effect == CommandEffect.RELEARN.value:
-        return any(item.type == CardType.AI for item in player.discard)
+        return len(player.hand) > 1 and any(item.type == CardType.AI for item in player.discard)
     if card.effect == CommandEffect.SANDBOX.value:
         return _sandbox_command_ready(state)
     if card.effect == CommandEffect.TRINITY.value:

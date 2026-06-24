@@ -671,6 +671,9 @@ def _use_command(state: GameState, action: Action) -> None:
         player.discard.append(command)
         result |= {"disrupted_ai": opponent.field_ai[target_index].id}
     elif command.effect == CommandEffect.RELEARN.value:
+        if not player.hand:
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Relearn requires another hand card to discard.")
         target_index = action.target_index
         if target_index is None:
             target_index = _highest_power_ai_in_discard(player)
@@ -683,8 +686,8 @@ def _use_command(state: GameState, action: Action) -> None:
         if player.discard[target_index].type != CardType.AI:
             player.hand.insert(action.source_index, command)
             raise ValueError("Relearn target must be a summon.")
-        recovered = player.discard.pop(target_index)
         fuel = _discard_low_priority_cards(player, 1)
+        recovered = player.discard.pop(target_index)
         player.hand.append(recovered)
         player.discard.append(command)
         result |= {

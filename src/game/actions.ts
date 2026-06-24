@@ -349,13 +349,13 @@ export function useCommandAtInDraft(
     }
   } else if (used.effect === "relearn") {
     if (relearnTarget !== null) {
-      const recovered = player.discard.splice(relearnTarget, 1)[0];
       const fuel = selectedDiscardCards.length > 0
         ? selectedDiscardCards
         : discardLowPriorityCards(player, 1);
+      const recovered = player.discard.splice(relearnTarget, 1)[0];
       player.hand.push(recovered);
-      text += ` ${recovered.name}をトラッシュから回収。`;
       if (fuel.length > 0) text += ` ${fuel[0].name}を代償としてトラッシュ。`;
+      text += ` ${recovered.name}をトラッシュから回収。`;
     }
   } else if (used.effect === "sandbox") {
     player.sandboxShield = 1;

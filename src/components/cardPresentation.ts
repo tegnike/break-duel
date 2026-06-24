@@ -224,7 +224,7 @@ export function roleText(card: Card): string {
   if (card.effect === "optimize") return "1アクション。手札1枚を捨て、山札からカードを2枚引く";
   if (card.effect === "patch") return "1アクション。自分の消耗召喚獣1体を回復";
   if (card.effect === "disrupt") return "1アクション。相手の未消耗召喚獣1体を消耗";
-  if (card.effect === "relearn") return "1アクション。トラッシュの召喚獣1枚を回収。手札が残っていれば1枚捨てる";
+  if (card.effect === "relearn") return "1アクション。手札1枚を捨て、トラッシュの召喚獣1枚を回収";
   if (card.effect === "sandbox") return "1アクション。このターン、次のpower 4攻撃後退場を1回防ぐ";
   if (card.effect === "trinity") return "1アクション。場が3枚なら全てトラッシュし、相手ライフ-1";
   if (card.effect === "fire_rite") return "1アクション。場に火の召喚獣がいる時、相手の手札1枚をトラッシュ。なければ相手ライフ-1";

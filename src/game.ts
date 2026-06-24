@@ -122,6 +122,7 @@ export type PendingTarget =
       max: number;
       excludeIndexes: number[];
       selectedIndexes: number[];
+      discardIndexes?: number[];
       sourceIndex?: number;
       actionCost?: number;
       actionKind?: "normal" | "attack";
@@ -1152,7 +1153,7 @@ export function commandUsable(game: GameState, command: Card | null | undefined,
   if (command.effect === "optimize") return player.hand.length > 1;
   if (command.effect === "patch") return highestPowerSpentAi(player) !== null;
   if (command.effect === "disrupt") return highestPowerReadyAi(opponent) !== null;
-  if (command.effect === "relearn") return highestPowerAiInDiscard(player) !== null;
+  if (command.effect === "relearn") return player.hand.length > 1 && highestPowerAiInDiscard(player) !== null;
   if (command.effect === "sandbox") return sandboxCommandReady(game, player);
   if (command.effect === "trinity") return player.field.length >= CONFIG.fieldLimit;
   if (command.effect === "fire_rite") return hasAttributeAi(player, "火");

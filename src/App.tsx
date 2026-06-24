@@ -877,16 +877,14 @@ export default function App() {
         const command = player.hand[sourceIndex];
         if (!command || command.effect !== "relearn") return;
         draft.pendingTarget = {
-          kind: "card-select",
-          reason: "relearn-recover",
-          zone: "discard",
+          kind: "hand-discard",
+          reason: "relearn",
           playerIndex: draft.active,
-          title: `${command.name}で回収するカードを選択`,
-          prompt: "トラッシュから手札に戻す召喚獣を1枚選んでください。",
-          confirmLabel: "このカードを回収",
+          title: `${command.name}の代償を選択`,
+          prompt: "トラッシュから召喚獣を回収するため、先に手札を1枚選んで捨てます。",
           min: 1,
           max: 1,
-          excludeIndexes: player.discard.map((card, index) => card.type === "ai" ? -1 : index).filter((index) => index >= 0),
+          excludeIndexes: [sourceIndex],
           selectedIndexes: [],
           sourceIndex,
           actionCost: 1,
@@ -956,6 +954,31 @@ export default function App() {
       resolveDefense({ type: "field", index: pending.fieldIndex!, firewallDiscardIndex: pending.selectedIndexes[0] ?? null });
       return;
     }
+    if (pending.reason === "relearn") {
+      mutate((draft) => {
+        const player = draft.players[pending.playerIndex];
+        const command = player.hand[pending.sourceIndex!];
+        if (!command || command.effect !== "relearn") return;
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "relearn-recover",
+          zone: "discard",
+          playerIndex: pending.playerIndex,
+          title: `${command.name}で回収するカードを選択`,
+          prompt: "トラッシュから手札に戻す召喚獣を1枚選んでください。",
+          confirmLabel: "このカードを回収",
+          min: 1,
+          max: 1,
+          excludeIndexes: player.discard.map((card, index) => card.type === "ai" ? -1 : index).filter((index) => index >= 0),
+          selectedIndexes: [],
+          discardIndexes: pending.selectedIndexes,
+          sourceIndex: pending.sourceIndex,
+          actionCost: 1,
+          cancelable: true,
+        };
+      });
+      return;
+    }
     useCommandAt(pending.sourceIndex!, pending.targetIndex ?? null, pending.selectedIndexes);
   }
 
@@ -968,31 +991,7 @@ export default function App() {
       return;
     }
     if (pending.reason === "relearn-recover") {
-      const player = game.players[pending.playerIndex];
-      if (player.hand.length > 1) {
-        mutate((draft) => {
-          const player = draft.players[pending.playerIndex];
-          const command = player.hand[pending.sourceIndex!];
-          if (!command || command.effect !== "relearn") return;
-          draft.pendingTarget = {
-            kind: "hand-discard",
-            reason: "relearn",
-            playerIndex: pending.playerIndex,
-            title: `${command.name}の代償を選択`,
-            prompt: "選んだ召喚獣を回収するため、手札を1枚選んで捨てます。",
-            min: 1,
-            max: 1,
-            excludeIndexes: [pending.sourceIndex!],
-            selectedIndexes: [],
-            sourceIndex: pending.sourceIndex,
-            targetIndex: selectedIndex,
-            actionCost: 1,
-            cancelable: true,
-          };
-        });
-        return;
-      }
-      useCommandAt(pending.sourceIndex!, selectedIndex);
+      useCommandAt(pending.sourceIndex!, selectedIndex, pending.discardIndexes ?? []);
       return;
     }
     mutate((draft) => {
