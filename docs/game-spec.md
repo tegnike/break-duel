@@ -67,7 +67,7 @@
 
 ### 5.1召喚獣カード
 
-召喚獣カードは 4 属性 x 4 power の 16 種です。
+召喚獣カードは 4 属性 x 4 power x A/B 2 系統の 32 種です。既存互換のため、A 系統は従来通り `B` なしの ID を使います。
 
 | power | 役割名 | 通常登場コスト | 基本挙動 |
 | ---: | --- | ---: | --- |
@@ -76,28 +76,44 @@
 | 3 | 中型 | 2 | 中型召喚獣。個別効果を持つカードがある |
 | 4 | 切札 | 2 | 攻撃後に力を使い切ってトラッシュへ行く |
 
-カード ID は `AI-{属性コード}-{power}` です。
+カード ID は A 系統が `AI-{属性コード}-{power}`、B 系統が `AI-{属性コード}-{power}B` です。
 
 | 属性 | 属性コード | カード ID |
 | --- | --- | --- |
-| 火 | `FIRE` | `AI-FIRE-1` から `AI-FIRE-4` |
-| 水 | `WATER` | `AI-WATER-1` から `AI-WATER-4` |
-| 風 | `WIND` | `AI-WIND-1` から `AI-WIND-4` |
-| 土 | `EARTH` | `AI-EARTH-1` から `AI-EARTH-4` |
+| 火 | `FIRE` | `AI-FIRE-1` から `AI-FIRE-4B` |
+| 水 | `WATER` | `AI-WATER-1` から `AI-WATER-4B` |
+| 風 | `WIND` | `AI-WIND-1` から `AI-WIND-4B` |
+| 土 | `EARTH` | `AI-EARTH-1` から `AI-EARTH-4B` |
 
 召喚獣カードの一部だけが個別効果を持ちます。すべての召喚獣が効果を持つわけではありません。
 
 | カードID | 個別効果 |
 | --- | --- |
+| `AI-FIRE-1B` | 攻撃が防御された時、相手は手札を 1 枚捨てる |
 | `AI-FIRE-2` | 攻撃値 +1 |
+| `AI-FIRE-2B` | 手札防御されても相手に 1 ダメージ |
+| `AI-FIRE-3B` | 攻撃値 +1。ただし手札防御に使えない |
 | `AI-FIRE-4` | 攻撃後に退場した時、1 枚引く |
+| `AI-FIRE-4B` | 相手ライフが 2 以下なら手札防御されない。ただし登場時、自分に 1 ダメージ |
 | `AI-WATER-1` | 登場時に 1 枚引く |
+| `AI-WATER-1B` | 登場時に 1 枚引く。ただし手札防御に使えない |
 | `AI-WATER-2` | 登場時に 2 枚引き、手札を 1 枚捨てる |
+| `AI-WATER-2B` | 攻撃が防御された時、1 枚引く。ただし手札防御に使えない |
 | `AI-WATER-3` | 登場時に 1 枚引く |
+| `AI-WATER-3B` | 登場時に 2 枚引き、手札を 1 枚捨てる |
+| `AI-WATER-4B` | 攻撃後に退場した時、2 枚引く。ただし登場時、相手は 1 枚引く |
 | `AI-WIND-1` | 攻撃しても消耗しない |
+| `AI-WIND-1B` | 攻撃しても消耗しない |
+| `AI-WIND-2B` | 登場時に相手の未消耗召喚獣1体を消耗させる |
 | `AI-WIND-3` | 登場時に相手の未消耗召喚獣1体を消耗させる |
+| `AI-WIND-3B` | 登場時に 1 枚引き、自分の消耗中召喚獣1体を未消耗に戻す |
+| `AI-WIND-4B` | 攻撃後退場時、トラッシュではなく手札に戻る。ただし消耗で出て、手札防御に使えない |
+| `AI-EARTH-1B` | 場防御成功時、1 枚引く |
 | `AI-EARTH-2` | 防御値 +1 |
+| `AI-EARTH-2B` | 防御値 +1 |
+| `AI-EARTH-3B` | 登場時、手札が 1 枚以下ならトラッシュの召喚獣1枚を手札に戻す |
 | `AI-EARTH-4` | 登場時、手札が 1 枚以下ならトラッシュの召喚獣1枚を手札に戻す |
+| `AI-EARTH-4B` | 場防御成功時、1 枚引く。ただし消耗で出る |
 
 現在のブラウザ UI では、各召喚獣カードに `src/assets/card-art/*.webp` の 16:9 イラストが割り当てられています。
 
@@ -142,15 +158,20 @@
 
 | 枚数 | カードID | カード名 |
 | ---: | --- | --- |
-| 2 | `AI-FIRE-1` | 火蜥蜴サラマンダー |
+| 1 | `AI-FIRE-1` | 火蜥蜴サラマンダー |
+| 1 | `AI-FIRE-1B` | 火花鼠ピリカ |
 | 1 | `AI-FIRE-2` | 溶岩甲獣バサルト |
-| 2 | `AI-FIRE-3` | 紅蓮火翼ガルーダ |
-| 2 | `AI-FIRE-4` | 黒焔の古竜ヴァルガ |
-| 2 | `AI-WATER-1` | 水精リュミナ |
+| 1 | `AI-FIRE-2B` | 双爪炎狼ブレイズ |
+| 1 | `AI-FIRE-3` | 紅蓮火翼ガルーダ |
+| 1 | `AI-FIRE-3B` | 爆角獣イグナロス |
+| 1 | `AI-FIRE-4` | 黒焔の古竜ヴァルガ |
+| 1 | `AI-FIRE-4B` | 劫火竜アグニール |
+| 1 | `AI-WATER-1` | 水精リュミナ |
+| 1 | `AI-WATER-1B` | 潮雫ピクシー |
 | 1 | `AI-WATER-2` | 水晶甲羅セルキー |
-| 2 | `AI-WATER-3` | 奔流海獣オルカーン |
+| 1 | `AI-WATER-3` | 奔流海獣オルカーン |
+| 1 | `AI-WATER-3B` | 深流賢獣ネレイド |
 | 1 | `AI-WATER-4` | 蒼潮リヴァイアサン |
-| 1 | `AI-WIND-2` | 翡翠風刃マンティス |
 | 2 | `CMD-DISRUPT` | 絡め蔦 |
 | 1 | `CMD-OPTIMIZE` | 戦術整理 |
 | 1 | `CMD-PATCH` | 癒し薬草 |
@@ -163,15 +184,21 @@
 
 | 枚数 | カードID | カード名 |
 | ---: | --- | --- |
-| 2 | `AI-EARTH-1` | 苔帽子のモール |
-| 2 | `AI-EARTH-2` | 古代甲羅ガメル |
-| 2 | `AI-EARTH-3` | 岩角多脚獣グラン |
+| 1 | `AI-EARTH-1` | 苔帽子のモール |
+| 1 | `AI-EARTH-1B` | 芽吹きノーム・ペルナ |
+| 1 | `AI-EARTH-2` | 古代甲羅ガメル |
+| 1 | `AI-EARTH-2B` | 磁鉄甲虫フェルム |
+| 1 | `AI-EARTH-3` | 岩角多脚獣グラン |
+| 1 | `AI-EARTH-3B` | 琥珀角犀アンバーン |
 | 1 | `AI-EARTH-4` | 山脈の古巨獣ガイアス |
-| 2 | `AI-WIND-1` | 綿風小狐フルーフ |
+| 1 | `AI-EARTH-4B` | 地核竜バサリア |
+| 1 | `AI-WIND-1` | 綿風小狐フルーフ |
+| 1 | `AI-WIND-1B` | 風鈴鳥リュフ |
 | 1 | `AI-WIND-2` | 翡翠風刃マンティス |
-| 2 | `AI-WIND-3` | 天翔風鹿シルフィード |
+| 1 | `AI-WIND-3` | 天翔風鹿シルフィード |
+| 1 | `AI-WIND-3B` | 風紋グリフォン・アルエット |
 | 1 | `AI-WIND-4` | 雲海の翼鯨ミストラル |
-| 2 | `AI-WATER-1` | 水精リュミナ |
+| 1 | `AI-WATER-1` | 水精リュミナ |
 | 1 | `CMD-DISRUPT` | 絡め蔦 |
 | 1 | `CMD-RELEARN` | 追憶の巻物 |
 | 1 | `CMD-PATCH` | 癒し薬草 |
@@ -180,14 +207,14 @@
 
 ### 6.3 単色デッキ
 
-リーグ検証用に 4 種の単色デッキを持ちます。各デッキは同じ属性の召喚獣1 から 4 を 2 枚ずつ、合計 8 枚採用します。残り 12 枚は指令と遺物で属性の方向性を軽く出します。
+リーグ検証用に 4 種の単色デッキを持ちます。各デッキは同じ属性の A/B 召喚獣1 から 4 を 1 枚ずつ、合計 8 枚採用します。残り 12 枚は指令と遺物で属性の方向性を軽く出します。
 
 | デッキID | デッキ名 | 召喚獣構成 | 支援カード |
 | --- | --- | --- | --- |
-| `fire` | 火単色デッキ | `AI-FIRE-1` から `AI-FIRE-4` x2 | `CMD-DISRUPT` x2, `CMD-SANDBOX` x2, `CMD-PATCH` x2, `CMD-OPTIMIZE` x2, `MEM-PIPELINE` x2, `MEM-CACHE` x2 |
-| `water` | 水単色デッキ | `AI-WATER-1` から `AI-WATER-4` x2 | `CMD-OPTIMIZE` x2, `CMD-RELEARN` x2, `CMD-PATCH` x2, `CMD-DISRUPT` x2, `MEM-CACHE` x2, `MEM-PIPELINE` x2 |
-| `wind` | 風単色デッキ | `AI-WIND-1` から `AI-WIND-4` x2 | `CMD-DISRUPT` x2, `CMD-PATCH` x2, `CMD-SANDBOX` x2, `CMD-RELEARN` x2, `MEM-PIPELINE` x2, `MEM-FIREWALL` x2 |
-| `earth` | 土単色デッキ | `AI-EARTH-1` から `AI-EARTH-4` x2 | `CMD-SANDBOX` x2, `CMD-PATCH` x2, `CMD-OPTIMIZE` x2, `CMD-DISRUPT` x2, `MEM-FIREWALL` x2, `MEM-PIPELINE` x2 |
+| `fire` | 火単色デッキ | `AI-FIRE-1` から `AI-FIRE-4B` 各 1 | `CMD-DISRUPT` x2, `CMD-SANDBOX` x2, `CMD-PATCH` x2, `CMD-OPTIMIZE` x2, `MEM-PIPELINE` x2, `MEM-CACHE` x2 |
+| `water` | 水単色デッキ | `AI-WATER-1` から `AI-WATER-4B` 各 1 | `CMD-OPTIMIZE` x2, `CMD-RELEARN` x2, `CMD-PATCH` x2, `CMD-DISRUPT` x2, `MEM-CACHE` x2, `MEM-PIPELINE` x2 |
+| `wind` | 風単色デッキ | `AI-WIND-1` から `AI-WIND-4B` 各 1 | `CMD-DISRUPT` x2, `CMD-PATCH` x2, `CMD-SANDBOX` x2, `CMD-RELEARN` x2, `MEM-PIPELINE` x2, `MEM-FIREWALL` x2 |
+| `earth` | 土単色デッキ | `AI-EARTH-1` から `AI-EARTH-4B` 各 1 | `CMD-SANDBOX` x2, `CMD-PATCH` x2, `CMD-OPTIMIZE` x2, `CMD-DISRUPT` x2, `MEM-FIREWALL` x2, `MEM-PIPELINE` x2 |
 
 単色リーグは順序付き総当たりで実行します。同じ組み合わせを先攻・後攻の両方で回すことで、先攻補正をデッキ勝率から分離します。
 
@@ -197,10 +224,10 @@
 
 | 属性 | 表示色 | 得意傾向 |
 | --- | --- | --- |
-| 火 | 赤 | 攻撃値を上げるカードがある |
-| 水 | 青 | 登場時に引くカードがある |
-| 風 | 緑 | 攻撃後に消耗しないカードがある |
-| 土 | 茶 | 防御値を上げるカードがある |
+| 火 | 赤 | 防御されても手札やライフへ圧を残すが、自傷や防御不可の代償を持つ |
+| 水 | 青 | ドロー、手札交換、防御された攻撃からの補充。ただし一部は相手にも補充を与える |
+| 風 | 緑 | 消耗制御、相手妨害、攻撃後の手札帰還。ただし再利用札は消耗で出る |
+| 土 | 茶 | 防御値、場防御成功時の補充、トラッシュ回収。ただし一部の守備札は遅い |
 
 属性相性はありません。属性は「防御できるかどうか」を直接制限せず、どの属性でも防御候補になれます。属性ごとの差は、カード個別効果として表現します。
 

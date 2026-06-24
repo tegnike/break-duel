@@ -8,7 +8,7 @@ import {
   type CardType,
   cardPool,
 } from "../game";
-import { CardView } from "./CardView";
+import { CardArtPreview, CardView } from "./CardView";
 import { cardColor, roleText, selectedText } from "./cardPresentation";
 
 const DECK_SIZE = 20;
@@ -54,7 +54,7 @@ export function CardLibraryPage() {
       <div className="workshop-heading">
         <div>
           <h2>カード一覧</h2>
-          <p>{CARD_LIST.length}種類 / 召喚獣16種 / 指令5種 / 遺物3種</p>
+          <p>{CARD_LIST.length}種類 / 召喚獣32種 / 指令5種 / 遺物3種</p>
         </div>
         <div className="workshop-filters">
           <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}>
@@ -325,7 +325,9 @@ function CardInspector({ card, compact = false }: { card: Card | null; compact?:
   if (!card) return null;
   return (
     <aside className={`card-inspector ${compact ? "compact" : ""}`} style={{ "--card-color": cardColor(card) } as React.CSSProperties}>
-      <CardView card={card} ownerIndex={3} zone="hand" index={0} showCost />
+      {compact
+        ? <CardView card={card} ownerIndex={3} zone="hand" index={0} showCost />
+        : <CardArtPreview card={card} />}
       <div className="inspector-copy">
         <h3>{card.name}</h3>
         <p>{selectedText(card)}</p>

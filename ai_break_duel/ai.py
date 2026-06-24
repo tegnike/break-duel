@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from .cards import CardType, CommandEffect, MemoryEffect, can_defend
+from .cards import (
+    CardType,
+    CommandEffect,
+    MemoryEffect,
+    blocks_low_life_hand_defense,
+    cannot_hand_defend,
+    can_defend,
+)
 from .models import Action, ActionType, GameState, PlayerState
 
 
@@ -111,10 +118,13 @@ def choose_hand_defender(
     same_attribute_strict: bool = False,
     power_2_defense_bonus: int = 0,
 ) -> int | None:
+    if blocks_low_life_hand_defense(attack_ai) and defender.life <= 2:
+        return None
     successful = [
         (index, card)
         for index, card in enumerate(defender.hand)
         if card.type == CardType.AI
+        and not cannot_hand_defend(card)
         and can_defend(
             attack_ai,
             card,

@@ -46,7 +46,7 @@ export function CardView({
       data-index={index}
       onClick={onClick}
     >
-      <div>
+      <div className="card-header">
         <div className="card-name">{card.name}</div>
         <div className="card-id">{card.id}</div>
       </div>

@@ -20,7 +20,11 @@ import {
   discardLowPriorityCards,
   draw,
   drawsAfterOverheat,
+  drawsOnBlockedAttack,
   drawsOnPlay,
+  drawsOnSuccessfulDefense,
+  drawsTwoAfterOverheat,
+  entersSpentOnPlay,
   filtersOnPlay,
   finishTurn,
   highestPowerAiInDiscard,
@@ -31,9 +35,15 @@ import {
   keepsReadyAfterAttack,
   needsFirewallFuel,
   opponentPlayer,
+  opponentDrawsOnPlay,
+  piercesHandDefense,
   playCost,
+  pressuresOnBlock,
+  readiesAllyOnPlay,
   recoversAiOnPlay,
   removeFieldCard,
+  returnsAfterOverheat,
+  selfDamagesOnPlay,
   spendsEnemyOnPlay,
   upgradeCost,
   useAction,
@@ -79,6 +89,22 @@ export function applyPlayEffects(
     player.spentFieldIndexes.add(fieldIndex);
     text += " 出たターンは消耗。";
   }
+  if (entersSpentOnPlay(card)) {
+    player.spentFieldIndexes.add(fieldIndex);
+    text += " 代償として消耗で出た。";
+  }
+  if (selfDamagesOnPlay(card)) {
+    player.life -= 1;
+    text += " 代償として自分に1ダメージ。";
+  }
+  if (opponentDrawsOnPlay(card)) {
+    const playerIndex = draft.players.indexOf(player);
+    const opponent = playerIndex >= 0 ? draft.players[1 - playerIndex] : null;
+    if (opponent) {
+      const drawn = draw(opponent, 1);
+      text += ` 代償として${opponent.name}は${drawn}枚引いた。`;
+    }
+  }
   if (CONFIG.power1DrawsOnPlay && drawsOnPlay(card)) {
     const drawn = draw(player, 1);
     text += ` ${drawn}枚引いた。`;
@@ -110,6 +136,13 @@ export function applyPlayEffects(
       const recovered = player.discard.splice(targetIndex, 1)[0];
       player.hand.push(recovered);
       text += ` ${recovered.name}をトラッシュから回収。`;
+    }
+  }
+  if (readiesAllyOnPlay(card)) {
+    const targetIndex = highestPowerSpentAi(player);
+    if (targetIndex !== null) {
+      player.spentFieldIndexes.delete(targetIndex);
+      text += ` ${player.field[targetIndex].name}を回復。`;
     }
   }
   if (player.memory?.effect === "pipeline" && card.power === 1 && !player.pipelineUsed) {
@@ -279,16 +312,26 @@ export function resolveDefenseInDraft(
     const attackValue = attackCombatValue(attackCard);
     const isTrade = defenseValue === attackValue;
     const fuelText = firewallFuel ? ` ${defender.memory!.name}で${firewallFuel.name}をトラッシュ。` : "";
+    const defenseDrawn = drawsOnSuccessfulDefense(defenseCard) ? draw(defender, 1) : 0;
+    const pressureDiscarded = pressuresOnBlock(attackCard)
+      ? discardLowPriorityCards(defender, 1)[0] ?? null
+      : null;
+    const blockedDrawn = drawsOnBlockedAttack(attackCard) ? draw(attacker, 1) : 0;
+    const extraText = [
+      defenseDrawn ? `${defenseCard.name}の効果で${defender.name}は1枚引いた。` : "",
+      pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}を捨てた。` : "",
+      blockedDrawn ? `${attackCard.name}の効果で${attacker.name}は1枚引いた。` : "",
+    ].filter(Boolean).join(" ");
     addLog(
       draft,
       isTrade
-        ? `${defender.name}は場の${defenseCard.name}で防御成功。防御値${defenseValue}と攻撃値${attackValue}が同値で相打ち。両方トラッシュ。${fuelText}`
-        : `${defender.name}は場の${defenseCard.name}で防御成功。防御値${defenseValue}が攻撃値${attackValue}を上回り、${attackCard.name}は退場。${defenseCard.name}は場に残って消耗。${fuelText}`,
+        ? `${defender.name}は場の${defenseCard.name}で防御成功。防御値${defenseValue}と攻撃値${attackValue}が同値で相打ち。両方トラッシュ。${fuelText}${extraText ? ` ${extraText}` : ""}`
+        : `${defender.name}は場の${defenseCard.name}で防御成功。防御値${defenseValue}が攻撃値${attackValue}を上回り、${attackCard.name}は退場。${defenseCard.name}は場に残って消耗。${fuelText}${extraText ? ` ${extraText}` : ""}`,
     );
     effects.showDuelEvent?.({
       kind: "battle",
       title: isTrade ? "相打ち" : `${defender.name}の防御成功`,
-      detail: `${attackCard.name} 攻撃値${attackValue} vs 場の${defenseCard.name} 防御${defenseValue}。${isTrade ? "同値なので両方トラッシュ。" : "防御側は場に残ります。"}${fuelText}`,
+      detail: `${attackCard.name} 攻撃値${attackValue} vs 場の${defenseCard.name} 防御${defenseValue}。${isTrade ? "同値なので両方トラッシュ。" : "防御側は場に残ります。"}${fuelText}${extraText ? ` ${extraText}` : ""}`,
       fromLabel: `${attacker.name}の場`,
       toLabel: isTrade ? "両方トラッシュ" : `${attackCard.name}はトラッシュ`,
       resultLabel: isTrade ? "相打ち" : "防御側が残る",
@@ -311,11 +354,22 @@ export function resolveDefenseInDraft(
     defender.hand.splice(choice.index, 1);
     defender.handDefensesUsed += 1;
     defender.discard.push(defenseCard);
-    addLog(draft, `${defender.name}は手札の${defenseCard.name}で攻撃を止めた。${defenseCard.name}はトラッシュへ。`);
+    const pierced = piercesHandDefense(attackCard);
+    if (pierced) defender.life -= 1;
+    const pressureDiscarded = !pierced && pressuresOnBlock(attackCard)
+      ? discardLowPriorityCards(defender, 1)[0] ?? null
+      : null;
+    const blockedDrawn = !pierced && drawsOnBlockedAttack(attackCard) ? draw(attacker, 1) : 0;
+    const extraText = [
+      pierced ? `${attackCard.name}の効果で防御されても1ダメージ。` : "",
+      pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}を捨てた。` : "",
+      blockedDrawn ? `${attackCard.name}の効果で${attacker.name}は1枚引いた。` : "",
+    ].filter(Boolean).join(" ");
+    addLog(draft, `${defender.name}は手札の${defenseCard.name}で攻撃を止めた。${defenseCard.name}はトラッシュへ。${extraText ? ` ${extraText}` : ""}`);
     effects.showDuelEvent?.({
       kind: "battle",
-      title: `${defender.name}の手札防御`,
-      detail: `${attackCard.name}の攻撃を手札の${defenseCard.name}で止めました。防御カードはトラッシュへ。`,
+      title: pierced ? "手札防御を貫通" : `${defender.name}の手札防御`,
+      detail: `${attackCard.name}の攻撃を手札の${defenseCard.name}で止めました。防御カードはトラッシュへ。${extraText ? ` ${extraText}` : ""}`,
       fromLabel: "手札",
       toLabel: "トラッシュ",
       resultLabel: "攻撃を防御",
@@ -367,8 +421,17 @@ function overheatAttackerIfNeeded(
     addLog(draft, `${attacker.name}は守護結界で${attackCard.name}の攻撃後退場を防いだ。`);
     return;
   }
+  if (returnsAfterOverheat(attackCard)) {
+    attacker.hand.push(removeFieldCard(attacker, fieldIndex));
+    addLog(draft, `${attacker.name}の${attackCard.name}は攻撃後、風に乗って手札へ戻った。`);
+    return;
+  }
   attacker.discard.push(removeFieldCard(attacker, fieldIndex));
-  const drawn = drawsAfterOverheat(attackCard) ? draw(attacker, 1) : 0;
+  const drawn = drawsTwoAfterOverheat(attackCard)
+    ? draw(attacker, 2)
+    : drawsAfterOverheat(attackCard)
+      ? draw(attacker, 1)
+      : 0;
   addLog(draft, `${attacker.name}の${attackCard.name}は攻撃後に力を使い切って退場。${drawn ? `${drawn}枚引いた。` : ""}`);
   effects.showDuelEvent?.({
     kind: "trash",

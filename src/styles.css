@@ -237,25 +237,38 @@ select {
 
 .library-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) minmax(440px, 520px);
   gap: 18px;
   align-items: start;
+  height: calc(100vh - 154px);
+  min-height: 480px;
+  overflow: hidden;
 }
 
 .library-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  grid-template-columns: repeat(auto-fill, 132px);
+  grid-auto-rows: 190px;
+  align-content: start;
+  align-items: stretch;
+  justify-content: start;
   gap: 12px;
+  height: 100%;
   min-width: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .library-card-button {
   display: grid;
-  min-height: 0;
+  width: 132px;
+  height: 190px;
+  min-height: 190px;
   border: 1px solid rgba(59, 73, 75, 0.45);
   border-radius: 8px;
   padding: 8px;
   background: rgba(14, 14, 16, 0.55);
+  overflow: hidden;
 }
 
 .library-card-button.selected {
@@ -265,18 +278,69 @@ select {
 
 .library-card-button .card {
   width: 100%;
+  height: 100%;
+  min-height: 0;
   flex: none;
+  grid-template-rows: 42px 60px 40px 24px;
+  padding: 8px;
+}
+
+.library-card-button .card-header {
+  min-height: 42px;
+  max-height: 42px;
+  overflow: hidden;
+}
+
+.library-card-button .card-name {
+  display: -webkit-box;
+  min-height: 30px;
+  max-height: 30px;
+  padding-right: 30px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.library-card-button .card-id {
+  display: block;
+  height: 12px;
+  margin-top: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-card-button .card-art {
+  min-height: 0;
+  height: 60px;
+  margin-top: 0;
+}
+
+.library-card-button .card-core {
+  min-height: 40px;
+  margin: 0;
+}
+
+.library-card-button .card-foot {
+  min-height: 24px;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .card-inspector {
   position: sticky;
   top: 94px;
   display: grid;
-  grid-template-columns: 128px minmax(0, 1fr);
+  grid-template-columns: 1fr;
   gap: 14px;
+  max-height: 100%;
+  overflow-y: auto;
   border: 1px solid color-mix(in srgb, var(--card-color) 50%, #ffffff 7%);
   border-radius: 8px;
-  padding: 12px;
+  padding: 16px;
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--card-color) 14%, transparent), transparent 42%),
     rgba(14, 14, 16, 0.84);
@@ -285,9 +349,57 @@ select {
 .card-inspector.compact {
   position: static;
   grid-template-columns: 116px minmax(0, 1fr);
+  gap: 14px;
+  max-height: none;
+  overflow: visible;
+  padding: 12px;
 }
 
 .card-inspector .card {
+  width: 100%;
+  min-height: 360px;
+}
+
+.card-inspector:not(.compact) .selected-art-preview {
+  min-height: 0;
+  aspect-ratio: 16 / 9;
+}
+
+.card-inspector:not(.compact) .selected-art-preview.art-ai img,
+.card-inspector:not(.compact) .selected-art-preview.art-generated img {
+  object-fit: contain;
+}
+
+.card-inspector:not(.compact) .card-name {
+  font-size: 17px;
+  line-height: 1.22;
+}
+
+.card-inspector:not(.compact) .card-id {
+  font-size: 12px;
+}
+
+.card-inspector:not(.compact) .card-art {
+  min-height: 158px;
+  margin-top: 10px;
+}
+
+.card-inspector:not(.compact) .card-core {
+  min-height: 58px;
+  margin: 8px 0 10px;
+}
+
+.card-inspector:not(.compact) .power {
+  width: 58px;
+  height: 58px;
+  font-size: 30px;
+}
+
+.card-inspector:not(.compact) .card-foot {
+  font-size: 14px;
+}
+
+.card-inspector.compact .card {
   width: 116px;
   min-height: 148px;
 }
@@ -700,15 +812,20 @@ select {
   .library-layout,
   .builder-layout {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
   }
 
   .card-inspector {
     position: static;
   }
 
+  .library-grid,
   .builder-card-list,
   .deck-list {
     max-height: none;
+    height: auto;
   }
 
   .deck-list {
@@ -729,12 +846,38 @@ select {
   }
 
   .library-grid {
-    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+    grid-template-columns: repeat(auto-fill, 116px);
+    grid-auto-rows: 176px;
     gap: 8px;
   }
 
   .library-card-button {
+    width: 116px;
+    height: 176px;
+    min-height: 176px;
     padding: 6px;
+  }
+
+  .library-card-button .card {
+    grid-template-rows: 40px 54px 38px 22px;
+    padding: 7px;
+  }
+
+  .library-card-button .card-header {
+    min-height: 40px;
+    max-height: 40px;
+  }
+
+  .library-card-button .card-art {
+    height: 54px;
+  }
+
+  .library-card-button .card-core {
+    min-height: 38px;
+  }
+
+  .library-card-button .card-foot {
+    min-height: 22px;
   }
 
   .card-inspector,
@@ -2817,7 +2960,7 @@ h2 {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: saturate(1.08) contrast(1.04);
+  filter: saturate(1.02);
 }
 
 .kenney-art.art-ai::after,
@@ -4796,7 +4939,7 @@ h1 {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  filter: saturate(1.08) contrast(1.04);
+  filter: saturate(1.02);
 }
 
 .selected-art-preview.art-ai::after,

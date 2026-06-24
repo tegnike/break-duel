@@ -2,13 +2,31 @@ export type Attribute = "火" | "水" | "風" | "土";
 export type CardType = "ai" | "event" | "memory";
 export type AiEffect =
   | "attack_plus_1"
+  | "reckless_attack_plus_1"
   | "draw_after_overheat"
+  | "draw_two_after_overheat"
+  | "draw_two_after_overheat_opponent_draw"
   | "draw_on_play"
+  | "draw_on_play_cannot_hand_defend"
   | "filter_on_play"
   | "no_spend_after_attack"
   | "spend_enemy_on_play"
+  | "spend_enemy_on_play_enters_spent"
   | "defense_plus_1"
-  | "recover_ai_on_play";
+  | "defense_plus_1_enters_spent"
+  | "recover_ai_on_play"
+  | "block_pressure"
+  | "hand_defense_pierce"
+  | "low_life_no_hand_defense"
+  | "low_life_no_hand_defense_self_damage"
+  | "draw_on_blocked_attack"
+  | "draw_on_blocked_attack_cannot_hand_defend"
+  | "ready_ally_on_play"
+  | "ready_ally_on_play_draw"
+  | "return_after_overheat"
+  | "return_after_overheat_cannot_hand_defend"
+  | "draw_on_successful_defense"
+  | "draw_on_successful_defense_enters_spent";
 export type CommandEffect = "optimize" | "patch" | "disrupt" | "relearn" | "sandbox";
 export type MemoryEffect = "firewall" | "cache" | "pipeline";
 export type CardEffect = AiEffect | CommandEffect | MemoryEffect | "";
@@ -147,37 +165,69 @@ export function addLog(game: GameState, message: string): void {
 export function cardPool(): Card[] {
   const monsterNames: Record<string, string> = {
     "AI-FIRE-1": "火蜥蜴サラマンダー",
+    "AI-FIRE-1B": "火花鼠ピリカ",
     "AI-FIRE-2": "溶岩甲獣バサルト",
+    "AI-FIRE-2B": "双爪炎狼ブレイズ",
     "AI-FIRE-3": "紅蓮火翼ガルーダ",
+    "AI-FIRE-3B": "爆角獣イグナロス",
     "AI-FIRE-4": "黒焔の古竜ヴァルガ",
+    "AI-FIRE-4B": "劫火竜アグニール",
     "AI-WATER-1": "水精リュミナ",
+    "AI-WATER-1B": "潮雫ピクシー",
     "AI-WATER-2": "水晶甲羅セルキー",
+    "AI-WATER-2B": "霧泡セイレーン",
     "AI-WATER-3": "奔流海獣オルカーン",
+    "AI-WATER-3B": "深流賢獣ネレイド",
     "AI-WATER-4": "蒼潮リヴァイアサン",
+    "AI-WATER-4B": "星海クラーケン・アステル",
     "AI-WIND-1": "綿風小狐フルーフ",
+    "AI-WIND-1B": "風鈴鳥リュフ",
     "AI-WIND-2": "翡翠風刃マンティス",
+    "AI-WIND-2B": "真空鴉カイト",
     "AI-WIND-3": "天翔風鹿シルフィード",
+    "AI-WIND-3B": "風紋グリフォン・アルエット",
     "AI-WIND-4": "雲海の翼鯨ミストラル",
+    "AI-WIND-4B": "天蓋ロック・ヴァユ",
     "AI-EARTH-1": "苔帽子のモール",
+    "AI-EARTH-1B": "芽吹きノーム・ペルナ",
     "AI-EARTH-2": "古代甲羅ガメル",
+    "AI-EARTH-2B": "磁鉄甲虫フェルム",
     "AI-EARTH-3": "岩角多脚獣グラン",
+    "AI-EARTH-3B": "琥珀角犀アンバーン",
     "AI-EARTH-4": "山脈の古巨獣ガイアス",
+    "AI-EARTH-4B": "地核竜バサリア",
   };
   const aiEffects = new Map<string, AiEffect>([
+    ["AI-FIRE-1B", "block_pressure"],
     ["AI-FIRE-2", "attack_plus_1"],
+    ["AI-FIRE-2B", "hand_defense_pierce"],
+    ["AI-FIRE-3B", "reckless_attack_plus_1"],
     ["AI-FIRE-4", "draw_after_overheat"],
+    ["AI-FIRE-4B", "low_life_no_hand_defense_self_damage"],
     ["AI-WATER-1", "draw_on_play"],
+    ["AI-WATER-1B", "draw_on_play_cannot_hand_defend"],
     ["AI-WATER-2", "filter_on_play"],
+    ["AI-WATER-2B", "draw_on_blocked_attack_cannot_hand_defend"],
     ["AI-WATER-3", "draw_on_play"],
+    ["AI-WATER-3B", "filter_on_play"],
+    ["AI-WATER-4B", "draw_two_after_overheat_opponent_draw"],
     ["AI-WIND-1", "no_spend_after_attack"],
+    ["AI-WIND-1B", "no_spend_after_attack"],
+    ["AI-WIND-2B", "spend_enemy_on_play"],
     ["AI-WIND-3", "spend_enemy_on_play"],
+    ["AI-WIND-3B", "ready_ally_on_play_draw"],
+    ["AI-WIND-4B", "return_after_overheat_cannot_hand_defend"],
+    ["AI-EARTH-1B", "draw_on_successful_defense"],
     ["AI-EARTH-2", "defense_plus_1"],
+    ["AI-EARTH-2B", "defense_plus_1"],
+    ["AI-EARTH-3B", "recover_ai_on_play"],
     ["AI-EARTH-4", "recover_ai_on_play"],
+    ["AI-EARTH-4B", "draw_on_successful_defense_enters_spent"],
   ]);
   const aiCards: Card[] = (Object.entries(ATTRIBUTES) as [Attribute, { code: string; color: string }][])
     .flatMap(([attribute, meta]) =>
-      [1, 2, 3, 4].map((power) => {
-        const id = `AI-${meta.code}-${power}`;
+      [1, 2, 3, 4].flatMap((power) => ["", "B"].map((suffix) => {
+        const id = `AI-${meta.code}-${power}${suffix}`;
         const effect: CardEffect = aiEffects.get(id) ?? "";
         return {
           id,
@@ -187,7 +237,7 @@ export function cardPool(): Card[] {
           power,
           effect,
         };
-      }),
+      })),
     );
   return [
     ...aiCards,
@@ -209,19 +259,19 @@ export const DECKS = {
     name: "紅蓮突破デッキ",
     cards: [
       "AI-FIRE-1",
-      "AI-FIRE-1",
+      "AI-FIRE-1B",
       "AI-FIRE-2",
+      "AI-FIRE-2B",
       "AI-FIRE-3",
-      "AI-FIRE-3",
+      "AI-FIRE-3B",
       "AI-FIRE-4",
+      "AI-FIRE-4B",
       "AI-WATER-1",
-      "AI-WATER-1",
+      "AI-WATER-1B",
       "AI-WATER-2",
       "AI-WATER-3",
-      "AI-WATER-3",
+      "AI-WATER-3B",
       "AI-WATER-4",
-      "AI-WIND-2",
-      "AI-FIRE-4",
       "CMD-DISRUPT",
       "CMD-DISRUPT",
       "CMD-OPTIMIZE",
@@ -234,19 +284,19 @@ export const DECKS = {
     name: "大地守護デッキ",
     cards: [
       "AI-EARTH-1",
-      "AI-EARTH-1",
+      "AI-EARTH-1B",
       "AI-EARTH-2",
-      "AI-EARTH-2",
+      "AI-EARTH-2B",
       "AI-EARTH-3",
-      "AI-EARTH-3",
+      "AI-EARTH-3B",
       "AI-EARTH-4",
+      "AI-EARTH-4B",
       "AI-WIND-1",
-      "AI-WIND-1",
+      "AI-WIND-1B",
       "AI-WIND-2",
       "AI-WIND-3",
-      "AI-WIND-3",
+      "AI-WIND-3B",
       "AI-WIND-4",
-      "AI-WATER-1",
       "AI-WATER-1",
       "CMD-DISRUPT",
       "CMD-RELEARN",
@@ -259,13 +309,13 @@ export const DECKS = {
     name: "火単色デッキ",
     cards: [
       "AI-FIRE-1",
-      "AI-FIRE-1",
+      "AI-FIRE-1B",
       "AI-FIRE-2",
-      "AI-FIRE-2",
+      "AI-FIRE-2B",
       "AI-FIRE-3",
-      "AI-FIRE-3",
+      "AI-FIRE-3B",
       "AI-FIRE-4",
-      "AI-FIRE-4",
+      "AI-FIRE-4B",
       "CMD-DISRUPT",
       "CMD-DISRUPT",
       "CMD-SANDBOX",
@@ -284,13 +334,13 @@ export const DECKS = {
     name: "水単色デッキ",
     cards: [
       "AI-WATER-1",
-      "AI-WATER-1",
+      "AI-WATER-1B",
       "AI-WATER-2",
-      "AI-WATER-2",
+      "AI-WATER-2B",
       "AI-WATER-3",
-      "AI-WATER-3",
+      "AI-WATER-3B",
       "AI-WATER-4",
-      "AI-WATER-4",
+      "AI-WATER-4B",
       "CMD-OPTIMIZE",
       "CMD-OPTIMIZE",
       "CMD-RELEARN",
@@ -309,13 +359,13 @@ export const DECKS = {
     name: "風単色デッキ",
     cards: [
       "AI-WIND-1",
-      "AI-WIND-1",
+      "AI-WIND-1B",
       "AI-WIND-2",
-      "AI-WIND-2",
+      "AI-WIND-2B",
       "AI-WIND-3",
-      "AI-WIND-3",
+      "AI-WIND-3B",
       "AI-WIND-4",
-      "AI-WIND-4",
+      "AI-WIND-4B",
       "CMD-DISRUPT",
       "CMD-DISRUPT",
       "CMD-PATCH",
@@ -334,13 +384,13 @@ export const DECKS = {
     name: "土単色デッキ",
     cards: [
       "AI-EARTH-1",
-      "AI-EARTH-1",
+      "AI-EARTH-1B",
       "AI-EARTH-2",
-      "AI-EARTH-2",
+      "AI-EARTH-2B",
       "AI-EARTH-3",
-      "AI-EARTH-3",
+      "AI-EARTH-3B",
       "AI-EARTH-4",
-      "AI-EARTH-4",
+      "AI-EARTH-4B",
       "CMD-SANDBOX",
       "CMD-SANDBOX",
       "CMD-PATCH",
@@ -583,23 +633,49 @@ export function matchupLabel(defenseAttribute: Attribute, attackAttribute: Attri
 }
 
 export function attackCombatValue(card: Card): number {
-  return (card.power ?? 0) + (card.effect === "attack_plus_1" ? 1 : 0);
+  return (card.power ?? 0) + (attacksPlus1(card) ? 1 : 0);
 }
 
 export function aiEffectText(card: Card): string {
   if (card.effect === "attack_plus_1") return "攻撃値 +1";
+  if (card.effect === "reckless_attack_plus_1") return "攻撃値 +1。ただし手札防御に使えない";
   if (card.effect === "draw_after_overheat") return "攻撃後退場時に1枚引く";
+  if (card.effect === "draw_two_after_overheat") return "攻撃後退場時に2枚引く";
+  if (card.effect === "draw_two_after_overheat_opponent_draw") return "攻撃後退場時に2枚引く。ただし登場時、相手は1枚引く";
   if (card.effect === "draw_on_play") return "登場時 1枚引く";
+  if (card.effect === "draw_on_play_cannot_hand_defend") return "登場時 1枚引く。ただし手札防御に使えない";
   if (card.effect === "filter_on_play") return "登場時 2枚引いて1枚捨てる";
   if (card.effect === "no_spend_after_attack") return "攻撃しても消耗しない";
   if (card.effect === "spend_enemy_on_play") return "登場時、相手の未消耗召喚獣1体を消耗";
+  if (card.effect === "spend_enemy_on_play_enters_spent") return "登場時、相手の未消耗召喚獣1体を消耗。ただし自身も消耗で出る";
   if (card.effect === "defense_plus_1") return "防御値 +1";
+  if (card.effect === "defense_plus_1_enters_spent") return "防御値 +1。ただし消耗で出る";
   if (card.effect === "recover_ai_on_play") return "登場時、手札1枚以下ならトラッシュの召喚獣1枚を回収";
+  if (card.effect === "block_pressure") return "攻撃が防御された時、相手は手札1枚を捨てる";
+  if (card.effect === "hand_defense_pierce") return "手札防御されても1ダメージ";
+  if (card.effect === "low_life_no_hand_defense") return "相手ライフ2以下なら手札防御不可";
+  if (card.effect === "low_life_no_hand_defense_self_damage") return "相手ライフ2以下なら手札防御不可。ただし登場時、自分に1ダメージ";
+  if (card.effect === "draw_on_blocked_attack") return "攻撃が防御された時、1枚引く";
+  if (card.effect === "draw_on_blocked_attack_cannot_hand_defend") return "攻撃が防御された時、1枚引く。ただし手札防御に使えない";
+  if (card.effect === "ready_ally_on_play") return "登場時、自分の消耗召喚獣1体を回復";
+  if (card.effect === "ready_ally_on_play_draw") return "登場時 1枚引き、自分の消耗召喚獣1体を回復";
+  if (card.effect === "return_after_overheat") return "攻撃後退場時、トラッシュではなく手札に戻る";
+  if (card.effect === "return_after_overheat_cannot_hand_defend") return "攻撃後退場時、手札に戻る。ただし消耗で出て、手札防御に使えない";
+  if (card.effect === "draw_on_successful_defense") return "場防御成功時、1枚引く";
+  if (card.effect === "draw_on_successful_defense_enters_spent") return "場防御成功時、1枚引く。ただし消耗で出る";
   return "効果なし";
 }
 
+export function attacksPlus1(card: Card): boolean {
+  return card.type === "ai" && (card.effect === "attack_plus_1" || card.effect === "reckless_attack_plus_1");
+}
+
 export function drawsOnPlay(card: Card): boolean {
-  return card.type === "ai" && card.effect === "draw_on_play";
+  return card.type === "ai" && (
+    card.effect === "draw_on_play"
+    || card.effect === "draw_on_play_cannot_hand_defend"
+    || card.effect === "ready_ally_on_play_draw"
+  );
 }
 
 export function keepsReadyAfterAttack(card: Card): boolean {
@@ -610,20 +686,80 @@ export function drawsAfterOverheat(card: Card): boolean {
   return card.type === "ai" && card.effect === "draw_after_overheat";
 }
 
+export function drawsTwoAfterOverheat(card: Card): boolean {
+  return card.type === "ai" && (card.effect === "draw_two_after_overheat" || card.effect === "draw_two_after_overheat_opponent_draw");
+}
+
 export function filtersOnPlay(card: Card): boolean {
   return card.type === "ai" && card.effect === "filter_on_play";
 }
 
 export function spendsEnemyOnPlay(card: Card): boolean {
-  return card.type === "ai" && card.effect === "spend_enemy_on_play";
+  return card.type === "ai" && (card.effect === "spend_enemy_on_play" || card.effect === "spend_enemy_on_play_enters_spent");
 }
 
 export function recoversAiOnPlay(card: Card): boolean {
   return card.type === "ai" && card.effect === "recover_ai_on_play";
 }
 
+export function pressuresOnBlock(card: Card): boolean {
+  return card.type === "ai" && card.effect === "block_pressure";
+}
+
+export function piercesHandDefense(card: Card): boolean {
+  return card.type === "ai" && card.effect === "hand_defense_pierce";
+}
+
+export function blocksLowLifeHandDefense(card: Card, defender: PlayerState): boolean {
+  return card.type === "ai"
+    && (card.effect === "low_life_no_hand_defense" || card.effect === "low_life_no_hand_defense_self_damage")
+    && defender.life <= 2;
+}
+
+export function drawsOnBlockedAttack(card: Card): boolean {
+  return card.type === "ai" && (card.effect === "draw_on_blocked_attack" || card.effect === "draw_on_blocked_attack_cannot_hand_defend");
+}
+
+export function readiesAllyOnPlay(card: Card): boolean {
+  return card.type === "ai" && (card.effect === "ready_ally_on_play" || card.effect === "ready_ally_on_play_draw");
+}
+
+export function returnsAfterOverheat(card: Card): boolean {
+  return card.type === "ai" && (card.effect === "return_after_overheat" || card.effect === "return_after_overheat_cannot_hand_defend");
+}
+
+export function drawsOnSuccessfulDefense(card: Card): boolean {
+  return card.type === "ai" && (card.effect === "draw_on_successful_defense" || card.effect === "draw_on_successful_defense_enters_spent");
+}
+
+export function entersSpentOnPlay(card: Card): boolean {
+  return card.type === "ai" && (
+    card.effect === "spend_enemy_on_play_enters_spent"
+    || card.effect === "defense_plus_1_enters_spent"
+    || card.effect === "return_after_overheat_cannot_hand_defend"
+    || card.effect === "draw_on_successful_defense_enters_spent"
+  );
+}
+
+export function selfDamagesOnPlay(card: Card): boolean {
+  return card.type === "ai" && card.effect === "low_life_no_hand_defense_self_damage";
+}
+
+export function opponentDrawsOnPlay(card: Card): boolean {
+  return card.type === "ai" && card.effect === "draw_two_after_overheat_opponent_draw";
+}
+
+export function cannotHandDefend(card: Card): boolean {
+  return card.type === "ai" && (
+    card.effect === "reckless_attack_plus_1"
+    || card.effect === "draw_on_play_cannot_hand_defend"
+    || card.effect === "draw_on_blocked_attack_cannot_hand_defend"
+    || card.effect === "return_after_overheat_cannot_hand_defend"
+  );
+}
+
 export function defensePowerBonus(card: Card, defender: PlayerState | null = null, attackCard: Card | null = null, options: { firewallPaid?: boolean } = {}): number {
-  let bonus = card.effect === "defense_plus_1" ? CONFIG.power2DefenseBonus : 0;
+  let bonus = (card.effect === "defense_plus_1" || card.effect === "defense_plus_1_enters_spent") ? CONFIG.power2DefenseBonus : 0;
   if (
     defender?.memory?.effect === "firewall"
     && (defender.hand.length > 0 || options.firewallPaid)
@@ -653,6 +789,7 @@ export function legalFieldDefenders(defender: PlayerState, attackCard: Card): { 
 }
 
 export function legalHandDefenders(defender: PlayerState, attackCard: Card): { card: Card; index: number }[] {
+  if (blocksLowLifeHandDefense(attackCard, defender)) return [];
   if (CONFIG.handDefenseLimit !== null) {
     if (CONFIG.handDefenseLimit <= 0) return [];
     if (defender.handDefensesUsed >= CONFIG.handDefenseLimit) return [];
@@ -660,7 +797,7 @@ export function legalHandDefenders(defender: PlayerState, attackCard: Card): { c
   if (CONFIG.handDefenseEmptyOnly && defender.field.length > 0) return [];
   return defender.hand
     .map((card, index) => ({ card, index }))
-    .filter(({ card }) => card.type === "ai" && canDefend(attackCard, card));
+    .filter(({ card }) => card.type === "ai" && !cannotHandDefend(card) && canDefend(attackCard, card));
 }
 
 export function defenseMathText(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null): string {

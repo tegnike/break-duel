@@ -27,13 +27,31 @@ class MemoryEffect(str, Enum):
 
 class AiEffect(str, Enum):
     ATTACK_PLUS_1 = "attack_plus_1"
+    RECKLESS_ATTACK_PLUS_1 = "reckless_attack_plus_1"
     DRAW_AFTER_OVERHEAT = "draw_after_overheat"
+    DRAW_TWO_AFTER_OVERHEAT = "draw_two_after_overheat"
+    DRAW_TWO_AFTER_OVERHEAT_OPPONENT_DRAW = "draw_two_after_overheat_opponent_draw"
     DRAW_ON_PLAY = "draw_on_play"
+    DRAW_ON_PLAY_CANNOT_HAND_DEFEND = "draw_on_play_cannot_hand_defend"
     FILTER_ON_PLAY = "filter_on_play"
     NO_SPEND_AFTER_ATTACK = "no_spend_after_attack"
     SPEND_ENEMY_ON_PLAY = "spend_enemy_on_play"
+    SPEND_ENEMY_ON_PLAY_ENTERS_SPENT = "spend_enemy_on_play_enters_spent"
     DEFENSE_PLUS_1 = "defense_plus_1"
+    DEFENSE_PLUS_1_ENTERS_SPENT = "defense_plus_1_enters_spent"
     RECOVER_AI_ON_PLAY = "recover_ai_on_play"
+    BLOCK_PRESSURE = "block_pressure"
+    HAND_DEFENSE_PIERCE = "hand_defense_pierce"
+    LOW_LIFE_NO_HAND_DEFENSE = "low_life_no_hand_defense"
+    LOW_LIFE_NO_HAND_DEFENSE_SELF_DAMAGE = "low_life_no_hand_defense_self_damage"
+    DRAW_ON_BLOCKED_ATTACK = "draw_on_blocked_attack"
+    DRAW_ON_BLOCKED_ATTACK_CANNOT_HAND_DEFEND = "draw_on_blocked_attack_cannot_hand_defend"
+    READY_ALLY_ON_PLAY = "ready_ally_on_play"
+    READY_ALLY_ON_PLAY_DRAW = "ready_ally_on_play_draw"
+    RETURN_AFTER_OVERHEAT = "return_after_overheat"
+    RETURN_AFTER_OVERHEAT_CANNOT_HAND_DEFEND = "return_after_overheat_cannot_hand_defend"
+    DRAW_ON_SUCCESSFUL_DEFENSE = "draw_on_successful_defense"
+    DRAW_ON_SUCCESSFUL_DEFENSE_ENTERS_SPENT = "draw_on_successful_defense_enters_spent"
 
 
 class DeckArchetype(str, Enum):
@@ -89,7 +107,7 @@ def attack_combat_value(attack_ai: Card) -> int:
         raise ValueError("Attack checks require summon cards.")
     if attack_ai.power is None:
         raise ValueError("Summon cards require power.")
-    return attack_ai.power + (1 if attack_ai.effect == AiEffect.ATTACK_PLUS_1.value else 0)
+    return attack_ai.power + (1 if attacks_plus_1(attack_ai) else 0)
 
 
 def defense_combat_value(
@@ -123,11 +141,22 @@ def defense_combat_value(
 def defense_effect_bonus(defense_ai: Card) -> int:
     if defense_ai.type != CardType.AI:
         raise ValueError("Defense checks require summon cards.")
-    return 1 if defense_ai.effect == AiEffect.DEFENSE_PLUS_1.value else 0
+    return 1 if defense_plus_1(defense_ai) else 0
+
+
+def attacks_plus_1(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.ATTACK_PLUS_1.value,
+        AiEffect.RECKLESS_ATTACK_PLUS_1.value,
+    }
 
 
 def draws_on_play(ai: Card) -> bool:
-    return ai.type == CardType.AI and ai.effect == AiEffect.DRAW_ON_PLAY.value
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.DRAW_ON_PLAY.value,
+        AiEffect.DRAW_ON_PLAY_CANNOT_HAND_DEFEND.value,
+        AiEffect.READY_ALLY_ON_PLAY_DRAW.value,
+    }
 
 
 def keeps_ready_after_attack(ai: Card) -> bool:
@@ -138,16 +167,102 @@ def draws_after_overheat(ai: Card) -> bool:
     return ai.type == CardType.AI and ai.effect == AiEffect.DRAW_AFTER_OVERHEAT.value
 
 
+def draws_two_after_overheat(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.DRAW_TWO_AFTER_OVERHEAT.value,
+        AiEffect.DRAW_TWO_AFTER_OVERHEAT_OPPONENT_DRAW.value,
+    }
+
+
 def filters_on_play(ai: Card) -> bool:
     return ai.type == CardType.AI and ai.effect == AiEffect.FILTER_ON_PLAY.value
 
 
 def spends_enemy_on_play(ai: Card) -> bool:
-    return ai.type == CardType.AI and ai.effect == AiEffect.SPEND_ENEMY_ON_PLAY.value
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.SPEND_ENEMY_ON_PLAY.value,
+        AiEffect.SPEND_ENEMY_ON_PLAY_ENTERS_SPENT.value,
+    }
+
+
+def defense_plus_1(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.DEFENSE_PLUS_1.value,
+        AiEffect.DEFENSE_PLUS_1_ENTERS_SPENT.value,
+    }
 
 
 def recovers_ai_on_play(ai: Card) -> bool:
     return ai.type == CardType.AI and ai.effect == AiEffect.RECOVER_AI_ON_PLAY.value
+
+
+def pressures_on_block(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.BLOCK_PRESSURE.value
+
+
+def pierces_hand_defense(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.HAND_DEFENSE_PIERCE.value
+
+
+def blocks_low_life_hand_defense(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.LOW_LIFE_NO_HAND_DEFENSE.value,
+        AiEffect.LOW_LIFE_NO_HAND_DEFENSE_SELF_DAMAGE.value,
+    }
+
+
+def draws_on_blocked_attack(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.DRAW_ON_BLOCKED_ATTACK.value,
+        AiEffect.DRAW_ON_BLOCKED_ATTACK_CANNOT_HAND_DEFEND.value,
+    }
+
+
+def readies_ally_on_play(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.READY_ALLY_ON_PLAY.value,
+        AiEffect.READY_ALLY_ON_PLAY_DRAW.value,
+    }
+
+
+def returns_after_overheat(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.RETURN_AFTER_OVERHEAT.value,
+        AiEffect.RETURN_AFTER_OVERHEAT_CANNOT_HAND_DEFEND.value,
+    }
+
+
+def draws_on_successful_defense(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE.value,
+        AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE_ENTERS_SPENT.value,
+    }
+
+
+def enters_spent_on_play(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.SPEND_ENEMY_ON_PLAY_ENTERS_SPENT.value,
+        AiEffect.DEFENSE_PLUS_1_ENTERS_SPENT.value,
+        AiEffect.RETURN_AFTER_OVERHEAT_CANNOT_HAND_DEFEND.value,
+        AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE_ENTERS_SPENT.value,
+    }
+
+
+def self_damages_on_play(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.LOW_LIFE_NO_HAND_DEFENSE_SELF_DAMAGE.value
+
+
+def opponent_draws_on_play(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.DRAW_TWO_AFTER_OVERHEAT_OPPONENT_DRAW.value
+
+
+def cannot_hand_defend(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.RECKLESS_ATTACK_PLUS_1.value,
+        AiEffect.DRAW_ON_PLAY_CANNOT_HAND_DEFEND.value,
+        AiEffect.DRAW_ON_BLOCKED_ATTACK_CANNOT_HAND_DEFEND.value,
+        AiEffect.RETURN_AFTER_OVERHEAT_CANNOT_HAND_DEFEND.value,
+    }
 
 
 def defense_attribute_modifier(
@@ -173,47 +288,80 @@ def build_ai_card_pool() -> list[Card]:
     ]
     names_by_id = {
         "AI-FIRE-1": "火蜥蜴サラマンダー",
+        "AI-FIRE-1B": "火花鼠ピリカ",
         "AI-FIRE-2": "溶岩甲獣バサルト",
+        "AI-FIRE-2B": "双爪炎狼ブレイズ",
         "AI-FIRE-3": "紅蓮火翼ガルーダ",
+        "AI-FIRE-3B": "爆角獣イグナロス",
         "AI-FIRE-4": "黒焔の古竜ヴァルガ",
+        "AI-FIRE-4B": "劫火竜アグニール",
         "AI-WATER-1": "水精リュミナ",
+        "AI-WATER-1B": "潮雫ピクシー",
         "AI-WATER-2": "水晶甲羅セルキー",
+        "AI-WATER-2B": "霧泡セイレーン",
         "AI-WATER-3": "奔流海獣オルカーン",
+        "AI-WATER-3B": "深流賢獣ネレイド",
         "AI-WATER-4": "蒼潮リヴァイアサン",
+        "AI-WATER-4B": "星海クラーケン・アステル",
         "AI-WIND-1": "綿風小狐フルーフ",
+        "AI-WIND-1B": "風鈴鳥リュフ",
         "AI-WIND-2": "翡翠風刃マンティス",
+        "AI-WIND-2B": "真空鴉カイト",
         "AI-WIND-3": "天翔風鹿シルフィード",
+        "AI-WIND-3B": "風紋グリフォン・アルエット",
         "AI-WIND-4": "雲海の翼鯨ミストラル",
+        "AI-WIND-4B": "天蓋ロック・ヴァユ",
         "AI-EARTH-1": "苔帽子のモール",
+        "AI-EARTH-1B": "芽吹きノーム・ペルナ",
         "AI-EARTH-2": "古代甲羅ガメル",
+        "AI-EARTH-2B": "磁鉄甲虫フェルム",
         "AI-EARTH-3": "岩角多脚獣グラン",
+        "AI-EARTH-3B": "琥珀角犀アンバーン",
         "AI-EARTH-4": "山脈の古巨獣ガイアス",
+        "AI-EARTH-4B": "地核竜バサリア",
     }
     effects = {
-        (Attribute.FIRE, 2): AiEffect.ATTACK_PLUS_1.value,
-        (Attribute.FIRE, 4): AiEffect.DRAW_AFTER_OVERHEAT.value,
-        (Attribute.WATER, 1): AiEffect.DRAW_ON_PLAY.value,
-        (Attribute.WATER, 2): AiEffect.FILTER_ON_PLAY.value,
-        (Attribute.WATER, 3): AiEffect.DRAW_ON_PLAY.value,
-        (Attribute.WIND, 1): AiEffect.NO_SPEND_AFTER_ATTACK.value,
-        (Attribute.WIND, 3): AiEffect.SPEND_ENEMY_ON_PLAY.value,
-        (Attribute.EARTH, 2): AiEffect.DEFENSE_PLUS_1.value,
-        (Attribute.EARTH, 4): AiEffect.RECOVER_AI_ON_PLAY.value,
+        "AI-FIRE-1B": AiEffect.BLOCK_PRESSURE.value,
+        "AI-FIRE-2": AiEffect.ATTACK_PLUS_1.value,
+        "AI-FIRE-2B": AiEffect.HAND_DEFENSE_PIERCE.value,
+        "AI-FIRE-3B": AiEffect.RECKLESS_ATTACK_PLUS_1.value,
+        "AI-FIRE-4": AiEffect.DRAW_AFTER_OVERHEAT.value,
+        "AI-FIRE-4B": AiEffect.LOW_LIFE_NO_HAND_DEFENSE_SELF_DAMAGE.value,
+        "AI-WATER-1": AiEffect.DRAW_ON_PLAY.value,
+        "AI-WATER-1B": AiEffect.DRAW_ON_PLAY_CANNOT_HAND_DEFEND.value,
+        "AI-WATER-2": AiEffect.FILTER_ON_PLAY.value,
+        "AI-WATER-2B": AiEffect.DRAW_ON_BLOCKED_ATTACK_CANNOT_HAND_DEFEND.value,
+        "AI-WATER-3": AiEffect.DRAW_ON_PLAY.value,
+        "AI-WATER-3B": AiEffect.FILTER_ON_PLAY.value,
+        "AI-WATER-4B": AiEffect.DRAW_TWO_AFTER_OVERHEAT_OPPONENT_DRAW.value,
+        "AI-WIND-1": AiEffect.NO_SPEND_AFTER_ATTACK.value,
+        "AI-WIND-1B": AiEffect.NO_SPEND_AFTER_ATTACK.value,
+        "AI-WIND-2B": AiEffect.SPEND_ENEMY_ON_PLAY.value,
+        "AI-WIND-3": AiEffect.SPEND_ENEMY_ON_PLAY.value,
+        "AI-WIND-3B": AiEffect.READY_ALLY_ON_PLAY_DRAW.value,
+        "AI-WIND-4B": AiEffect.RETURN_AFTER_OVERHEAT_CANNOT_HAND_DEFEND.value,
+        "AI-EARTH-1B": AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE.value,
+        "AI-EARTH-2": AiEffect.DEFENSE_PLUS_1.value,
+        "AI-EARTH-2B": AiEffect.DEFENSE_PLUS_1.value,
+        "AI-EARTH-3B": AiEffect.RECOVER_AI_ON_PLAY.value,
+        "AI-EARTH-4": AiEffect.RECOVER_AI_ON_PLAY.value,
+        "AI-EARTH-4B": AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE_ENTERS_SPENT.value,
     }
     cards: list[Card] = []
     for attribute, code, label in rows:
         for power in (1, 2, 3, 4):
-            card_id = f"AI-{code}-{power}"
-            cards.append(
-                Card(
-                    id=card_id,
-                    name=names_by_id[card_id],
-                    type=CardType.AI,
-                    attribute=attribute,
-                    power=power,
-                    effect=effects.get((attribute, power), ""),
+            for suffix in ("", "B"):
+                card_id = f"AI-{code}-{power}{suffix}"
+                cards.append(
+                    Card(
+                        id=card_id,
+                        name=names_by_id[card_id],
+                        type=CardType.AI,
+                        attribute=attribute,
+                        power=power,
+                        effect=effects.get(card_id, ""),
+                    )
                 )
-            )
     return cards
 
 
@@ -298,19 +446,19 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
         return _deck_from_ids(
             [
                 "AI-FIRE-1",
-                "AI-FIRE-1",
+                "AI-FIRE-1B",
                 "AI-FIRE-2",
+                "AI-FIRE-2B",
                 "AI-FIRE-3",
-                "AI-FIRE-3",
+                "AI-FIRE-3B",
                 "AI-FIRE-4",
+                "AI-FIRE-4B",
                 "AI-WATER-1",
-                "AI-WATER-1",
+                "AI-WATER-1B",
                 "AI-WATER-2",
                 "AI-WATER-3",
-                "AI-WATER-3",
+                "AI-WATER-3B",
                 "AI-WATER-4",
-                "AI-WIND-2",
-                "AI-FIRE-4",
                 "CMD-DISRUPT",
                 "CMD-DISRUPT",
                 "CMD-OPTIMIZE",
@@ -323,19 +471,19 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
         return _deck_from_ids(
             [
                 "AI-EARTH-1",
-                "AI-EARTH-1",
+                "AI-EARTH-1B",
                 "AI-EARTH-2",
-                "AI-EARTH-2",
+                "AI-EARTH-2B",
                 "AI-EARTH-3",
-                "AI-EARTH-3",
+                "AI-EARTH-3B",
                 "AI-EARTH-4",
+                "AI-EARTH-4B",
                 "AI-WIND-1",
-                "AI-WIND-1",
+                "AI-WIND-1B",
                 "AI-WIND-2",
                 "AI-WIND-3",
-                "AI-WIND-3",
+                "AI-WIND-3B",
                 "AI-WIND-4",
-                "AI-WATER-1",
                 "AI-WATER-1",
                 "CMD-DISRUPT",
                 "CMD-RELEARN",
@@ -348,13 +496,13 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
         return _deck_from_ids(
             [
                 "AI-FIRE-1",
-                "AI-FIRE-1",
+                "AI-FIRE-1B",
                 "AI-FIRE-2",
-                "AI-FIRE-2",
+                "AI-FIRE-2B",
                 "AI-FIRE-3",
-                "AI-FIRE-3",
+                "AI-FIRE-3B",
                 "AI-FIRE-4",
-                "AI-FIRE-4",
+                "AI-FIRE-4B",
                 "CMD-DISRUPT",
                 "CMD-DISRUPT",
                 "CMD-SANDBOX",
@@ -373,13 +521,13 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
         return _deck_from_ids(
             [
                 "AI-WATER-1",
-                "AI-WATER-1",
+                "AI-WATER-1B",
                 "AI-WATER-2",
-                "AI-WATER-2",
+                "AI-WATER-2B",
                 "AI-WATER-3",
-                "AI-WATER-3",
+                "AI-WATER-3B",
                 "AI-WATER-4",
-                "AI-WATER-4",
+                "AI-WATER-4B",
                 "CMD-OPTIMIZE",
                 "CMD-OPTIMIZE",
                 "CMD-RELEARN",
@@ -398,13 +546,13 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
         return _deck_from_ids(
             [
                 "AI-WIND-1",
-                "AI-WIND-1",
+                "AI-WIND-1B",
                 "AI-WIND-2",
-                "AI-WIND-2",
+                "AI-WIND-2B",
                 "AI-WIND-3",
-                "AI-WIND-3",
+                "AI-WIND-3B",
                 "AI-WIND-4",
-                "AI-WIND-4",
+                "AI-WIND-4B",
                 "CMD-DISRUPT",
                 "CMD-DISRUPT",
                 "CMD-PATCH",
@@ -423,13 +571,13 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
         return _deck_from_ids(
             [
                 "AI-EARTH-1",
-                "AI-EARTH-1",
+                "AI-EARTH-1B",
                 "AI-EARTH-2",
-                "AI-EARTH-2",
+                "AI-EARTH-2B",
                 "AI-EARTH-3",
-                "AI-EARTH-3",
+                "AI-EARTH-3B",
                 "AI-EARTH-4",
-                "AI-EARTH-4",
+                "AI-EARTH-4B",
                 "CMD-SANDBOX",
                 "CMD-SANDBOX",
                 "CMD-PATCH",

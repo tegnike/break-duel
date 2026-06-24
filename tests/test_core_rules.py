@@ -318,6 +318,84 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[0].field_ai[0].id, "AI-FIRE-1")
         self.assertEqual(state.players[0].hand, [])
 
+    def test_ai_card_pool_has_two_variants_for_each_attribute_power_pair(self) -> None:
+        ai_ids = {item.id for item in AI_CARD_POOL}
+        self.assertEqual(len(ai_ids), 32)
+        for code in ("FIRE", "WATER", "WIND", "EARTH"):
+            for power in (1, 2, 3, 4):
+                self.assertIn(f"AI-{code}-{power}", ai_ids)
+                self.assertIn(f"AI-{code}-{power}B", ai_ids)
+
+    def test_block_pressure_discards_after_successful_hand_defense(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-FIRE-1B")]
+        state.players[1].hand = [card("AI-EARTH-1"), card("AI-WATER-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 5)
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-EARTH-1", "AI-WATER-1"])
+        self.assertEqual(state.log[-1]["block_pressure_discarded_card"], "AI-WATER-1")
+
+    def test_hand_defense_pierce_still_deals_damage(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-FIRE-2B")]
+        state.players[1].hand = [card("AI-EARTH-2")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual(state.players[1].discard[0].id, "AI-EARTH-2")
+
+    def test_low_life_finisher_blocks_hand_defense(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-FIRE-4B")]
+        state.players[1].life = 2
+        state.players[1].hand = [card("AI-EARTH-4B")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 1)
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-EARTH-4B"])
+
+    def test_self_damage_on_play_cost_loses_one_life(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-FIRE-4B")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual(state.players[0].life, 4)
+        self.assertEqual(state.log[-1]["effect_self_damage"], 1)
+
+    def test_opponent_draw_on_play_cost_draws_for_opponent(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-WATER-4B")]
+        state.players[1].deck = [card("AI-FIRE-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-FIRE-1"])
+        self.assertEqual(state.log[-1]["effect_opponent_draw_count"], 1)
+
+    def test_cannot_hand_defend_drawback_prevents_hand_defense(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-FIRE-1")]
+        state.players[1].hand = [card("AI-WATER-1B")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-WATER-1B"])
+
+    def test_enters_spent_drawback_spends_card_on_play(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-WIND-4B")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertIn(0, state.players[0].spent_field_ai)
+
+    def test_wind_power_4b_returns_to_hand_after_attack(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WIND-4B")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-WIND-4B"])
+        self.assertEqual(state.players[0].discard, [])
+
     def test_defense_plus_1_ai_gets_defense_bonus(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].field_ai = [card("AI-WATER-3")]

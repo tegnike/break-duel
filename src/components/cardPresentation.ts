@@ -8,21 +8,37 @@ import {
   playCost,
 } from "../game";
 import aiEarth1Art from "../assets/card-art/ai-earth-1.webp";
+import aiEarth1bArt from "../assets/card-art/ai-earth-1b.webp";
 import aiEarth2Art from "../assets/card-art/ai-earth-2.webp";
+import aiEarth2bArt from "../assets/card-art/ai-earth-2b.webp";
 import aiEarth3Art from "../assets/card-art/ai-earth-3.webp";
+import aiEarth3bArt from "../assets/card-art/ai-earth-3b.webp";
 import aiEarth4Art from "../assets/card-art/ai-earth-4.webp";
+import aiEarth4bArt from "../assets/card-art/ai-earth-4b.webp";
 import aiFire1Art from "../assets/card-art/ai-fire-1.webp";
+import aiFire1bArt from "../assets/card-art/ai-fire-1b.webp";
 import aiFire2Art from "../assets/card-art/ai-fire-2.webp";
+import aiFire2bArt from "../assets/card-art/ai-fire-2b.webp";
 import aiFire3Art from "../assets/card-art/ai-fire-3.webp";
+import aiFire3bArt from "../assets/card-art/ai-fire-3b.webp";
 import aiFire4Art from "../assets/card-art/ai-fire-4.webp";
+import aiFire4bArt from "../assets/card-art/ai-fire-4b.webp";
 import aiWater1Art from "../assets/card-art/ai-water-1.webp";
+import aiWater1bArt from "../assets/card-art/ai-water-1b.webp";
 import aiWater2Art from "../assets/card-art/ai-water-2.webp";
+import aiWater2bArt from "../assets/card-art/ai-water-2b.webp";
 import aiWater3Art from "../assets/card-art/ai-water-3.webp";
+import aiWater3bArt from "../assets/card-art/ai-water-3b.webp";
 import aiWater4Art from "../assets/card-art/ai-water-4.webp";
+import aiWater4bArt from "../assets/card-art/ai-water-4b.webp";
 import aiWind1Art from "../assets/card-art/ai-wind-1.webp";
+import aiWind1bArt from "../assets/card-art/ai-wind-1b.webp";
 import aiWind2Art from "../assets/card-art/ai-wind-2.webp";
+import aiWind2bArt from "../assets/card-art/ai-wind-2b.webp";
 import aiWind3Art from "../assets/card-art/ai-wind-3.webp";
+import aiWind3bArt from "../assets/card-art/ai-wind-3b.webp";
 import aiWind4Art from "../assets/card-art/ai-wind-4.webp";
+import aiWind4bArt from "../assets/card-art/ai-wind-4b.webp";
 import cmdDisruptArt from "../assets/card-art/cmd-disrupt.webp";
 import cmdOptimizeArt from "../assets/card-art/cmd-optimize.webp";
 import cmdPatchArt from "../assets/card-art/cmd-patch.webp";
@@ -47,21 +63,37 @@ import timerIcon from "../assets/kenney/timer_CW_75.png";
 
 const AI_CARD_ART: Record<string, string> = {
   "AI-FIRE-1": aiFire1Art,
+  "AI-FIRE-1B": aiFire1bArt,
   "AI-FIRE-2": aiFire2Art,
+  "AI-FIRE-2B": aiFire2bArt,
   "AI-FIRE-3": aiFire3Art,
+  "AI-FIRE-3B": aiFire3bArt,
   "AI-FIRE-4": aiFire4Art,
+  "AI-FIRE-4B": aiFire4bArt,
   "AI-WATER-1": aiWater1Art,
+  "AI-WATER-1B": aiWater1bArt,
   "AI-WATER-2": aiWater2Art,
+  "AI-WATER-2B": aiWater2bArt,
   "AI-WATER-3": aiWater3Art,
+  "AI-WATER-3B": aiWater3bArt,
   "AI-WATER-4": aiWater4Art,
+  "AI-WATER-4B": aiWater4bArt,
   "AI-WIND-1": aiWind1Art,
+  "AI-WIND-1B": aiWind1bArt,
   "AI-WIND-2": aiWind2Art,
+  "AI-WIND-2B": aiWind2bArt,
   "AI-WIND-3": aiWind3Art,
+  "AI-WIND-3B": aiWind3bArt,
   "AI-WIND-4": aiWind4Art,
+  "AI-WIND-4B": aiWind4bArt,
   "AI-EARTH-1": aiEarth1Art,
+  "AI-EARTH-1B": aiEarth1bArt,
   "AI-EARTH-2": aiEarth2Art,
+  "AI-EARTH-2B": aiEarth2bArt,
   "AI-EARTH-3": aiEarth3Art,
+  "AI-EARTH-3B": aiEarth3bArt,
   "AI-EARTH-4": aiEarth4Art,
+  "AI-EARTH-4B": aiEarth4bArt,
 };
 
 const SUPPORT_CARD_ART: Record<string, string> = {
