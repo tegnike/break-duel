@@ -12,10 +12,14 @@ structure and handoff notes.
 See [`docs/evolution-design.md`](docs/evolution-design.md) for the next-phase
 design plan.
 
-- Standard 20-card decks:
+- Python simulations use two standard 20-card decks by default:
   - Player 1 uses `紅蓮突破デッキ`, focused on fire/water pressure and disruption.
   - Player 2 uses `大地守護デッキ`, focused on wind/earth defense and recursion.
-- Four mono-attribute 20-card decks are available for balance leagues:
+- The browser UI starts from a starter deck picker. The human player chooses one
+  mono-attribute deck, and the rival is selected randomly from the remaining
+  mono-attribute decks.
+- Four mono-attribute 20-card decks are available for browser play and balance
+  leagues:
   - `fire`: aggro pressure, hand-defense punishment, disruption, finishers.
   - `water`: draw, filtering, refill finishers, and recursion.
   - `wind`: tempo, ready/spent control, reusable attackers, returning finishers.
@@ -48,7 +52,7 @@ design plan.
     pressure through defenses, water keeps hand quality high, wind wins tempo
     through ready/spent manipulation, and earth converts defense into resources.
 - Command cards cost 1 action and go to discard after use:
-  - `陣形リライト`: discard up to 2 hand cards, then draw 2 cards.
+  - `陣形リライト`: discard 1 hand card, then draw 2 cards.
   - `若葉の息吹`: ready 1 spent friendly summon.
   - `黒蔦の足止め`: spend 1 ready opposing summon.
   - `幻獣回帰の巻`: return 1 summon from discard to hand, then discard 1 hand card
@@ -58,7 +62,7 @@ design plan.
 - Relic cards reinforce strategies while also spending hand resources:
   - `灯火の旅嚢`: draws only when its controller starts the turn with 2 or
     fewer cards.
-  - `竜盾の紋章`: discards 1 hand card to add +1 to same-attribute field
+  - `竜盾の紋章`: discards 1 hand card to add +1 to off-attribute field
     defense.
   - In the browser UI, human players choose which hand card to discard for
     discard-cost effects such as `陣形リライト`, `幻獣回帰の巻`, `竜盾の紋章`,
@@ -91,8 +95,8 @@ design plan.
 - CLI simulation with JSON and JSONL output.
 
 The browser UI is implemented with React + TypeScript + Vite. It supports
-relic placement, upgrade play, manual target selection for `黒蔦の足止め`, manual
-discard-cost selection, and discard-pile inspection.
+starter deck selection, relic placement, upgrade play, manual target selection
+for key effects, manual discard-cost selection, and discard-pile inspection.
 
 ## Assets
 
