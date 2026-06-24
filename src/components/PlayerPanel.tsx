@@ -60,7 +60,7 @@ export function PlayerPanel({
             zone="field"
             index={index}
             selected={ownerIndex === 0 && game.selected?.zone === "field" && game.selected.index === index}
-            selectable={ownerIndex === 0 && canHumanAct(game)}
+            selectable={ownerIndex === 0}
             spent={player.spentFieldIndexes.has(index)}
             actionState={ownerIndex === 0 ? fieldCardActionState(game, player, index) : "idle"}
             showCost={false}
@@ -83,7 +83,7 @@ export function PlayerPanel({
                 zone="hand"
                 index={index}
                 selected={game.selected?.zone === "hand" && game.selected.index === index}
-                selectable={canHumanAct(game)}
+                selectable
                 actionState={handCardActionState(game, player, game.players[1], card)}
                 showCost
                 onClick={() => onSelectHand?.(index)}

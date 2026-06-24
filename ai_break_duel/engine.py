@@ -538,7 +538,7 @@ def _use_command(state: GameState, action: Action) -> None:
             player.hand.insert(action.source_index, command)
             raise ValueError("Optimize requires another hand card to discard.")
         player.discard.append(command)
-        discarded = _discard_low_priority_cards(player, 2)
+        discarded = _discard_low_priority_cards(player, 1)
         drawn = player.draw(2, state.rng)
         result |= {
             "discarded_cards": [card.id for card in discarded],
@@ -800,10 +800,36 @@ def _defense_power_bonus(
         and defender.memory.effect == MemoryEffect.FIREWALL.value
         and bool(defender.hand)
         and card.type == CardType.AI
-        and card.attribute == attack_ai.attribute
+        and card.attribute != attack_ai.attribute
+        and _firewall_should_pay(state, defender, card, attack_ai)
     ):
         bonus += 1
     return bonus
+
+
+def _firewall_should_pay(
+    state: GameState,
+    defender: PlayerState,
+    defense_ai,
+    attack_ai,
+) -> bool:
+    if (
+        defender.memory is None
+        or defender.memory.effect != MemoryEffect.FIREWALL.value
+        or defense_ai.attribute == attack_ai.attribute
+        or not defender.hand
+    ):
+        return False
+    attack_value = attack_combat_value(attack_ai)
+    base_value = defense_combat_value(
+        attack_ai,
+        defense_ai,
+        advantage_bonus=state.config.defense_advantage_bonus,
+        disadvantage_penalty=state.config.defense_disadvantage_penalty,
+        defense_power_bonus=0,
+    )
+    paid_value = base_value + 1
+    return base_value < attack_value or (base_value == attack_value and paid_value > attack_value)
 
 
 def command_is_usable(state: GameState, source_index: int) -> bool:
@@ -1034,8 +1060,9 @@ def _discard_firewall_fuel(
     if (
         defender.memory is None
         or defender.memory.effect != MemoryEffect.FIREWALL.value
-        or defense_ai.attribute != attack_ai.attribute
+        or defense_ai.attribute == attack_ai.attribute
         or not defender.hand
+        or not _firewall_should_pay(state, defender, defense_ai, attack_ai)
     ):
         return None
     discarded = _discard_low_priority_cards(defender, 1)[0]

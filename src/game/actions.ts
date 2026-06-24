@@ -10,6 +10,7 @@ import {
   attackCombatValue,
   canActivePlayerAttack,
   canDefend,
+  canDefendWithOptionalFirewall,
   canUpgrade,
   checkResourceExhaustion,
   checkTurnLimit,
@@ -113,10 +114,29 @@ export function applyPlayEffects(
     const drawn = draw(player, 2);
     text += ` ${drawn}枚引いた。`;
     if (player.hand.length > 0) {
-      const discardIndex = lowestPriorityHand(player);
-      const discarded = player.hand.splice(discardIndex, 1)[0];
-      player.discard.push(discarded);
-      text += ` ${discarded.name}を捨てた。`;
+      if (player.isHuman) {
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "filter-discard",
+          zone: "hand",
+          playerIndex: draft.players.indexOf(player),
+          title: `${card.name}の捨て札を選択`,
+          prompt: "登場時効果で2枚引きました。手札からトラッシュするカードを1枚選んでください。",
+          confirmLabel: "このカードを捨てる",
+          min: 1,
+          max: 1,
+          excludeIndexes: [],
+          selectedIndexes: [],
+          actionCost,
+          cancelable: false,
+        };
+        text += " 捨てるカードを選択。";
+      } else {
+        const discardIndex = lowestPriorityHand(player);
+        const discarded = player.hand.splice(discardIndex, 1)[0];
+        player.discard.push(discarded);
+        text += ` ${discarded.name}を捨てた。`;
+      }
     }
   }
   if (spendsEnemyOnPlay(card)) {
@@ -125,52 +145,110 @@ export function applyPlayEffects(
     if (opponent) {
       const targetIndex = highestPowerReadyAi(opponent);
       if (targetIndex !== null) {
-        opponent.spentFieldIndexes.add(targetIndex);
-        text += ` ${opponent.name}の${opponent.field[targetIndex].name}を消耗。`;
+        if (player.isHuman) {
+          draft.pendingTarget = {
+            kind: "card-select",
+            reason: "spend-enemy",
+            zone: "field",
+            playerIndex: 1 - playerIndex,
+            title: `${card.name}の対象を選択`,
+            prompt: "消耗させる相手の未消耗召喚獣を1体選んでください。",
+            confirmLabel: "この召喚獣を消耗",
+            min: 1,
+            max: 1,
+            excludeIndexes: opponent.field.map((_, index) => opponent.spentFieldIndexes.has(index) ? index : -1).filter((index) => index >= 0),
+            selectedIndexes: [],
+            actionCost,
+            cancelable: false,
+          };
+          text += " 消耗させる相手を選択。";
+        } else {
+          opponent.spentFieldIndexes.add(targetIndex);
+          text += ` ${opponent.name}の${opponent.field[targetIndex].name}を消耗。`;
+        }
       }
     }
   }
   if (recoversAiOnPlay(card) && player.hand.length <= 1) {
     const targetIndex = highestPowerAiInDiscard(player, excludedRecoverCard);
     if (targetIndex !== null) {
-      const recovered = player.discard.splice(targetIndex, 1)[0];
-      player.hand.push(recovered);
-      text += ` ${recovered.name}をトラッシュから回収。`;
+      if (player.isHuman) {
+        const excludedRecoverIndex = excludedRecoverCard ? player.discard.indexOf(excludedRecoverCard) : -1;
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "recover-on-play",
+          zone: "discard",
+          playerIndex: draft.players.indexOf(player),
+          title: `${card.name}で回収するカードを選択`,
+          prompt: "トラッシュから回収する召喚獣を1枚選んでください。",
+          confirmLabel: "このカードを回収",
+          min: 1,
+          max: 1,
+          excludeIndexes: player.discard
+            .map((discarded, index) => (discarded.type !== "ai" || index === excludedRecoverIndex ? index : -1))
+            .filter((index) => index >= 0),
+          selectedIndexes: [],
+          actionCost,
+          cancelable: false,
+        };
+        text += " トラッシュから回収するカードを選択。";
+      } else {
+        const recovered = player.discard.splice(targetIndex, 1)[0];
+        player.hand.push(recovered);
+        text += ` ${recovered.name}をトラッシュから回収。`;
+      }
     }
   }
   if (readiesAllyOnPlay(card)) {
     const targetIndex = highestPowerSpentAi(player);
     if (targetIndex !== null) {
-      player.spentFieldIndexes.delete(targetIndex);
-      text += ` ${player.field[targetIndex].name}を回復。`;
+      if (player.isHuman) {
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "ready-ally",
+          zone: "field",
+          playerIndex: draft.players.indexOf(player),
+          title: `${card.name}で回復する召喚獣を選択`,
+          prompt: "消耗から回復させる自分の召喚獣を1体選んでください。",
+          confirmLabel: "この召喚獣を回復",
+          min: 1,
+          max: 1,
+          excludeIndexes: player.field.map((_, index) => player.spentFieldIndexes.has(index) ? -1 : index).filter((index) => index >= 0),
+          selectedIndexes: [],
+          actionCost,
+          cancelable: false,
+        };
+        text += " 回復する召喚獣を選択。";
+      } else {
+        player.spentFieldIndexes.delete(targetIndex);
+        text += ` ${player.field[targetIndex].name}を回復。`;
+      }
     }
   }
   if (player.memory?.effect === "pipeline" && card.power === 1 && !player.pipelineUsed) {
-    player.pipelineUsed = true;
-    const drawn = draw(player, 1);
-    if (player.hand.length > 0) {
-      if (player.isHuman) {
-        draft.pendingTarget = {
-          kind: "hand-discard",
-          reason: "pipeline",
-          playerIndex: draft.players.indexOf(player),
-          title: `${player.memory.name}の捨て札を選択`,
-          prompt: "追加ドロー後にトラッシュする手札を1枚選んでください。",
-          min: 1,
-          max: 1,
-          excludeIndexes: [],
-          selectedIndexes: [],
-          sourceIndex: actionCost,
-        };
-        text += ` ${player.memory.name}で${drawn}枚引いた。捨てるカードを選択。`;
-      } else {
+    if (player.isHuman) {
+      draft.pendingTarget = {
+        kind: "optional-effect",
+        reason: "pipeline",
+        playerIndex: draft.players.indexOf(player),
+        title: `${player.memory.name}を使用しますか`,
+        prompt: "このターンまだ使っていません。使うなら1枚引いてから手札を1枚トラッシュします。",
+        confirmLabel: "使う",
+        declineLabel: "使わない",
+        actionCost,
+      };
+      text += ` ${player.memory.name}を使うか選択。`;
+    } else {
+      player.pipelineUsed = true;
+      const drawn = draw(player, 1);
+      if (player.hand.length > 0) {
         const discardIndex = lowestPriorityHand(player);
         const discarded = player.hand.splice(discardIndex, 1)[0];
         player.discard.push(discarded);
         text += ` ${player.memory.name}で${drawn}枚引き、${discarded.name}を捨てた。`;
+      } else {
+        text += ` ${player.memory.name}で${drawn}枚引いた。`;
       }
-    } else {
-      text += ` ${player.memory.name}で${drawn}枚引いた。`;
     }
   }
   return text;
@@ -187,7 +265,7 @@ export function useCommandAtInDraft(
   const opponent = opponentPlayer(draft);
   const command = player.hand[sourceIndex];
   if (!command || command.type !== "event") return;
-  const relearnTarget = command.effect === "relearn" ? highestPowerAiInDiscard(player) : null;
+  const relearnTarget = command.effect === "relearn" ? targetIndex ?? highestPowerAiInDiscard(player) : null;
   const selectedDiscardCards = discardIndexes.length > 0
     ? discardHandCards(draft, draft.active, discardIndexes)
     : [];
@@ -199,11 +277,11 @@ export function useCommandAtInDraft(
   if (used.effect === "optimize") {
     const discarded = selectedDiscardCards.length > 0
       ? selectedDiscardCards
-      : discardLowPriorityCards(player, 2);
+      : discardLowPriorityCards(player, 1);
     const drawn = draw(player, 2);
     text += ` ${discarded.map((card) => card.name).join("、")}を捨て、${drawn}枚引いた。`;
   } else if (used.effect === "patch") {
-    const target = highestPowerSpentAi(player);
+    const target = targetIndex ?? highestPowerSpentAi(player);
     if (target !== null) {
       player.spentFieldIndexes.delete(target);
       text += ` ${player.field[target].name}を回復。`;
@@ -289,31 +367,40 @@ export function resolveDefenseInDraft(
 
   if (choice.type === "field") {
     const defenseCard = defender.field[choice.index];
-    if (!defenseCard || !canDefend(attackCard, defenseCard, defender)) return;
+    if (!defenseCard || !canDefendWithOptionalFirewall(attackCard, defenseCard, defender)) return;
+    draft.pendingTarget = null;
     if (defender.isHuman && needsFirewallFuel(defender, defenseCard, attackCard) && choice.firewallDiscardIndex === undefined) {
+      const baseCanDefend = canDefend(attackCard, defenseCard, defender);
       draft.pendingTarget = {
         kind: "hand-discard",
         reason: "firewall",
         playerIndex: defenderIndex,
         title: `${defender.memory!.name}の捨て札を選択`,
-        prompt: "同属性防御の power +1 に使う手札を1枚選んでください。",
-        min: 1,
+        prompt: baseCanDefend
+          ? "他属性防御で power +1 できます。使うなら手札を1枚選んでください。"
+          : "他属性防御で power +1 しないと防御できません。手札を1枚選んでください。",
+        min: baseCanDefend ? 0 : 1,
         max: 1,
         excludeIndexes: [],
         selectedIndexes: [],
         fieldIndex: choice.index,
+        actionCost: 1,
+        cancelable: true,
       };
       return;
     }
-    const firewallFuel = choice.firewallDiscardIndex !== undefined
+    const firewallFuel = typeof choice.firewallDiscardIndex === "number"
       ? discardHandCards(draft, defenderIndex, [choice.firewallDiscardIndex])[0]
-      : discardFirewallFuel(defender, defenseCard, attackCard);
+      : choice.firewallDiscardIndex === null
+        ? null
+        : discardFirewallFuel(defender, defenseCard, attackCard);
     const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: Boolean(firewallFuel) });
     const attackValue = attackCombatValue(attackCard);
     const isTrade = defenseValue === attackValue;
     const fuelText = firewallFuel ? ` ${defender.memory!.name}で${firewallFuel.name}をトラッシュ。` : "";
     const defenseDrawn = drawsOnSuccessfulDefense(defenseCard) ? draw(defender, 1) : 0;
-    const pressureDiscarded = pressuresOnBlock(attackCard)
+    const shouldChoosePressureDiscard = pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
+    const pressureDiscarded = pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
       ? discardLowPriorityCards(defender, 1)[0] ?? null
       : null;
     const blockedDrawn = drawsOnBlockedAttack(attackCard) ? draw(attacker, 1) : 0;
@@ -347,16 +434,35 @@ export function resolveDefenseInDraft(
     } else {
       defender.spentFieldIndexes.add(choice.index);
     }
+    if (shouldChoosePressureDiscard) {
+      draft.pendingTarget = {
+        kind: "card-select",
+        reason: "block-pressure",
+        zone: "hand",
+        playerIndex: defenderIndex,
+        title: `${attackCard.name}の圧で捨てるカードを選択`,
+        prompt: "攻撃を防いだため、手札からトラッシュするカードを1枚選んでください。",
+        confirmLabel: "このカードを捨てる",
+        min: 1,
+        max: 1,
+        excludeIndexes: [],
+        selectedIndexes: [],
+        actionCost: 1,
+        cancelable: false,
+      };
+    }
     effects.playSfx?.("block");
   } else if (choice.type === "hand") {
     const defenseCard = defender.hand[choice.index];
     if (!defenseCard || !legalHandDefenders(defender, attackCard).some((option) => option.index === choice.index)) return;
+    draft.pendingTarget = null;
     defender.hand.splice(choice.index, 1);
     defender.handDefensesUsed += 1;
     defender.discard.push(defenseCard);
     const pierced = piercesHandDefense(attackCard);
     if (pierced) defender.life -= 1;
-    const pressureDiscarded = !pierced && pressuresOnBlock(attackCard)
+    const shouldChoosePressureDiscard = !pierced && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
+    const pressureDiscarded = !pierced && pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
       ? discardLowPriorityCards(defender, 1)[0] ?? null
       : null;
     const blockedDrawn = !pierced && drawsOnBlockedAttack(attackCard) ? draw(attacker, 1) : 0;
@@ -379,8 +485,26 @@ export function resolveDefenseInDraft(
         { card: defenseCard, label: "防御", state: "trash" },
       ],
     });
+    if (shouldChoosePressureDiscard) {
+      draft.pendingTarget = {
+        kind: "card-select",
+        reason: "block-pressure",
+        zone: "hand",
+        playerIndex: defenderIndex,
+        title: `${attackCard.name}の圧で捨てるカードを選択`,
+        prompt: "攻撃を防いだため、手札からトラッシュするカードを1枚選んでください。",
+        confirmLabel: "このカードを捨てる",
+        min: 1,
+        max: 1,
+        excludeIndexes: [],
+        selectedIndexes: [],
+        actionCost: 1,
+        cancelable: false,
+      };
+    }
     effects.playSfx?.("block");
   } else {
+    draft.pendingTarget = null;
     defender.life -= 1;
     addLog(draft, `${defender.name}は防御せず1ダメージ。`);
     effects.showDuelEvent?.({
@@ -402,7 +526,7 @@ export function resolveDefenseInDraft(
   checkResourceExhaustion(draft);
   if (draft.winner === null && !draft.draw) {
     draft.active = attackerIndex;
-    afterAction(draft);
+    if (!draft.pendingTarget) afterAction(draft);
   }
 }
 

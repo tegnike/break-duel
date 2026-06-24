@@ -455,7 +455,7 @@ class CoreRuleTests(unittest.TestCase):
         ])
         self.assertEqual(len(state.players[0].hand), 2)
 
-    def test_optimize_discards_up_to_two_cards_before_drawing_two(self) -> None:
+    def test_optimize_discards_one_card_before_drawing_two(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].hand = [
             command("CMD-OPTIMIZE"),
@@ -468,9 +468,9 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[0].discard], [
             "CMD-OPTIMIZE",
             "AI-FIRE-1",
-            "AI-WATER-1",
         ])
         self.assertEqual([item.id for item in state.players[0].hand], [
+            "AI-WATER-1",
             "AI-WIND-1",
             "AI-WATER-1",
         ])
@@ -531,19 +531,31 @@ class CoreRuleTests(unittest.TestCase):
         start_turn(state)
         self.assertEqual(len(state.players[0].hand), 3)
 
-    def test_firewall_memory_adds_one_power_to_same_attribute_field_defense(self) -> None:
+    def test_firewall_memory_adds_one_power_to_off_attribute_field_defense(self) -> None:
         state = new_game(1, no_opening_hands())
-        state.players[0].field_ai = [card("AI-WATER-3")]
-        state.players[1].field_ai = [card("AI-WATER-3")]
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[1].field_ai = [card("AI-FIRE-4")]
         state.players[1].memory = memory("MEM-FIREWALL")
         state.players[1].hand = [card("AI-EARTH-1")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
         self.assertEqual(state.stats.successful_defenses, 1)
         self.assertEqual(state.players[0].field_ai, [])
-        self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-WATER-3"])
+        self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-FIRE-4"])
         self.assertIn(0, state.players[1].spent_field_ai)
         self.assertEqual(state.players[1].discard[0].id, "AI-EARTH-1")
+
+    def test_firewall_memory_does_not_boost_same_attribute_field_defense(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[1].field_ai = [card("AI-WATER-3")]
+        state.players[1].memory = memory("MEM-FIREWALL")
+        state.players[1].hand = [card("AI-EARTH-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.stats.undefended_attacks, 1)
+        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-EARTH-1"])
 
     def test_sandbox_command_can_prevent_next_power_4_overheat(self) -> None:
         state = new_game(

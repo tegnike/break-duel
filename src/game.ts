@@ -88,6 +88,35 @@ export type PendingTarget =
       selectedIndexes: number[];
       sourceIndex?: number;
       fieldIndex?: number;
+      targetIndex?: number;
+      actionCost?: number;
+      cancelable?: boolean;
+    }
+  | {
+      kind: "card-select";
+      reason: "filter-discard" | "relearn-recover" | "recover-on-play" | "upgrade-source" | "ready-ally" | "spend-enemy" | "block-pressure";
+      zone: "hand" | "field" | "discard";
+      playerIndex: number;
+      title: string;
+      prompt: string;
+      confirmLabel: string;
+      min: number;
+      max: number;
+      excludeIndexes: number[];
+      selectedIndexes: number[];
+      sourceIndex?: number;
+      actionCost?: number;
+      cancelable?: boolean;
+    }
+  | {
+      kind: "optional-effect";
+      reason: "pipeline";
+      playerIndex: number;
+      title: string;
+      prompt: string;
+      confirmLabel: string;
+      declineLabel: string;
+      actionCost: number;
     }
   | null;
 
@@ -110,7 +139,7 @@ export type GameState = {
 };
 
 export type DefenseChoice =
-  | { type: "field"; index: number; firewallDiscardIndex?: number }
+  | { type: "field"; index: number; firewallDiscardIndex?: number | null }
   | { type: "hand"; index: number }
   | { type: "none" };
 
@@ -781,9 +810,9 @@ export function defensePowerBonus(card: Card, defender: PlayerState | null = nul
   let bonus = (card.effect === "defense_plus_1" || card.effect === "defense_plus_1_enters_spent") ? CONFIG.power2DefenseBonus : 0;
   if (
     defender?.memory?.effect === "firewall"
-    && (defender.hand.length > 0 || options.firewallPaid)
+    && options.firewallPaid
     && attackCard
-    && card.attribute === attackCard.attribute
+    && card.attribute !== attackCard.attribute
   ) {
     bonus += 1;
   }
@@ -801,10 +830,26 @@ export function canDefend(attackCard: Card, defenseCard: Card, defender: PlayerS
   return defenseCombatValue(attackCard, defenseCard, defender) >= attackCombatValue(attackCard);
 }
 
+export function canUseFirewall(defender: PlayerState, defenseCard: Card, attackCard: Card): boolean {
+  return Boolean(
+    defender.memory?.effect === "firewall"
+      && defenseCard.attribute !== attackCard.attribute
+      && defender.hand.length > 0,
+  );
+}
+
+export function canDefendWithOptionalFirewall(attackCard: Card, defenseCard: Card, defender: PlayerState): boolean {
+  return canDefend(attackCard, defenseCard, defender)
+    || (
+      canUseFirewall(defender, defenseCard, attackCard)
+      && defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: true }) >= attackCombatValue(attackCard)
+    );
+}
+
 export function legalFieldDefenders(defender: PlayerState, attackCard: Card): { card: Card; index: number }[] {
   return defender.field
     .map((card, index) => ({ card, index }))
-    .filter(({ card, index }) => (CONFIG.exhaustedCanDefend || !defender.spentFieldIndexes.has(index)) && canDefend(attackCard, card, defender));
+    .filter(({ card, index }) => (CONFIG.exhaustedCanDefend || !defender.spentFieldIndexes.has(index)) && canDefendWithOptionalFirewall(attackCard, card, defender));
 }
 
 export function legalHandDefenders(defender: PlayerState, attackCard: Card): { card: Card; index: number }[] {
@@ -833,7 +878,11 @@ export function defenseMathText(attackCard: Card, defenseCard: Card, defender: P
 }
 
 export function needsFirewallFuel(defender: PlayerState, defenseCard: Card, attackCard: Card): boolean {
-  return Boolean(defender.memory?.effect === "firewall" && defenseCard.attribute === attackCard.attribute && defender.hand.length > 0);
+  if (!canUseFirewall(defender, defenseCard, attackCard)) return false;
+  const baseValue = defenseCombatValue(attackCard, defenseCard, defender);
+  const paidValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: true });
+  const attackValue = attackCombatValue(attackCard);
+  return baseValue < attackValue || (baseValue === attackValue && paidValue > attackValue);
 }
 
 export function discardLowPriorityCards(player: PlayerState, count: number): Card[] {

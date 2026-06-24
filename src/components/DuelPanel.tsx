@@ -13,6 +13,7 @@ import {
   bestUpgradeSource,
   canActivePlayerAttack,
   canHumanAct,
+  canUseFirewall,
   chooseAiDefense,
   commandUsable,
   defenseCombatValue,
@@ -113,16 +114,35 @@ export function DefensePanel({
   onUseCommand,
   onCancelTarget,
   onTogglePendingHand,
+  onTogglePendingCard,
   onConfirmPending,
+  onConfirmCardSelection,
+  onResolveOptionalEffect,
 }: {
   game: GameState;
   onResolve: (choice: DefenseChoice) => void;
   onUseCommand: (sourceIndex: number, targetIndex: number | null) => void;
   onCancelTarget: () => void;
   onTogglePendingHand: (index: number) => void;
+  onTogglePendingCard: (index: number) => void;
   onConfirmPending: () => void;
+  onConfirmCardSelection: () => void;
+  onResolveOptionalEffect: (useEffect: boolean) => void;
 }) {
   if (game.pendingTarget) {
+    if (game.pendingTarget.kind === "optional-effect") {
+      const pending = game.pendingTarget;
+      return (
+        <div className="defense-panel">
+          <h3>{pending.title}</h3>
+          <p className="choice-prompt">{pending.prompt}</p>
+          <div className="defense-actions pending-actions">
+            <button type="button" className="action-ready" onClick={() => onResolveOptionalEffect(true)}>{pending.confirmLabel}</button>
+            <button type="button" onClick={() => onResolveOptionalEffect(false)}>{pending.declineLabel}</button>
+          </div>
+        </div>
+      );
+    }
     if (game.pendingTarget.kind === "hand-discard") {
       const pending = game.pendingTarget;
       const player = game.players[pending.playerIndex];
@@ -132,16 +152,61 @@ export function DefensePanel({
         <div className="defense-panel">
           <h3>{pending.title}</h3>
           <p className="choice-prompt">{pending.prompt}</p>
-          <div className="defense-actions">
+          <div className="pending-card-grid">
             {player.hand.map((card, index) => excluded.has(index) ? null : (
-              <button type="button" key={`${card.id}-${index}`} className={selected.has(index) ? "action-ready" : ""} onClick={() => onTogglePendingHand(index)}>
-                {selected.has(index) ? "選択中: " : ""}{card.name}
-              </button>
+              <PendingCardChoice
+                key={`${card.id}-${index}`}
+                card={card}
+                ownerIndex={pending.playerIndex}
+                zone="hand"
+                index={index}
+                selected={selected.has(index)}
+                onClick={() => onTogglePendingHand(index)}
+              />
             ))}
+          </div>
+          <div className="defense-actions pending-actions">
             <button type="button" disabled={pending.selectedIndexes.length < pending.min} onClick={onConfirmPending}>
-              {pending.reason === "optimize" ? "捨てて2枚引く" : pending.reason === "firewall" ? "このカードで強化" : "このカードを捨てる"}
+              {pending.reason === "optimize"
+                ? "捨てて2枚引く"
+                : pending.reason === "firewall"
+                  ? pending.selectedIndexes.length > 0 ? "このカードで強化" : "使わず防御"
+                  : "このカードを捨てる"}
             </button>
-            <button type="button" onClick={onCancelTarget}>キャンセル</button>
+            {pending.cancelable !== false && <button type="button" onClick={onCancelTarget}>キャンセル</button>}
+          </div>
+        </div>
+      );
+    }
+    if (game.pendingTarget.kind === "card-select") {
+      const pending = game.pendingTarget;
+      const player = game.players[pending.playerIndex];
+      const cards = pending.zone === "hand" ? player.hand : pending.zone === "field" ? player.field : player.discard;
+      const excluded = new Set(pending.excludeIndexes);
+      const selected = new Set(pending.selectedIndexes);
+      return (
+        <div className="defense-panel">
+          <h3>{pending.title}</h3>
+          <p className="choice-prompt">{pending.prompt}</p>
+          <div className="pending-card-grid">
+            {cards.map((card, index) => excluded.has(index) ? null : (
+              <PendingCardChoice
+                key={`${pending.zone}-${card.id}-${index}`}
+                card={card}
+                ownerIndex={pending.playerIndex}
+                zone={pending.zone}
+                index={index}
+                selected={selected.has(index)}
+                spent={pending.zone === "field" && player.spentFieldIndexes.has(index)}
+                onClick={() => onTogglePendingCard(index)}
+              />
+            ))}
+          </div>
+          <div className="defense-actions pending-actions">
+            <button type="button" disabled={pending.selectedIndexes.length < pending.min} onClick={onConfirmCardSelection}>
+              {pending.confirmLabel}
+            </button>
+            {pending.cancelable !== false && <button type="button" onClick={onCancelTarget}>キャンセル</button>}
           </div>
         </div>
       );
@@ -153,10 +218,20 @@ export function DefensePanel({
     return (
       <div className="defense-panel">
         <h3>{command.name}の対象を選択</h3>
-        <div className="defense-actions">
+        <p className="choice-prompt">消耗させる相手の未消耗召喚獣を選んでください。</p>
+        <div className="pending-card-grid">
           {opponent.field.map((card, index) => opponent.spentFieldIndexes.has(index) ? null : (
-            <button type="button" key={`${card.id}-${index}`} onClick={() => onUseCommand(pendingTarget.sourceIndex, index)}>{card.name}</button>
+            <PendingCardChoice
+              key={`${card.id}-${index}`}
+              card={card}
+              ownerIndex={1 - game.active}
+              zone="field"
+              index={index}
+              onClick={() => onUseCommand(pendingTarget.sourceIndex, index)}
+            />
           ))}
+        </div>
+        <div className="defense-actions pending-actions">
           <button type="button" onClick={onCancelTarget}>キャンセル</button>
         </div>
       </div>
@@ -183,15 +258,60 @@ export function DefensePanel({
   );
 }
 
+function PendingCardChoice({
+  card,
+  ownerIndex,
+  zone,
+  index,
+  selected = false,
+  spent = false,
+  onClick,
+}: {
+  card: Card;
+  ownerIndex: number;
+  zone: "hand" | "field" | "discard";
+  index: number;
+  selected?: boolean;
+  spent?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`pending-card-choice ${selected ? "selected" : ""}`}
+      style={{ "--card-color": cardColor(card) } as React.CSSProperties}
+      onClick={onClick}
+    >
+      <CardView
+        card={card}
+        ownerIndex={ownerIndex}
+        zone={zone}
+        index={index}
+        selected={selected}
+        spent={spent}
+        showCost={false}
+      />
+      <span className="pending-card-effect">{selectedText(card)}</span>
+    </button>
+  );
+}
+
 function DefenseChoiceButton({ source, card, attackCard, defender, hand = false, onClick }: { source: string; card: Card; attackCard: Card; defender: PlayerState; hand?: boolean; onClick: () => void }) {
-  const defenseValue = defenseCombatValue(attackCard, card, defender);
+  const baseDefenseValue = defenseCombatValue(attackCard, card, defender);
+  const paidDefenseValue = canUseFirewall(defender, card, attackCard)
+    ? defenseCombatValue(attackCard, card, defender, { firewallPaid: true })
+    : baseDefenseValue;
+  const defenseValue = baseDefenseValue >= attackCombatValue(attackCard) ? baseDefenseValue : paidDefenseValue;
   const traitBonus = card.effect === "defense_plus_1" ? 1 : 0;
   const attackValue = attackCombatValue(attackCard);
   const result = hand
     ? "防御成功 / このカードをトラッシュ"
-    : defenseValue === attackValue
+    : baseDefenseValue < attackValue && paidDefenseValue >= attackValue
+      ? `竜盾使用で${paidDefenseValue === attackValue ? "相打ち" : "防御成功"}`
+      : defenseValue === attackValue
       ? "相打ち / 両方トラッシュ"
       : "防御側が残る / 攻撃側退場";
+  const firewallText = !hand && paidDefenseValue > baseDefenseValue ? ` / 竜盾使用時 ${paidDefenseValue}` : "";
   return (
     <button type="button" className="defense-choice" style={{ "--card-color": cardColor(card) } as React.CSSProperties} title={`${source}: ${card.name} / ${defenseMathText(attackCard, card, defender)}`} onClick={onClick}>
       <div className="defense-choice-head">
@@ -200,7 +320,7 @@ function DefenseChoiceButton({ source, card, attackCard, defender, hand = false,
       </div>
       <div className="defense-choice-body">
         <span>{card.attribute} / power {card.power}</span>
-        <span>防御値 {defenseValue} = {card.power} + {defensePowerBonus(card, defender, attackCard) - traitBonus} + {traitBonus}</span>
+        <span>防御値 {baseDefenseValue} = {card.power} + {defensePowerBonus(card, defender, attackCard) - traitBonus} + {traitBonus}{firewallText}</span>
         <span className="defense-choice-result">{result}</span>
       </div>
     </button>
@@ -223,7 +343,7 @@ export function LogList({ entries }: { entries: string[] }) {
 
 export function actionHintText(game: GameState, card: Card | null, zone: string | null): string {
   if (!card) return canHumanAct(game) ? "手札と場の明るい枠が、いま使える候補です。" : "ライバルの行動中です。";
-  if (!canHumanAct(game)) return "ライバルの行動中です。";
+  if (!canHumanAct(game)) return selectedText(card);
   const human = game.players[0];
   const opponent = game.players[1];
   if (zone === "hand") {

@@ -4,9 +4,11 @@ from .cards import (
     CardType,
     CommandEffect,
     MemoryEffect,
+    attack_combat_value,
     blocks_low_life_hand_defense,
     cannot_hand_defend,
     can_defend,
+    defense_combat_value,
 )
 from .models import Action, ActionType, GameState, PlayerState
 
@@ -324,10 +326,25 @@ def _defense_power_bonus(
         and defender.memory.effect == MemoryEffect.FIREWALL.value
         and bool(defender.hand)
         and card.type == CardType.AI
-        and card.attribute == attack_ai.attribute
+        and card.attribute != attack_ai.attribute
+        and _firewall_should_pay(card, defender, attack_ai)
     ):
         bonus += 1
     return bonus
+
+
+def _firewall_should_pay(card, defender: PlayerState, attack_ai) -> bool:
+    if (
+        defender.memory is None
+        or defender.memory.effect != MemoryEffect.FIREWALL.value
+        or card.attribute == attack_ai.attribute
+        or not defender.hand
+    ):
+        return False
+    attack_value = attack_combat_value(attack_ai)
+    base_value = defense_combat_value(attack_ai, card, defense_power_bonus=0)
+    paid_value = base_value + 1
+    return base_value < attack_value or (base_value == attack_value and paid_value > attack_value)
 
 
 def _card_priority(card) -> int:

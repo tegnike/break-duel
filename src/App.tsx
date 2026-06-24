@@ -463,7 +463,6 @@ export default function App() {
   }
 
   function selectHand(index: number) {
-    if (!canHumanAct(game)) return;
     mutate((draft) => {
       draft.selected = { zone: "hand", ownerIndex: 0, index };
     });
@@ -568,25 +567,58 @@ export default function App() {
     if (!canHumanAct(game) || game.selected?.zone !== "hand") return;
     const player = activePlayer(game);
     const target = player.hand[game.selected.index];
-    const sourceIndex = target?.type === "ai" ? bestUpgradeSource(player, target) : null;
-    const source = sourceIndex === null ? null : player.field[sourceIndex];
-    if (!target || target.type !== "ai" || sourceIndex === null || !source || upgradeCost(target) > game.actionsRemaining) return;
+    if (!target || target.type !== "ai" || upgradeCost(target) > game.actionsRemaining) return;
+    const sourceIndexes = upgradeSourceIndexes(player, target);
+    if (sourceIndexes.length === 0) return;
+    if (sourceIndexes.length > 1) {
+      const handIndex = game.selected.index;
+      mutate((draft) => {
+        const player = activePlayer(draft);
+        const target = player.hand[handIndex];
+        if (!target || target.type !== "ai") return;
+        const sourceIndexes = upgradeSourceIndexes(player, target);
+        if (sourceIndexes.length <= 1) return;
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "upgrade-source",
+          zone: "field",
+          playerIndex: draft.active,
+          title: `${target.name}のアップグレード元を選択`,
+          prompt: "トラッシュへ送って入れ替える元の召喚獣を選んでください。",
+          confirmLabel: "このカードを元にする",
+          min: 1,
+          max: 1,
+          excludeIndexes: player.field.map((_, index) => sourceIndexes.includes(index) ? -1 : index).filter((index) => index >= 0),
+          selectedIndexes: [],
+          sourceIndex: handIndex,
+          actionCost: upgradeCost(target),
+          cancelable: true,
+        };
+      });
+      return;
+    }
+    performUpgradeSelectedAi(game.selected.index, sourceIndexes[0]);
+  }
+
+  function performUpgradeSelectedAi(handIndex: number, sourceIndex: number) {
+    const player = activePlayer(game);
+    const target = player.hand[handIndex];
+    const source = player.field[sourceIndex];
+    if (!target || target.type !== "ai" || !source || !canUpgrade(source, target) || upgradeCost(target) > game.actionsRemaining) return;
     launchCardFlight({
       card: target,
-      from: { ownerIndex: 0, zone: "hand", index: game.selected.index },
+      from: { ownerIndex: 0, zone: "hand", index: handIndex },
       to: { ownerIndex: 0, zone: "field", index: sourceIndex },
       label: "アップグレード",
     });
     mutate((draft) => {
-      if (draft.selected?.zone !== "hand") return;
       const player = activePlayer(draft);
-      const target = player.hand[draft.selected.index];
+      const target = player.hand[handIndex];
       if (!target || target.type !== "ai") return;
-      const sourceIndex = bestUpgradeSource(player, target);
-      if (sourceIndex === null || draft.actionsRemaining < upgradeCost(target)) return;
-      const cost = upgradeCost(target);
-      const card = player.hand.splice(draft.selected.index, 1)[0];
       const source = player.field[sourceIndex];
+      if (!source || !canUpgrade(source, target) || draft.actionsRemaining < upgradeCost(target)) return;
+      const cost = upgradeCost(target);
+      const card = player.hand.splice(handIndex, 1)[0];
       player.discard.push(source);
       player.field[sourceIndex] = card;
       player.spentFieldIndexes.delete(sourceIndex);
@@ -594,9 +626,10 @@ export default function App() {
       text += applyPlayEffects(draft, player, card, sourceIndex, cost, source);
       addLog(draft, text);
       draft.selected = null;
+      draft.pendingTarget = null;
       if (!draft.pendingTarget) afterAction(draft, cost);
     });
-    showToast("アップグレード", selectedHandCardName(game));
+    showToast("アップグレード", target.name);
     playSfx("play");
   }
 
@@ -613,6 +646,30 @@ export default function App() {
       });
       return;
     }
+    if (command.effect === "patch") {
+      mutate((draft) => {
+        const player = activePlayer(draft);
+        const command = player.hand[sourceIndex];
+        if (!command || command.effect !== "patch") return;
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "ready-ally",
+          zone: "field",
+          playerIndex: draft.active,
+          title: `${command.name}で回復する召喚獣を選択`,
+          prompt: "消耗から回復させる自分の召喚獣を1体選んでください。",
+          confirmLabel: "この召喚獣を回復",
+          min: 1,
+          max: 1,
+          excludeIndexes: player.field.map((_, index) => player.spentFieldIndexes.has(index) ? -1 : index).filter((index) => index >= 0),
+          selectedIndexes: [],
+          sourceIndex,
+          actionCost: 1,
+          cancelable: true,
+        };
+      });
+      return;
+    }
     if (command.effect === "optimize") {
       mutate((draft) => {
         draft.pendingTarget = {
@@ -620,9 +677,9 @@ export default function App() {
           reason: "optimize",
           playerIndex: draft.active,
           title: `${command.name}で捨てるカードを選択`,
-          prompt: "1〜2枚選んでから2枚引きます。",
+          prompt: "1枚選んでから2枚引きます。",
           min: 1,
-          max: Math.min(2, player.hand.length - 1),
+          max: 1,
           excludeIndexes: [sourceIndex],
           selectedIndexes: [],
           sourceIndex,
@@ -630,19 +687,26 @@ export default function App() {
       });
       return;
     }
-    if (command.effect === "relearn" && player.hand.length > 1) {
+    if (command.effect === "relearn") {
       mutate((draft) => {
+        const player = activePlayer(draft);
+        const command = player.hand[sourceIndex];
+        if (!command || command.effect !== "relearn") return;
         draft.pendingTarget = {
-          kind: "hand-discard",
-          reason: "relearn",
+          kind: "card-select",
+          reason: "relearn-recover",
+          zone: "discard",
           playerIndex: draft.active,
-          title: `${command.name}の代償を選択`,
-          prompt: "トラッシュから召喚獣を回収するため、手札を1枚選んで捨てます。",
+          title: `${command.name}で回収するカードを選択`,
+          prompt: "トラッシュから手札に戻す召喚獣を1枚選んでください。",
+          confirmLabel: "このカードを回収",
           min: 1,
           max: 1,
-          excludeIndexes: [sourceIndex],
+          excludeIndexes: player.discard.map((card, index) => card.type === "ai" ? -1 : index).filter((index) => index >= 0),
           selectedIndexes: [],
           sourceIndex,
+          actionCost: 1,
+          cancelable: true,
         };
       });
       return;
@@ -711,10 +775,7 @@ export default function App() {
     const pending = game.pendingTarget;
     if (!pending || pending.kind !== "hand-discard" || pending.selectedIndexes.length < pending.min) return;
     if (pending.reason === "firewall") {
-      resolveDefense({ type: "field", index: pending.fieldIndex!, firewallDiscardIndex: pending.selectedIndexes[0] });
-      mutate((draft) => {
-        draft.pendingTarget = null;
-      });
+      resolveDefense({ type: "field", index: pending.fieldIndex!, firewallDiscardIndex: pending.selectedIndexes[0] ?? null });
       return;
     }
     if (pending.reason === "pipeline") {
@@ -738,17 +799,166 @@ export default function App() {
       });
       return;
     }
-    useCommandAt(pending.sourceIndex!, null, pending.selectedIndexes);
+    useCommandAt(pending.sourceIndex!, pending.targetIndex ?? null, pending.selectedIndexes);
+  }
+
+  function resolveOptionalEffect(useEffect: boolean) {
+    const pending = game.pendingTarget;
+    if (!pending || pending.kind !== "optional-effect") return;
+    mutate((draft) => {
+      const current = draft.pendingTarget;
+      if (!current || current.kind !== "optional-effect") return;
+      const player = draft.players[current.playerIndex];
+      if (!useEffect) {
+        addLog(draft, `${player.name}は${player.memory?.name ?? "効果"}を使わなかった。`);
+        draft.pendingTarget = null;
+        afterAction(draft, current.actionCost);
+        return;
+      }
+      player.pipelineUsed = true;
+      const drawn = draw(player, 1);
+      if (player.hand.length > 0) {
+        draft.pendingTarget = {
+          kind: "hand-discard",
+          reason: "pipeline",
+          playerIndex: current.playerIndex,
+          title: `${player.memory?.name ?? "効果"}の捨て札を選択`,
+          prompt: "追加ドロー後にトラッシュする手札を1枚選んでください。",
+          min: 1,
+          max: 1,
+          excludeIndexes: [],
+          selectedIndexes: [],
+          sourceIndex: current.actionCost,
+          actionCost: current.actionCost,
+          cancelable: false,
+        };
+        addLog(draft, `${player.name}は${player.memory?.name ?? "効果"}で${drawn}枚引いた。捨てるカードを選択。`);
+      } else {
+        addLog(draft, `${player.name}は${player.memory?.name ?? "効果"}で${drawn}枚引いた。`);
+        draft.pendingTarget = null;
+        afterAction(draft, current.actionCost);
+      }
+    });
+  }
+
+  function confirmCardSelectionTarget() {
+    const pending = game.pendingTarget;
+    if (!pending || pending.kind !== "card-select" || pending.selectedIndexes.length < pending.min) return;
+    const selectedIndex = pending.selectedIndexes[0];
+    if (pending.reason === "upgrade-source") {
+      performUpgradeSelectedAi(pending.sourceIndex!, selectedIndex);
+      return;
+    }
+    if (pending.reason === "relearn-recover") {
+      const player = game.players[pending.playerIndex];
+      if (player.hand.length > 1) {
+        mutate((draft) => {
+          const player = draft.players[pending.playerIndex];
+          const command = player.hand[pending.sourceIndex!];
+          if (!command || command.effect !== "relearn") return;
+          draft.pendingTarget = {
+            kind: "hand-discard",
+            reason: "relearn",
+            playerIndex: pending.playerIndex,
+            title: `${command.name}の代償を選択`,
+            prompt: "選んだ召喚獣を回収するため、手札を1枚選んで捨てます。",
+            min: 1,
+            max: 1,
+            excludeIndexes: [pending.sourceIndex!],
+            selectedIndexes: [],
+            sourceIndex: pending.sourceIndex,
+            targetIndex: selectedIndex,
+            actionCost: 1,
+            cancelable: true,
+          };
+        });
+        return;
+      }
+      useCommandAt(pending.sourceIndex!, selectedIndex);
+      return;
+    }
+    mutate((draft) => {
+      const current = draft.pendingTarget;
+      if (!current || current.kind !== "card-select") return;
+      const player = draft.players[current.playerIndex];
+      if (current.reason === "filter-discard" || current.reason === "block-pressure") {
+        const discarded = discardHandCards(draft, current.playerIndex, current.selectedIndexes);
+        if (discarded.length > 0) {
+          const sourceName = current.reason === "block-pressure" ? "攻撃の圧" : "登場時効果";
+          addLog(draft, `${player.name}は${sourceName}で${discarded.map((card) => card.name).join("、")}を捨てた。`);
+          queueDuelEvent({
+            kind: "trash",
+            title: `${sourceName}の捨て札`,
+            detail: `${discarded.map((card) => card.name).join("、")}を手札からトラッシュへ送りました。`,
+            fromLabel: "手札",
+            toLabel: "トラッシュ",
+            tone: player.isHuman ? "magenta" : "cyan",
+            cards: discarded.map((card) => ({ card, label: "捨て札", state: "trash" })),
+          });
+        }
+      } else if (current.reason === "recover-on-play") {
+        const recovered = player.discard.splice(selectedIndex, 1)[0];
+        if (recovered) {
+          player.hand.push(recovered);
+          addLog(draft, `${player.name}は${recovered.name}をトラッシュから回収。`);
+          queueDuelEvent({
+            kind: "trash",
+            title: "トラッシュから回収",
+            detail: `${recovered.name}を手札に戻しました。`,
+            fromLabel: "トラッシュ",
+            toLabel: "手札",
+            tone: player.isHuman ? "magenta" : "cyan",
+            cards: [{ card: recovered, label: "回収", state: "winner" }],
+          });
+        }
+      } else if (current.reason === "ready-ally") {
+        if (typeof current.sourceIndex === "number") {
+          useCommandAtInDraft(draft, current.sourceIndex, selectedIndex, [], { playSfx, showDuelEvent: queueDuelEvent });
+          return;
+        }
+        const card = player.field[selectedIndex];
+        if (card) {
+          player.spentFieldIndexes.delete(selectedIndex);
+          addLog(draft, `${player.name}は${card.name}を回復。`);
+        }
+      } else if (current.reason === "spend-enemy") {
+        const card = player.field[selectedIndex];
+        if (card) {
+          player.spentFieldIndexes.add(selectedIndex);
+          addLog(draft, `${player.name}の${card.name}を消耗。`);
+        }
+      }
+      const actionCost = current.actionCost ?? 1;
+      draft.pendingTarget = null;
+      afterAction(draft, actionCost);
+    });
   }
 
   function togglePendingHandIndex(index: number) {
     mutate((draft) => {
       const pending = draft.pendingTarget;
       if (!pending || pending.kind !== "hand-discard") return;
+      if (pending.excludeIndexes.includes(index)) return;
       const set = new Set(pending.selectedIndexes);
       if (set.has(index)) {
         set.delete(index);
       } else if (set.size < pending.max) {
+        set.add(index);
+      }
+      pending.selectedIndexes = [...set].sort((a, b) => a - b);
+    });
+  }
+
+  function togglePendingCardIndex(index: number) {
+    mutate((draft) => {
+      const pending = draft.pendingTarget;
+      if (!pending || pending.kind !== "card-select") return;
+      if (pending.excludeIndexes.includes(index)) return;
+      const set = new Set(pending.selectedIndexes);
+      if (set.has(index)) {
+        set.delete(index);
+      } else if (set.size < pending.max) {
+        if (pending.max === 1) set.clear();
         set.add(index);
       }
       pending.selectedIndexes = [...set].sort((a, b) => a - b);
@@ -784,7 +994,7 @@ export default function App() {
   const selectedOwnerIndex = game.selected?.ownerIndex ?? 0;
   const selectedHand = game.selected?.zone === "hand" && selectedOwnerIndex === 0;
   const selectedField = game.selected?.zone === "field" && selectedOwnerIndex === 0;
-  const selectedHandCard = selectedHand ? active.hand[game.selected!.index] : null;
+  const selectedHandCard = selectedHand ? human.hand[game.selected!.index] : null;
   const playDisabled = !canHumanAct(game) || !selectedHand || !selectedHandCard || (
     selectedHandCard.type === "event"
       ? !commandUsable(game, selectedHandCard, active, opponent)
@@ -801,6 +1011,21 @@ export default function App() {
     || !selectedField
     || !canActivePlayerAttack(game)
     || active.spentFieldIndexes.has(game.selected?.index ?? -1);
+  const matchResult = game.draw
+    ? {
+        tone: "draw" as const,
+        kicker: "DRAW",
+        title: "引き分け",
+        detail: `あなた ${human.life} - ${ai.life} ライバル`,
+      }
+    : game.winner !== null
+      ? {
+          tone: game.winner === 0 ? "win" as const : "lose" as const,
+          kicker: game.winner === 0 ? "VICTORY" : "DEFEAT",
+          title: `${game.players[game.winner].name}の勝利`,
+          detail: `あなた ${human.life} - ${ai.life} ライバル`,
+        }
+      : null;
   const defensePanel = (
     <DefensePanel
       game={game}
@@ -808,7 +1033,10 @@ export default function App() {
       onUseCommand={useCommandAt}
       onCancelTarget={() => mutate((draft) => { draft.pendingTarget = null; })}
       onTogglePendingHand={togglePendingHandIndex}
+      onTogglePendingCard={togglePendingCardIndex}
       onConfirmPending={confirmPendingTarget}
+      onConfirmCardSelection={confirmCardSelectionTarget}
+      onResolveOptionalEffect={resolveOptionalEffect}
     />
   );
   const showDefenseInDuelEvent = Boolean(
@@ -894,7 +1122,7 @@ export default function App() {
             zone="hand"
             index={index}
             selected={game.selected?.zone === "hand" && game.selected.index === index}
-            selectable={canHumanAct(game)}
+            selectable
             actionState={handActionState(game, human, ai, card)}
             showCost
             onClick={() => selectHand(index)}
@@ -911,6 +1139,16 @@ export default function App() {
         </div>
 
         <div className="dock-actions">
+          {matchResult && (
+            <div className={`match-result-panel ${matchResult.tone}`} aria-live="polite">
+              <div>
+                <span>{matchResult.kicker}</span>
+                <strong>{matchResult.title}</strong>
+                <em>{matchResult.detail}</em>
+              </div>
+              <button type="button" onClick={openStarterDeckModal}>再戦</button>
+            </div>
+          )}
           <div className="action-meter" aria-label={`残りアクション ${game.actionsRemaining}`}>
             <span className="meter-label">残りアクション</span>
             <span className="meter-value">{game.actionsRemaining}</span>
@@ -1206,4 +1444,10 @@ function fieldActionState(game: GameState, player: PlayerState, index: number): 
   }
   if (!player.spentFieldIndexes.has(index) && canActivePlayerAttack(game)) return "usable";
   return "blocked";
+}
+
+function upgradeSourceIndexes(player: PlayerState, target: Card): number[] {
+  return player.field
+    .map((source, index) => canUpgrade(source, target) ? index : -1)
+    .filter((index) => index >= 0);
 }
