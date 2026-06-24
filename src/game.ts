@@ -455,6 +455,14 @@ export function makeDeck(deckId: DeckId): Card[] {
   return DECKS[deckId].cards.map((cardId) => cloneCard(CARD_BY_ID.get(cardId)!));
 }
 
+export function makeCustomDeck(cardIds: string[]): Card[] {
+  return cardIds.map((cardId) => {
+    const card = CARD_BY_ID.get(cardId);
+    if (!card) throw new Error(`Unknown card id: ${cardId}`);
+    return cloneCard(card);
+  });
+}
+
 export function randomStarterDeckId(rng: () => number, excludeDeckId?: DeckId): DeckId {
   const candidates = BATTLE_DECK_IDS.filter((deckId) => deckId !== excludeDeckId);
   const pool = candidates.length > 0 ? candidates : BATTLE_DECK_IDS;
@@ -468,6 +476,29 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
   return {
     name,
     deckName: DECKS[deckId].name,
+    isHuman,
+    life: CONFIG.life,
+    deck,
+    hand: [],
+    field: [],
+    memory: null,
+    discard: [],
+    cardsDrawn: 0,
+    turnsStarted: 0,
+    handDefensesUsed: 0,
+    pipelineUsed: false,
+    acceleratorUsed: false,
+    sandboxShield: 0,
+    spentFieldIndexes: new Set<number>(),
+  };
+}
+
+export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: string, cardIds: string[], rng: () => number): PlayerState {
+  const deck = makeCustomDeck(cardIds);
+  shuffle(deck, rng);
+  return {
+    name,
+    deckName,
     isHuman,
     life: CONFIG.life,
     deck,
@@ -531,6 +562,36 @@ export function createGame(seed: number, playerDeckId: DeckId = "fire", opponent
   draw(game.players[0], CONFIG.firstPlayerInitialHand);
   draw(game.players[1], CONFIG.secondPlayerInitialHand);
   addLog(game, `Seed ${seed} で対戦開始。あなた: ${DECKS[playerDeckId].name} / ライバル: ${DECKS[rivalDeckId].name}。`);
+  startTurn(game);
+  return game;
+}
+
+export function createGameWithCustomPlayerDeck(seed: number, playerDeck: { name: string; cardIds: string[] }, opponentDeckId?: DeckId): GameState {
+  const rng = makeRng(seed);
+  const rivalDeckId = opponentDeckId ?? randomStarterDeckId(rng);
+  const game: GameState = {
+    rng,
+    seed,
+    players: [
+      makeCustomDeckPlayer("あなた", true, playerDeck.name, playerDeck.cardIds, rng),
+      makePlayer("ライバル", false, rivalDeckId, rng),
+    ],
+    active: 0,
+    turn: 0,
+    actionsRemaining: 0,
+    winner: null,
+    draw: false,
+    selected: null,
+    pendingAttack: null,
+    pendingTarget: null,
+    log: [],
+    aiRunning: false,
+    discardViewerOwner: null,
+    discardViewerIndex: null,
+  };
+  draw(game.players[0], CONFIG.firstPlayerInitialHand);
+  draw(game.players[1], CONFIG.secondPlayerInitialHand);
+  addLog(game, `Seed ${seed} で対戦開始。あなた: ${playerDeck.name} / ライバル: ${DECKS[rivalDeckId].name}。`);
   startTurn(game);
   return game;
 }

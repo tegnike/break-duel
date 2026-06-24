@@ -20,6 +20,7 @@ import {
   cloneGame,
   commandUsable,
   createGame,
+  createGameWithCustomPlayerDeck,
   chooseAiAction,
   drawCards,
   finishTurn,
@@ -46,7 +47,7 @@ import {
   SelectedCardDetail,
   actionHintText,
 } from "./components/DuelPanel";
-import { CardLibraryPage, DeckBuilderPage } from "./components/DeckWorkshop";
+import { CardLibraryPage, DeckBuilderPage, loadSavedDecks, validateDeck, type SavedDeck } from "./components/DeckWorkshop";
 import { CardArtPreview, CardView } from "./components/CardView";
 import { DiscardModal, RulesModal } from "./components/Modals";
 import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
@@ -104,6 +105,7 @@ export default function App() {
   const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [seed, setSeed] = useState(INITIAL_SEED);
   const [playerDeckId, setPlayerDeckId] = useState<DeckId>("fire");
+  const [savedDecks, setSavedDecks] = useState<SavedDeck[]>(() => loadSavedDecks());
   const [game, setGame] = useState<GameState>(() => createGame(INITIAL_SEED, "fire"));
   const [rulesOpen, setRulesOpen] = useState(false);
   const [starterDeckModalOpen, setStarterDeckModalOpen] = useState(true);
@@ -149,6 +151,10 @@ export default function App() {
 
   function showBanner(next: Omit<NonNullable<Banner>, "id">) {
     setBanner({ ...next, id: eventId++ });
+  }
+
+  function refreshSavedDecks() {
+    setSavedDecks(loadSavedDecks());
   }
 
   function queueDuelEvent(event: DuelEventPayload) {
@@ -337,7 +343,34 @@ export default function App() {
     });
   }
 
+  function startSavedDeckGame(deck: SavedDeck) {
+    const validation = validateDeck(deck.cardIds);
+    if (!validation.valid) {
+      showToast("使用できません", validation.messages[0] ?? "デッキ条件を満たしていません");
+      return;
+    }
+    try {
+      const nextSeed = randomSeed();
+      setSeed(nextSeed);
+      const nextGame = createGameWithCustomPlayerDeck(nextSeed, deck);
+      setGame(nextGame);
+      resetDuelEvents();
+      setRulesOpen(false);
+      setStarterDeckModalOpen(false);
+      setStarterDeckChosen(true);
+      showToast("対戦開始", `${deck.name} / 相手: ${nextGame.players[1].deckName}`);
+      showBanner({
+        kind: "start",
+        title: "BREAK DUEL",
+        detail: `Seed ${nextSeed} / 相手: ${nextGame.players[1].deckName} / ${CONFIG.maxTurns}手番制限`,
+      });
+    } catch (error) {
+      showToast("使用できません", error instanceof Error ? error.message : "デッキを読み込めませんでした");
+    }
+  }
+
   function openStarterDeckModal() {
+    refreshSavedDecks();
     resetDuelEvents();
     setRulesOpen(false);
     changePage("duel");
@@ -352,7 +385,10 @@ export default function App() {
     if (window.location.pathname !== nextPath) {
       window.history.pushState(null, "", nextPath);
     }
-    if (nextPage === "duel") setStarterDeckModalOpen(true);
+    if (nextPage === "duel") {
+      refreshSavedDecks();
+      setStarterDeckModalOpen(true);
+    }
   }
 
   useEffect(() => {
@@ -362,6 +398,7 @@ export default function App() {
     const onPopState = () => {
       const nextPage = pageFromPath(window.location.pathname);
       if (nextPage !== "duel") resetDuelEvents();
+      if (nextPage === "duel") refreshSavedDecks();
       setRulesOpen(false);
       setStarterDeckModalOpen(nextPage === "duel");
       setPage(nextPage);
@@ -1245,9 +1282,11 @@ export default function App() {
       {starterDeckModalOpen && (
         <StarterDeckModal
           selectedDeckId={playerDeckId}
+          savedDecks={savedDecks}
           canClose={starterDeckChosen}
           onClose={() => setStarterDeckModalOpen(false)}
           onSelect={startNewGame}
+          onSelectSaved={startSavedDeckGame}
         />
       )}
       {game.discardViewerOwner !== null && (
@@ -1259,14 +1298,18 @@ export default function App() {
 
 function StarterDeckModal({
   selectedDeckId,
+  savedDecks,
   canClose,
   onClose,
   onSelect,
+  onSelectSaved,
 }: {
   selectedDeckId: DeckId;
+  savedDecks: SavedDeck[];
   canClose: boolean;
   onClose: () => void;
   onSelect: (deckId: DeckId) => void;
+  onSelectSaved: (deck: SavedDeck) => void;
 }) {
   return (
     <div className="modal-backdrop starter-deck-backdrop" role="dialog" aria-modal="true" aria-labelledby="starter-deck-title" onClick={(event) => {
@@ -1276,25 +1319,50 @@ function StarterDeckModal({
         <div className="modal-head">
           <div>
             <h2 id="starter-deck-title">対戦デッキを選択</h2>
-            <p>相手は選んだデッキ以外からランダムに決まります。</p>
+            <p>相手は固定デッキからランダムに決まります。</p>
           </div>
           {canClose && <button type="button" onClick={onClose}>閉じる</button>}
         </div>
-        <div className="starter-deck-grid">
-          {BATTLE_DECK_IDS.map((deckId) => {
-            const deck = DECKS[deckId];
-            return (
-              <button
-                type="button"
-                key={deckId}
-                className={selectedDeckId === deckId ? "selected" : ""}
-                onClick={() => onSelect(deckId)}
-              >
-                <span>{deck.name}</span>
-                <em>{deck.description}</em>
-              </button>
-            );
-          })}
+        {savedDecks.length > 0 && (
+          <div className="starter-saved-decks">
+            <h3>保存済みデッキ</h3>
+            <div className="starter-deck-grid">
+              {savedDecks.map((deck) => {
+                const validation = validateDeck(deck.cardIds);
+                return (
+                  <button
+                    type="button"
+                    key={deck.id}
+                    disabled={!validation.valid}
+                    title={validation.valid ? deck.name : validation.messages.join(" / ")}
+                    onClick={() => onSelectSaved(deck)}
+                  >
+                    <span>{deck.name}</span>
+                    <em>{deck.cardIds.length}枚{validation.valid ? "" : ` / ${validation.messages[0] ?? "使用不可"}`}</em>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <div className="starter-fixed-decks">
+          <h3>固定デッキ</h3>
+          <div className="starter-deck-grid">
+            {BATTLE_DECK_IDS.map((deckId) => {
+              const deck = DECKS[deckId];
+              return (
+                <button
+                  type="button"
+                  key={deckId}
+                  className={selectedDeckId === deckId ? "selected" : ""}
+                  onClick={() => onSelect(deckId)}
+                >
+                  <span>{deck.name}</span>
+                  <em>{deck.description}</em>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
     </div>

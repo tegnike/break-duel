@@ -4859,6 +4859,11 @@ h1 {
   box-shadow: 0 0 18px rgba(0, 240, 255, 0.12);
 }
 
+.starter-deck-grid button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
 .starter-deck-grid span {
   color: #f7fbfb;
   font-size: 16px;
@@ -4905,9 +4910,28 @@ h1 {
   line-height: 1.35;
 }
 
+.starter-saved-decks,
+.starter-fixed-decks {
+  padding: 16px 18px 0;
+}
+
+.starter-fixed-decks {
+  padding-top: 8px;
+  padding-bottom: 18px;
+}
+
+.starter-saved-decks h3,
+.starter-fixed-decks h3 {
+  margin: 0 0 10px;
+  color: #f7fbfb;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
 .starter-deck-modal .starter-deck-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  padding: 18px;
+  padding: 0;
 }
 
 .text-link {

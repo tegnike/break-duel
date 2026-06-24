@@ -13,7 +13,7 @@ import { cardColor, roleText, selectedText } from "./cardPresentation";
 
 const DECK_SIZE = 20;
 const SAME_NAME_LIMIT = 2;
-const STORAGE_KEY = "break-duel:saved-decks";
+export const SAVED_DECKS_STORAGE_KEY = "break-duel:saved-decks";
 
 type TypeFilter = CardType | "all";
 type AttributeFilter = Attribute | "all";
@@ -369,7 +369,7 @@ function StatChip({ label, value }: { label: string; value: number }) {
   );
 }
 
-function validateDeck(cardIds: string[]): { valid: boolean; messages: string[] } {
+export function validateDeck(cardIds: string[]): { valid: boolean; messages: string[] } {
   const messages: string[] = [];
   if (cardIds.length !== DECK_SIZE) messages.push(`${DECK_SIZE}枚ちょうどにしてください`);
   const counts = countCards(cardIds);
@@ -386,9 +386,9 @@ function countCards(cardIds: string[]): Map<string, number> {
   return counts;
 }
 
-function loadSavedDecks(): SavedDeck[] {
+export function loadSavedDecks(): SavedDeck[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(SAVED_DECKS_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -399,7 +399,7 @@ function loadSavedDecks(): SavedDeck[] {
 }
 
 function persistSavedDecks(decks: SavedDeck[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(decks));
+  localStorage.setItem(SAVED_DECKS_STORAGE_KEY, JSON.stringify(decks));
 }
 
 function normalizeImportedDeck(input: unknown): SavedDeck {
