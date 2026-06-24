@@ -1249,7 +1249,7 @@ export function chooseAiAction(game: GameState): AiAction {
   const commandIndex = bestCommand(game, ai, human);
   if (commandIndex !== null) return { type: "command", index: commandIndex };
   if (canActivePlayerAttack(game) && attackableField(ai).length > 0) return { type: "attack", index: highestPowerField(ai) };
-  if (ai.hand.length > 0) return { type: "cycle", index: lowestPriorityHand(ai) };
+  if (ai.hand.length > 0 && ai.deck.length > 0) return { type: "cycle", index: lowestPriorityHand(ai) };
   return { type: "end" };
 }
 
@@ -1263,8 +1263,25 @@ export function checkWinner(game: GameState): void {
 
 export function checkResourceExhaustion(game: GameState): void {
   if (game.winner !== null || game.draw) return;
-  if (game.players.some((player) => player.deck.length > 0 || player.hand.length > 0 || player.field.length > 0)) return;
-  finishByLifeJudgement(game, "両者の行動資源が尽きたため");
+  const exhaustedPlayers = game.players
+    .map((player, index) => ({ player, index }))
+    .filter(({ player }) => !hasLiveResources(player));
+  if (exhaustedPlayers.length === 0) return;
+
+  game.actionsRemaining = 0;
+  if (exhaustedPlayers.length === game.players.length) {
+    game.draw = true;
+    addLog(game, "両者の手札・山札・場がすべて尽きたため引き分け。");
+    return;
+  }
+
+  const loserIndex = exhaustedPlayers[0].index;
+  game.winner = 1 - loserIndex;
+  addLog(game, `${game.players[loserIndex].name}の手札・山札・場がすべて尽きたため、${game.players[game.winner].name}の勝利。`);
+}
+
+function hasLiveResources(player: PlayerState): boolean {
+  return player.deck.length > 0 || player.hand.length > 0 || player.field.length > 0;
 }
 
 export function checkTurnLimit(game: GameState): void {

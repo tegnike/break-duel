@@ -13,6 +13,7 @@ from ai_break_duel.cards import (
     can_defend,
     validate_same_name_limit,
 )
+from ai_break_duel.ai import choose_action
 from ai_break_duel.engine import (
     apply_action,
     end_turn,
@@ -80,22 +81,23 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(player.discard[0].id, "AI-FIRE-1")
         self.assertEqual(player.cards_drawn, 0)
 
-    def test_resource_exhaustion_uses_life_judgement(self) -> None:
+    def test_resource_exhaustion_forces_loss_when_one_player_is_empty(self) -> None:
         state = new_game(1, no_opening_hands())
-        for player in state.players:
-            player.deck = []
-            player.hand = []
-            player.field_ai = []
+        state.players[0].deck = []
+        state.players[0].hand = []
+        state.players[0].field_ai = []
+        state.players[1].deck = [card("AI-FIRE-1")]
         state.players[0].life = 4
         state.players[1].life = 2
         start_turn(state)
-        self.assertEqual(state.winner, 0)
+        self.assertEqual(state.winner, 1)
         self.assertFalse(state.draw)
         self.assertEqual(state.phase, "finished")
         self.assertEqual(state.log[-1]["event"], "resource_exhaustion")
-        self.assertEqual(state.log[-1]["result"], "life_judgement")
+        self.assertEqual(state.log[-1]["result"], "forced_loss")
+        self.assertEqual(state.log[-1]["losers"], ["player_1"])
 
-    def test_resource_exhaustion_draws_on_equal_life(self) -> None:
+    def test_resource_exhaustion_draws_when_both_players_are_empty(self) -> None:
         state = new_game(1, no_opening_hands())
         for player in state.players:
             player.deck = []
@@ -108,7 +110,8 @@ class CoreRuleTests(unittest.TestCase):
         self.assertTrue(state.draw)
         self.assertEqual(state.phase, "finished")
         self.assertEqual(state.log[-1]["event"], "resource_exhaustion")
-        self.assertEqual(state.log[-1]["result"], "draw")
+        self.assertEqual(state.log[-1]["result"], "mutual_forced_loss")
+        self.assertEqual(state.log[-1]["losers"], ["player_1", "player_2"])
 
     def test_turn_limit_uses_life_judgement(self) -> None:
         state = new_game(1, no_opening_hands(max_turns=10))
@@ -152,6 +155,13 @@ class CoreRuleTests(unittest.TestCase):
         start_turn(state)
         self.assertEqual(state.players[0].cards_drawn, 1)
         self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-1"])
+
+    def test_ai_does_not_cycle_when_deck_is_empty(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [command("CMD-OPTIMIZE")]
+        state.players[0].deck = []
+        start_turn(state)
+        self.assertEqual(choose_action(state).type, ActionType.END_TURN)
 
     def test_players_use_different_decks_by_default(self) -> None:
         player_1_deck = [item.id for item in build_player_deck(0)]

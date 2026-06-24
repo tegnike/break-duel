@@ -783,9 +783,37 @@ def _check_winner(state: GameState) -> None:
 def _check_resource_exhaustion(state: GameState) -> None:
     if state.winner is not None or state.draw:
         return
-    if any(player.deck or player.hand or player.field_ai for player in state.players):
+    exhausted_players = [
+        index
+        for index, player in enumerate(state.players)
+        if not _has_live_resources(player)
+    ]
+    if not exhausted_players:
         return
-    _finish_by_life_judgement(state, "resource_exhaustion")
+    state.phase = "finished"
+    state.actions_remaining = 0
+    if len(exhausted_players) == len(state.players):
+        state.draw = True
+        result = "mutual_forced_loss"
+    else:
+        loser = exhausted_players[0]
+        state.winner = 1 - loser
+        result = "forced_loss"
+    state.log.append(
+        {
+            "turn": state.turn,
+            "event": "resource_exhaustion",
+            "result": result,
+            "winner": None if state.winner is None else state.players[state.winner].name,
+            "losers": [state.players[index].name for index in exhausted_players],
+            "life": [player.life for player in state.players],
+            "field": _field_state(state),
+        }
+    )
+
+
+def _has_live_resources(player: PlayerState) -> bool:
+    return bool(player.deck or player.hand or player.field_ai)
 
 
 def _finish_by_life_judgement(state: GameState, event: str) -> None:

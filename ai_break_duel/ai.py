@@ -68,7 +68,7 @@ def choose_action(state: GameState) -> Action:
     if _attackable_field_ai(player) and _can_active_player_attack(state):
         return Action(ActionType.ATTACK, _highest_power_field_ai(player))
 
-    if player.hand:
+    if player.hand and player.deck:
         return Action(ActionType.CYCLE, _lowest_priority_hand_card(player))
 
     return Action(ActionType.END_TURN)
