@@ -1083,7 +1083,13 @@ export default function App() {
     || !canActivePlayerAttack(game)
     || active.spentFieldIndexes.has(game.selected?.index ?? -1);
   const endTurnEnabled = canHumanEndTurn(game);
-  const endTurnLabel = game.actionsRemaining <= 0 ? "できることが無くなったのでターン終了" : "ターン終了";
+  const showNoActionsEndTurnPrompt = endTurnEnabled
+    && game.actionsRemaining <= 0
+    && !rulesOpen
+    && !starterDeckModalOpen
+    && game.discardViewerOwner === null
+    && !duelEvent
+    && !cardFlight;
   const matchResult = game.draw
     ? {
         tone: "draw" as const,
@@ -1235,7 +1241,7 @@ export default function App() {
             <button type="button" className={!upgradeDisabled ? "action-ready" : ""} disabled={upgradeDisabled} onClick={upgradeSelectedAi}><span>↑</span>アップグレード</button>
             <button type="button" className={!attackDisabled ? "action-ready" : ""} disabled={attackDisabled} onClick={attackWithSelectedAi}><span>⚔</span>攻撃</button>
             <button type="button" className={canHumanAct(game) && selectedHand ? "action-ready" : ""} disabled={!canHumanAct(game) || !selectedHand} onClick={cycleSelectedCard}><span>↔</span>交換</button>
-            <button type="button" className={endTurnEnabled ? "action-ready end-turn" : "end-turn"} disabled={!endTurnEnabled} onClick={endTurn}><span>●</span>{endTurnLabel}</button>
+            <button type="button" className={endTurnEnabled ? "action-ready end-turn" : "end-turn"} disabled={!endTurnEnabled} onClick={endTurn}><span>●</span>ターン終了</button>
           </div>
           <div className="dock-action-footer">
             <div className="action-hint">{actionHintText(game, selectedCard, game.selected?.zone ?? null)}</div>
@@ -1278,6 +1284,7 @@ export default function App() {
         {showDefenseInDuelEvent ? defensePanel : null}
       </DuelActionReel>
       <GameBanner banner={cardFlight ? null : banner} turn={game.turn} />
+      {showNoActionsEndTurnPrompt && <NoActionsEndTurnPrompt onConfirm={endTurn} />}
       {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
       {starterDeckModalOpen && (
         <StarterDeckModal
@@ -1293,6 +1300,24 @@ export default function App() {
         <DiscardModal game={game} onClose={closeDiscardViewer} onSelect={selectDiscardCard} />
       )}
     </main>
+  );
+}
+
+function NoActionsEndTurnPrompt({ onConfirm }: { onConfirm: () => void }) {
+  return (
+    <section
+      className="duel-overlay turn-banner no-actions-end-turn-prompt human"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="no-actions-end-turn-title"
+    >
+      <div>
+        <div className="turn-banner-kicker">ACTION 0</div>
+        <div className="turn-banner-title" id="no-actions-end-turn-title">何も出来ないのでターン終了</div>
+        <div className="turn-banner-detail">ターンを終了しますか？</div>
+        <button type="button" autoFocus onClick={onConfirm}>はい</button>
+      </div>
+    </section>
   );
 }
 

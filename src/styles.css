@@ -2349,6 +2349,7 @@ h2 {
   z-index: 33;
   display: grid;
   place-items: center;
+  pointer-events: none;
   width: min(520px, calc(100vw - 28px));
   min-height: 210px;
   border: 1px solid rgba(45, 212, 191, 0.45);
@@ -2461,6 +2462,26 @@ h2 {
   color: #cbd5e1;
   font-size: 13px;
   font-weight: 700;
+}
+
+.no-actions-end-turn-prompt {
+  pointer-events: auto;
+  animation: no-actions-prompt-in 180ms ease-out forwards;
+}
+
+.no-actions-end-turn-prompt .turn-banner-title {
+  font-size: clamp(24px, 5vw, 36px);
+  line-height: 1.12;
+}
+
+.no-actions-end-turn-prompt button {
+  min-width: 120px;
+  min-height: 42px;
+  margin-top: 16px;
+  border-color: rgba(45, 212, 191, 0.58);
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.84), rgba(245, 158, 11, 0.5));
+  color: #f8fafc;
+  font-weight: 900;
 }
 
 .zone-flash {
@@ -2859,6 +2880,17 @@ h2 {
   100% {
     opacity: 0;
     transform: translate(-50%, -55%) scale(0.98);
+  }
+}
+
+@keyframes no-actions-prompt-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
   }
 }
 
