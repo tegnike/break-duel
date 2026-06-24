@@ -52,11 +52,14 @@ export function SelectedCardDetail({ card, zone, game }: { card: Card | null; zo
     canShowUpgradeCost ? `アップグレード ${upgradeCost(card)}アクション` : null,
     zone === "field" && selectedOwner.spentFieldIndexes.has(game.selected?.index ?? -1) ? "消耗中" : null,
   ].filter(Boolean);
+  const baseRuleText = card.type === "ai"
+    ? (card.power === 4 ? "攻撃後退場" : "")
+    : roleText(card);
   return (
     <div className="selected-card">
       <div className="detail-title">{card.name}</div>
       <div className="detail-meta">{parts.join(" / ")}</div>
-      <div className="detail-effect">{roleText(card)}</div>
+      {baseRuleText && <div className="detail-effect">{baseRuleText}</div>}
       {card.type === "ai" && card.attribute && (
         <div className="detail-affinity">個別効果: {aiEffectText(card)}</div>
       )}

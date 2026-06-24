@@ -53,6 +53,7 @@ import { CardArtPreview, CardView } from "./components/CardView";
 import { DiscardModal, RulesModal } from "./components/Modals";
 import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
 import type { DuelEvent, DuelEventPayload } from "./duelEvents";
+import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
 import brandMark from "./assets/mark.svg";
 
 let eventId = 1;
@@ -162,8 +163,9 @@ export default function App() {
     id: eventId++,
   }));
   const [audioEnabled, setAudioEnabled] = useState(false);
+  const audioEnabledRef = useRef(false);
   const audioContext = useRef<AudioContext | null>(null);
-  const bgmTimer = useRef<number | null>(null);
+  const bgmAudio = useRef<HTMLAudioElement | null>(null);
   const duelEventQueue = useRef<DuelEventPayload[]>([]);
   const duelEventPlaying = useRef(false);
   const duelEventScheduler = useRef<number | null>(null);
@@ -552,7 +554,7 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      if (bgmTimer.current !== null) window.clearInterval(bgmTimer.current);
+      stopBgm();
       if (duelEventScheduler.current !== null) window.clearTimeout(duelEventScheduler.current);
       if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
       if (cardFlightTimer.current !== null) window.clearTimeout(cardFlightTimer.current);
@@ -569,22 +571,31 @@ export default function App() {
     return audioContext.current;
   }
 
-  function playTone(frequency: number, duration: number, volume: number, type: OscillatorType = "sine") {
-    if (!audioEnabled) return;
+  function playTone(
+    frequency: number,
+    duration: number,
+    volume: number,
+    type: OscillatorType = "sine",
+    delay = 0,
+  ) {
+    if (!audioEnabledRef.current) return;
     const ctx = ensureAudioContext();
+    const startAt = ctx.currentTime + delay;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = type;
-    osc.frequency.value = frequency;
-    gain.gain.value = volume;
+    osc.frequency.setValueAtTime(frequency, startAt);
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
     osc.connect(gain);
     gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + duration);
+    osc.start(startAt);
+    osc.stop(startAt + duration + 0.02);
   }
 
   function playSfx(kind: string) {
-    if (!audioEnabled) return;
+    if (!audioEnabledRef.current) return;
     if (kind === "play") playTone(523.25, 0.1, 0.05, "square");
     if (kind === "attack") playTone(164.81, 0.12, 0.08, "sawtooth");
     if (kind === "block") playTone(196, 0.13, 0.06, "square");
@@ -597,23 +608,36 @@ export default function App() {
     if (kind === "end") playTone(392, 0.16, 0.055, "triangle");
   }
 
-  function toggleAudio() {
-    setAudioEnabled((enabled) => {
-      const next = !enabled;
-      if (!next && bgmTimer.current !== null) {
-        window.clearInterval(bgmTimer.current);
-        bgmTimer.current = null;
-      }
-      if (next && bgmTimer.current === null) {
-        let step = 0;
-        bgmTimer.current = window.setInterval(() => {
-          const notes = [220, 261.63, 329.63, 392, 329.63, 293.66, 246.94, 196];
-          playTone(notes[step % notes.length], 0.12, 0.045, "triangle");
-          step += 1;
-        }, 420);
-      }
-      return next;
+  function stopBgm() {
+    bgmAudio.current?.pause();
+  }
+
+  function startBgm() {
+    if (!bgmAudio.current) {
+      const audio = new Audio(battleBgm);
+      audio.loop = true;
+      audio.preload = "auto";
+      audio.volume = 0.32;
+      bgmAudio.current = audio;
+    }
+    bgmAudio.current.currentTime = 0;
+    void bgmAudio.current.play().catch(() => {
+      audioEnabledRef.current = false;
+      setAudioEnabled(false);
+      showToast("BGM再生失敗", "ブラウザの音声許可を確認してください");
     });
+  }
+
+  function toggleAudio() {
+    const next = !audioEnabledRef.current;
+    audioEnabledRef.current = next;
+    setAudioEnabled(next);
+    if (next) {
+      void ensureAudioContext().resume();
+      startBgm();
+    } else {
+      stopBgm();
+    }
   }
 
   function selectHand(index: number) {

@@ -8,6 +8,7 @@ import {
   type CardType,
   activeCardPool,
   isCardActive,
+  playCost,
 } from "../game";
 import { CardArtPreview, CardView } from "./CardView";
 import { cardColor, roleText, selectedText } from "./cardPresentation";
@@ -335,7 +336,7 @@ function CardInspector({ card, compact = false }: { card: Card | null; compact?:
         : <CardArtPreview card={card} />}
       <div className="inspector-copy">
         <h3>{card.name}</h3>
-        <p>{selectedText(card)}</p>
+        <p>{inspectorMetaText(card)}</p>
         <dl>
           <div><dt>ID</dt><dd>{card.id}</dd></div>
           <div><dt>種別</dt><dd>{card.type === "ai" ? "召喚獣" : card.type === "event" ? "指令" : "遺物"}</dd></div>
@@ -346,6 +347,16 @@ function CardInspector({ card, compact = false }: { card: Card | null; compact?:
       </div>
     </aside>
   );
+}
+
+function inspectorMetaText(card: Card): string {
+  if (card.type === "event") return "指令";
+  if (card.type === "memory") return "遺物";
+  return [
+    `${card.attribute}属性`,
+    `power ${card.power}`,
+    `${playCost(card)}アクション`,
+  ].join(" / ");
 }
 
 function DeckStats({ cardIds }: { cardIds: string[] }) {
