@@ -27,6 +27,9 @@ design plan.
   - Each mono-attribute deck keeps summon cards within one attribute, then
     doubles theme-defining summons as needed for balance.
 - Two actions every turn.
+- Once per turn, the active player may charge a power 1/2 summon, command, or
+  relic from hand to discard to gain +1 action for that turn, up to 3 actions.
+  The charged action is visually marked and cannot be used to attack.
 - The game ends by life judgement after 60 player turns if neither player has
   lost by life damage.
 - The first player starts with 5 cards.
@@ -36,6 +39,8 @@ design plan.
 - Field limit of three summon cards.
 - One relic slot per player. Playing a relic costs one action and replaces the
   previous relic.
+- `刻火の加速炉` still grants a normal +1 action by sacrificing a field summon,
+  so that action can be used to attack.
 - Same-attribute, lower-power field summons can be trashed to upgrade into a
   higher-power hand summon for 1 less action than normal play, minimum 1 action.
 - There is no default hand limit. Hand size is controlled through card effects

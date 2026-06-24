@@ -4043,6 +4043,37 @@ h1 {
   box-shadow: none;
 }
 
+.action-token.charged {
+  border-color: rgba(245, 158, 11, 0.95);
+  background: #f59e0b;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.5);
+}
+
+.compact-action-meter {
+  gap: 7px;
+  min-height: 26px;
+}
+
+.compact-action-meter .meter-label {
+  color: #98a9aa;
+  font-size: 10px;
+}
+
+.compact-action-meter .meter-value {
+  width: 22px;
+  height: 22px;
+  border-color: rgba(0, 240, 255, 0.38);
+  color: #00f0ff;
+  background: rgba(0, 240, 255, 0.08);
+  font-size: 15px;
+  box-shadow: none;
+}
+
+.compact-action-meter .action-token {
+  width: 10px;
+  height: 10px;
+}
+
 .action-strip {
   display: grid;
   grid-column: auto;
@@ -5426,6 +5457,16 @@ h1 {
   width: 16px;
   height: 16px;
   background: #00f0ff;
+}
+
+.stitch-command-dock .action-token.spent {
+  border-color: #465564;
+  background: transparent;
+  box-shadow: none;
+}
+
+.stitch-command-dock .action-token.charged {
+  background: #f59e0b;
 }
 
 .stitch-command-dock .action-strip {

@@ -291,7 +291,7 @@ React化より先に、DOMに依存しない関数を `src/game/` へ移す。
 - `useCommand`
 - `attack`
 - `resolveDefense`
-- `cycle`
+- `charge`
 - `openDiscard`
 - `selectDiscardCard`
 - `closeDiscard`
@@ -316,7 +316,7 @@ React化より先に、DOMに依存しない関数を `src/game/` へ移す。
 - 攻撃する。
 - 防御する。
 - 手札防御する。
-- 交換する。
+- チャージする。
 - ターン終了する。
 - トラッシュを見る。
 - トラッシュ内カードを選んでもメイン詳細が変わらない。
@@ -422,7 +422,7 @@ python3 -m ai_break_duel.cli simulate --games 1000 --seed 4101 --out tmp/react_t
 - `npm run build` が通る。
 - `python3 -m unittest` が通る。
 - React版ブラウザUIで1試合を開始できる。
-- 攻撃、防御、指令、遺物、アップグレード、交換、トラッシュ閲覧が動く。
+- 攻撃、防御、指令、遺物、アップグレード、チャージ、トラッシュ閲覧が動く。
 - トラッシュモーダル内詳細とメイン詳細が独立している。
 - `docs/game-spec.md` と README が新しい起動手順に合っている。
 

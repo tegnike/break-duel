@@ -13,26 +13,27 @@ import {
   activePlayer,
   bestUpgradeSource,
   canActivePlayerAttack,
+  canChargeCard,
   canHumanAct,
   canHumanEndTurn,
   canUseAcceleratorMemory,
+  canUseCharge,
   canUpgrade,
   cloneGame,
   commandUsable,
   createGame,
   createGameWithCustomPlayerDeck,
   chooseAiAction,
-  drawCards,
   finishTurn,
   opponentPlayer,
   playCost,
   upgradeCost,
-  visibleDrawText,
 } from "./game";
 import {
   afterAction,
   applyPlayEffects,
   beginAttackInDraft,
+  chargeHandCardInDraft,
   discardHandCards,
   performAiActionInDraft,
   resolveDefenseInDraft,
@@ -99,6 +100,12 @@ function pageFromPath(pathname: string): AppPage {
 
 function routeForPage(page: AppPage): string {
   return PAGE_PATHS[page];
+}
+
+function actionTokenClass(index: number, actionsRemaining: number, chargedActionsRemaining: number): string {
+  const active = index < actionsRemaining;
+  const charged = active && index >= actionsRemaining - chargedActionsRemaining;
+  return `action-token ${active ? "" : "spent"} ${charged ? "charged" : ""}`;
 }
 
 export default function App() {
@@ -842,31 +849,25 @@ export default function App() {
     if (game.pendingAttack && duelEvent) dismissDuelEvent();
   }
 
-  function cycleSelectedCard() {
-    if (!canHumanAct(game) || game.selected?.zone !== "hand") return;
+  function chargeSelectedCard() {
+    if (game.selected?.zone !== "hand" || game.selected.ownerIndex !== 0 || !canUseCharge(game, human)) return;
     const player = activePlayer(game);
     const card = player.hand[game.selected.index];
     if (!card) return;
     mutate((draft) => {
-      if (draft.selected?.zone !== "hand") return;
-      const player = activePlayer(draft);
-      const card = player.hand.splice(draft.selected.index, 1)[0];
-      player.discard.push(card);
-      const drawnCards = drawCards(player, 1);
-      addLog(draft, `${player.name}は${card.name}を交換し、${visibleDrawText(player, drawnCards)}。`);
-      draft.selected = null;
-      afterAction(draft);
+      if (draft.selected?.zone !== "hand" || draft.selected.ownerIndex !== 0) return;
+      chargeHandCardInDraft(draft, 0, draft.selected.index);
     });
     queueDuelEvent({
-      kind: "cycle",
-      title: `${player.name}が交換`,
-      detail: `${card.name}をトラッシュへ送り、山札からカードを1枚引きました。`,
+      kind: "command",
+      title: `${player.name}がチャージ`,
+      detail: `${card.name}をトラッシュへ送り、このターンのアクションを1増やしました。`,
       fromLabel: "手札",
       toLabel: "トラッシュ",
       tone: "magenta",
-      cards: [{ card, label: "交換", state: "trash" }],
+      cards: [{ card, label: "チャージ", state: "trash" }],
     });
-    showToast("交換", "手札を1枚交換しました");
+    showToast("チャージ", "手札をアクションに変換しました");
     playSfx("command");
   }
 
@@ -993,7 +994,7 @@ export default function App() {
       }
       const actionCost = current.actionCost ?? 1;
       draft.pendingTarget = null;
-      afterAction(draft, actionCost);
+      afterAction(draft, actionCost, current.actionKind ?? "normal");
     });
   }
 
@@ -1082,6 +1083,12 @@ export default function App() {
     || !selectedField
     || !canActivePlayerAttack(game)
     || active.spentFieldIndexes.has(game.selected?.index ?? -1);
+  const chargeDisabled = game.selected?.zone !== "hand"
+    || game.selected.ownerIndex !== 0
+    || !canChargeCard(selectedHandCard)
+    || !canUseCharge(game, human);
+  const opponentActionsRemaining = game.active === 1 ? game.actionsRemaining : 0;
+  const opponentChargedActionsRemaining = game.active === 1 ? game.chargedActionsRemaining : 0;
   const endTurnEnabled = canHumanEndTurn(game);
   const showNoActionsEndTurnPrompt = endTurnEnabled
     && game.actionsRemaining <= 0
@@ -1167,6 +1174,15 @@ export default function App() {
           <button type="button" className={audioEnabled ? "audio-on" : ""} onClick={toggleAudio}>{audioEnabled ? "音ON" : "音OFF"}</button>
         </div>
         <div className="stitch-counts">
+          <div className="action-meter compact-action-meter" aria-label={`相手アクション ${opponentActionsRemaining}`}>
+            <span className="meter-label">相手アクション</span>
+            <span className="meter-value">{opponentActionsRemaining}</span>
+            <span className="action-tokens" aria-hidden="true">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <span key={index} className={actionTokenClass(index, opponentActionsRemaining, opponentChargedActionsRemaining)} />
+              ))}
+            </span>
+          </div>
           <span className="ai-hand-source" data-owner={1} data-zone="hand-source" data-index={0}>手札 {ai.hand.length}</span>
           <span>山札 {ai.deck.length}</span>
           <button type="button" className="text-link" onClick={() => openDiscardViewer(1)}>トラッシュ {ai.discard.length}</button>
@@ -1232,7 +1248,7 @@ export default function App() {
             <span className="meter-value">{game.actionsRemaining}</span>
             <span className="action-tokens" aria-hidden="true">
               {Array.from({ length: 3 }).map((_, index) => (
-                <span key={index} className={`action-token ${index >= game.actionsRemaining ? "spent" : ""}`} />
+                <span key={index} className={actionTokenClass(index, game.actionsRemaining, game.chargedActionsRemaining)} />
               ))}
             </span>
           </div>
@@ -1240,7 +1256,7 @@ export default function App() {
             <button type="button" className={!playDisabled ? "action-ready" : ""} disabled={playDisabled} onClick={playSelected}><span>⇧</span>{playButtonLabel}</button>
             <button type="button" className={!upgradeDisabled ? "action-ready" : ""} disabled={upgradeDisabled} onClick={upgradeSelectedAi}><span>↑</span>アップグレード</button>
             <button type="button" className={!attackDisabled ? "action-ready" : ""} disabled={attackDisabled} onClick={attackWithSelectedAi}><span>⚔</span>攻撃</button>
-            <button type="button" className={canHumanAct(game) && selectedHand ? "action-ready" : ""} disabled={!canHumanAct(game) || !selectedHand} onClick={cycleSelectedCard}><span>↔</span>交換</button>
+            <button type="button" className={!chargeDisabled ? "action-ready charge-action" : "charge-action"} disabled={chargeDisabled} onClick={chargeSelectedCard}><span>◆</span>チャージ</button>
             <button type="button" className={endTurnEnabled ? "action-ready end-turn" : "end-turn"} disabled={!endTurnEnabled} onClick={endTurn}><span>●</span>ターン終了</button>
           </div>
           <div className="dock-action-footer">

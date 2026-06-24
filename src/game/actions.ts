@@ -9,6 +9,8 @@ import {
   activePlayer,
   attackCombatValue,
   canActivePlayerAttack,
+  canChargeCard,
+  canUseCharge,
   canDefend,
   canDefendWithOptionalFirewall,
   canUseAcceleratorMemory,
@@ -62,8 +64,8 @@ export type GameActionEffects = {
   showDuelEvent?: (event: DuelEventPayload) => void;
 };
 
-export function afterAction(draft: GameState, cost = 1): void {
-  useAction(draft, cost);
+export function afterAction(draft: GameState, cost = 1, kind: "normal" | "attack" = "normal"): void {
+  useAction(draft, cost, kind);
   checkWinner(draft);
   checkResourceExhaustion(draft);
   checkTurnLimit(draft);
@@ -98,6 +100,25 @@ export function useAcceleratorMemoryInDraft(draft: GameState, playerIndex: numbe
   checkResourceExhaustion(draft);
   checkTurnLimit(draft);
   return sacrificed;
+}
+
+export function chargeHandCardInDraft(draft: GameState, playerIndex: number, handIndex: number): Card | null {
+  const player = draft.players[playerIndex];
+  if (!player || !canUseCharge(draft, player)) return null;
+  const charged = player.hand[handIndex];
+  if (!charged || !canChargeCard(charged)) return null;
+  player.hand.splice(handIndex, 1);
+  player.discard.push(charged);
+  player.chargeUsed = true;
+  const before = draft.actionsRemaining;
+  draft.actionsRemaining = Math.min(3, draft.actionsRemaining + 1);
+  draft.chargedActionsRemaining += draft.actionsRemaining > before ? 1 : 0;
+  addLog(draft, `${player.name}は${charged.name}をチャージし、残りアクションを${before}から${draft.actionsRemaining}に増やした。`);
+  draft.selected = null;
+  draft.pendingTarget = null;
+  checkResourceExhaustion(draft);
+  checkTurnLimit(draft);
+  return charged;
 }
 
 export function applyPlayEffects(
@@ -499,6 +520,7 @@ export function resolveDefenseInDraft(
         excludeIndexes: [],
         selectedIndexes: [],
         actionCost: 1,
+        actionKind: "attack",
         cancelable: false,
       };
     }
@@ -550,6 +572,7 @@ export function resolveDefenseInDraft(
         excludeIndexes: [],
         selectedIndexes: [],
         actionCost: 1,
+        actionKind: "attack",
         cancelable: false,
       };
     }
@@ -577,7 +600,7 @@ export function resolveDefenseInDraft(
   checkResourceExhaustion(draft);
   if (draft.winner === null && !draft.draw) {
     draft.active = attackerIndex;
-    if (!draft.pendingTarget) afterAction(draft);
+    if (!draft.pendingTarget) afterAction(draft, 1, "attack");
   }
 }
 
@@ -705,20 +728,17 @@ export function performAiActionInDraft(
   } else if (action.type === "command") {
     draft.selected = { zone: "hand", index: action.index };
     useCommandAtInDraft(draft, action.index, null, [], effects);
-  } else if (action.type === "cycle") {
-    const card = player.hand.splice(action.index, 1)[0];
-    player.discard.push(card);
-    const drawnCards = drawCards(player, 1);
-    addLog(draft, `${player.name}は${card.name}を交換し、${visibleDrawText(player, drawnCards)}。`);
+  } else if (action.type === "charge") {
+    const charged = chargeHandCardInDraft(draft, draft.active, action.index);
+    if (!charged) return;
     effects.showDuelEvent?.({
-      kind: "cycle",
-      title: `${player.name}が交換`,
-      detail: `${card.name}をトラッシュへ送り、${visibleDrawText(player, drawnCards)}。`,
+      kind: "command",
+      title: `${player.name}がチャージ`,
+      detail: `${charged.name}をトラッシュへ送り、このターンのアクションを1増やしました。`,
       fromLabel: "手札",
       toLabel: "トラッシュ",
       tone: player.isHuman ? "magenta" : "cyan",
-      cards: [{ card, label: "交換", state: "trash" }],
+      cards: [{ card: charged, label: "チャージ", state: "trash" }],
     });
-    afterAction(draft);
   }
 }

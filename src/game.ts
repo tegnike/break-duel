@@ -66,6 +66,7 @@ export type PlayerState = {
   handDefensesUsed: number;
   pipelineUsed: boolean;
   acceleratorUsed: boolean;
+  chargeUsed: boolean;
   sandboxShield: number;
   spentFieldIndexes: Set<number>;
 };
@@ -101,6 +102,7 @@ export type PendingTarget =
       fieldIndex?: number;
       targetIndex?: number;
       actionCost?: number;
+      actionKind?: "normal" | "attack";
       cancelable?: boolean;
     }
   | {
@@ -117,6 +119,7 @@ export type PendingTarget =
       selectedIndexes: number[];
       sourceIndex?: number;
       actionCost?: number;
+      actionKind?: "normal" | "attack";
       cancelable?: boolean;
     }
   | null;
@@ -128,6 +131,7 @@ export type GameState = {
   active: number;
   turn: number;
   actionsRemaining: number;
+  chargedActionsRemaining: number;
   winner: number | null;
   draw: boolean;
   selected: Selection;
@@ -371,7 +375,7 @@ export const DECKS = {
   },
   water: {
     name: "水単色デッキ",
-    description: "ドローと手札交換で必要札を探し続ける安定型。息切れしにくい構成です。",
+    description: "ドローと手札調整で必要札を探し続ける安定型。息切れしにくい構成です。",
     cards: [
       "AI-WATER-1",
       "AI-WATER-1B",
@@ -501,6 +505,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     handDefensesUsed: 0,
     pipelineUsed: false,
     acceleratorUsed: false,
+    chargeUsed: false,
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
   };
@@ -524,6 +529,7 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     handDefensesUsed: 0,
     pipelineUsed: false,
     acceleratorUsed: false,
+    chargeUsed: false,
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
   };
@@ -562,6 +568,7 @@ export function createGame(seed: number, playerDeckId: DeckId = "fire", opponent
     active: 0,
     turn: 0,
     actionsRemaining: 0,
+    chargedActionsRemaining: 0,
     winner: null,
     draw: false,
     selected: null,
@@ -592,6 +599,7 @@ export function createGameWithCustomPlayerDeck(seed: number, playerDeck: { name:
     active: 0,
     turn: 0,
     actionsRemaining: 0,
+    chargedActionsRemaining: 0,
     winner: null,
     draw: false,
     selected: null,
@@ -651,6 +659,7 @@ export function visibleDrawText(player: PlayerState, drawnCards: Card[]): string
 export function startTurn(game: GameState): void {
   game.turn += 1;
   game.actionsRemaining = actionsForTurn(game);
+  game.chargedActionsRemaining = 0;
   game.players.forEach((player) => {
     player.handDefensesUsed = 0;
   });
@@ -658,6 +667,7 @@ export function startTurn(game: GameState): void {
   player.spentFieldIndexes.clear();
   player.pipelineUsed = false;
   player.acceleratorUsed = false;
+  player.chargeUsed = false;
   player.sandboxShield = 0;
   player.turnsStarted += 1;
   const drawnCards = shouldDrawForTurn(game) ? drawCards(player, 1) : [];
@@ -674,7 +684,10 @@ export function shouldDrawForTurn(game: GameState): boolean {
 }
 
 export function canActivePlayerAttack(game: GameState): boolean {
-  return !(game.turn === 1 && game.active === 0 && !CONFIG.firstPlayerFirstTurnCanAttack);
+  return (
+    game.actionsRemaining > game.chargedActionsRemaining
+    && !(game.turn === 1 && game.active === 0 && !CONFIG.firstPlayerFirstTurnCanAttack)
+  );
 }
 
 export function actionsForTurn(game: GameState): number {
@@ -713,13 +726,17 @@ export function finishTurn(game: GameState, logEnd: boolean): void {
   if (logEnd) addLog(game, `${player.name}はターン終了。`);
   player.sandboxShield = 0;
   game.actionsRemaining = 0;
+  game.chargedActionsRemaining = 0;
   game.active = 1 - game.active;
   checkResourceExhaustion(game);
   checkTurnLimit(game);
   if (game.winner === null && !game.draw) startTurn(game);
 }
 
-export function useAction(game: GameState, cost = 1): void {
+export function useAction(game: GameState, cost = 1, kind: "normal" | "attack" = "normal"): void {
+  if (kind !== "attack") {
+    game.chargedActionsRemaining = Math.max(0, game.chargedActionsRemaining - Math.min(cost, game.chargedActionsRemaining));
+  }
   game.actionsRemaining -= cost;
   if (game.actionsRemaining <= 0 && !activePlayer(game).isHuman && !game.pendingAttack && game.winner === null && !game.draw) {
     finishTurn(game, false);
@@ -1102,6 +1119,23 @@ export function canUseAcceleratorMemory(game: GameState, player: PlayerState): b
   );
 }
 
+export function canUseCharge(game: GameState, player: PlayerState): boolean {
+  return Boolean(
+    game.winner === null
+      && !game.draw
+      && !game.pendingAttack
+      && !game.pendingTarget
+      && activePlayer(game) === player
+      && !player.chargeUsed
+      && player.hand.some(canChargeCard)
+      && game.actionsRemaining < 3,
+  );
+}
+
+export function canChargeCard(card: Card | null | undefined): boolean {
+  return Boolean(card && (card.type !== "ai" || (card.power ?? 0) <= 2));
+}
+
 export function acceleratorSacrificeTarget(player: PlayerState): number | null {
   if (player.field.length === 0) return null;
   const options = player.field.map((card, index) => ({ card, index }));
@@ -1215,12 +1249,14 @@ export type AiAction =
   | { type: "memory-effect"; fieldIndex: number }
   | { type: "attack"; index: number }
   | { type: "command"; index: number }
-  | { type: "cycle"; index: number }
+  | { type: "charge"; index: number }
   | { type: "end" };
 
 export function chooseAiAction(game: GameState): AiAction {
   const ai = activePlayer(game);
   const human = opponentPlayer(game);
+  const chargeIndex = bestChargeFuel(game, ai);
+  if (chargeIndex !== null) return { type: "charge", index: chargeIndex };
   if (ai.field.length === 0) {
     const index = bestHandAi(game, ai);
     if (index !== null) return { type: "play", index };
@@ -1249,8 +1285,24 @@ export function chooseAiAction(game: GameState): AiAction {
   const commandIndex = bestCommand(game, ai, human);
   if (commandIndex !== null) return { type: "command", index: commandIndex };
   if (canActivePlayerAttack(game) && attackableField(ai).length > 0) return { type: "attack", index: highestPowerField(ai) };
-  if (ai.hand.length > 0 && ai.deck.length > 0) return { type: "cycle", index: lowestPriorityHand(ai) };
   return { type: "end" };
+}
+
+export function bestChargeFuel(game: GameState, player: PlayerState): number | null {
+  if (!canUseCharge(game, player)) return null;
+  const before = game.actionsRemaining;
+  const after = Math.min(3, before + 1);
+  const candidates = player.hand
+    .map((card, index) => ({ card, index }))
+    .filter(({ card }) => canChargeCard(card))
+    .sort((a, b) => cardPriority(a.card) - cardPriority(b.card) || a.card.id.localeCompare(b.card.id));
+  for (const fuel of candidates) {
+    const remaining = player.hand.filter((_, index) => index !== fuel.index);
+    const enablesLargePlay = remaining.some((card) => card.type === "ai" && playCost(card) > before && playCost(card) <= after);
+    const enablesTwoStepTurn = before === 2 && remaining.some((card) => card.type === "ai" && playCost(card) === 2) && remaining.length >= 2;
+    if (enablesLargePlay || enablesTwoStepTurn) return fuel.index;
+  }
+  return null;
 }
 
 export function checkWinner(game: GameState): void {
@@ -1269,6 +1321,7 @@ export function checkResourceExhaustion(game: GameState): void {
   if (exhaustedPlayers.length === 0) return;
 
   game.actionsRemaining = 0;
+  game.chargedActionsRemaining = 0;
   if (exhaustedPlayers.length === game.players.length) {
     game.draw = true;
     addLog(game, "両者の手札・山札・場がすべて尽きたため引き分け。");
@@ -1292,6 +1345,7 @@ export function checkTurnLimit(game: GameState): void {
 export function finishByLifeJudgement(game: GameState, reason: string): void {
   const [human, ai] = game.players;
   game.actionsRemaining = 0;
+  game.chargedActionsRemaining = 0;
   if (human.life === ai.life) {
     game.draw = true;
     addLog(game, `${reason}引き分け。`);
@@ -1310,6 +1364,10 @@ export function canHumanAct(game: GameState): boolean {
     && activePlayer(game).isHuman
     && game.actionsRemaining > 0
   );
+}
+
+export function canActivePlayerSpendAttackAction(game: GameState): boolean {
+  return game.actionsRemaining > game.chargedActionsRemaining;
 }
 
 export function canHumanEndTurn(game: GameState): boolean {

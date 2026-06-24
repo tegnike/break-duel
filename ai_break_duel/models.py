@@ -15,7 +15,7 @@ class ActionType(str, Enum):
     UPGRADE_AI = "upgrade_ai"
     USE_COMMAND = "use_command"
     ATTACK = "attack"
-    CYCLE = "cycle"
+    CHARGE = "charge"
     END_TURN = "end_turn"
 
 
@@ -122,6 +122,7 @@ class GameState:
     turn: int = 0
     active_player: int = 0
     actions_remaining: int = 0
+    charged_actions_remaining: int = 0
     phase: str = "setup"
     log: list[dict[str, Any]] = field(default_factory=list)
     winner: int | None = None

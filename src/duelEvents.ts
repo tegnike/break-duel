@@ -3,7 +3,7 @@ import type { Card } from "./game";
 export type DuelEventCardState = "neutral" | "winner" | "loser" | "trash";
 
 export type DuelEventPayload = {
-  kind: "play" | "memory" | "upgrade" | "command" | "cycle" | "battle" | "damage" | "trash";
+  kind: "play" | "memory" | "upgrade" | "command" | "battle" | "damage" | "trash";
   title: string;
   detail: string;
   fromLabel?: string;

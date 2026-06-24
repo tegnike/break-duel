@@ -18,6 +18,10 @@ def choose_action(state: GameState) -> Action:
     player = state.active()
     opponent = state.opponent()
 
+    charge_index = _best_charge_fuel(state)
+    if charge_index is not None:
+        return Action(ActionType.CHARGE, charge_index)
+
     if not player.field_ai:
         index = _best_ai_in_hand(player, state)
         if index is not None:
@@ -68,13 +72,12 @@ def choose_action(state: GameState) -> Action:
     if _attackable_field_ai(player) and _can_active_player_attack(state):
         return Action(ActionType.ATTACK, _highest_power_field_ai(player))
 
-    if player.hand and player.deck:
-        return Action(ActionType.CYCLE, _lowest_priority_hand_card(player))
-
     return Action(ActionType.END_TURN)
 
 
 def _can_active_player_attack(state: GameState) -> bool:
+    if state.actions_remaining <= state.charged_actions_remaining:
+        return False
     if (
         state.active().turns_started == 1
         and not state.config.each_player_first_turn_can_attack
@@ -355,6 +358,52 @@ def _can_use_accelerator_memory(state: GameState) -> bool:
         and state.actions_remaining > 0
         and state.actions_remaining < 3
     )
+
+
+def _can_use_charge(state: GameState) -> bool:
+    player = state.active()
+    return (
+        not player.pending_effects.get("charge_used")
+        and any(_can_charge_card(card) for card in player.hand)
+        and state.actions_remaining < 3
+    )
+
+
+def _best_charge_fuel(state: GameState) -> int | None:
+    if not _can_use_charge(state):
+        return None
+    player = state.active()
+    before = state.actions_remaining
+    after = min(3, before + 1)
+    candidates = sorted(
+        (
+            (index, card)
+            for index, card in enumerate(player.hand)
+            if _can_charge_card(card)
+        ),
+        key=lambda item: (_card_priority(item[1]), item[1].id),
+    )
+    for fuel_index, _ in candidates:
+        remaining = [card for index, card in enumerate(player.hand) if index != fuel_index]
+        enables_large_play = any(
+            card.type == CardType.AI and before < _play_cost(card, state) <= after
+            for card in remaining
+        )
+        enables_two_step_turn = (
+            before == 2
+            and any(
+                card.type == CardType.AI and _play_cost(card, state) == 2
+                for card in remaining
+            )
+            and len(remaining) >= 2
+        )
+        if enables_large_play or enables_two_step_turn:
+            return fuel_index
+    return None
+
+
+def _can_charge_card(card) -> bool:
+    return card.type != CardType.AI or (card.power or 0) <= 2
 
 
 def _accelerator_sacrifice_target(player: PlayerState) -> int | None:

@@ -156,7 +156,7 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[0].cards_drawn, 1)
         self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-1"])
 
-    def test_ai_does_not_cycle_when_deck_is_empty(self) -> None:
+    def test_ai_ends_when_no_useful_charge_or_action_exists(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].hand = [command("CMD-OPTIMIZE")]
         state.players[0].deck = []
@@ -695,6 +695,57 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[0].spent_field_ai, set())
         self.assertEqual([item.id for item in state.players[0].discard], ["AI-WATER-2"])
         self.assertTrue(state.players[0].pending_effects["accelerator_used"])
+
+    def test_charge_discards_one_hand_card_and_adds_restricted_action(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-FIRE-1"), card("AI-WATER-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual(state.actions_remaining, 3)
+        self.assertEqual(state.charged_actions_remaining, 1)
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-FIRE-1"])
+        self.assertTrue(state.players[0].pending_effects["charge_used"])
+
+    def test_power_3_or_higher_summons_cannot_be_charged(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-WATER-3")]
+        start_turn(state)
+        with self.assertRaisesRegex(ValueError, "cannot be charged"):
+            apply_action(state, Action(ActionType.CHARGE, 0))
+
+    def test_charged_action_is_spent_first_by_non_attack_actions(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-FIRE-1"), card("AI-WATER-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual(state.actions_remaining, 2)
+        self.assertEqual(state.charged_actions_remaining, 0)
+
+    def test_charged_action_cannot_be_used_to_attack(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=1))
+        state.players[0].field_ai = [card("AI-WIND-1")]
+        state.players[0].hand = [card("AI-FIRE-1")]
+        state.players[1].deck = [card("AI-EARTH-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.actions_remaining, 1)
+        self.assertEqual(state.charged_actions_remaining, 1)
+        with self.assertRaisesRegex(ValueError, "cannot attack"):
+            apply_action(state, Action(ActionType.ATTACK, 0))
+
+    def test_accelerator_added_action_can_be_used_to_attack(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].memory = memory("MEM-ACCELERATOR")
+        state.players[0].field_ai = [card("AI-FIRE-1"), card("AI-WIND-1")]
+        state.players[1].deck = [card("AI-EARTH-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.USE_MEMORY, target_index=0))
+        self.assertEqual(state.actions_remaining, 3)
+        self.assertEqual(state.charged_actions_remaining, 0)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.actions_remaining, 2)
 
     def test_firewall_memory_adds_one_power_to_off_attribute_field_defense(self) -> None:
         state = new_game(1, no_opening_hands())

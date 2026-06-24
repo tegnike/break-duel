@@ -73,12 +73,14 @@ def new_game(
 def start_turn(state: GameState) -> None:
     state.turn += 1
     state.actions_remaining = _actions_for_turn(state)
+    state.charged_actions_remaining = 0
     state.phase = "main"
     for player in state.players:
         player.hand_defenses_used_this_turn = 0
     state.active().spent_field_ai.clear()
     state.active().pending_effects["pipeline_used"] = False
     state.active().pending_effects["accelerator_used"] = False
+    state.active().pending_effects["charge_used"] = False
     state.active().pending_effects.pop("sandbox_shield", None)
     state.active().turns_started += 1
     drawn = state.active().draw(1, state.rng) if _should_draw_for_turn(state) else 0
@@ -112,6 +114,7 @@ def end_turn(state: GameState) -> None:
         }
     )
     state.actions_remaining = 0
+    state.charged_actions_remaining = 0
     state.active_player = state.non_active_player
     _check_resource_exhaustion(state)
 
@@ -122,6 +125,7 @@ def apply_action(state: GameState, action: Action) -> None:
     if action.type == ActionType.END_TURN:
         state.log.append(_action_log_base(state, action) | {"result": "end_turn"})
         state.actions_remaining = 0
+        state.charged_actions_remaining = 0
         return
 
     action_cost = _action_cost(state, action)
@@ -140,16 +144,14 @@ def apply_action(state: GameState, action: Action) -> None:
         _use_command(state, action)
     elif action.type == ActionType.ATTACK:
         if not _can_active_player_attack(state):
-            raise ValueError("The first player cannot attack on the first turn.")
+            raise ValueError("The active player cannot attack now.")
         _attack(state, action)
-    elif action.type == ActionType.CYCLE:
-        _cycle(state, action)
+    elif action.type == ActionType.CHARGE:
+        _charge(state, action)
     else:
         raise ValueError(f"Unsupported action: {action.type}")
 
-    state.actions_remaining -= action_cost
-    state.active().actions_used += action_cost
-    state.stats.actions_used += action_cost
+    _spend_actions(state, action_cost, attack=action.type == ActionType.ATTACK)
     _check_winner(state)
     _check_resource_exhaustion(state)
 
@@ -218,6 +220,7 @@ def result_summary(state: GameState) -> dict[str, Any]:
         "failed_defenses": state.stats.failed_defenses,
         "undefended_attacks": state.stats.undefended_attacks,
         "actions_used": state.stats.actions_used,
+        "charged_actions_remaining": state.charged_actions_remaining,
         "attacks": state.stats.attacks,
         "attack_by_attribute": state.stats.attack_by_attribute,
         "card_usage": state.stats.card_usage,
@@ -538,19 +541,33 @@ def _attack(state: GameState, action: Action) -> None:
     )
 
 
-def _cycle(state: GameState, action: Action) -> None:
+def _charge(state: GameState, action: Action) -> None:
     player = state.active()
     if action.source_index is None:
-        raise ValueError("CYCLE requires a hand index.")
+        raise ValueError("CHARGE requires a hand index.")
+    if action.source_index < 0 or action.source_index >= len(player.hand):
+        raise ValueError("Charge source is out of range.")
+    if not _can_charge_card(player.hand[action.source_index]):
+        raise ValueError("Power 3 or higher summons cannot be charged.")
+    if player.pending_effects.get("charge_used"):
+        raise ValueError("Charge is already used this turn.")
+    if state.actions_remaining >= 3:
+        raise ValueError("Charge cannot increase actions beyond 3.")
     card = player.hand.pop(action.source_index)
     player.discard.append(card)
-    drawn = player.draw(1, state.rng)
+    before = state.actions_remaining
+    state.actions_remaining = min(3, state.actions_remaining + 1)
+    if state.actions_remaining > before:
+        state.charged_actions_remaining += 1
+    player.pending_effects["charge_used"] = True
+    state.stats.record_card_usage(card.id, "charged")
     state.log.append(
         _action_log_base(state, action)
         | {
             "discarded_card": card.id,
-            "draw_count": drawn,
-            "result": "cycled",
+            "result": "charged",
+            "actions_remaining": state.actions_remaining,
+            "charged_actions_remaining": state.charged_actions_remaining,
             "field": _field_state(state),
         }
     )
@@ -792,6 +809,7 @@ def _check_resource_exhaustion(state: GameState) -> None:
         return
     state.phase = "finished"
     state.actions_remaining = 0
+    state.charged_actions_remaining = 0
     if len(exhausted_players) == len(state.players):
         state.draw = True
         result = "mutual_forced_loss"
@@ -826,6 +844,7 @@ def _finish_by_life_judgement(state: GameState, event: str) -> None:
         result = "life_judgement"
     state.phase = "finished"
     state.actions_remaining = 0
+    state.charged_actions_remaining = 0
     state.log.append(
         {
             "turn": state.turn,
@@ -927,7 +946,22 @@ def _action_cost(state: GameState, action: Action) -> int:
         return _upgrade_cost(state, state.active().hand[action.source_index])
     if action.type == ActionType.USE_MEMORY:
         return 0
+    if action.type == ActionType.CHARGE:
+        return 0
     return 1
+
+
+def _spend_actions(state: GameState, cost: int, *, attack: bool = False) -> None:
+    if cost <= 0:
+        return
+    if not attack:
+        state.charged_actions_remaining = max(
+            0,
+            state.charged_actions_remaining - min(cost, state.charged_actions_remaining),
+        )
+    state.actions_remaining -= cost
+    state.active().actions_used += cost
+    state.stats.actions_used += cost
 
 
 def _play_cost(state: GameState, card) -> int:
@@ -1101,7 +1135,13 @@ def _card_priority(card) -> int:
     return 1
 
 
+def _can_charge_card(card) -> bool:
+    return card.type != CardType.AI or (card.power or 0) <= 2
+
+
 def _can_active_player_attack(state: GameState) -> bool:
+    if state.actions_remaining <= state.charged_actions_remaining:
+        return False
     if (
         state.active().turns_started == 1
         and not state.config.each_player_first_turn_can_attack
