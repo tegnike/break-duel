@@ -4,8 +4,10 @@ import unittest
 
 from ai_break_duel.cards import (
     AI_CARD_POOL,
+    ACTIVE_CARD_POOL,
     COMMAND_CARD_POOL,
     CardType,
+    CardStatus,
     DeckArchetype,
     MEMORY_CARD_POOL,
     Attribute,
@@ -214,11 +216,19 @@ class CoreRuleTests(unittest.TestCase):
                 archetype.value,
             )
 
-        all_card_ids = {
+        all_card_ids = {card.id for card in ACTIVE_CARD_POOL}
+        self.assertFalse(all_card_ids - used_card_ids)
+
+    def test_inactive_cards_stay_out_of_fixed_decks(self) -> None:
+        inactive_card_ids = {
             card.id
             for card in [*AI_CARD_POOL, *COMMAND_CARD_POOL, *MEMORY_CARD_POOL]
+            if card.status == CardStatus.INACTIVE.value
         }
-        self.assertFalse(all_card_ids - used_card_ids)
+        self.assertIn("CMD-PATCH", inactive_card_ids)
+        for archetype in DeckArchetype:
+            deck_ids = {card.id for card in build_deck(archetype)}
+            self.assertFalse(inactive_card_ids & deck_ids, archetype.value)
 
     def test_single_color_decks_use_only_their_attribute_summons(self) -> None:
         expected_attributes = {

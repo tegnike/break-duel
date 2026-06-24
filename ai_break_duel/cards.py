@@ -11,6 +11,11 @@ class CardType(str, Enum):
     MEMORY = "memory"
 
 
+class CardStatus(str, Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+
 class CommandEffect(str, Enum):
     OPTIMIZE = "optimize"
     PATCH = "patch"
@@ -90,6 +95,7 @@ class Card:
     attribute: Attribute | None = None
     power: int | None = None
     effect: str = ""
+    status: str = CardStatus.ACTIVE.value
 
 
 def can_defend(
@@ -445,6 +451,7 @@ def build_command_card_pool() -> list[Card]:
             name="若葉の息吹",
             type=CardType.EVENT,
             effect=CommandEffect.PATCH.value,
+            status=CardStatus.INACTIVE.value,
         ),
         Card(
             id="CMD-DISRUPT",
@@ -538,10 +545,13 @@ MEMORY_CARD_POOL: tuple[Card, ...] = tuple(build_memory_card_pool())
 CARD_BY_ID: dict[str, Card] = {
     card.id: card for card in [*AI_CARD_POOL, *COMMAND_CARD_POOL, *MEMORY_CARD_POOL]
 }
+ACTIVE_CARD_POOL: tuple[Card, ...] = tuple(
+    card for card in [*AI_CARD_POOL, *COMMAND_CARD_POOL, *MEMORY_CARD_POOL] if card.status == CardStatus.ACTIVE.value
+)
 
 
 def build_phase1_deck() -> list[Card]:
-    return [*AI_CARD_POOL, *COMMAND_CARD_POOL]
+    return [card for card in [*AI_CARD_POOL, *COMMAND_CARD_POOL] if card.status == CardStatus.ACTIVE.value]
 
 
 def build_player_deck(player_index: int) -> list[Card]:
@@ -595,7 +605,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "AI-EARTH-4B",
                 "CMD-DISRUPT",
                 "CMD-RELEARN",
-                "CMD-PATCH",
+                "CMD-SANDBOX",
                 "CMD-EARTH-RITE",
                 "MEM-FIREWALL",
                 "MEM-PIPELINE",
@@ -694,7 +704,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "AI-EARTH-2C",
                 "AI-EARTH-3",
                 "CMD-SANDBOX",
-                "CMD-PATCH",
+                "CMD-DISRUPT",
                 "CMD-EARTH-RITE",
                 "CMD-OPTIMIZE",
                 "MEM-CACHE",
@@ -730,7 +740,11 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
 
 
 def _deck_from_ids(card_ids: list[str]) -> list[Card]:
-    return [CARD_BY_ID[card_id] for card_id in card_ids]
+    deck = [CARD_BY_ID[card_id] for card_id in card_ids]
+    inactive = [card.id for card in deck if card.status != CardStatus.ACTIVE.value]
+    if inactive:
+        raise ValueError(f"Inactive cards cannot be used in preset decks: {inactive}")
+    return deck
 
 
 def validate_same_name_limit(cards: Iterable[Card], limit: int = 2) -> None:

@@ -66,12 +66,12 @@ design plan.
     through ready/spent manipulation, and earth converts defense into resources.
 - Command cards cost 1 action and go to discard after use:
   - `陣形リライト`: discard 1 hand card, then draw 2 cards.
-  - `若葉の息吹`: ready 1 spent friendly summon.
   - `黒蔦の足止め`: spend 1 ready opposing summon.
-  - `幻獣回帰の巻`: return 1 summon from discard to hand, then discard 1 hand card
-    if possible.
+  - `幻獣回帰の巻`: discard 1 hand card, then return 1 summon from discard to hand.
   - `蒼殻バリア`: this turn, prevent the next power-4 post-attack retreat after
     attacking.
+  - `若葉の息吹` remains in the card pool as an inactive card, but is hidden
+    from browser card lists and excluded from preset decks.
 - Relic cards reinforce strategies while also spending hand resources:
   - `灯火の旅嚢`: draws only when its controller starts the turn with 2 or
     fewer cards.

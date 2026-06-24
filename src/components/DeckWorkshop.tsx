@@ -6,7 +6,8 @@ import {
   type Attribute,
   type Card,
   type CardType,
-  cardPool,
+  activeCardPool,
+  isCardActive,
 } from "../game";
 import { CardArtPreview, CardView } from "./CardView";
 import { cardColor, roleText, selectedText } from "./cardPresentation";
@@ -27,7 +28,7 @@ export type SavedDeck = {
 };
 
 function allCards(): Card[] {
-  return cardPool().sort((a, b) => {
+  return activeCardPool().sort((a, b) => {
     const typeOrder = typeRank(a.type) - typeRank(b.type);
     if (typeOrder !== 0) return typeOrder;
     const attrOrder = attributeRank(a.attribute) - attributeRank(b.attribute);
@@ -43,6 +44,9 @@ export function CardLibraryPage() {
   const [attributeFilter, setAttributeFilter] = useState<AttributeFilter>("all");
   const [selectedId, setSelectedId] = useState(CARD_LIST[0]?.id ?? "");
   const selectedCard = CARD_BY_ID.get(selectedId) ?? CARD_LIST[0] ?? null;
+  const aiCount = CARD_LIST.filter((card) => card.type === "ai").length;
+  const eventCount = CARD_LIST.filter((card) => card.type === "event").length;
+  const memoryCount = CARD_LIST.filter((card) => card.type === "memory").length;
   const visibleCards = CARD_LIST.filter((card) => {
     if (typeFilter !== "all" && card.type !== typeFilter) return false;
     if (attributeFilter !== "all" && card.attribute !== attributeFilter) return false;
@@ -54,7 +58,7 @@ export function CardLibraryPage() {
       <div className="workshop-heading">
         <div>
           <h2>カード一覧</h2>
-          <p>{CARD_LIST.length}種類 / 召喚獣32種 / 指令6種 / 遺物4種</p>
+          <p>{CARD_LIST.length}種類 / 召喚獣{aiCount}種 / 指令{eventCount}種 / 遺物{memoryCount}種</p>
         </div>
         <div className="workshop-filters">
           <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}>
@@ -377,6 +381,11 @@ export function validateDeck(cardIds: string[]): { valid: boolean; messages: str
   if (exceeded.length > 0) messages.push(`同名${SAME_NAME_LIMIT}枚を超えています`);
   const unknown = cardIds.filter((cardId) => !CARD_BY_ID.has(cardId));
   if (unknown.length > 0) messages.push("不明なカードが含まれています");
+  const inactive = cardIds.filter((cardId) => {
+    const card = CARD_BY_ID.get(cardId);
+    return card && !isCardActive(card);
+  });
+  if (inactive.length > 0) messages.push("現在使えないカードが含まれています");
   return { valid: messages.length === 0, messages };
 }
 

@@ -1,5 +1,6 @@
 export type Attribute = "火" | "水" | "風" | "土";
 export type CardType = "ai" | "event" | "memory";
+export type CardStatus = "active" | "inactive";
 export type AiEffect =
   | "attack_plus_1"
   | "reckless_attack_plus_1"
@@ -53,7 +54,10 @@ export type Card = {
   attribute?: Attribute;
   power?: number;
   effect?: CardEffect;
+  status: CardStatus;
 };
+
+type CardSeed = Omit<Card, "status"> & { status?: CardStatus };
 
 export type PlayerState = {
   name: string;
@@ -272,7 +276,7 @@ export function cardPool(): Card[] {
     ["AI-EARTH-4B", "draw_on_successful_defense_enters_spent"],
     ["AI-EARTH-2C", "charge_guard"],
   ]);
-  const aiCards: Card[] = (Object.entries(ATTRIBUTES) as [Attribute, { code: string; color: string }][])
+  const aiCards: CardSeed[] = (Object.entries(ATTRIBUTES) as [Attribute, { code: string; color: string }][])
     .flatMap(([attribute, meta]) =>
       [1, 2, 3, 4].flatMap((power) => ["", "B"].map((suffix) => {
         const id = `AI-${meta.code}-${power}${suffix}`;
@@ -287,17 +291,17 @@ export function cardPool(): Card[] {
         };
       })),
     );
-  const chargeCycleCards: Card[] = [
+  const chargeCycleCards: CardSeed[] = [
     { id: "AI-FIRE-1C", name: monsterNames["AI-FIRE-1C"], type: "ai", attribute: "火", power: 1, effect: "charge_pressure" },
     { id: "AI-WATER-1C", name: monsterNames["AI-WATER-1C"], type: "ai", attribute: "水", power: 1, effect: "charge_draw" },
     { id: "AI-WIND-2C", name: monsterNames["AI-WIND-2C"], type: "ai", attribute: "風", power: 2, effect: "charge_ready_ally" },
     { id: "AI-EARTH-2C", name: monsterNames["AI-EARTH-2C"], type: "ai", attribute: "土", power: 2, effect: "charge_guard" },
   ];
-  return [
+  const cards: CardSeed[] = [
     ...aiCards,
     ...chargeCycleCards,
     { id: "CMD-OPTIMIZE", name: "陣形リライト", type: "event", effect: "optimize" },
-    { id: "CMD-PATCH", name: "若葉の息吹", type: "event", effect: "patch" },
+    { id: "CMD-PATCH", name: "若葉の息吹", type: "event", effect: "patch", status: "inactive" },
     { id: "CMD-DISRUPT", name: "黒蔦の足止め", type: "event", effect: "disrupt" },
     { id: "CMD-RELEARN", name: "幻獣回帰の巻", type: "event", effect: "relearn" },
     { id: "CMD-SANDBOX", name: "蒼殻バリア", type: "event", effect: "sandbox" },
@@ -312,9 +316,18 @@ export function cardPool(): Card[] {
     { id: "MEM-ACCELERATOR", name: "刻火の加速炉", type: "memory", effect: "accelerator" },
     { id: "MEM-RESONATOR", name: "蓄光の祭壇", type: "memory", effect: "resonator" },
   ];
+  return cards.map((card) => ({ ...card, status: card.status ?? "active" }));
 }
 
 export const CARD_BY_ID = new Map(cardPool().map((card) => [card.id, card]));
+
+export function isCardActive(card: Card): boolean {
+  return card.status === "active";
+}
+
+export function activeCardPool(): Card[] {
+  return cardPool().filter(isCardActive);
+}
 
 export const DECKS = {
   break: {
@@ -363,7 +376,7 @@ export const DECKS = {
       "AI-EARTH-4B",
       "CMD-DISRUPT",
       "CMD-RELEARN",
-      "CMD-PATCH",
+      "CMD-SANDBOX",
       "CMD-EARTH-RITE",
       "MEM-FIREWALL",
       "MEM-PIPELINE",
@@ -466,7 +479,7 @@ export const DECKS = {
       "AI-EARTH-2C",
       "AI-EARTH-3",
       "CMD-SANDBOX",
-      "CMD-PATCH",
+      "CMD-DISRUPT",
       "CMD-EARTH-RITE",
       "CMD-OPTIMIZE",
       "MEM-CACHE",
@@ -517,13 +530,18 @@ export function shuffle(cards: Card[], rng: () => number): void {
 }
 
 export function makeDeck(deckId: DeckId): Card[] {
-  return DECKS[deckId].cards.map((cardId) => cloneCard(CARD_BY_ID.get(cardId)!));
+  return DECKS[deckId].cards.map((cardId) => {
+    const card = CARD_BY_ID.get(cardId);
+    if (!card || !isCardActive(card)) throw new Error(`Inactive or unknown preset card id: ${cardId}`);
+    return cloneCard(card);
+  });
 }
 
 export function makeCustomDeck(cardIds: string[]): Card[] {
   return cardIds.map((cardId) => {
     const card = CARD_BY_ID.get(cardId);
     if (!card) throw new Error(`Unknown card id: ${cardId}`);
+    if (!isCardActive(card)) throw new Error(`Inactive card id: ${cardId}`);
     return cloneCard(card);
   });
 }
