@@ -83,6 +83,30 @@ type FlightRect = {
   height: number;
 };
 
+type TrashSurge = {
+  owners: number[];
+  tone: "cyan" | "magenta" | "danger";
+};
+
+type TrashFlash = TrashSurge & {
+  id: number;
+};
+
+const TRASH_SPARKS = [
+  { x: 12, y: 18, delay: 0 },
+  { x: 28, y: 12, delay: 70 },
+  { x: 48, y: 8, delay: 25 },
+  { x: 72, y: 14, delay: 115 },
+  { x: 88, y: 24, delay: 45 },
+  { x: 94, y: 48, delay: 145 },
+  { x: 82, y: 74, delay: 80 },
+  { x: 64, y: 88, delay: 15 },
+  { x: 38, y: 86, delay: 125 },
+  { x: 16, y: 68, delay: 55 },
+  { x: 6, y: 46, delay: 105 },
+  { x: 22, y: 34, delay: 170 },
+];
+
 function randomSeed(): number {
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
     const values = new Uint32Array(1);
@@ -108,6 +132,15 @@ function actionTokenClass(index: number, actionsRemaining: number, chargedAction
   return `action-token ${active ? "" : "spent"} ${charged ? "charged" : ""}`;
 }
 
+function trashSurgeForEvent(event: DuelEventPayload | DuelEvent | null): TrashSurge | null {
+  if (!event || event.kind !== "trash") return null;
+  const goesToTrash = event.toLabel?.includes("トラッシュ") || event.cards.some(({ state }) => state === "trash");
+  if (!goesToTrash) return null;
+  if (event.tone === "magenta") return { owners: [0], tone: "magenta" };
+  if (event.tone === "cyan") return { owners: [1], tone: "cyan" };
+  return { owners: [0, 1], tone: "danger" };
+}
+
 export default function App() {
   const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [seed, setSeed] = useState(INITIAL_SEED);
@@ -120,6 +153,7 @@ export default function App() {
   const [toast, setToast] = useState<Toast>(null);
   const [duelEvent, setDuelEvent] = useState<DuelEvent | null>(null);
   const [cardFlight, setCardFlight] = useState<CardFlight | null>(null);
+  const [trashFlash, setTrashFlash] = useState<TrashFlash | null>(null);
   const [aiAnimating, setAiAnimating] = useState(false);
   const [autoDismissDuelEvents, setAutoDismissDuelEvents] = useState(false);
   const [banner, setBanner] = useState<Banner>(() => ({
@@ -137,6 +171,11 @@ export default function App() {
   const duelEventTimer = useRef<number | null>(null);
   const cardFlightTimer = useRef<number | null>(null);
   const aiCommitTimer = useRef<number | null>(null);
+  const trashFlashTimer = useRef<number | null>(null);
+  const previousDiscardCounts = useRef<[number, number]>([
+    game.players[0].discard.length,
+    game.players[1].discard.length,
+  ]);
 
   const human = game.players[0];
   const ai = game.players[1];
@@ -165,7 +204,8 @@ export default function App() {
   }
 
   function queueDuelEvent(event: DuelEventPayload) {
-    if (event.kind === "play" || event.kind === "memory" || event.kind === "upgrade" || event.kind === "command") return;
+    const hasTrashSurge = trashSurgeForEvent(event) !== null;
+    if ((event.kind === "play" || event.kind === "memory" || event.kind === "upgrade" || event.kind === "command") && !hasTrashSurge) return;
     duelEventQueue.current.push(event);
     if (duelEventScheduler.current !== null) return;
     duelEventScheduler.current = window.setTimeout(() => {
@@ -214,8 +254,11 @@ export default function App() {
     if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
     cardFlightTimer.current = null;
     aiCommitTimer.current = null;
+    if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
+    trashFlashTimer.current = null;
     setAiAnimating(false);
     setCardFlight(null);
+    setTrashFlash(null);
   }
 
   function cardSelector(ownerIndex: number, zone: string, index: number) {
@@ -441,6 +484,30 @@ export default function App() {
   }, [autoDismissDuelEvents, duelEvent?.id]);
 
   useEffect(() => {
+    const current: [number, number] = [game.players[0].discard.length, game.players[1].discard.length];
+    const previous = previousDiscardCounts.current;
+    previousDiscardCounts.current = current;
+    if (page !== "duel") return;
+
+    const owners: number[] = [];
+    if (current[0] > previous[0]) owners.push(0);
+    if (current[1] > previous[1]) owners.push(1);
+    if (owners.length === 0) return;
+
+    if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
+    setTrashFlash({
+      id: eventId++,
+      owners,
+      tone: owners.length > 1 ? "danger" : owners[0] === 0 ? "magenta" : "cyan",
+    });
+    playSfx("trash");
+    trashFlashTimer.current = window.setTimeout(() => {
+      setTrashFlash(null);
+      trashFlashTimer.current = null;
+    }, 1100);
+  }, [page, game.players[0].discard.length, game.players[1].discard.length]);
+
+  useEffect(() => {
     if (page !== "duel") return;
     if (game.winner !== null || game.draw) return;
     showBanner({
@@ -491,6 +558,7 @@ export default function App() {
       if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
       if (cardFlightTimer.current !== null) window.clearTimeout(cardFlightTimer.current);
       if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
+      if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
     };
   }, []);
 
@@ -523,6 +591,10 @@ export default function App() {
     if (kind === "block") playTone(196, 0.13, 0.06, "square");
     if (kind === "damage") playTone(110, 0.16, 0.08, "sawtooth");
     if (kind === "command") playTone(740, 0.08, 0.045, "square");
+    if (kind === "trash") {
+      playTone(146.83, 0.1, 0.07, "sawtooth");
+      window.setTimeout(() => playTone(92.5, 0.13, 0.055, "triangle"), 70);
+    }
     if (kind === "end") playTone(392, 0.16, 0.055, "triangle");
   }
 
@@ -1129,6 +1201,8 @@ export default function App() {
       && game.pendingAttack
       && game.players[game.pendingAttack.defenderIndex]?.isHuman,
   );
+  const trashSurge = trashSurgeForEvent(duelEvent) ?? trashFlash;
+  const ownerHasTrashSurge = (ownerIndex: number) => trashSurge?.owners.includes(ownerIndex) ?? false;
 
   if (page !== "duel") {
     return (
@@ -1185,14 +1259,14 @@ export default function App() {
           </div>
           <span className="ai-hand-source" data-owner={1} data-zone="hand-source" data-index={0}>手札 {ai.hand.length}</span>
           <span>山札 {ai.deck.length}</span>
-          <button type="button" className="text-link" onClick={() => openDiscardViewer(1)}>トラッシュ {ai.discard.length}</button>
+          <button type="button" className={`text-link discard-link ${ownerHasTrashSurge(1) ? "trash-surge" : ""}`} onClick={() => openDiscardViewer(1)}>トラッシュ {ai.discard.length}</button>
         </div>
       </header>
 
       <section className="stitch-battlefield" aria-label="対戦盤面">
-        <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent onSelectField={selectField} onSelectMemory={selectMemory} />
+        <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent trashSurge={ownerHasTrashSurge(1)} onSelectField={selectField} onSelectMemory={selectMemory} />
         <div className="clash-line" aria-hidden="true" />
-        <FieldGrid player={human} ownerIndex={0} game={game} onSelectField={selectField} onSelectMemory={selectMemory} />
+        <FieldGrid player={human} ownerIndex={0} game={game} trashSurge={ownerHasTrashSurge(0)} onSelectField={selectField} onSelectMemory={selectMemory} />
       </section>
 
       <section className="stitch-player-status">
@@ -1203,7 +1277,7 @@ export default function App() {
         </div>
         <div className="stitch-counts">
           <span>山札 {human.deck.length}</span>
-          <button type="button" className="text-link" onClick={() => openDiscardViewer(0)}>トラッシュ {human.discard.length}</button>
+          <button type="button" className={`text-link discard-link ${ownerHasTrashSurge(0) ? "trash-surge" : ""}`} onClick={() => openDiscardViewer(0)}>トラッシュ {human.discard.length}</button>
         </div>
       </section>
 
@@ -1296,6 +1370,7 @@ export default function App() {
       {!showDefenseInDuelEvent && defensePanel}
       <EventToast toast={toast} />
       <CardFlightLayer flight={cardFlight} />
+      {trashSurge && <TrashSurgeLayer surge={trashSurge} eventId={duelEvent?.id ?? trashFlash?.id ?? 0} />}
       <DuelActionReel event={duelEvent} autoDismiss={autoDismissDuelEvents} onClose={dismissDuelEvent}>
         {showDefenseInDuelEvent ? defensePanel : null}
       </DuelActionReel>
@@ -1476,6 +1551,7 @@ function FieldGrid({
   ownerIndex,
   game,
   isOpponent = false,
+  trashSurge = false,
   onSelectField,
   onSelectMemory,
 }: {
@@ -1483,15 +1559,16 @@ function FieldGrid({
   ownerIndex: number;
   game: GameState;
   isOpponent?: boolean;
+  trashSurge?: boolean;
   onSelectField: (ownerIndex: number, index: number) => void;
   onSelectMemory: (ownerIndex: number) => void;
 }) {
   return (
-    <div className={`field-grid ${isOpponent ? "opponent" : "human"}`}>
-      <MemorySlot player={player} ownerIndex={ownerIndex} isOpponent={isOpponent} game={game} onSelectMemory={onSelectMemory} />
+    <div className={`field-grid ${isOpponent ? "opponent" : "human"} ${trashSurge ? "trash-surge" : ""}`}>
+      <MemorySlot player={player} ownerIndex={ownerIndex} isOpponent={isOpponent} game={game} trashSurge={trashSurge} onSelectMemory={onSelectMemory} />
       {Array.from({ length: CONFIG.fieldLimit }).map((_, index) => {
         const card = player.field[index];
-        if (!card) return <div className="field-slot empty" key={`empty-${ownerIndex}-${index}`} data-owner={ownerIndex} data-zone="field" data-index={index}>+</div>;
+        if (!card) return <div className={`field-slot empty ${trashSurge ? "trash-alert" : ""}`} key={`empty-${ownerIndex}-${index}`} data-owner={ownerIndex} data-zone="field" data-index={index}>+</div>;
         const isDisruptTarget = game.pendingTarget?.kind === "disrupt"
           && ownerIndex === 1 - game.active
           && !player.spentFieldIndexes.has(index);
@@ -1509,6 +1586,7 @@ function FieldGrid({
             selectable
             spent={player.spentFieldIndexes.has(index)}
             actionState={isDisruptTarget ? "usable" : ownerIndex === 0 ? fieldActionState(game, player, index) : "idle"}
+            visualEffect={trashSurge ? "trash-alert" : ""}
             showCost={false}
             onClick={() => onSelectField(ownerIndex, index)}
           />
@@ -1523,12 +1601,14 @@ function MemorySlot({
   ownerIndex,
   isOpponent,
   game,
+  trashSurge,
   onSelectMemory,
 }: {
   player: PlayerState;
   ownerIndex: number;
   isOpponent: boolean;
   game: GameState;
+  trashSurge: boolean;
   onSelectMemory: (ownerIndex: number) => void;
 }) {
   if (player.memory) {
@@ -1542,12 +1622,13 @@ function MemorySlot({
         selected={isSelected}
         selectable
         actionState={ownerIndex === 0 && canUseAcceleratorMemory(game, player) ? "usable" : "idle"}
+        visualEffect={trashSurge ? "trash-alert" : ""}
         showCost={false}
         onClick={() => onSelectMemory(ownerIndex)}
       />
     );
   }
-  return <div className="field-slot memory-empty" data-owner={ownerIndex} data-zone="memory" data-index={0}>遺物</div>;
+  return <div className={`field-slot memory-empty ${trashSurge ? "trash-alert" : ""}`} data-owner={ownerIndex} data-zone="memory" data-index={0}>遺物</div>;
 }
 
 function CardFlightLayer({ flight }: { flight: CardFlight | null }) {
@@ -1569,6 +1650,23 @@ function CardFlightLayer({ flight }: { flight: CardFlight | null }) {
     <div className={`card-flight ${flight.tone}`} style={style} aria-hidden="true">
       <div className="card-flight-label">{flight.label}</div>
       <CardView card={flight.card} ownerIndex={flight.tone === "ai" ? 1 : 0} zone="hand" index={0} showCost={false} />
+    </div>
+  );
+}
+
+function TrashSurgeLayer({ surge, eventId }: { surge: TrashSurge; eventId: number }) {
+  return (
+    <div className={`trash-surge-layer ${surge.tone}`} key={eventId} aria-hidden="true">
+      {TRASH_SPARKS.map((spark, index) => (
+        <span
+          key={`${eventId}-${index}`}
+          style={{
+            "--spark-x": `${spark.x}vw`,
+            "--spark-y": `${spark.y}vh`,
+            "--spark-delay": `${spark.delay}ms`,
+          } as CSSProperties}
+        />
+      ))}
     </div>
   );
 }

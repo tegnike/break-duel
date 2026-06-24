@@ -1741,6 +1741,38 @@ h2 {
   overflow: hidden;
 }
 
+.trash-surge-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 34;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.trash-surge-layer span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ff6b5f;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.72);
+  opacity: 0;
+  animation: trash-spark-collapse 1020ms cubic-bezier(0.18, 0.82, 0.24, 1) forwards;
+  animation-delay: var(--spark-delay);
+}
+
+.trash-surge-layer.cyan span {
+  background: #00f0ff;
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.62);
+}
+
+.trash-surge-layer.magenta span {
+  background: #fe00fe;
+  box-shadow: 0 0 16px rgba(254, 0, 254, 0.62);
+}
+
 .event-toast {
   position: fixed;
   left: 50%;
@@ -2950,6 +2982,122 @@ h2 {
   }
 }
 
+@keyframes trash-spark-collapse {
+  0% {
+    opacity: 0;
+    transform: translate(calc(var(--spark-x) - 50vw), calc(var(--spark-y) - 50vh)) scale(0.4) rotate(0deg);
+  }
+  18% {
+    opacity: 1;
+  }
+  72% {
+    opacity: 0.92;
+    transform: translate(0, 0) scale(1) rotate(160deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0) rotate(210deg);
+  }
+}
+
+@keyframes discard-link-trash-surge {
+  0% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+  22% {
+    transform: translateY(-2px) scale(1.08);
+    filter: brightness(1.45);
+  }
+  48% {
+    transform: translateY(1px) scale(0.98);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes discard-ring-collapse {
+  0% {
+    opacity: 0;
+    transform: scale(1.38);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.42);
+  }
+}
+
+@keyframes field-trash-grid-pulse {
+  0% {
+    opacity: 0;
+    transform: scale(1.04);
+    filter: brightness(1);
+  }
+  24% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1.45);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.96);
+    filter: brightness(1);
+  }
+}
+
+@keyframes field-trash-vortex {
+  0% {
+    opacity: 0;
+    transform: scale(1.18) rotate(0deg);
+  }
+  32% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.56) rotate(32deg);
+  }
+}
+
+@keyframes field-slot-trash-recoil {
+  0% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 0 rgba(239, 68, 68, 0);
+  }
+  22% {
+    transform: translateY(-5px) scale(1.04);
+    box-shadow: 0 0 22px rgba(239, 68, 68, 0.34);
+  }
+  56% {
+    transform: translateY(2px) scale(0.98);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes card-trash-alert {
+  0%,
+  12% {
+    opacity: 0;
+    transform: scale(1.18) rotate(0deg);
+  }
+  30% {
+    opacity: 0.9;
+    transform: scale(1) rotate(8deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.6) rotate(22deg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .floating-card,
   .attack-beam,
@@ -2960,7 +3108,15 @@ h2 {
   .zone-flash,
   .life-hit .life-dot:not(.empty),
   .card.card-pulse,
-  .card.card-hit {
+  .card.card-hit,
+  .trash-surge-layer span,
+  .discard-link.trash-surge,
+  .discard-link.trash-surge::after,
+  .field-grid.trash-surge::before,
+  .field-grid.trash-surge::after,
+  .field-grid.trash-surge .card.trash-alert,
+  .field-grid.trash-surge .field-slot.trash-alert,
+  .card.trash-alert::after {
     animation: none;
     transition: none;
   }
@@ -5008,6 +5164,27 @@ h1 {
   font-size: inherit;
 }
 
+.discard-link {
+  position: relative;
+  border-radius: 4px;
+}
+
+.discard-link.trash-surge {
+  color: #ffb4ab;
+  text-shadow: 0 0 16px rgba(239, 68, 68, 0.72);
+  animation: discard-link-trash-surge 980ms ease-out;
+}
+
+.discard-link.trash-surge::after {
+  content: "";
+  position: absolute;
+  inset: -8px -12px;
+  border: 1px solid rgba(239, 68, 68, 0.48);
+  border-radius: 999px;
+  opacity: 0;
+  animation: discard-ring-collapse 980ms ease-out;
+}
+
 .ai-hand-source {
   position: relative;
   display: inline-flex;
@@ -5078,11 +5255,36 @@ h1 {
 }
 
 .field-grid {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(4, 110px);
   gap: 16px;
   align-items: center;
   justify-content: center;
+}
+
+.field-grid.trash-surge::before,
+.field-grid.trash-surge::after {
+  content: "";
+  position: absolute;
+  inset: -15px;
+  z-index: -1;
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.field-grid.trash-surge::before {
+  border: 1px solid rgba(239, 68, 68, 0.38);
+  background:
+    linear-gradient(90deg, rgba(239, 68, 68, 0.14) 1px, transparent 1px),
+    linear-gradient(rgba(239, 68, 68, 0.1) 1px, transparent 1px);
+  background-size: 24px 24px;
+  animation: field-trash-grid-pulse 980ms ease-out;
+}
+
+.field-grid.trash-surge::after {
+  background: radial-gradient(circle at 50% 50%, rgba(239, 68, 68, 0.22), transparent 66%);
+  animation: field-trash-vortex 980ms ease-out;
 }
 
 .clash-line {
@@ -5147,6 +5349,26 @@ h1 {
   color: rgba(132, 148, 149, 0.32);
   background: rgba(14, 14, 16, 0.2);
   font-size: 28px;
+}
+
+.field-grid.trash-surge .card.trash-alert,
+.field-grid.trash-surge .field-slot.trash-alert {
+  border-color: rgba(239, 68, 68, 0.7);
+  animation: field-slot-trash-recoil 980ms ease-out;
+}
+
+.card.trash-alert::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(255, 180, 171, 0.32), transparent 38%),
+    repeating-linear-gradient(135deg, rgba(239, 68, 68, 0.0) 0 7px, rgba(239, 68, 68, 0.28) 7px 9px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+  animation: card-trash-alert 980ms ease-out;
 }
 
 .field-slot.memory-empty {

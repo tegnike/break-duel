@@ -20,6 +20,7 @@ export function CardView({
   selectable = false,
   spent = false,
   actionState = "idle",
+  visualEffect = "",
   showCost = true,
   onClick,
 }: {
@@ -31,6 +32,7 @@ export function CardView({
   selectable?: boolean;
   spent?: boolean;
   actionState?: string;
+  visualEffect?: string;
   showCost?: boolean;
   onClick?: () => void;
 }) {
@@ -39,7 +41,7 @@ export function CardView({
   return (
     <Element
       type={selectable ? "button" : undefined}
-      className={`card ${card.type === "event" ? "command" : ""} ${card.type === "memory" ? "memory" : ""} ${selected ? "selected" : ""} ${selectable ? "selectable" : ""} ${spent ? "spent" : ""} ${actionState}`}
+      className={`card ${card.type === "event" ? "command" : ""} ${card.type === "memory" ? "memory" : ""} ${selected ? "selected" : ""} ${selectable ? "selectable" : ""} ${spent ? "spent" : ""} ${visualEffect} ${actionState}`}
       style={{ "--card-color": cardColor(card) } as React.CSSProperties}
       data-owner={ownerIndex}
       data-zone={zone}
