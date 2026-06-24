@@ -58,6 +58,12 @@ const INITIAL_SEED = randomSeed();
 
 type AppPage = "duel" | "cards" | "builder";
 
+const PAGE_PATHS: Record<AppPage, string> = {
+  duel: "/duel",
+  cards: "/cards",
+  builder: "/builder",
+};
+
 type CardFlight = {
   id: number;
   card: Card;
@@ -84,8 +90,18 @@ function randomSeed(): number {
   return Math.floor(Date.now() % 4294967295) || 1;
 }
 
+function pageFromPath(pathname: string): AppPage {
+  if (pathname === PAGE_PATHS.cards) return "cards";
+  if (pathname === PAGE_PATHS.builder) return "builder";
+  return "duel";
+}
+
+function routeForPage(page: AppPage): string {
+  return PAGE_PATHS[page];
+}
+
 export default function App() {
-  const [page, setPage] = useState<AppPage>("duel");
+  const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [seed, setSeed] = useState(INITIAL_SEED);
   const [playerDeckId, setPlayerDeckId] = useState<DeckId>("fire");
   const [game, setGame] = useState<GameState>(() => createGame(INITIAL_SEED, "fire"));
@@ -324,7 +340,7 @@ export default function App() {
   function openStarterDeckModal() {
     resetDuelEvents();
     setRulesOpen(false);
-    setPage("duel");
+    changePage("duel");
     setStarterDeckModalOpen(true);
   }
 
@@ -332,8 +348,27 @@ export default function App() {
     if (nextPage !== "duel") resetDuelEvents();
     setRulesOpen(false);
     setPage(nextPage);
+    const nextPath = routeForPage(nextPage);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, "", nextPath);
+    }
     if (nextPage === "duel") setStarterDeckModalOpen(true);
   }
+
+  useEffect(() => {
+    if (window.location.pathname === "/" || !Object.values(PAGE_PATHS).includes(window.location.pathname as AppPage)) {
+      window.history.replaceState(null, "", routeForPage(page));
+    }
+    const onPopState = () => {
+      const nextPage = pageFromPath(window.location.pathname);
+      if (nextPage !== "duel") resetDuelEvents();
+      setRulesOpen(false);
+      setStarterDeckModalOpen(nextPage === "duel");
+      setPage(nextPage);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   useEffect(() => {
     if (!toast) return undefined;
