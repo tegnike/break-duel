@@ -26,7 +26,8 @@ design plan.
   - `earth`: defense, firewall, successful-defense draw, and recursion.
   - Each mono-attribute deck keeps summon cards within one attribute, then
     doubles theme-defining summons as needed for balance.
-- Two actions every turn.
+- Turns normally start with two actions. The first player's first turn starts
+  with one action.
 - Once per turn, the active player may charge a power 1/2 summon, command, or
   relic from hand to discard to gain +1 action for that turn, up to 3 actions.
   A player that charges cannot attack for the rest of that turn.
@@ -103,7 +104,8 @@ design plan.
 
 The browser UI is implemented with React + TypeScript + Vite. It supports
 starter deck selection, relic placement, upgrade play, manual target selection
-for key effects, manual discard-cost selection, and discard-pile inspection.
+for key effects, charge, manual discard-cost selection, and discard-pile
+inspection.
 
 ## Assets
 
