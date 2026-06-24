@@ -48,21 +48,21 @@ design plan.
     pressure through defenses, water keeps hand quality high, wind wins tempo
     through ready/spent manipulation, and earth converts defense into resources.
 - Command cards cost 1 action and go to discard after use:
-  - `戦術整理`: discard up to 2 hand cards, then draw 2 cards.
-  - `癒し薬草`: ready 1 spent friendly summon.
-  - `絡め蔦`: spend 1 ready opposing summon.
-  - `追憶の巻物`: return 1 summon from discard to hand, then discard 1 hand card
+  - `陣形リライト`: discard up to 2 hand cards, then draw 2 cards.
+  - `若葉の息吹`: ready 1 spent friendly summon.
+  - `黒蔦の足止め`: spend 1 ready opposing summon.
+  - `幻獣回帰の巻`: return 1 summon from discard to hand, then discard 1 hand card
     if possible.
-  - `守護結界`: this turn, prevent the next power-4 post-attack retreat after
+  - `蒼殻バリア`: this turn, prevent the next power-4 post-attack retreat after
     attacking.
 - Relic cards reinforce strategies while also spending hand resources:
-  - `旅人の鞄`: draws only when its controller starts the turn with 2 or
+  - `灯火の旅嚢`: draws only when its controller starts the turn with 2 or
     fewer cards.
-  - `守護の紋章`: discards 1 hand card to add +1 to same-attribute field
+  - `竜盾の紋章`: discards 1 hand card to add +1 to same-attribute field
     defense.
   - In the browser UI, human players choose which hand card to discard for
-    discard-cost effects such as `戦術整理`, `追憶の巻物`, `守護の紋章`,
-    and `精霊の水脈`.
+    discard-cost effects such as `陣形リライト`, `幻獣回帰の巻`, `竜盾の紋章`,
+    and `星泉の導脈`.
 - Attribute matchup is not used. Any summon can attempt to defend against any
   attribute, and attribute differences are expressed through individual summon
   card effects:
@@ -91,7 +91,7 @@ design plan.
 - CLI simulation with JSON and JSONL output.
 
 The browser UI is implemented with React + TypeScript + Vite. It supports
-relic placement, upgrade play, manual target selection for `絡め蔦`, manual
+relic placement, upgrade play, manual target selection for `黒蔦の足止め`, manual
 discard-cost selection, and discard-pile inspection.
 
 ## Assets

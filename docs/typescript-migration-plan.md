@@ -386,7 +386,7 @@ python3 -m ai_break_duel.cli simulate --games 1000 --seed 4101 --out tmp/react_t
 - 2アクション制が維持されている。
 - `CMD-SANDBOX` は指令として使える。
 - power 4 は攻撃後退場する。
-- 守護結界使用後の power 4 は1回だけ場に残る。
+- 蒼殻バリア使用後の power 4 は1回だけ場に残る。
 - トラッシュモーダル内に効果が表示される。
 - トラッシュカード選択でメイン画面の詳細が変わらない。
 - 防御候補が候補ごとに読める。
@@ -441,7 +441,7 @@ python3 -m ai_break_duel.cli simulate --games 1000 --seed 4101 --out tmp/react_t
 - まず src/game/ に純粋なゲームロジックを移す
 - React側は `useState<GameState> + cloneGame` を維持し、必要になったら `useReducer` を検討する
 - トラッシュモーダルの選択状態はメイン画面の selected と分離する
-- 防御候補表示、守護結界指令、先攻初ターン攻撃不可を壊さない
+- 防御候補表示、蒼殻バリア指令、先攻初ターン攻撃不可を壊さない
 - アニメーションと効果音は最後に戻す
 
 完了時には以下を確認してください:

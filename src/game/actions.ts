@@ -418,7 +418,7 @@ function overheatAttackerIfNeeded(
   if (attacker.sandboxShield > 0) {
     attacker.sandboxShield -= 1;
     attacker.spentFieldIndexes.add(fieldIndex);
-    addLog(draft, `${attacker.name}は守護結界で${attackCard.name}の攻撃後退場を防いだ。`);
+    addLog(draft, `${attacker.name}は蒼殻バリアで${attackCard.name}の攻撃後退場を防いだ。`);
     return;
   }
   if (returnsAfterOverheat(attackCard)) {
