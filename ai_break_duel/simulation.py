@@ -8,7 +8,7 @@ from statistics import mean, median
 from typing import Any
 
 from .cards import DeckArchetype
-from .ai import choose_action
+from .ai import can_use_charge, choose_action
 from .engine import (
     apply_action,
     end_turn,
@@ -17,7 +17,7 @@ from .engine import (
     result_summary,
     start_turn,
 )
-from .models import GameConfig
+from .models import ActionType, GameConfig
 
 
 @dataclass(frozen=True)
@@ -34,9 +34,11 @@ def run_match(
     state = new_game(seed, config, decks)
     while state.winner is None and not state.draw:
         start_turn(state)
-        while state.actions_remaining > 0 and state.winner is None and not state.draw:
+        while (state.actions_remaining > 0 or can_use_charge(state)) and state.winner is None and not state.draw:
             action = choose_action(state)
             apply_action(state, action)
+            if action.type == ActionType.END_TURN:
+                break
         if state.winner is None and not state.draw:
             end_turn(state)
             finish_if_turn_limit_reached(state)

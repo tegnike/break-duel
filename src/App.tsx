@@ -126,10 +126,9 @@ function routeForPage(page: AppPage): string {
   return PAGE_PATHS[page];
 }
 
-function actionTokenClass(index: number, actionsRemaining: number, chargedActionsRemaining: number): string {
+function actionTokenClass(index: number, actionsRemaining: number): string {
   const active = index < actionsRemaining;
-  const charged = active && index >= actionsRemaining - chargedActionsRemaining;
-  return `action-token ${active ? "" : "spent"} ${charged ? "charged" : ""}`;
+  return `action-token ${active ? "" : "spent"}`;
 }
 
 function trashSurgeForEvent(event: DuelEventPayload | DuelEvent | null): TrashSurge | null {
@@ -535,7 +534,7 @@ export default function App() {
   useEffect(() => {
     if (page !== "duel") return undefined;
     if (game.winner !== null || game.draw || game.pendingAttack || game.pendingTarget) return undefined;
-    if (active.isHuman || game.actionsRemaining <= 0) return undefined;
+    if (active.isHuman || (game.actionsRemaining <= 0 && !canUseCharge(game, active))) return undefined;
     if (aiAnimating) return undefined;
     if (duelEvent || duelEventPlaying.current || duelEventQueue.current.length > 0 || duelEventScheduler.current !== null) return undefined;
     const timer = window.setTimeout(() => {
@@ -1160,10 +1159,12 @@ export default function App() {
     || !canChargeCard(selectedHandCard)
     || !canUseCharge(game, human);
   const opponentActionsRemaining = game.active === 1 ? game.actionsRemaining : 0;
-  const opponentChargedActionsRemaining = game.active === 1 ? game.chargedActionsRemaining : 0;
+  const opponentAttackLockedByCharge = game.active === 1 && ai.chargeUsed;
+  const humanAttackLockedByCharge = game.active === 0 && human.chargeUsed;
   const endTurnEnabled = canHumanEndTurn(game);
   const showNoActionsEndTurnPrompt = endTurnEnabled
     && game.actionsRemaining <= 0
+    && !canUseCharge(game, human)
     && !rulesOpen
     && !starterDeckModalOpen
     && game.discardViewerOwner === null
@@ -1248,14 +1249,15 @@ export default function App() {
           <button type="button" className={audioEnabled ? "audio-on" : ""} onClick={toggleAudio}>{audioEnabled ? "音ON" : "音OFF"}</button>
         </div>
         <div className="stitch-counts">
-          <div className="action-meter compact-action-meter" aria-label={`相手アクション ${opponentActionsRemaining}`}>
+          <div className="action-meter compact-action-meter" aria-label={`相手アクション ${opponentActionsRemaining}${opponentAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
             <span className="meter-label">相手アクション</span>
             <span className="meter-value">{opponentActionsRemaining}</span>
             <span className="action-tokens" aria-hidden="true">
               {Array.from({ length: 3 }).map((_, index) => (
-                <span key={index} className={actionTokenClass(index, opponentActionsRemaining, opponentChargedActionsRemaining)} />
+                <span key={index} className={actionTokenClass(index, opponentActionsRemaining)} />
               ))}
             </span>
+            {opponentAttackLockedByCharge && <span className="charge-lock-badge">チャージ済み・攻撃不可</span>}
           </div>
           <span className="ai-hand-source" data-owner={1} data-zone="hand-source" data-index={0}>手札 {ai.hand.length}</span>
           <span>山札 {ai.deck.length}</span>
@@ -1317,14 +1319,15 @@ export default function App() {
               <button type="button" onClick={openStarterDeckModal}>再戦</button>
             </div>
           )}
-          <div className="action-meter" aria-label={`残りアクション ${game.actionsRemaining}`}>
+          <div className="action-meter" aria-label={`残りアクション ${game.actionsRemaining}${humanAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
             <span className="meter-label">残りアクション</span>
             <span className="meter-value">{game.actionsRemaining}</span>
             <span className="action-tokens" aria-hidden="true">
               {Array.from({ length: 3 }).map((_, index) => (
-                <span key={index} className={actionTokenClass(index, game.actionsRemaining, game.chargedActionsRemaining)} />
+                <span key={index} className={actionTokenClass(index, game.actionsRemaining)} />
               ))}
             </span>
+            {humanAttackLockedByCharge && <span className="charge-lock-badge">チャージ済み・攻撃不可</span>}
           </div>
           <div className="action-strip">
             <button type="button" className={!playDisabled ? "action-ready" : ""} disabled={playDisabled} onClick={playSelected}><span>⇧</span>{playButtonLabel}</button>

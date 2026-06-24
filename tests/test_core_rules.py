@@ -163,6 +163,23 @@ class CoreRuleTests(unittest.TestCase):
         start_turn(state)
         self.assertEqual(choose_action(state).type, ActionType.END_TURN)
 
+    def test_ai_can_choose_charge_at_zero_actions(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [card("AI-FIRE-1"), card("AI-WATER-1")]
+        start_turn(state)
+        state.actions_remaining = 0
+        action = choose_action(state)
+        self.assertEqual(action.type, ActionType.CHARGE)
+        self.assertEqual(action.source_index, 0)
+
+    def test_ai_ends_at_zero_actions_when_charge_is_not_useful(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [command("CMD-OPTIMIZE")]
+        state.players[0].deck = []
+        start_turn(state)
+        state.actions_remaining = 0
+        self.assertEqual(choose_action(state).type, ActionType.END_TURN)
+
     def test_players_use_different_decks_by_default(self) -> None:
         player_1_deck = [item.id for item in build_player_deck(0)]
         player_2_deck = [item.id for item in build_player_deck(1)]
@@ -719,6 +736,16 @@ class CoreRuleTests(unittest.TestCase):
         apply_action(state, Action(ActionType.CHARGE, 0))
         self.assertEqual(state.actions_remaining, 2)
         self.assertEqual(state.charged_actions_remaining, 1)
+
+    def test_charge_can_be_used_at_zero_actions(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-FIRE-1")]
+        start_turn(state)
+        state.actions_remaining = 0
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual(state.actions_remaining, 1)
+        self.assertEqual(state.charged_actions_remaining, 1)
+        self.assertTrue(state.players[0].pending_effects["charge_used"])
 
     def test_power_3_or_higher_summons_cannot_be_charged(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))

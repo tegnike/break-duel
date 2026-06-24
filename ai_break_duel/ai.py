@@ -21,6 +21,8 @@ def choose_action(state: GameState) -> Action:
     charge_index = _best_charge_fuel(state)
     if charge_index is not None:
         return Action(ActionType.CHARGE, charge_index)
+    if state.actions_remaining <= 0:
+        return Action(ActionType.END_TURN)
 
     if not player.field_ai:
         index = _best_ai_in_hand(player, state)
@@ -362,7 +364,7 @@ def _can_use_accelerator_memory(state: GameState) -> bool:
     )
 
 
-def _can_use_charge(state: GameState) -> bool:
+def can_use_charge(state: GameState) -> bool:
     player = state.active()
     return (
         not player.pending_effects.get("charge_used")
@@ -372,7 +374,7 @@ def _can_use_charge(state: GameState) -> bool:
 
 
 def _best_charge_fuel(state: GameState) -> int | None:
-    if not _can_use_charge(state):
+    if not can_use_charge(state):
         return None
     if _can_active_player_attack(state) and _attackable_field_ai(state.active()):
         return None

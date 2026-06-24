@@ -764,7 +764,8 @@ export function useAction(game: GameState, cost = 1, kind: "normal" | "attack" =
     game.chargedActionsRemaining = Math.max(0, game.chargedActionsRemaining - Math.min(cost, game.chargedActionsRemaining));
   }
   game.actionsRemaining -= cost;
-  if (game.actionsRemaining <= 0 && !activePlayer(game).isHuman && !game.pendingAttack && game.winner === null && !game.draw) {
+  const player = activePlayer(game);
+  if (game.actionsRemaining <= 0 && !player.isHuman && !game.pendingAttack && game.winner === null && !game.draw && !canUseCharge(game, player)) {
     finishTurn(game, false);
   }
 }
@@ -842,7 +843,7 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "charge_pressure") return "チャージ時、相手の手札が3枚以上なら1枚トラッシュ";
   if (card.effect === "charge_draw") return "チャージ時、山札からカードを1枚引く";
   if (card.effect === "charge_ready_ally") return "チャージ時、自分の消耗召喚獣1体を回復";
-  if (card.effect === "charge_guard") return "チャージ時、次の自分ターンまで場防御値 +1";
+  if (card.effect === "charge_guard") return "自分がこのカードをチャージした後、次の自分ターンまで場防御値 +1";
   return "効果なし";
 }
 
@@ -1299,6 +1300,7 @@ export function chooseAiAction(game: GameState): AiAction {
   const human = opponentPlayer(game);
   const chargeIndex = bestChargeFuel(game, ai);
   if (chargeIndex !== null) return { type: "charge", index: chargeIndex };
+  if (game.actionsRemaining <= 0) return { type: "end" };
   if (ai.field.length === 0) {
     const index = bestHandAi(game, ai);
     if (index !== null) return { type: "play", index };

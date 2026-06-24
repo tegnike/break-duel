@@ -4155,6 +4155,7 @@ h1 {
 .action-meter {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   min-height: 30px;
   color: #d9f8fb;
@@ -4199,12 +4200,6 @@ h1 {
   box-shadow: none;
 }
 
-.action-token.charged {
-  border-color: rgba(245, 158, 11, 0.95);
-  background: #f59e0b;
-  box-shadow: 0 0 14px rgba(245, 158, 11, 0.5);
-}
-
 .compact-action-meter {
   gap: 7px;
   min-height: 26px;
@@ -4228,6 +4223,26 @@ h1 {
 .compact-action-meter .action-token {
   width: 10px;
   height: 10px;
+}
+
+.charge-lock-badge {
+  flex: 0 1 auto;
+  min-width: 0;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.compact-action-meter .charge-lock-badge {
+  padding: 2px 6px;
+  font-size: 9px;
 }
 
 .action-strip {
@@ -5685,10 +5700,6 @@ h1 {
   border-color: #465564;
   background: transparent;
   box-shadow: none;
-}
-
-.stitch-command-dock .action-token.charged {
-  background: #f59e0b;
 }
 
 .stitch-command-dock .action-strip {

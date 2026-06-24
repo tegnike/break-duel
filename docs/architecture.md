@@ -99,7 +99,7 @@ React 側は外部状態管理ライブラリを使っていません。`App.tsx
 - `active`: 現在のターンプレイヤー
 - `turn`: 手番数
 - `actionsRemaining`: 残りアクション
-- `chargedActionsRemaining`: チャージで増えた未消費アクション数。UI では通常アクションと別色で表示する
+- `chargedActionsRemaining`: チャージで増えた未消費アクション数。非攻撃行動で優先消費し、攻撃可能判定に使う
 - `PlayerState.chargeUsed`: このターンにチャージ済みか。チャージ済みのターンは攻撃できない
 - `selected`: メイン画面の手札/場カード選択
 - `pendingAttack`: 防御待ちの攻撃
