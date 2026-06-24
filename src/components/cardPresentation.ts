@@ -40,11 +40,15 @@ import aiWind3bArt from "../assets/card-art/ai-wind-3b.webp";
 import aiWind4Art from "../assets/card-art/ai-wind-4.webp";
 import aiWind4bArt from "../assets/card-art/ai-wind-4b.webp";
 import cmdDisruptArt from "../assets/card-art/cmd-disrupt.webp";
+import cmdEarthRiteArt from "../assets/card-art/cmd-earth-rite.webp";
+import cmdFireRiteArt from "../assets/card-art/cmd-fire-rite.webp";
 import cmdOptimizeArt from "../assets/card-art/cmd-optimize.webp";
 import cmdPatchArt from "../assets/card-art/cmd-patch.webp";
 import cmdRelearnArt from "../assets/card-art/cmd-relearn.webp";
 import cmdSandboxArt from "../assets/card-art/cmd-sandbox.webp";
 import cmdTrinityArt from "../assets/card-art/cmd-trinity.webp";
+import cmdWaterRiteArt from "../assets/card-art/cmd-water-rite.webp";
+import cmdWindRiteArt from "../assets/card-art/cmd-wind-rite.webp";
 import memAcceleratorArt from "../assets/card-art/mem-accelerator.webp";
 import memCacheArt from "../assets/card-art/mem-cache.webp";
 import memFirewallArt from "../assets/card-art/mem-firewall.webp";
@@ -105,6 +109,10 @@ const SUPPORT_CARD_ART: Record<string, string> = {
   "CMD-RELEARN": cmdRelearnArt,
   "CMD-SANDBOX": cmdSandboxArt,
   "CMD-TRINITY": cmdTrinityArt,
+  "CMD-FIRE-RITE": cmdFireRiteArt,
+  "CMD-WATER-RITE": cmdWaterRiteArt,
+  "CMD-WIND-RITE": cmdWindRiteArt,
+  "CMD-EARTH-RITE": cmdEarthRiteArt,
   "MEM-ACCELERATOR": memAcceleratorArt,
   "MEM-FIREWALL": memFirewallArt,
   "MEM-CACHE": memCacheArt,
@@ -138,6 +146,10 @@ export function cardArtGlyph(card: Card): string {
     if (card.effect === "relearn") return "巻";
     if (card.effect === "sandbox") return "結";
     if (card.effect === "trinity") return "崩";
+    if (card.effect === "fire_rite") return "火";
+    if (card.effect === "water_rite") return "水";
+    if (card.effect === "wind_rite") return "風";
+    if (card.effect === "earth_rite") return "土";
     return "術";
   }
   if (card.type === "memory") {
@@ -161,6 +173,10 @@ export function cardArtAsset(card: Card): string {
     if (card.effect === "relearn") return cardsReturnIcon;
     if (card.effect === "sandbox") return hexagonSwitchIcon;
     if (card.effect === "trinity") return characterRemoveIcon;
+    if (card.effect === "fire_rite") return cardTargetIcon;
+    if (card.effect === "water_rite") return cardsTakeIcon;
+    if (card.effect === "wind_rite") return timerIcon;
+    if (card.effect === "earth_rite") return cardsReturnIcon;
     return cardIcon;
   }
   if (card.type === "memory") {
@@ -201,6 +217,10 @@ export function roleText(card: Card): string {
   if (card.effect === "relearn") return "1アクション。トラッシュの召喚獣1枚を回収";
   if (card.effect === "sandbox") return "1アクション。このターン、次のpower 4攻撃後退場を1回防ぐ";
   if (card.effect === "trinity") return "1アクション。場が3枚なら全てトラッシュし、相手ライフ-1";
+  if (card.effect === "fire_rite") return "1アクション。場に火の召喚獣がいる時、相手の手札1枚をトラッシュ。なければ相手ライフ-1";
+  if (card.effect === "water_rite") return "1アクション。場に水の召喚獣がいる時、山札からカードを2枚引き、手札1枚を捨てる";
+  if (card.effect === "wind_rite") return "1アクション。場に風の召喚獣がいる時、相手1体を消耗し、自分の風1体を回復";
+  if (card.effect === "earth_rite") return "1アクション。場に土の召喚獣がいる時、トラッシュの召喚獣1枚を回収";
   if (card.effect === "firewall") return "他属性防御時、手札を1枚捨てるなら power +1";
   if (card.effect === "cache") return "ターン開始時、手札2枚以下なら山札からカードを1枚引く";
   if (card.effect === "pipeline") return "1ターンに1回、power 1登場時、山札からカードを1枚引く";

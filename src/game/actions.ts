@@ -18,6 +18,7 @@ import {
   checkWinner,
   chooseAiDefense,
   cardNameList,
+  commandUsable,
   defenseCombatValue,
   discardFirewallFuel,
   discardLowPriorityCards,
@@ -33,6 +34,8 @@ import {
   highestPowerAiInDiscard,
   highestPowerReadyAi,
   highestPowerSpentAi,
+  highestPowerSpentAiByAttribute,
+  hasAttributeAi,
   legalHandDefenders,
   lowestPriorityHand,
   keepsReadyAfterAttack,
@@ -264,6 +267,7 @@ export function useCommandAtInDraft(
   const opponent = opponentPlayer(draft);
   const command = player.hand[sourceIndex];
   if (!command || command.type !== "event") return;
+  if (!commandUsable(draft, command, player, opponent)) return;
   const relearnTarget = command.effect === "relearn" ? targetIndex ?? highestPowerAiInDiscard(player) : null;
   const selectedDiscardCards = discardIndexes.length > 0
     ? discardHandCards(draft, draft.active, discardIndexes)
@@ -312,6 +316,41 @@ export function useCommandAtInDraft(
     player.discard.push(...trashed);
     opponent.life -= 1;
     text += ` ${cardNameList(trashed)}をすべてトラッシュし、${opponent.name}のライフを1減らした。`;
+  } else if (used.effect === "fire_rite") {
+    if (!hasAttributeAi(player, "火")) return;
+    const discarded = discardLowPriorityCards(opponent, 1);
+    if (discarded.length > 0) {
+      text += ` ${opponent.name}の手札を1枚トラッシュ。`;
+    } else {
+      opponent.life -= 1;
+      text += ` ${opponent.name}の手札がないため、ライフを1減らした。`;
+    }
+  } else if (used.effect === "water_rite") {
+    if (!hasAttributeAi(player, "水")) return;
+    const drawnCards = drawCards(player, 2);
+    const discarded = discardLowPriorityCards(player, 1);
+    text += ` ${visibleDrawText(player, drawnCards)}。`;
+    if (discarded.length > 0) text += ` ${cardNameList(discarded)}を捨てた。`;
+  } else if (used.effect === "wind_rite") {
+    if (!hasAttributeAi(player, "風")) return;
+    const disruptedIndex = highestPowerReadyAi(opponent);
+    const readiedIndex = highestPowerSpentAiByAttribute(player, "風");
+    if (disruptedIndex !== null) {
+      opponent.spentFieldIndexes.add(disruptedIndex);
+      text += ` ${opponent.name}の${opponent.field[disruptedIndex].name}を消耗。`;
+    }
+    if (readiedIndex !== null) {
+      player.spentFieldIndexes.delete(readiedIndex);
+      text += ` ${player.field[readiedIndex].name}を回復。`;
+    }
+  } else if (used.effect === "earth_rite") {
+    if (!hasAttributeAi(player, "土")) return;
+    const recoverIndex = highestPowerAiInDiscard(player);
+    if (recoverIndex !== null) {
+      const recovered = player.discard.splice(recoverIndex, 1)[0];
+      player.hand.push(recovered);
+      text += ` ${recovered.name}をトラッシュから回収。`;
+    }
   }
   addLog(draft, text);
   effects.showDuelEvent?.({

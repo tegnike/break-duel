@@ -27,7 +27,17 @@ export type AiEffect =
   | "return_after_overheat_cannot_hand_defend"
   | "draw_on_successful_defense"
   | "draw_on_successful_defense_enters_spent";
-export type CommandEffect = "optimize" | "patch" | "disrupt" | "relearn" | "sandbox" | "trinity";
+export type CommandEffect =
+  | "optimize"
+  | "patch"
+  | "disrupt"
+  | "relearn"
+  | "sandbox"
+  | "trinity"
+  | "fire_rite"
+  | "water_rite"
+  | "wind_rite"
+  | "earth_rite";
 export type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator";
 export type CardEffect = AiEffect | CommandEffect | MemoryEffect | "";
 export type Zone = "hand" | "field" | "memory" | "discard";
@@ -240,7 +250,6 @@ export function cardPool(): Card[] {
     ["AI-WIND-4B", "return_after_overheat_cannot_hand_defend"],
     ["AI-EARTH-1B", "draw_on_successful_defense"],
     ["AI-EARTH-2", "defense_plus_1"],
-    ["AI-EARTH-2B", "defense_plus_1"],
     ["AI-EARTH-3B", "recover_ai_on_play"],
     ["AI-EARTH-4", "recover_ai_on_play"],
     ["AI-EARTH-4B", "draw_on_successful_defense_enters_spent"],
@@ -268,6 +277,10 @@ export function cardPool(): Card[] {
     { id: "CMD-RELEARN", name: "幻獣回帰の巻", type: "event", effect: "relearn" },
     { id: "CMD-SANDBOX", name: "蒼殻バリア", type: "event", effect: "sandbox" },
     { id: "CMD-TRINITY", name: "三相崩壊術", type: "event", effect: "trinity" },
+    { id: "CMD-FIRE-RITE", name: "紅蓮圧壊術", type: "event", effect: "fire_rite" },
+    { id: "CMD-WATER-RITE", name: "清流再編術", type: "event", effect: "water_rite" },
+    { id: "CMD-WIND-RITE", name: "旋風転身術", type: "event", effect: "wind_rite" },
+    { id: "CMD-EARTH-RITE", name: "岩壁継承術", type: "event", effect: "earth_rite" },
     { id: "MEM-FIREWALL", name: "竜盾の紋章", type: "memory", effect: "firewall" },
     { id: "MEM-CACHE", name: "灯火の旅嚢", type: "memory", effect: "cache" },
     { id: "MEM-PIPELINE", name: "星泉の導脈", type: "memory", effect: "pipeline" },
@@ -348,12 +361,12 @@ export const DECKS = {
       "AI-FIRE-3B",
       "CMD-DISRUPT",
       "CMD-TRINITY",
-      "CMD-SANDBOX",
       "CMD-PATCH",
+      "CMD-FIRE-RITE",
+      "CMD-FIRE-RITE",
       "CMD-OPTIMIZE",
       "CMD-OPTIMIZE",
       "MEM-CACHE",
-      "MEM-ACCELERATOR",
     ],
   },
   water: {
@@ -377,8 +390,8 @@ export const DECKS = {
       "CMD-OPTIMIZE",
       "CMD-OPTIMIZE",
       "CMD-RELEARN",
-      "CMD-PATCH",
-      "CMD-DISRUPT",
+      "CMD-WATER-RITE",
+      "CMD-WATER-RITE",
       "MEM-CACHE",
     ],
   },
@@ -404,8 +417,8 @@ export const DECKS = {
       "AI-WIND-4B",
       "CMD-DISRUPT",
       "CMD-PATCH",
-      "CMD-SANDBOX",
-      "CMD-RELEARN",
+      "CMD-WIND-RITE",
+      "CMD-WIND-RITE",
     ],
   },
   earth: {
@@ -427,8 +440,8 @@ export const DECKS = {
       "AI-EARTH-4",
       "CMD-SANDBOX",
       "CMD-PATCH",
-      "CMD-OPTIMIZE",
-      "CMD-DISRUPT",
+      "CMD-EARTH-RITE",
+      "CMD-EARTH-RITE",
       "MEM-FIREWALL",
       "MEM-PIPELINE",
       "MEM-CACHE",
@@ -880,7 +893,10 @@ export function cannotHandDefend(card: Card): boolean {
 
 export function defensePowerBonus(card: Card, defender: PlayerState | null = null, attackCard: Card | null = null, options: { firewallPaid?: boolean; fieldDefense?: boolean } = {}): number {
   const fieldDefense = options.fieldDefense ?? true;
-  let bonus = fieldDefense && (card.effect === "defense_plus_1" || card.effect === "defense_plus_1_enters_spent") ? CONFIG.power2DefenseBonus : 0;
+  let bonus = fieldDefense && (
+    card.effect === "defense_plus_1"
+    || card.effect === "defense_plus_1_enters_spent"
+  ) ? CONFIG.power2DefenseBonus : 0;
   if (
     defender?.memory?.effect === "firewall"
     && options.firewallPaid
@@ -993,6 +1009,15 @@ export function highestPowerSpentAi(player: PlayerState): number | null {
   return options[0].index;
 }
 
+export function highestPowerSpentAiByAttribute(player: PlayerState, attribute: Attribute): number | null {
+  const options = [...player.spentFieldIndexes]
+    .filter((index) => player.field[index]?.attribute === attribute)
+    .map((index) => ({ card: player.field[index], index }));
+  if (options.length === 0) return null;
+  options.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
+  return options[0].index;
+}
+
 export function highestPowerReadyAi(player: PlayerState): number | null {
   const options = player.field
     .map((card, index) => ({ card, index }))
@@ -1000,6 +1025,10 @@ export function highestPowerReadyAi(player: PlayerState): number | null {
   if (options.length === 0) return null;
   options.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
   return options[0].index;
+}
+
+export function hasAttributeAi(player: PlayerState, attribute: Attribute): boolean {
+  return player.field.some((card) => card.attribute === attribute);
 }
 
 export function highestPowerAiInDiscard(player: PlayerState, excludedCard?: Card): number | null {
@@ -1040,6 +1069,17 @@ export function commandUsable(game: GameState, command: Card | null | undefined,
   if (command.effect === "relearn") return highestPowerAiInDiscard(player) !== null;
   if (command.effect === "sandbox") return sandboxCommandReady(game, player);
   if (command.effect === "trinity") return player.field.length >= CONFIG.fieldLimit;
+  if (command.effect === "fire_rite") return hasAttributeAi(player, "火");
+  if (command.effect === "water_rite") return hasAttributeAi(player, "水") && player.deck.length > 0;
+  if (command.effect === "wind_rite") {
+    return hasAttributeAi(player, "風") && (
+      highestPowerReadyAi(opponent) !== null
+      || highestPowerSpentAiByAttribute(player, "風") !== null
+    );
+  }
+  if (command.effect === "earth_rite") {
+    return hasAttributeAi(player, "土") && highestPowerAiInDiscard(player) !== null;
+  }
   return false;
 }
 
@@ -1138,6 +1178,10 @@ export function bestCommand(game: GameState, player: PlayerState, opponent: Play
   if (options.length === 0) return null;
   const priority: Record<string, number> = {
     trinity: 5,
+    fire_rite: 4,
+    water_rite: 4,
+    wind_rite: 4,
+    earth_rite: 4,
     disrupt: 4,
     patch: 3,
     relearn: 2,

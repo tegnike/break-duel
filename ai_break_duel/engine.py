@@ -5,6 +5,7 @@ from typing import Any
 
 from .ai import choose_defender, choose_hand_defender
 from .cards import (
+    Attribute,
     CardType,
     CommandEffect,
     DeckArchetype,
@@ -664,6 +665,72 @@ def _use_command(state: GameState, action: Action) -> None:
             "life": [player.life for player in state.players],
             "field": _field_state(state),
         }
+    elif command.effect == CommandEffect.FIRE_RITE.value:
+        if not _has_attribute_ai(player, Attribute.FIRE):
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Fire rite requires a fire summon in field.")
+        player.discard.append(command)
+        discarded = _discard_low_priority_cards(opponent, 1)
+        result |= {
+            "fire_rite_discarded_card": discarded[0].id if discarded else None,
+            "damage": 0,
+        }
+        if not discarded:
+            _deal_damage(opponent)
+            result |= {
+                "damage": 1,
+                "life": [player.life for player in state.players],
+            }
+    elif command.effect == CommandEffect.WATER_RITE.value:
+        if not _has_attribute_ai(player, Attribute.WATER):
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Water rite requires a water summon in field.")
+        if not player.deck:
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Water rite requires a deck card to draw.")
+        player.discard.append(command)
+        drawn = player.draw(2, state.rng)
+        discarded = _discard_low_priority_cards(player, 1)
+        result |= {
+            "draw_count": drawn,
+            "water_rite_discarded_card": discarded[0].id if discarded else None,
+        }
+    elif command.effect == CommandEffect.WIND_RITE.value:
+        if not _has_attribute_ai(player, Attribute.WIND):
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Wind rite requires a wind summon in field.")
+        disrupted_index = _highest_power_ready_ai(opponent)
+        readied_index = _highest_power_spent_ai_by_attribute(player, Attribute.WIND)
+        if disrupted_index is None and readied_index is None:
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Wind rite requires a ready enemy or spent wind summon.")
+        player.discard.append(command)
+        disrupted_ai = None
+        readied_ai = None
+        if disrupted_index is not None:
+            opponent.spent_field_ai.add(disrupted_index)
+            disrupted_ai = opponent.field_ai[disrupted_index].id
+        if readied_index is not None:
+            player.spent_field_ai.remove(readied_index)
+            readied_ai = player.field_ai[readied_index].id
+        result |= {
+            "disrupted_ai": disrupted_ai,
+            "readied_ai": readied_ai,
+        }
+    elif command.effect == CommandEffect.EARTH_RITE.value:
+        if not _has_attribute_ai(player, Attribute.EARTH):
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Earth rite requires an earth summon in field.")
+        target_index = _highest_power_ai_in_discard(player)
+        if target_index is None:
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Earth rite requires a summon in discard.")
+        recovered = player.discard.pop(target_index)
+        player.hand.append(recovered)
+        player.discard.append(command)
+        result |= {
+            "recovered_ai": recovered.id,
+        }
     else:
         player.hand.insert(action.source_index, command)
         raise ValueError(f"Unsupported command effect: {command.effect}")
@@ -913,6 +980,20 @@ def command_is_usable(state: GameState, source_index: int) -> bool:
         )
     if command.effect == CommandEffect.TRINITY.value:
         return len(player.field_ai) >= state.config.field_ai_limit
+    if command.effect == CommandEffect.FIRE_RITE.value:
+        return _has_attribute_ai(player, Attribute.FIRE)
+    if command.effect == CommandEffect.WATER_RITE.value:
+        return _has_attribute_ai(player, Attribute.WATER) and bool(player.deck)
+    if command.effect == CommandEffect.WIND_RITE.value:
+        return _has_attribute_ai(player, Attribute.WIND) and (
+            _highest_power_ready_ai(state.opponent()) is not None
+            or _highest_power_spent_ai_by_attribute(player, Attribute.WIND) is not None
+        )
+    if command.effect == CommandEffect.EARTH_RITE.value:
+        return (
+            _has_attribute_ai(player, Attribute.EARTH)
+            and _highest_power_ai_in_discard(player) is not None
+        )
     return False
 
 
@@ -934,6 +1015,21 @@ def _highest_power_spent_ai(player: PlayerState) -> int | None:
     return max(candidates, key=lambda item: (item[1].power or 0, item[1].id))[0]
 
 
+def _highest_power_spent_ai_by_attribute(
+    player: PlayerState,
+    attribute: Attribute,
+) -> int | None:
+    candidates = [
+        (index, player.field_ai[index])
+        for index in player.spent_field_ai
+        if 0 <= index < len(player.field_ai)
+        and player.field_ai[index].attribute == attribute
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: (item[1].power or 0, item[1].id))[0]
+
+
 def _highest_power_ready_ai(player: PlayerState) -> int | None:
     candidates = [
         (index, card)
@@ -943,6 +1039,10 @@ def _highest_power_ready_ai(player: PlayerState) -> int | None:
     if not candidates:
         return None
     return max(candidates, key=lambda item: (item[1].power or 0, item[1].id))[0]
+
+
+def _has_attribute_ai(player: PlayerState, attribute: Attribute) -> bool:
+    return any(card.attribute == attribute for card in player.field_ai)
 
 
 def _ready_power_4_ai(player: PlayerState) -> int | None:

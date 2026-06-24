@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .cards import (
+    Attribute,
     CardType,
     CommandEffect,
     MemoryEffect,
@@ -266,6 +267,10 @@ def _best_command_in_hand(state: GameState) -> int | None:
         return None
     priority = {
         CommandEffect.TRINITY.value: 5,
+        CommandEffect.FIRE_RITE.value: 4,
+        CommandEffect.WATER_RITE.value: 4,
+        CommandEffect.WIND_RITE.value: 4,
+        CommandEffect.EARTH_RITE.value: 4,
         CommandEffect.DISRUPT.value: 4,
         CommandEffect.PATCH.value: 3,
         CommandEffect.RELEARN.value: 2,
@@ -291,6 +296,19 @@ def _command_is_usable(state: GameState, source_index: int) -> bool:
         return _sandbox_command_ready(state)
     if card.effect == CommandEffect.TRINITY.value:
         return len(player.field_ai) >= state.config.field_ai_limit
+    if card.effect == CommandEffect.FIRE_RITE.value:
+        return _has_attribute_ai(player, Attribute.FIRE)
+    if card.effect == CommandEffect.WATER_RITE.value:
+        return _has_attribute_ai(player, Attribute.WATER) and bool(player.deck)
+    if card.effect == CommandEffect.WIND_RITE.value:
+        return _has_attribute_ai(player, Attribute.WIND) and (
+            any(index not in opponent.spent_field_ai for index, _ in enumerate(opponent.field_ai))
+            or _has_spent_attribute_ai(player, Attribute.WIND)
+        )
+    if card.effect == CommandEffect.EARTH_RITE.value:
+        return _has_attribute_ai(player, Attribute.EARTH) and any(
+            item.type == CardType.AI for item in player.discard
+        )
     return False
 
 
@@ -312,6 +330,18 @@ def _sandbox_command_ready(state: GameState) -> bool:
     return any(
         card.power == 4 and index not in player.spent_field_ai
         for index, card in enumerate(player.field_ai)
+    )
+
+
+def _has_attribute_ai(player: PlayerState, attribute: Attribute) -> bool:
+    return any(card.attribute == attribute for card in player.field_ai)
+
+
+def _has_spent_attribute_ai(player: PlayerState, attribute: Attribute) -> bool:
+    return any(
+        0 <= index < len(player.field_ai)
+        and player.field_ai[index].attribute == attribute
+        for index in player.spent_field_ai
     )
 
 

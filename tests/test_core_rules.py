@@ -425,6 +425,16 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[1].discard[0].id, "AI-EARTH-2")
         self.assertEqual(state.stats.successful_defenses, 1)
 
+    def test_earth_2b_has_no_effect(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[1].field_ai = [card("AI-EARTH-2B")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-EARTH-2B"])
+        self.assertEqual(state.stats.undefended_attacks, 1)
+
     def test_defense_plus_1_ai_does_not_get_hand_defense_bonus(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].field_ai = [card("AI-WATER-3")]
@@ -567,6 +577,67 @@ class CoreRuleTests(unittest.TestCase):
         apply_action(state, Action(ActionType.USE_COMMAND, 0, 1))
         self.assertNotIn(0, state.players[1].spent_field_ai)
         self.assertIn(1, state.players[1].spent_field_ai)
+
+    def test_fire_rite_requires_fire_and_pressures_opponent_hand(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [command("CMD-FIRE-RITE")]
+        state.players[0].field_ai = [card("AI-FIRE-1")]
+        state.players[1].hand = [card("AI-WATER-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.USE_COMMAND, 0))
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-WATER-1"])
+        self.assertEqual(state.players[1].life, 5)
+        self.assertEqual(state.players[0].discard[0].id, "CMD-FIRE-RITE")
+
+    def test_fire_rite_deals_damage_when_opponent_hand_is_empty(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [command("CMD-FIRE-RITE")]
+        state.players[0].field_ai = [card("AI-FIRE-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.USE_COMMAND, 0))
+        self.assertEqual(state.players[1].life, 4)
+
+    def test_water_rite_draws_two_then_discards_one(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [command("CMD-WATER-RITE"), card("AI-FIRE-1")]
+        state.players[0].field_ai = [card("AI-WATER-1")]
+        state.players[0].deck = [card("AI-WIND-1"), card("AI-EARTH-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.USE_COMMAND, 0))
+        self.assertEqual([item.id for item in state.players[0].discard], [
+            "CMD-WATER-RITE",
+            "AI-EARTH-1",
+        ])
+        self.assertEqual([item.id for item in state.players[0].hand], [
+            "AI-FIRE-1",
+            "AI-WIND-1",
+        ])
+
+    def test_wind_rite_disrupts_enemy_and_readies_wind(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [command("CMD-WIND-RITE")]
+        state.players[0].field_ai = [card("AI-WIND-1"), card("AI-FIRE-4")]
+        state.players[0].spent_field_ai = {0, 1}
+        state.players[1].field_ai = [card("AI-WATER-2")]
+        start_turn(state)
+        state.players[0].spent_field_ai = {0, 1}
+        apply_action(state, Action(ActionType.USE_COMMAND, 0))
+        self.assertNotIn(0, state.players[0].spent_field_ai)
+        self.assertIn(1, state.players[0].spent_field_ai)
+        self.assertIn(0, state.players[1].spent_field_ai)
+
+    def test_earth_rite_recovers_ai_without_readying_earth(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [command("CMD-EARTH-RITE")]
+        state.players[0].field_ai = [card("AI-EARTH-2")]
+        state.players[0].spent_field_ai = {0}
+        state.players[0].discard = [card("AI-FIRE-1"), card("AI-WATER-4")]
+        start_turn(state)
+        state.players[0].spent_field_ai = {0}
+        apply_action(state, Action(ActionType.USE_COMMAND, 0))
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-WATER-4"])
+        self.assertIn(0, state.players[0].spent_field_ai)
+        self.assertEqual(state.players[0].discard[-1].id, "CMD-EARTH-RITE")
 
     def test_memory_card_enters_memory_slot_and_replaces_existing_memory(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))

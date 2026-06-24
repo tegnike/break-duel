@@ -18,6 +18,10 @@ class CommandEffect(str, Enum):
     RELEARN = "relearn"
     SANDBOX = "sandbox"
     TRINITY = "trinity"
+    FIRE_RITE = "fire_rite"
+    WATER_RITE = "water_rite"
+    WIND_RITE = "wind_rite"
+    EARTH_RITE = "earth_rite"
 
 
 class MemoryEffect(str, Enum):
@@ -347,7 +351,6 @@ def build_ai_card_pool() -> list[Card]:
         "AI-WIND-4B": AiEffect.RETURN_AFTER_OVERHEAT_CANNOT_HAND_DEFEND.value,
         "AI-EARTH-1B": AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE.value,
         "AI-EARTH-2": AiEffect.DEFENSE_PLUS_1.value,
-        "AI-EARTH-2B": AiEffect.DEFENSE_PLUS_1.value,
         "AI-EARTH-3B": AiEffect.RECOVER_AI_ON_PLAY.value,
         "AI-EARTH-4": AiEffect.RECOVER_AI_ON_PLAY.value,
         "AI-EARTH-4B": AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE_ENTERS_SPENT.value,
@@ -407,6 +410,30 @@ def build_command_card_pool() -> list[Card]:
             name="三相崩壊術",
             type=CardType.EVENT,
             effect=CommandEffect.TRINITY.value,
+        ),
+        Card(
+            id="CMD-FIRE-RITE",
+            name="紅蓮圧壊術",
+            type=CardType.EVENT,
+            effect=CommandEffect.FIRE_RITE.value,
+        ),
+        Card(
+            id="CMD-WATER-RITE",
+            name="清流再編術",
+            type=CardType.EVENT,
+            effect=CommandEffect.WATER_RITE.value,
+        ),
+        Card(
+            id="CMD-WIND-RITE",
+            name="旋風転身術",
+            type=CardType.EVENT,
+            effect=CommandEffect.WIND_RITE.value,
+        ),
+        Card(
+            id="CMD-EARTH-RITE",
+            name="岩壁継承術",
+            type=CardType.EVENT,
+            effect=CommandEffect.EARTH_RITE.value,
         ),
     ]
 
@@ -526,12 +553,12 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "AI-FIRE-3B",
                 "CMD-DISRUPT",
                 "CMD-TRINITY",
-                "CMD-SANDBOX",
                 "CMD-PATCH",
+                "CMD-FIRE-RITE",
+                "CMD-FIRE-RITE",
                 "CMD-OPTIMIZE",
                 "CMD-OPTIMIZE",
                 "MEM-CACHE",
-                "MEM-ACCELERATOR",
             ]
         )
     if archetype == DeckArchetype.WATER:
@@ -554,8 +581,8 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-OPTIMIZE",
                 "CMD-OPTIMIZE",
                 "CMD-RELEARN",
-                "CMD-PATCH",
-                "CMD-DISRUPT",
+                "CMD-WATER-RITE",
+                "CMD-WATER-RITE",
                 "MEM-CACHE",
             ]
         )
@@ -580,8 +607,8 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "AI-WIND-4B",
                 "CMD-DISRUPT",
                 "CMD-PATCH",
-                "CMD-SANDBOX",
-                "CMD-RELEARN",
+                "CMD-WIND-RITE",
+                "CMD-WIND-RITE",
             ]
         )
     if archetype == DeckArchetype.EARTH:
@@ -602,8 +629,8 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "AI-EARTH-4",
                 "CMD-SANDBOX",
                 "CMD-PATCH",
-                "CMD-OPTIMIZE",
-                "CMD-DISRUPT",
+                "CMD-EARTH-RITE",
+                "CMD-EARTH-RITE",
                 "MEM-FIREWALL",
                 "MEM-PIPELINE",
                 "MEM-CACHE",
