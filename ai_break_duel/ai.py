@@ -142,6 +142,7 @@ def choose_hand_defender(
             disadvantage_penalty=disadvantage_penalty,
             same_attribute_strict=same_attribute_strict,
             defense_power_bonus=_defense_power_bonus(card, power_2_defense_bonus),
+            include_defense_effect_bonus=False,
         )
     ]
     if not successful:

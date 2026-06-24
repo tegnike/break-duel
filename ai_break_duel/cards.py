@@ -90,6 +90,7 @@ def can_defend(
     disadvantage_penalty: int = 1,
     same_attribute_strict: bool = False,
     defense_power_bonus: int = 0,
+    include_defense_effect_bonus: bool = True,
 ) -> bool:
     _ = same_attribute_strict
     return (
@@ -99,6 +100,7 @@ def can_defend(
             advantage_bonus=advantage_bonus,
             disadvantage_penalty=disadvantage_penalty,
             defense_power_bonus=defense_power_bonus,
+            include_defense_effect_bonus=include_defense_effect_bonus,
         )
         >= attack_combat_value(attack_ai)
     )
@@ -119,6 +121,7 @@ def defense_combat_value(
     advantage_bonus: int = 1,
     disadvantage_penalty: int = 1,
     defense_power_bonus: int = 0,
+    include_defense_effect_bonus: bool = True,
 ) -> int:
     if attack_ai.type != CardType.AI or defense_ai.type != CardType.AI:
         raise ValueError("Defense checks require summon cards.")
@@ -130,7 +133,7 @@ def defense_combat_value(
     return (
         defense_ai.power
         + defense_power_bonus
-        + defense_effect_bonus(defense_ai)
+        + (defense_effect_bonus(defense_ai) if include_defense_effect_bonus else 0)
         + defense_attribute_modifier(
             defense_ai.attribute,
             attack_ai.attribute,

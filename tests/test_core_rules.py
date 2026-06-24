@@ -345,6 +345,24 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[1].life, 4)
         self.assertEqual(state.players[1].discard[0].id, "AI-EARTH-2")
 
+    def test_ai_uses_field_defense_over_hand_defense_against_pierce(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(
+                first_player_first_turn_actions=2,
+                first_player_first_turn_can_attack=True,
+            ),
+        )
+        state.players[0].field_ai = [card("AI-FIRE-2B")]
+        state.players[1].field_ai = [card("AI-WIND-2")]
+        state.players[1].hand = [card("AI-EARTH-2")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 5)
+        self.assertEqual(state.log[-1]["defense_result"], "success_trade")
+        self.assertEqual(state.log[-1]["defense_ai"], "AI-WIND-2")
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-EARTH-2"])
+
     def test_low_life_finisher_blocks_hand_defense(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].field_ai = [card("AI-FIRE-4B")]
@@ -406,6 +424,16 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[1].field_ai, [])
         self.assertEqual(state.players[1].discard[0].id, "AI-EARTH-2")
         self.assertEqual(state.stats.successful_defenses, 1)
+
+    def test_defense_plus_1_ai_does_not_get_hand_defense_bonus(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-3")]
+        state.players[1].hand = [card("AI-EARTH-2")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-EARTH-2"])
+        self.assertEqual(state.stats.undefended_attacks, 1)
 
     def test_large_ai_requires_two_actions_to_play(self) -> None:
         state = new_game(1, no_opening_hands())

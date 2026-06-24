@@ -284,12 +284,13 @@ function PendingCardChoice({
 }
 
 function DefenseChoiceButton({ source, card, attackCard, defender, hand = false, onClick }: { source: string; card: Card; attackCard: Card; defender: PlayerState; hand?: boolean; onClick: () => void }) {
-  const baseDefenseValue = defenseCombatValue(attackCard, card, defender);
+  const defenseOptions = { fieldDefense: !hand };
+  const baseDefenseValue = defenseCombatValue(attackCard, card, defender, defenseOptions);
   const paidDefenseValue = canUseFirewall(defender, card, attackCard)
-    ? defenseCombatValue(attackCard, card, defender, { firewallPaid: true })
+    ? defenseCombatValue(attackCard, card, defender, { firewallPaid: true, ...defenseOptions })
     : baseDefenseValue;
   const defenseValue = baseDefenseValue >= attackCombatValue(attackCard) ? baseDefenseValue : paidDefenseValue;
-  const traitBonus = card.effect === "defense_plus_1" ? 1 : 0;
+  const traitBonus = !hand && (card.effect === "defense_plus_1" || card.effect === "defense_plus_1_enters_spent") ? 1 : 0;
   const attackValue = attackCombatValue(attackCard);
   const result = hand
     ? "防御成功 / このカードをトラッシュ"
@@ -300,14 +301,14 @@ function DefenseChoiceButton({ source, card, attackCard, defender, hand = false,
       : "防御側が残る / 攻撃側退場";
   const firewallText = !hand && paidDefenseValue > baseDefenseValue ? ` / 竜盾使用時 ${paidDefenseValue}` : "";
   return (
-    <button type="button" className="defense-choice" style={{ "--card-color": cardColor(card) } as React.CSSProperties} title={`${source}: ${card.name} / ${defenseMathText(attackCard, card, defender)}`} onClick={onClick}>
+    <button type="button" className="defense-choice" style={{ "--card-color": cardColor(card) } as React.CSSProperties} title={`${source}: ${card.name} / ${defenseMathText(attackCard, card, defender, defenseOptions)}`} onClick={onClick}>
       <div className="defense-choice-head">
         <span className="defense-source">{source}</span>
         <span className="defense-choice-name">{card.name}</span>
       </div>
       <div className="defense-choice-body">
         <span>{card.attribute} / power {card.power}</span>
-        <span>防御値 {baseDefenseValue} = {card.power} + {defensePowerBonus(card, defender, attackCard) - traitBonus} + {traitBonus}{firewallText}</span>
+        <span>防御値 {baseDefenseValue} = {card.power} + {defensePowerBonus(card, defender, attackCard, defenseOptions) - traitBonus} + {traitBonus}{firewallText}</span>
         <span className="defense-choice-result">{result}</span>
       </div>
     </button>

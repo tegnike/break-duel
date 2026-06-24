@@ -768,8 +768,8 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "no_spend_after_attack") return "攻撃しても消耗しない";
   if (card.effect === "spend_enemy_on_play") return "登場時、相手の未消耗召喚獣1体を消耗";
   if (card.effect === "spend_enemy_on_play_enters_spent") return "登場時、相手の未消耗召喚獣1体を消耗。自身も消耗で出る";
-  if (card.effect === "defense_plus_1") return "防御値 +1";
-  if (card.effect === "defense_plus_1_enters_spent") return "防御値 +1。消耗で出る";
+  if (card.effect === "defense_plus_1") return "場防御時、防御値 +1";
+  if (card.effect === "defense_plus_1_enters_spent") return "場防御時、防御値 +1。消耗で出る";
   if (card.effect === "recover_ai_on_play") return "登場時、手札1枚以下ならトラッシュの召喚獣1枚を回収";
   if (card.effect === "block_pressure") return "攻撃が防御された時、相手は手札1枚を捨てる";
   if (card.effect === "hand_defense_pierce") return "手札防御されても1ダメージ";
@@ -878,8 +878,9 @@ export function cannotHandDefend(card: Card): boolean {
   );
 }
 
-export function defensePowerBonus(card: Card, defender: PlayerState | null = null, attackCard: Card | null = null, options: { firewallPaid?: boolean } = {}): number {
-  let bonus = (card.effect === "defense_plus_1" || card.effect === "defense_plus_1_enters_spent") ? CONFIG.power2DefenseBonus : 0;
+export function defensePowerBonus(card: Card, defender: PlayerState | null = null, attackCard: Card | null = null, options: { firewallPaid?: boolean; fieldDefense?: boolean } = {}): number {
+  const fieldDefense = options.fieldDefense ?? true;
+  let bonus = fieldDefense && (card.effect === "defense_plus_1" || card.effect === "defense_plus_1_enters_spent") ? CONFIG.power2DefenseBonus : 0;
   if (
     defender?.memory?.effect === "firewall"
     && options.firewallPaid
@@ -891,15 +892,15 @@ export function defensePowerBonus(card: Card, defender: PlayerState | null = nul
   return bonus;
 }
 
-export function defenseCombatValue(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: { firewallPaid?: boolean } = {}): number {
+export function defenseCombatValue(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: { firewallPaid?: boolean; fieldDefense?: boolean } = {}): number {
   if (!attackCard.attribute || !defenseCard.attribute) return 0;
   return (defenseCard.power ?? 0)
     + defensePowerBonus(defenseCard, defender, attackCard, options)
     + matchupModifier(defenseCard.attribute, attackCard.attribute);
 }
 
-export function canDefend(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null): boolean {
-  return defenseCombatValue(attackCard, defenseCard, defender) >= attackCombatValue(attackCard);
+export function canDefend(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: { fieldDefense?: boolean } = {}): boolean {
+  return defenseCombatValue(attackCard, defenseCard, defender, options) >= attackCombatValue(attackCard);
 }
 
 export function canUseFirewall(defender: PlayerState, defenseCard: Card, attackCard: Card): boolean {
@@ -933,13 +934,13 @@ export function legalHandDefenders(defender: PlayerState, attackCard: Card): { c
   if (CONFIG.handDefenseEmptyOnly && defender.field.length > 0) return [];
   return defender.hand
     .map((card, index) => ({ card, index }))
-    .filter(({ card }) => card.type === "ai" && !cannotHandDefend(card) && canDefend(attackCard, card));
+    .filter(({ card }) => card.type === "ai" && !cannotHandDefend(card) && canDefend(attackCard, card, defender, { fieldDefense: false }));
 }
 
-export function defenseMathText(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null): string {
+export function defenseMathText(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: { fieldDefense?: boolean } = {}): string {
   if (!attackCard.attribute || !defenseCard.attribute) return "";
   const label = matchupLabel(defenseCard.attribute, attackCard.attribute);
-  const defenseValue = defenseCombatValue(attackCard, defenseCard, defender);
+  const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, options);
   const attackValue = attackCombatValue(attackCard);
   const result = defenseValue > attackValue
     ? "勝ち"
@@ -1071,6 +1072,13 @@ export function acceleratorSacrificeTarget(player: PlayerState): number | null {
 export function chooseAiDefense(defender: PlayerState, attackCard: Card): DefenseChoice {
   const fieldOptions = legalFieldDefenders(defender, attackCard);
   const handOptions = legalHandDefenders(defender, attackCard);
+  if (piercesHandDefense(attackCard) && fieldOptions.length > 0) {
+    const best = fieldOptions.sort((a, b) => (
+      (a.card.power ?? 0) - (b.card.power ?? 0)
+      || a.card.id.localeCompare(b.card.id)
+    ))[0];
+    return { type: "field", index: best.index };
+  }
   const options = [
     ...fieldOptions.map((option) => ({ ...option, type: "field" as const })),
     ...handOptions.map((option) => ({ ...option, type: "hand" as const })),
