@@ -504,6 +504,33 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[0].hand[0].id, "AI-WATER-4")
         self.assertEqual(state.players[0].discard[-1].id, "CMD-RELEARN")
 
+    def test_trinity_trashes_full_field_and_deals_one_damage(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [command("CMD-TRINITY")]
+        state.players[0].field_ai = [
+            card("AI-FIRE-1"),
+            card("AI-WATER-2"),
+            card("AI-WIND-3"),
+        ]
+        state.players[0].spent_field_ai = {1}
+        start_turn(state)
+        state.players[0].spent_field_ai = {1}
+        apply_action(state, Action(ActionType.USE_COMMAND, 0))
+        self.assertEqual(state.players[0].field_ai, [])
+        self.assertEqual(state.players[0].spent_field_ai, set())
+        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual([item.id for item in state.players[0].discard], [
+            "AI-FIRE-1",
+            "AI-WATER-2",
+            "AI-WIND-3",
+            "CMD-TRINITY",
+        ])
+        self.assertEqual(state.log[-1]["sacrificed_ai"], [
+            "AI-FIRE-1",
+            "AI-WATER-2",
+            "AI-WIND-3",
+        ])
+
     def test_disrupt_can_target_a_specific_ready_ai(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].hand = [command("CMD-DISRUPT")]
@@ -530,6 +557,35 @@ class CoreRuleTests(unittest.TestCase):
         state.players[0].deck = [card("AI-EARTH-1")]
         start_turn(state)
         self.assertEqual(len(state.players[0].hand), 3)
+
+    def test_pipeline_memory_draws_power_1_without_discarding(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].memory = memory("MEM-PIPELINE")
+        state.players[0].hand = [card("AI-FIRE-1"), card("AI-WATER-2")]
+        state.players[0].deck = [card("AI-EARTH-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual([item.id for item in state.players[0].hand], [
+            "AI-WATER-2",
+            "AI-EARTH-1",
+        ])
+        self.assertEqual(state.players[0].discard, [])
+        self.assertEqual(state.log[-1]["pipeline_draw_count"], 1)
+        self.assertIsNone(state.log[-1]["pipeline_discarded_card"])
+
+    def test_accelerator_memory_sacrifices_one_ai_and_adds_one_action(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].memory = memory("MEM-ACCELERATOR")
+        state.players[0].field_ai = [card("AI-FIRE-1"), card("AI-WATER-2")]
+        state.players[0].spent_field_ai = {1}
+        start_turn(state)
+        state.players[0].spent_field_ai = {1}
+        apply_action(state, Action(ActionType.USE_MEMORY, target_index=1))
+        self.assertEqual(state.actions_remaining, 3)
+        self.assertEqual([item.id for item in state.players[0].field_ai], ["AI-FIRE-1"])
+        self.assertEqual(state.players[0].spent_field_ai, set())
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-WATER-2"])
+        self.assertTrue(state.players[0].pending_effects["accelerator_used"])
 
     def test_firewall_memory_adds_one_power_to_off_attribute_field_defense(self) -> None:
         state = new_game(1, no_opening_hands())

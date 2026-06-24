@@ -4619,6 +4619,7 @@ h1 {
 
 /* Pixel-direction implementation of the accepted Stitch screen. */
 .stitch-shell {
+  --stitch-log-width: clamp(260px, 22vw, 360px);
   position: relative;
   display: grid;
   grid-template-rows: 64px minmax(0, 1fr) 42px 162px 184px;
@@ -5417,17 +5418,91 @@ h1 {
   font-size: 12px;
 }
 
-.dock-side .log {
+.stitch-log-sidebar {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  border-left: 2px solid rgba(0, 240, 255, 0.28);
+  background:
+    linear-gradient(180deg, rgba(0, 240, 255, 0.08), transparent 34%),
+    rgba(10, 13, 16, 0.96);
+  box-shadow: -18px 0 46px rgba(0, 0, 0, 0.32);
+}
+
+.stitch-log-title {
+  flex: none;
+  border-bottom: 1px solid rgba(59, 73, 75, 0.72);
+  padding: 14px 16px 12px;
+  color: #00f0ff;
+  font-family: "Space Mono", ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.stitch-log-sidebar .log {
+  position: static;
   flex: 1;
+  width: auto;
   height: auto;
   max-height: none;
-  min-height: 72px;
-  border-color: rgba(59, 73, 75, 0.35);
-  border-radius: 4px;
-  padding: 18px 8px 8px 24px;
-  background: rgba(0, 0, 0, 0.2);
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 14px 14px 20px 32px;
+  background: transparent;
   font-family: "Space Mono", ui-monospace, monospace;
   font-size: 12px;
+  line-height: 1.55;
+}
+
+.stitch-log-sidebar .log li {
+  margin-bottom: 9px;
+  padding-right: 4px;
+}
+
+.stitch-log-sidebar .log li.log-latest {
+  margin-left: -8px;
+  padding: 4px 8px;
+  background: rgba(0, 240, 255, 0.12);
+}
+
+@media (min-width: 1180px) {
+  .stitch-shell {
+    padding-right: var(--stitch-log-width);
+  }
+
+  .stitch-log-sidebar {
+    position: fixed !important;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 26 !important;
+    width: var(--stitch-log-width);
+  }
+}
+
+@media (min-width: 921px) and (max-width: 1179px) {
+  .stitch-shell {
+    grid-template-rows: 64px minmax(340px, 1fr) 42px 162px 184px 260px;
+    min-height: 100vh;
+    height: auto;
+    overflow: auto;
+  }
+
+  .stitch-log-sidebar {
+    height: 260px;
+    border-top: 1px solid rgba(0, 240, 255, 0.28);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 920px) {
+  .stitch-log-sidebar {
+    height: 220px;
+    border-top: 1px solid rgba(0, 240, 255, 0.28);
+    border-left: 0;
+  }
 }
 
 .stitch-command-dock > .defense-panel:empty {

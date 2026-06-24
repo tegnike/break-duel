@@ -11,6 +11,7 @@ from .cards import Card
 class ActionType(str, Enum):
     PLAY_AI = "play_ai"
     PLAY_MEMORY = "play_memory"
+    USE_MEMORY = "use_memory"
     UPGRADE_AI = "upgrade_ai"
     USE_COMMAND = "use_command"
     ATTACK = "attack"

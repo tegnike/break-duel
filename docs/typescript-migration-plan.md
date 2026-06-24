@@ -154,8 +154,8 @@ src/
 ```ts
 type Attribute = "火" | "水" | "風" | "土";
 type CardType = "ai" | "event" | "memory";
-type CommandEffect = "optimize" | "patch" | "disrupt" | "relearn" | "sandbox";
-type MemoryEffect = "firewall" | "cache" | "pipeline";
+type CommandEffect = "optimize" | "patch" | "disrupt" | "relearn" | "sandbox" | "trinity";
+type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator";
 
 type AiCard = {
   id: string;

@@ -27,8 +27,8 @@ export type AiEffect =
   | "return_after_overheat_cannot_hand_defend"
   | "draw_on_successful_defense"
   | "draw_on_successful_defense_enters_spent";
-export type CommandEffect = "optimize" | "patch" | "disrupt" | "relearn" | "sandbox";
-export type MemoryEffect = "firewall" | "cache" | "pipeline";
+export type CommandEffect = "optimize" | "patch" | "disrupt" | "relearn" | "sandbox" | "trinity";
+export type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator";
 export type CardEffect = AiEffect | CommandEffect | MemoryEffect | "";
 export type Zone = "hand" | "field" | "memory" | "discard";
 
@@ -55,6 +55,7 @@ export type PlayerState = {
   turnsStarted: number;
   handDefensesUsed: number;
   pipelineUsed: boolean;
+  acceleratorUsed: boolean;
   sandboxShield: number;
   spentFieldIndexes: Set<number>;
 };
@@ -78,7 +79,7 @@ export type PendingTarget =
     }
   | {
       kind: "hand-discard";
-      reason: "optimize" | "relearn" | "pipeline" | "firewall";
+      reason: "optimize" | "relearn" | "firewall";
       playerIndex: number;
       title: string;
       prompt: string;
@@ -94,7 +95,7 @@ export type PendingTarget =
     }
   | {
       kind: "card-select";
-      reason: "filter-discard" | "relearn-recover" | "recover-on-play" | "upgrade-source" | "ready-ally" | "spend-enemy" | "block-pressure";
+      reason: "filter-discard" | "relearn-recover" | "recover-on-play" | "upgrade-source" | "ready-ally" | "spend-enemy" | "block-pressure" | "accelerator-sacrifice";
       zone: "hand" | "field" | "discard";
       playerIndex: number;
       title: string;
@@ -107,16 +108,6 @@ export type PendingTarget =
       sourceIndex?: number;
       actionCost?: number;
       cancelable?: boolean;
-    }
-  | {
-      kind: "optional-effect";
-      reason: "pipeline";
-      playerIndex: number;
-      title: string;
-      prompt: string;
-      confirmLabel: string;
-      declineLabel: string;
-      actionCost: number;
     }
   | null;
 
@@ -276,9 +267,11 @@ export function cardPool(): Card[] {
     { id: "CMD-DISRUPT", name: "黒蔦の足止め", type: "event", effect: "disrupt" },
     { id: "CMD-RELEARN", name: "幻獣回帰の巻", type: "event", effect: "relearn" },
     { id: "CMD-SANDBOX", name: "蒼殻バリア", type: "event", effect: "sandbox" },
+    { id: "CMD-TRINITY", name: "三相崩壊術", type: "event", effect: "trinity" },
     { id: "MEM-FIREWALL", name: "竜盾の紋章", type: "memory", effect: "firewall" },
     { id: "MEM-CACHE", name: "灯火の旅嚢", type: "memory", effect: "cache" },
     { id: "MEM-PIPELINE", name: "星泉の導脈", type: "memory", effect: "pipeline" },
+    { id: "MEM-ACCELERATOR", name: "刻火の加速炉", type: "memory", effect: "accelerator" },
   ];
 }
 
@@ -304,7 +297,7 @@ export const DECKS = {
       "AI-WATER-3B",
       "AI-WATER-4",
       "CMD-DISRUPT",
-      "CMD-DISRUPT",
+      "CMD-TRINITY",
       "CMD-OPTIMIZE",
       "CMD-PATCH",
       "CMD-SANDBOX",
@@ -350,7 +343,7 @@ export const DECKS = {
       "AI-FIRE-4",
       "AI-FIRE-4B",
       "CMD-DISRUPT",
-      "CMD-DISRUPT",
+      "CMD-TRINITY",
       "CMD-SANDBOX",
       "CMD-SANDBOX",
       "CMD-PATCH",
@@ -358,7 +351,7 @@ export const DECKS = {
       "CMD-OPTIMIZE",
       "CMD-OPTIMIZE",
       "MEM-PIPELINE",
-      "MEM-PIPELINE",
+      "MEM-ACCELERATOR",
       "MEM-CACHE",
       "MEM-CACHE",
     ],
@@ -382,11 +375,11 @@ export const DECKS = {
       "CMD-PATCH",
       "CMD-PATCH",
       "CMD-DISRUPT",
-      "CMD-DISRUPT",
+      "CMD-TRINITY",
       "MEM-CACHE",
       "MEM-CACHE",
       "MEM-PIPELINE",
-      "MEM-PIPELINE",
+      "MEM-ACCELERATOR",
     ],
   },
   wind: {
@@ -402,7 +395,7 @@ export const DECKS = {
       "AI-WIND-4",
       "AI-WIND-4B",
       "CMD-DISRUPT",
-      "CMD-DISRUPT",
+      "CMD-TRINITY",
       "CMD-PATCH",
       "CMD-PATCH",
       "CMD-SANDBOX",
@@ -410,7 +403,7 @@ export const DECKS = {
       "CMD-RELEARN",
       "CMD-RELEARN",
       "MEM-PIPELINE",
-      "MEM-PIPELINE",
+      "MEM-ACCELERATOR",
       "MEM-FIREWALL",
       "MEM-FIREWALL",
     ],
@@ -434,11 +427,11 @@ export const DECKS = {
       "CMD-OPTIMIZE",
       "CMD-OPTIMIZE",
       "CMD-DISRUPT",
-      "CMD-DISRUPT",
+      "CMD-TRINITY",
       "MEM-FIREWALL",
       "MEM-FIREWALL",
       "MEM-PIPELINE",
-      "MEM-PIPELINE",
+      "MEM-ACCELERATOR",
     ],
   },
 } as const;
@@ -486,6 +479,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     turnsStarted: 0,
     handDefensesUsed: 0,
     pipelineUsed: false,
+    acceleratorUsed: false,
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
   };
@@ -554,14 +548,30 @@ export function ownerIndexOf(game: GameState, player: PlayerState): number {
 }
 
 export function draw(player: PlayerState, count: number): number {
-  let drawn = 0;
+  return drawCards(player, count).length;
+}
+
+export function drawCards(player: PlayerState, count: number): Card[] {
+  const drawnCards: Card[] = [];
   for (let i = 0; i < count; i += 1) {
     if (player.deck.length === 0) break;
-    player.hand.push(player.deck.pop()!);
+    const card = player.deck.pop()!;
+    player.hand.push(card);
+    drawnCards.push(card);
     player.cardsDrawn += 1;
-    drawn += 1;
   }
-  return drawn;
+  return drawnCards;
+}
+
+export function cardNameList(cards: Card[]): string {
+  return cards.map((card) => card.name).join("、");
+}
+
+export function visibleDrawText(player: PlayerState, drawnCards: Card[]): string {
+  const count = drawnCards.length;
+  if (count <= 0) return "0枚引いた";
+  if (!player.isHuman) return `${count}枚引いた`;
+  return `${count}枚引いた（${cardNameList(drawnCards)}）`;
 }
 
 export function startTurn(game: GameState): void {
@@ -573,12 +583,13 @@ export function startTurn(game: GameState): void {
   const player = activePlayer(game);
   player.spentFieldIndexes.clear();
   player.pipelineUsed = false;
+  player.acceleratorUsed = false;
   player.sandboxShield = 0;
   player.turnsStarted += 1;
-  const drawn = shouldDrawForTurn(game) ? draw(player, 1) : 0;
-  const memoryDrawn = applyTurnStartMemory(player);
-  const drawText = drawn > 0 ? "1枚引いた。" : "ドローなし。";
-  const memoryText = memoryDrawn > 0 ? ` ${player.memory!.name}で追加${memoryDrawn}枚。` : "";
+  const drawnCards = shouldDrawForTurn(game) ? drawCards(player, 1) : [];
+  const memoryDrawnCards = applyTurnStartMemory(player);
+  const drawText = drawnCards.length > 0 ? `${visibleDrawText(player, drawnCards)}。` : "ドローなし。";
+  const memoryText = memoryDrawnCards.length > 0 ? ` ${player.memory!.name}で追加${visibleDrawText(player, memoryDrawnCards)}。` : "";
   addLog(game, `${player.name}のターン。${drawText}${memoryText}`);
   checkResourceExhaustion(game);
   game.selected = null;
@@ -602,10 +613,10 @@ export function actionsForTurn(game: GameState): number {
   return CONFIG.actionsPerTurn;
 }
 
-export function applyTurnStartMemory(player: PlayerState): number {
-  if (player.memory?.effect !== "cache") return 0;
-  if (player.hand.length > 2) return 0;
-  return draw(player, 1);
+export function applyTurnStartMemory(player: PlayerState): Card[] {
+  if (player.memory?.effect !== "cache") return [];
+  if (player.hand.length > 2) return [];
+  return drawCards(player, 1);
 }
 
 export function enforceHandLimit(player: PlayerState): Card[] {
@@ -966,6 +977,7 @@ export function commandUsable(game: GameState, command: Card | null | undefined,
   if (command.effect === "disrupt") return highestPowerReadyAi(opponent) !== null;
   if (command.effect === "relearn") return highestPowerAiInDiscard(player) !== null;
   if (command.effect === "sandbox") return sandboxCommandReady(game, player);
+  if (command.effect === "trinity") return player.field.length >= CONFIG.fieldLimit;
   return false;
 }
 
@@ -976,6 +988,23 @@ export function sandboxCommandReady(game: GameState, player: PlayerState): boole
     && player.sandboxShield <= 0
     && player.field.some((card, index) => card.power === 4 && !player.spentFieldIndexes.has(index))
   );
+}
+
+export function canUseAcceleratorMemory(game: GameState, player: PlayerState): boolean {
+  return Boolean(
+    player.memory?.effect === "accelerator"
+      && !player.acceleratorUsed
+      && player.field.length > 0
+      && game.actionsRemaining > 0
+      && game.actionsRemaining < 3,
+  );
+}
+
+export function acceleratorSacrificeTarget(player: PlayerState): number | null {
+  if (player.field.length === 0) return null;
+  const options = player.field.map((card, index) => ({ card, index }));
+  options.sort((a, b) => cardPriority(a.card) - cardPriority(b.card) || a.card.id.localeCompare(b.card.id));
+  return options[0].index;
 }
 
 export function chooseAiDefense(defender: PlayerState, attackCard: Card): DefenseChoice {
@@ -1024,7 +1053,7 @@ export function bestUpgrade(game: GameState, player: PlayerState): { handIndex: 
 
 export function bestMemory(player: PlayerState): number | null {
   if (player.memory) return null;
-  const priority: Record<string, number> = { cache: 4, pipeline: 3, firewall: 2 };
+  const priority: Record<string, number> = { cache: 4, pipeline: 3, accelerator: 3, firewall: 2 };
   const options = player.hand
     .map((card, index) => ({ card, index }))
     .filter(({ card }) => card.type === "memory");
@@ -1039,6 +1068,7 @@ export function bestCommand(game: GameState, player: PlayerState, opponent: Play
     .filter(({ card }) => card.type === "event" && commandUsable(game, card, player, opponent));
   if (options.length === 0) return null;
   const priority: Record<string, number> = {
+    trinity: 5,
     disrupt: 4,
     patch: 3,
     relearn: 2,
@@ -1069,6 +1099,7 @@ export type AiAction =
   | { type: "play"; index: number }
   | { type: "upgrade"; handIndex: number; fieldIndex: number }
   | { type: "memory"; index: number }
+  | { type: "memory-effect"; fieldIndex: number }
   | { type: "attack"; index: number }
   | { type: "command"; index: number }
   | { type: "cycle"; index: number }
@@ -1093,6 +1124,13 @@ export function chooseAiAction(game: GameState): AiAction {
   }
   const upgrade = bestUpgrade(game, ai);
   if (upgrade !== null) return { type: "upgrade", handIndex: upgrade.handIndex, fieldIndex: upgrade.fieldIndex };
+  if (
+    canUseAcceleratorMemory(game, ai)
+    && ai.hand.some((card) => card.type === "ai" && playCost(card) === game.actionsRemaining + 1)
+  ) {
+    const target = acceleratorSacrificeTarget(ai);
+    if (target !== null) return { type: "memory-effect", fieldIndex: target };
+  }
   const memoryIndex = bestMemory(ai);
   if (memoryIndex !== null) return { type: "memory", index: memoryIndex };
   const commandIndex = bestCommand(game, ai, human);

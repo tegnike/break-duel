@@ -77,6 +77,7 @@ def start_turn(state: GameState) -> None:
         player.hand_defenses_used_this_turn = 0
     state.active().spent_field_ai.clear()
     state.active().pending_effects["pipeline_used"] = False
+    state.active().pending_effects["accelerator_used"] = False
     state.active().pending_effects.pop("sandbox_shield", None)
     state.active().turns_started += 1
     drawn = state.active().draw(1, state.rng) if _should_draw_for_turn(state) else 0
@@ -130,6 +131,8 @@ def apply_action(state: GameState, action: Action) -> None:
         _play_ai(state, action)
     elif action.type == ActionType.PLAY_MEMORY:
         _play_memory(state, action)
+    elif action.type == ActionType.USE_MEMORY:
+        _use_memory(state, action)
     elif action.type == ActionType.UPGRADE_AI:
         _upgrade_ai(state, action)
     elif action.type == ActionType.USE_COMMAND:
@@ -282,6 +285,38 @@ def _play_memory(state: GameState, action: Action) -> None:
             "card_id": card.id,
             "result": "memory_played",
             "replaced_memory": replaced.id if replaced else None,
+            "field": _field_state(state),
+        }
+    )
+
+
+def _use_memory(state: GameState, action: Action) -> None:
+    player = state.active()
+    if action.target_index is None:
+        raise ValueError("USE_MEMORY requires a field target index.")
+    if player.memory is None or player.memory.effect != MemoryEffect.ACCELERATOR.value:
+        raise ValueError("Only accelerator relic can be used with USE_MEMORY.")
+    if player.pending_effects.get("accelerator_used"):
+        raise ValueError("Accelerator relic is already used this turn.")
+    if state.actions_remaining <= 0:
+        raise ValueError("Accelerator relic requires an active action window.")
+    if state.actions_remaining >= 3:
+        raise ValueError("Accelerator relic cannot increase actions beyond 3.")
+    if action.target_index < 0 or action.target_index >= len(player.field_ai):
+        raise ValueError("Accelerator target is out of range.")
+    sacrificed = _remove_field_ai(player, action.target_index)
+    player.discard.append(sacrificed)
+    player.ai_lost += 1
+    player.pending_effects["accelerator_used"] = True
+    state.actions_remaining = min(3, state.actions_remaining + 1)
+    state.stats.record_card_usage(player.memory.id, "used")
+    state.log.append(
+        _action_log_base(state, action)
+        | {
+            "card_id": player.memory.id,
+            "result": "memory_used",
+            "sacrificed_ai": sacrificed.id,
+            "actions_remaining": state.actions_remaining,
             "field": _field_state(state),
         }
     )
@@ -608,6 +643,24 @@ def _use_command(state: GameState, action: Action) -> None:
         player.pending_effects["sandbox_shield"] = 1
         player.discard.append(command)
         result |= {"sandbox_target": player.field_ai[target_index].id}
+    elif command.effect == CommandEffect.TRINITY.value:
+        if len(player.field_ai) < state.config.field_ai_limit:
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Trinity requires a full summon field.")
+        sacrificed = []
+        while player.field_ai:
+            sacrificed.append(_remove_field_ai(player, len(player.field_ai) - 1))
+        sacrificed.reverse()
+        player.discard.extend(sacrificed)
+        player.ai_lost += len(sacrificed)
+        _deal_damage(opponent)
+        player.discard.append(command)
+        result |= {
+            "sacrificed_ai": [card.id for card in sacrificed],
+            "damage": 1,
+            "life": [player.life for player in state.players],
+            "field": _field_state(state),
+        }
     else:
         player.hand.insert(action.source_index, command)
         raise ValueError(f"Unsupported command effect: {command.effect}")
@@ -774,6 +827,8 @@ def _action_cost(state: GameState, action: Action) -> int:
         if action.source_index is None:
             raise ValueError(f"{action.type.value} requires a hand index.")
         return _upgrade_cost(state, state.active().hand[action.source_index])
+    if action.type == ActionType.USE_MEMORY:
+        return 0
     return 1
 
 
@@ -853,6 +908,8 @@ def command_is_usable(state: GameState, source_index: int) -> bool:
             and not player.pending_effects.get("sandbox_shield")
             and _ready_power_4_ai(player) is not None
         )
+    if command.effect == CommandEffect.TRINITY.value:
+        return len(player.field_ai) >= state.config.field_ai_limit
     return False
 
 
@@ -1030,12 +1087,7 @@ def _apply_pipeline_memory(
         return result
     player.pending_effects["pipeline_used"] = True
     result["draw_count"] = player.draw(1, state.rng)
-    if player.hand:
-        discard_index = _lowest_priority_hand_card(player)
-        discarded = player.hand.pop(discard_index)
-        player.discard.append(discarded)
-        result["discarded_card"] = discarded.id
-    state.stats.record_card_usage(player.memory.id, "filtered")
+    state.stats.record_card_usage(player.memory.id, "drew")
     return result
 
 

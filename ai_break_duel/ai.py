@@ -48,6 +48,14 @@ def choose_action(state: GameState) -> Action:
     if upgrade is not None:
         return Action(ActionType.UPGRADE_AI, upgrade[0], upgrade[1])
 
+    if _can_use_accelerator_memory(state) and any(
+        card.type == CardType.AI and _play_cost(card, state) == state.actions_remaining + 1
+        for card in player.hand
+    ):
+        target = _accelerator_sacrifice_target(player)
+        if target is not None:
+            return Action(ActionType.USE_MEMORY, target_index=target)
+
     memory_index = _best_memory_in_hand(player)
     if memory_index is not None:
         return Action(ActionType.PLAY_MEMORY, memory_index)
@@ -166,6 +174,7 @@ def _best_memory_in_hand(player: PlayerState) -> int | None:
     priority = {
         MemoryEffect.CACHE.value: 4,
         MemoryEffect.PIPELINE.value: 3,
+        MemoryEffect.ACCELERATOR.value: 3,
         MemoryEffect.FIREWALL.value: 2,
     }
     return max(candidates, key=lambda item: (priority.get(item[1].effect, 0), item[1].id))[0]
@@ -255,6 +264,7 @@ def _best_command_in_hand(state: GameState) -> int | None:
     if not candidates:
         return None
     priority = {
+        CommandEffect.TRINITY.value: 5,
         CommandEffect.DISRUPT.value: 4,
         CommandEffect.PATCH.value: 3,
         CommandEffect.RELEARN.value: 2,
@@ -278,6 +288,8 @@ def _command_is_usable(state: GameState, source_index: int) -> bool:
         return any(item.type == CardType.AI for item in player.discard)
     if card.effect == CommandEffect.SANDBOX.value:
         return _sandbox_command_ready(state)
+    if card.effect == CommandEffect.TRINITY.value:
+        return len(player.field_ai) >= state.config.field_ai_limit
     return False
 
 
@@ -300,6 +312,27 @@ def _sandbox_command_ready(state: GameState) -> bool:
         card.power == 4 and index not in player.spent_field_ai
         for index, card in enumerate(player.field_ai)
     )
+
+
+def _can_use_accelerator_memory(state: GameState) -> bool:
+    player = state.active()
+    return (
+        player.memory is not None
+        and player.memory.effect == MemoryEffect.ACCELERATOR.value
+        and not player.pending_effects.get("accelerator_used")
+        and bool(player.field_ai)
+        and state.actions_remaining > 0
+        and state.actions_remaining < 3
+    )
+
+
+def _accelerator_sacrifice_target(player: PlayerState) -> int | None:
+    if not player.field_ai:
+        return None
+    return min(
+        enumerate(player.field_ai),
+        key=lambda item: (_card_priority(item[1]), item[1].id),
+    )[0]
 
 
 def _play_cost(card, state: GameState) -> int:

@@ -54,7 +54,7 @@ export function CardLibraryPage() {
       <div className="workshop-heading">
         <div>
           <h2>カード一覧</h2>
-          <p>{CARD_LIST.length}種類 / 召喚獣32種 / 指令5種 / 遺物3種</p>
+          <p>{CARD_LIST.length}種類 / 召喚獣32種 / 指令6種 / 遺物4種</p>
         </div>
         <div className="workshop-filters">
           <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}>

@@ -44,6 +44,8 @@ import cmdOptimizeArt from "../assets/card-art/cmd-optimize.webp";
 import cmdPatchArt from "../assets/card-art/cmd-patch.webp";
 import cmdRelearnArt from "../assets/card-art/cmd-relearn.webp";
 import cmdSandboxArt from "../assets/card-art/cmd-sandbox.webp";
+import cmdTrinityArt from "../assets/card-art/cmd-trinity.webp";
+import memAcceleratorArt from "../assets/card-art/mem-accelerator.webp";
 import memCacheArt from "../assets/card-art/mem-cache.webp";
 import memFirewallArt from "../assets/card-art/mem-firewall.webp";
 import memPipelineArt from "../assets/card-art/mem-pipeline.webp";
@@ -102,6 +104,8 @@ const SUPPORT_CARD_ART: Record<string, string> = {
   "CMD-DISRUPT": cmdDisruptArt,
   "CMD-RELEARN": cmdRelearnArt,
   "CMD-SANDBOX": cmdSandboxArt,
+  "CMD-TRINITY": cmdTrinityArt,
+  "MEM-ACCELERATOR": memAcceleratorArt,
   "MEM-FIREWALL": memFirewallArt,
   "MEM-CACHE": memCacheArt,
   "MEM-PIPELINE": memPipelineArt,
@@ -133,12 +137,14 @@ export function cardArtGlyph(card: Card): string {
     if (card.effect === "disrupt") return "縛";
     if (card.effect === "relearn") return "巻";
     if (card.effect === "sandbox") return "結";
+    if (card.effect === "trinity") return "崩";
     return "術";
   }
   if (card.type === "memory") {
     if (card.effect === "firewall") return "紋";
     if (card.effect === "cache") return "鞄";
     if (card.effect === "pipeline") return "水";
+    if (card.effect === "accelerator") return "速";
     return "遺";
   }
   return ATTRIBUTES[card.attribute!].code.slice(0, 1);
@@ -154,12 +160,14 @@ export function cardArtAsset(card: Card): string {
     if (card.effect === "disrupt") return cardTargetIcon;
     if (card.effect === "relearn") return cardsReturnIcon;
     if (card.effect === "sandbox") return hexagonSwitchIcon;
+    if (card.effect === "trinity") return characterRemoveIcon;
     return cardIcon;
   }
   if (card.type === "memory") {
     if (card.effect === "firewall") return shieldIcon;
     if (card.effect === "cache") return cardIcon;
     if (card.effect === "pipeline") return cardsTakeIcon;
+    if (card.effect === "accelerator") return hexagonSwitchIcon;
     return hexagonIcon;
   }
   const generatedArt = AI_CARD_ART[card.id];
@@ -192,9 +200,11 @@ export function roleText(card: Card): string {
   if (card.effect === "disrupt") return "1アクション。相手の未消耗召喚獣1体を消耗";
   if (card.effect === "relearn") return "1アクション。トラッシュの召喚獣1枚を回収";
   if (card.effect === "sandbox") return "1アクション。このターン、次のpower 4攻撃後退場を1回防ぐ";
+  if (card.effect === "trinity") return "1アクション。場が3枚なら全てトラッシュし、相手ライフ-1";
   if (card.effect === "firewall") return "他属性防御時、手札を1枚捨てるなら power +1";
   if (card.effect === "cache") return "ターン開始時、手札2枚以下なら1枚引く";
-  if (card.effect === "pipeline") return "1ターンに1回、power 1登場時、使うなら1枚引いて1枚捨てる";
+  if (card.effect === "pipeline") return "1ターンに1回、power 1登場時、必ず1枚引く";
+  if (card.effect === "accelerator") return "1ターンに1回使える。場の召喚獣1体をトラッシュしてもよい。その場合、残りアクション+1（最大3）";
   const trait = card.effect ? ` / ${aiEffectText(card)}` : "";
   if (card.power === 1) return `1アクション${trait}`;
   if (card.power === 2) return `1アクション${trait}`;

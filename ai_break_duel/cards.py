@@ -17,12 +17,14 @@ class CommandEffect(str, Enum):
     DISRUPT = "disrupt"
     RELEARN = "relearn"
     SANDBOX = "sandbox"
+    TRINITY = "trinity"
 
 
 class MemoryEffect(str, Enum):
     FIREWALL = "firewall"
     CACHE = "cache"
     PIPELINE = "pipeline"
+    ACCELERATOR = "accelerator"
 
 
 class AiEffect(str, Enum):
@@ -397,6 +399,12 @@ def build_command_card_pool() -> list[Card]:
             type=CardType.EVENT,
             effect=CommandEffect.SANDBOX.value,
         ),
+        Card(
+            id="CMD-TRINITY",
+            name="三相崩壊術",
+            type=CardType.EVENT,
+            effect=CommandEffect.TRINITY.value,
+        ),
     ]
 
 
@@ -419,6 +427,12 @@ def build_memory_card_pool() -> list[Card]:
             name="星泉の導脈",
             type=CardType.MEMORY,
             effect=MemoryEffect.PIPELINE.value,
+        ),
+        Card(
+            id="MEM-ACCELERATOR",
+            name="刻火の加速炉",
+            type=CardType.MEMORY,
+            effect=MemoryEffect.ACCELERATOR.value,
         ),
     ]
 
@@ -460,7 +474,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "AI-WATER-3B",
                 "AI-WATER-4",
                 "CMD-DISRUPT",
-                "CMD-DISRUPT",
+                "CMD-TRINITY",
                 "CMD-OPTIMIZE",
                 "CMD-PATCH",
                 "CMD-SANDBOX",
@@ -504,7 +518,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "AI-FIRE-4",
                 "AI-FIRE-4B",
                 "CMD-DISRUPT",
-                "CMD-DISRUPT",
+                "CMD-TRINITY",
                 "CMD-SANDBOX",
                 "CMD-SANDBOX",
                 "CMD-PATCH",
@@ -512,7 +526,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-OPTIMIZE",
                 "CMD-OPTIMIZE",
                 "MEM-PIPELINE",
-                "MEM-PIPELINE",
+                "MEM-ACCELERATOR",
                 "MEM-CACHE",
                 "MEM-CACHE",
             ]
@@ -535,11 +549,11 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-PATCH",
                 "CMD-PATCH",
                 "CMD-DISRUPT",
-                "CMD-DISRUPT",
+                "CMD-TRINITY",
                 "MEM-CACHE",
                 "MEM-CACHE",
                 "MEM-PIPELINE",
-                "MEM-PIPELINE",
+                "MEM-ACCELERATOR",
             ]
         )
     if archetype == DeckArchetype.WIND:
@@ -554,7 +568,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "AI-WIND-4",
                 "AI-WIND-4B",
                 "CMD-DISRUPT",
-                "CMD-DISRUPT",
+                "CMD-TRINITY",
                 "CMD-PATCH",
                 "CMD-PATCH",
                 "CMD-SANDBOX",
@@ -562,7 +576,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-RELEARN",
                 "CMD-RELEARN",
                 "MEM-PIPELINE",
-                "MEM-PIPELINE",
+                "MEM-ACCELERATOR",
                 "MEM-FIREWALL",
                 "MEM-FIREWALL",
             ]
@@ -585,11 +599,11 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-OPTIMIZE",
                 "CMD-OPTIMIZE",
                 "CMD-DISRUPT",
-                "CMD-DISRUPT",
+                "CMD-TRINITY",
                 "MEM-FIREWALL",
                 "MEM-FIREWALL",
                 "MEM-PIPELINE",
-                "MEM-PIPELINE",
+                "MEM-ACCELERATOR",
             ]
         )
     raise ValueError(f"Unsupported deck archetype: {archetype}")

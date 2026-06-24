@@ -14,16 +14,18 @@ import {
   bestUpgradeSource,
   canActivePlayerAttack,
   canHumanAct,
+  canUseAcceleratorMemory,
   canUpgrade,
   cloneGame,
   commandUsable,
   createGame,
   chooseAiAction,
-  draw,
+  drawCards,
   finishTurn,
   opponentPlayer,
   playCost,
   upgradeCost,
+  visibleDrawText,
 } from "./game";
 import {
   afterAction,
@@ -32,6 +34,7 @@ import {
   discardHandCards,
   performAiActionInDraft,
   resolveDefenseInDraft,
+  useAcceleratorMemoryInDraft,
   useCommandAtInDraft,
 } from "./game/actions";
 import { selectedCardForDetail, selectedHandCardName } from "./game/selectors";
@@ -489,7 +492,12 @@ export default function App() {
   }
 
   function playSelected() {
-    if (!canHumanAct(game) || game.selected?.zone !== "hand") return;
+    if (!canHumanAct(game)) return;
+    if (game.selected?.zone === "memory" && (game.selected.ownerIndex ?? 0) === 0) {
+      useSelectedMemoryEffect();
+      return;
+    }
+    if (game.selected?.zone !== "hand") return;
     const card = activePlayer(game).hand[game.selected.index];
     if (!card) return;
     if (card.type === "event") {
@@ -501,6 +509,31 @@ export default function App() {
       return;
     }
     playSelectedAi();
+  }
+
+  function useSelectedMemoryEffect() {
+    if (!canHumanAct(game) || game.selected?.zone !== "memory" || (game.selected.ownerIndex ?? 0) !== 0) return;
+    const player = activePlayer(game);
+    if (!canUseAcceleratorMemory(game, player)) return;
+    mutate((draft) => {
+      const player = activePlayer(draft);
+      if (!canUseAcceleratorMemory(draft, player)) return;
+      draft.pendingTarget = {
+        kind: "card-select",
+        reason: "accelerator-sacrifice",
+        zone: "field",
+        playerIndex: draft.active,
+        title: `${player.memory!.name}でトラッシュするカードを選択`,
+        prompt: "場の召喚獣1体をトラッシュしてもよい。その場合、残りアクションを1増やします（最大3）。",
+        confirmLabel: "このカードをトラッシュ",
+        min: 1,
+        max: 1,
+        excludeIndexes: [],
+        selectedIndexes: [],
+        actionCost: 0,
+        cancelable: true,
+      };
+    });
   }
 
   function playSelectedAi() {
@@ -622,11 +655,11 @@ export default function App() {
       player.discard.push(source);
       player.field[sourceIndex] = card;
       player.spentFieldIndexes.delete(sourceIndex);
+      draft.pendingTarget = null;
       let text = `${player.name}は${source.name}を元に${card.name}へアップグレード。`;
       text += applyPlayEffects(draft, player, card, sourceIndex, cost, source);
       addLog(draft, text);
       draft.selected = null;
-      draft.pendingTarget = null;
       if (!draft.pendingTarget) afterAction(draft, cost);
     });
     showToast("アップグレード", target.name);
@@ -746,15 +779,15 @@ export default function App() {
       const player = activePlayer(draft);
       const card = player.hand.splice(draft.selected.index, 1)[0];
       player.discard.push(card);
-      const drawn = draw(player, 1);
-      addLog(draft, `${player.name}は${card.name}を交換し、${drawn}枚引いた。`);
+      const drawnCards = drawCards(player, 1);
+      addLog(draft, `${player.name}は${card.name}を交換し、${visibleDrawText(player, drawnCards)}。`);
       draft.selected = null;
       afterAction(draft);
     });
     queueDuelEvent({
       kind: "cycle",
       title: `${player.name}が交換`,
-      detail: `${card.name}をトラッシュへ送り、1枚引きました。`,
+      detail: `${card.name}をトラッシュへ送り、カードを1枚引きました。`,
       fromLabel: "手札",
       toLabel: "トラッシュ",
       tone: "magenta",
@@ -778,67 +811,7 @@ export default function App() {
       resolveDefense({ type: "field", index: pending.fieldIndex!, firewallDiscardIndex: pending.selectedIndexes[0] ?? null });
       return;
     }
-    if (pending.reason === "pipeline") {
-      mutate((draft) => {
-        const player = draft.players[pending.playerIndex];
-        const discarded = discardHandCards(draft, pending.playerIndex, pending.selectedIndexes);
-        if (discarded.length > 0) addLog(draft, `${player.name}は${player.memory?.name ?? "効果"}で${discarded[0].name}を捨てた。`);
-        if (discarded.length > 0) {
-          queueDuelEvent({
-            kind: "trash",
-            title: `${player.memory?.name ?? "効果"}の捨て札`,
-            detail: `${discarded[0].name}を手札からトラッシュへ送りました。`,
-            fromLabel: "手札",
-            toLabel: "トラッシュ",
-            tone: player.isHuman ? "magenta" : "cyan",
-            cards: [{ card: discarded[0], label: "捨て札", state: "trash" }],
-          });
-        }
-        draft.pendingTarget = null;
-        afterAction(draft, pending.sourceIndex ?? 1);
-      });
-      return;
-    }
     useCommandAt(pending.sourceIndex!, pending.targetIndex ?? null, pending.selectedIndexes);
-  }
-
-  function resolveOptionalEffect(useEffect: boolean) {
-    const pending = game.pendingTarget;
-    if (!pending || pending.kind !== "optional-effect") return;
-    mutate((draft) => {
-      const current = draft.pendingTarget;
-      if (!current || current.kind !== "optional-effect") return;
-      const player = draft.players[current.playerIndex];
-      if (!useEffect) {
-        addLog(draft, `${player.name}は${player.memory?.name ?? "効果"}を使わなかった。`);
-        draft.pendingTarget = null;
-        afterAction(draft, current.actionCost);
-        return;
-      }
-      player.pipelineUsed = true;
-      const drawn = draw(player, 1);
-      if (player.hand.length > 0) {
-        draft.pendingTarget = {
-          kind: "hand-discard",
-          reason: "pipeline",
-          playerIndex: current.playerIndex,
-          title: `${player.memory?.name ?? "効果"}の捨て札を選択`,
-          prompt: "追加ドロー後にトラッシュする手札を1枚選んでください。",
-          min: 1,
-          max: 1,
-          excludeIndexes: [],
-          selectedIndexes: [],
-          sourceIndex: current.actionCost,
-          actionCost: current.actionCost,
-          cancelable: false,
-        };
-        addLog(draft, `${player.name}は${player.memory?.name ?? "効果"}で${drawn}枚引いた。捨てるカードを選択。`);
-      } else {
-        addLog(draft, `${player.name}は${player.memory?.name ?? "効果"}で${drawn}枚引いた。`);
-        draft.pendingTarget = null;
-        afterAction(draft, current.actionCost);
-      }
-    });
   }
 
   function confirmCardSelectionTarget() {
@@ -927,6 +900,23 @@ export default function App() {
           player.spentFieldIndexes.add(selectedIndex);
           addLog(draft, `${player.name}の${card.name}を消耗。`);
         }
+      } else if (current.reason === "accelerator-sacrifice") {
+        const sacrificed = player.field[selectedIndex];
+        const memory = player.memory;
+        const resolved = useAcceleratorMemoryInDraft(draft, current.playerIndex, selectedIndex);
+        if (resolved && sacrificed && memory) {
+          queueDuelEvent({
+            kind: "trash",
+            title: `${memory.name}を使用`,
+            detail: `${sacrificed.name}を場からトラッシュし、残りアクションを1増やしました。`,
+            fromLabel: "場",
+            toLabel: "トラッシュ",
+            resultLabel: "アクション +1",
+            tone: player.isHuman ? "magenta" : "cyan",
+            cards: [{ card: sacrificed, label: "代償", state: "trash" }],
+          });
+        }
+        return;
       }
       const actionCost = current.actionCost ?? 1;
       draft.pendingTarget = null;
@@ -986,21 +976,29 @@ export default function App() {
     });
   }
 
-  const playButtonLabel = selectedCard?.type === "event"
-    ? "使用"
-    : selectedCard?.type === "memory"
-      ? "遺物配置"
-      : "場に出す";
   const selectedOwnerIndex = game.selected?.ownerIndex ?? 0;
   const selectedHand = game.selected?.zone === "hand" && selectedOwnerIndex === 0;
+  const selectedMemory = game.selected?.zone === "memory" && selectedOwnerIndex === 0;
   const selectedField = game.selected?.zone === "field" && selectedOwnerIndex === 0;
   const selectedHandCard = selectedHand ? human.hand[game.selected!.index] : null;
-  const playDisabled = !canHumanAct(game) || !selectedHand || !selectedHandCard || (
-    selectedHandCard.type === "event"
-      ? !commandUsable(game, selectedHandCard, active, opponent)
-      : selectedHandCard.type === "memory"
-        ? playCost(selectedHandCard) > game.actionsRemaining
-        : active.field.length >= CONFIG.fieldLimit || playCost(selectedHandCard) > game.actionsRemaining
+  const selectedMemoryCard = selectedMemory ? human.memory : null;
+  const playButtonLabel = selectedMemory
+    ? "遺物使用"
+    : selectedCard?.type === "event"
+      ? "使用"
+      : selectedCard?.type === "memory"
+        ? "遺物配置"
+        : "場に出す";
+  const playDisabled = !canHumanAct(game) || (
+    selectedMemory
+      ? !selectedMemoryCard || !canUseAcceleratorMemory(game, human)
+      : !selectedHand || !selectedHandCard || (
+        selectedHandCard.type === "event"
+          ? !commandUsable(game, selectedHandCard, active, opponent)
+          : selectedHandCard.type === "memory"
+            ? playCost(selectedHandCard) > game.actionsRemaining
+            : active.field.length >= CONFIG.fieldLimit || playCost(selectedHandCard) > game.actionsRemaining
+      )
   );
   const upgradeDisabled = !canHumanAct(game)
     || !selectedHand
@@ -1036,7 +1034,6 @@ export default function App() {
       onTogglePendingCard={togglePendingCardIndex}
       onConfirmPending={confirmPendingTarget}
       onConfirmCardSelection={confirmCardSelectionTarget}
-      onResolveOptionalEffect={resolveOptionalEffect}
     />
   );
   const showDefenseInDuelEvent = Boolean(
@@ -1153,7 +1150,7 @@ export default function App() {
             <span className="meter-label">残りアクション</span>
             <span className="meter-value">{game.actionsRemaining}</span>
             <span className="action-tokens" aria-hidden="true">
-              {Array.from({ length: CONFIG.actionsPerTurn }).map((_, index) => (
+              {Array.from({ length: 3 }).map((_, index) => (
                 <span key={index} className={`action-token ${index >= game.actionsRemaining ? "spent" : ""}`} />
               ))}
             </span>
@@ -1191,9 +1188,13 @@ export default function App() {
 
         <div className="dock-side">
           <AffinityGuide game={game} selected={selectedCard} />
-          <LogList entries={game.log} />
         </div>
       </section>
+
+      <aside className="stitch-log-sidebar" aria-label="対戦ログ">
+        <div className="stitch-log-title">対戦ログ</div>
+        <LogList entries={game.log} />
+      </aside>
 
       {!showDefenseInDuelEvent && defensePanel}
       <EventToast toast={toast} />
@@ -1393,6 +1394,7 @@ function MemorySlot({
         index={0}
         selected={isSelected}
         selectable
+        actionState={ownerIndex === 0 && canUseAcceleratorMemory(game, player) ? "usable" : "idle"}
         showCost={false}
         onClick={() => onSelectMemory(ownerIndex)}
       />

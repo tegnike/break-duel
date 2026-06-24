@@ -11,15 +11,17 @@ import {
   canActivePlayerAttack,
   canDefend,
   canDefendWithOptionalFirewall,
+  canUseAcceleratorMemory,
   canUpgrade,
   checkResourceExhaustion,
   checkTurnLimit,
   checkWinner,
   chooseAiDefense,
+  cardNameList,
   defenseCombatValue,
   discardFirewallFuel,
   discardLowPriorityCards,
-  draw,
+  drawCards,
   drawsAfterOverheat,
   drawsOnBlockedAttack,
   drawsOnPlay,
@@ -48,6 +50,7 @@ import {
   spendsEnemyOnPlay,
   upgradeCost,
   useAction,
+  visibleDrawText,
 } from "../game";
 import type { DuelEventPayload } from "../duelEvents";
 
@@ -77,6 +80,23 @@ export function discardHandCards(game: GameState, playerIndex: number, indexes: 
   return discarded;
 }
 
+export function useAcceleratorMemoryInDraft(draft: GameState, playerIndex: number, fieldIndex: number): Card | null {
+  const player = draft.players[playerIndex];
+  if (!player || !canUseAcceleratorMemory(draft, player)) return null;
+  const sacrificed = player.field[fieldIndex];
+  if (!sacrificed) return null;
+  player.discard.push(removeFieldCard(player, fieldIndex));
+  player.acceleratorUsed = true;
+  const before = draft.actionsRemaining;
+  draft.actionsRemaining = Math.min(3, draft.actionsRemaining + 1);
+  addLog(draft, `${player.name}は${player.memory!.name}で${sacrificed.name}をトラッシュし、残りアクションを${before}から${draft.actionsRemaining}に増やした。`);
+  draft.selected = null;
+  draft.pendingTarget = null;
+  checkResourceExhaustion(draft);
+  checkTurnLimit(draft);
+  return sacrificed;
+}
+
 export function applyPlayEffects(
   draft: GameState,
   player: PlayerState,
@@ -102,17 +122,17 @@ export function applyPlayEffects(
     const playerIndex = draft.players.indexOf(player);
     const opponent = playerIndex >= 0 ? draft.players[1 - playerIndex] : null;
     if (opponent) {
-      const drawn = draw(opponent, 1);
-      text += ` 代償として${opponent.name}は${drawn}枚引いた。`;
+      const drawnCards = drawCards(opponent, 1);
+      text += ` 代償として${opponent.name}は${visibleDrawText(opponent, drawnCards)}。`;
     }
   }
   if (CONFIG.power1DrawsOnPlay && drawsOnPlay(card)) {
-    const drawn = draw(player, 1);
-    text += ` ${drawn}枚引いた。`;
+    const drawnCards = drawCards(player, 1);
+    text += ` ${visibleDrawText(player, drawnCards)}。`;
   }
   if (filtersOnPlay(card)) {
-    const drawn = draw(player, 2);
-    text += ` ${drawn}枚引いた。`;
+    const drawnCards = drawCards(player, 2);
+    text += ` ${visibleDrawText(player, drawnCards)}。`;
     if (player.hand.length > 0) {
       if (player.isHuman) {
         draft.pendingTarget = {
@@ -121,7 +141,7 @@ export function applyPlayEffects(
           zone: "hand",
           playerIndex: draft.players.indexOf(player),
           title: `${card.name}の捨て札を選択`,
-          prompt: "登場時効果で2枚引きました。手札からトラッシュするカードを1枚選んでください。",
+          prompt: `登場時効果で${visibleDrawText(player, drawnCards)}。手札からトラッシュするカードを1枚選んでください。`,
           confirmLabel: "このカードを捨てる",
           min: 1,
           max: 1,
@@ -226,30 +246,9 @@ export function applyPlayEffects(
     }
   }
   if (player.memory?.effect === "pipeline" && card.power === 1 && !player.pipelineUsed) {
-    if (player.isHuman) {
-      draft.pendingTarget = {
-        kind: "optional-effect",
-        reason: "pipeline",
-        playerIndex: draft.players.indexOf(player),
-        title: `${player.memory.name}を使用しますか`,
-        prompt: "このターンまだ使っていません。使うなら1枚引いてから手札を1枚トラッシュします。",
-        confirmLabel: "使う",
-        declineLabel: "使わない",
-        actionCost,
-      };
-      text += ` ${player.memory.name}を使うか選択。`;
-    } else {
-      player.pipelineUsed = true;
-      const drawn = draw(player, 1);
-      if (player.hand.length > 0) {
-        const discardIndex = lowestPriorityHand(player);
-        const discarded = player.hand.splice(discardIndex, 1)[0];
-        player.discard.push(discarded);
-        text += ` ${player.memory.name}で${drawn}枚引き、${discarded.name}を捨てた。`;
-      } else {
-        text += ` ${player.memory.name}で${drawn}枚引いた。`;
-      }
-    }
+    player.pipelineUsed = true;
+    const drawnCards = drawCards(player, 1);
+    text += ` ${player.memory.name}で${visibleDrawText(player, drawnCards)}。`;
   }
   return text;
 }
@@ -278,8 +277,8 @@ export function useCommandAtInDraft(
     const discarded = selectedDiscardCards.length > 0
       ? selectedDiscardCards
       : discardLowPriorityCards(player, 1);
-    const drawn = draw(player, 2);
-    text += ` ${discarded.map((card) => card.name).join("、")}を捨て、${drawn}枚引いた。`;
+    const drawnCards = drawCards(player, 2);
+    text += ` ${cardNameList(discarded)}を捨て、${visibleDrawText(player, drawnCards)}。`;
   } else if (used.effect === "patch") {
     const target = targetIndex ?? highestPowerSpentAi(player);
     if (target !== null) {
@@ -305,6 +304,14 @@ export function useCommandAtInDraft(
   } else if (used.effect === "sandbox") {
     player.sandboxShield = 1;
     text += " このターン、次のpower 4攻撃後退場を1回防ぐ。";
+  } else if (used.effect === "trinity") {
+    const trashed: Card[] = [];
+    for (let index = player.field.length - 1; index >= 0; index -= 1) {
+      trashed.unshift(removeFieldCard(player, index));
+    }
+    player.discard.push(...trashed);
+    opponent.life -= 1;
+    text += ` ${cardNameList(trashed)}をすべてトラッシュし、${opponent.name}のライフを1減らした。`;
   }
   addLog(draft, text);
   effects.showDuelEvent?.({
@@ -312,9 +319,14 @@ export function useCommandAtInDraft(
     title: `${player.name}の指令`,
     detail: text,
     fromLabel: "手札",
-    toLabel: "トラッシュ",
+    toLabel: used.effect === "trinity" ? "場 / トラッシュ / ライフ" : "トラッシュ",
     tone: player.isHuman ? "magenta" : "cyan",
-    cards: [{ card: used, label: "使用", state: "trash" }],
+    cards: [
+      { card: used, label: "使用", state: "trash" },
+      ...(used.effect === "trinity"
+        ? player.discard.slice(-3).map((card) => ({ card, label: "犠牲", state: "trash" as const }))
+        : []),
+    ],
   });
   draft.selected = null;
   draft.pendingTarget = null;
@@ -398,16 +410,16 @@ export function resolveDefenseInDraft(
     const attackValue = attackCombatValue(attackCard);
     const isTrade = defenseValue === attackValue;
     const fuelText = firewallFuel ? ` ${defender.memory!.name}で${firewallFuel.name}をトラッシュ。` : "";
-    const defenseDrawn = drawsOnSuccessfulDefense(defenseCard) ? draw(defender, 1) : 0;
+    const defenseDrawnCards = drawsOnSuccessfulDefense(defenseCard) ? drawCards(defender, 1) : [];
     const shouldChoosePressureDiscard = pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
     const pressureDiscarded = pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
       ? discardLowPriorityCards(defender, 1)[0] ?? null
       : null;
-    const blockedDrawn = drawsOnBlockedAttack(attackCard) ? draw(attacker, 1) : 0;
+    const blockedDrawnCards = drawsOnBlockedAttack(attackCard) ? drawCards(attacker, 1) : [];
     const extraText = [
-      defenseDrawn ? `${defenseCard.name}の効果で${defender.name}は1枚引いた。` : "",
+      defenseDrawnCards.length > 0 ? `${defenseCard.name}の効果で${defender.name}は${visibleDrawText(defender, defenseDrawnCards)}。` : "",
       pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}を捨てた。` : "",
-      blockedDrawn ? `${attackCard.name}の効果で${attacker.name}は1枚引いた。` : "",
+      blockedDrawnCards.length > 0 ? `${attackCard.name}の効果で${attacker.name}は${visibleDrawText(attacker, blockedDrawnCards)}。` : "",
     ].filter(Boolean).join(" ");
     addLog(
       draft,
@@ -465,11 +477,11 @@ export function resolveDefenseInDraft(
     const pressureDiscarded = !pierced && pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
       ? discardLowPriorityCards(defender, 1)[0] ?? null
       : null;
-    const blockedDrawn = !pierced && drawsOnBlockedAttack(attackCard) ? draw(attacker, 1) : 0;
+    const blockedDrawnCards = !pierced && drawsOnBlockedAttack(attackCard) ? drawCards(attacker, 1) : [];
     const extraText = [
       pierced ? `${attackCard.name}の効果で防御されても1ダメージ。` : "",
       pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}を捨てた。` : "",
-      blockedDrawn ? `${attackCard.name}の効果で${attacker.name}は1枚引いた。` : "",
+      blockedDrawnCards.length > 0 ? `${attackCard.name}の効果で${attacker.name}は${visibleDrawText(attacker, blockedDrawnCards)}。` : "",
     ].filter(Boolean).join(" ");
     addLog(draft, `${defender.name}は手札の${defenseCard.name}で攻撃を止めた。${defenseCard.name}はトラッシュへ。${extraText ? ` ${extraText}` : ""}`);
     effects.showDuelEvent?.({
@@ -551,12 +563,12 @@ function overheatAttackerIfNeeded(
     return;
   }
   attacker.discard.push(removeFieldCard(attacker, fieldIndex));
-  const drawn = drawsTwoAfterOverheat(attackCard)
-    ? draw(attacker, 2)
+  const drawnCards = drawsTwoAfterOverheat(attackCard)
+    ? drawCards(attacker, 2)
     : drawsAfterOverheat(attackCard)
-      ? draw(attacker, 1)
-      : 0;
-  addLog(draft, `${attacker.name}の${attackCard.name}は攻撃後に力を使い切って退場。${drawn ? `${drawn}枚引いた。` : ""}`);
+      ? drawCards(attacker, 1)
+      : [];
+  addLog(draft, `${attacker.name}の${attackCard.name}は攻撃後に力を使い切って退場。${drawnCards.length > 0 ? `${visibleDrawText(attacker, drawnCards)}。` : ""}`);
   effects.showDuelEvent?.({
     kind: "trash",
     title: "攻撃後退場",
@@ -644,6 +656,8 @@ export function performAiActionInDraft(
       ],
     });
     afterAction(draft);
+  } else if (action.type === "memory-effect") {
+    useAcceleratorMemoryInDraft(draft, draft.active, action.fieldIndex);
   } else if (action.type === "attack") {
     const attackerIndex = draft.active;
     const attackCard = player.field[action.index];
@@ -655,12 +669,12 @@ export function performAiActionInDraft(
   } else if (action.type === "cycle") {
     const card = player.hand.splice(action.index, 1)[0];
     player.discard.push(card);
-    const drawn = draw(player, 1);
-    addLog(draft, `${player.name}は手札を交換し、${drawn}枚引いた。`);
+    const drawnCards = drawCards(player, 1);
+    addLog(draft, `${player.name}は${card.name}を交換し、${visibleDrawText(player, drawnCards)}。`);
     effects.showDuelEvent?.({
       kind: "cycle",
       title: `${player.name}が交換`,
-      detail: `${card.name}をトラッシュへ送り、${drawn}枚引きました。`,
+      detail: `${card.name}をトラッシュへ送り、${visibleDrawText(player, drawnCards)}。`,
       fromLabel: "手札",
       toLabel: "トラッシュ",
       tone: player.isHuman ? "magenta" : "cyan",

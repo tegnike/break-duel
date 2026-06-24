@@ -13,6 +13,7 @@ import {
   bestUpgradeSource,
   canActivePlayerAttack,
   canHumanAct,
+  canUseAcceleratorMemory,
   canUseFirewall,
   chooseAiDefense,
   commandUsable,
@@ -117,7 +118,6 @@ export function DefensePanel({
   onTogglePendingCard,
   onConfirmPending,
   onConfirmCardSelection,
-  onResolveOptionalEffect,
 }: {
   game: GameState;
   onResolve: (choice: DefenseChoice) => void;
@@ -127,22 +127,8 @@ export function DefensePanel({
   onTogglePendingCard: (index: number) => void;
   onConfirmPending: () => void;
   onConfirmCardSelection: () => void;
-  onResolveOptionalEffect: (useEffect: boolean) => void;
 }) {
   if (game.pendingTarget) {
-    if (game.pendingTarget.kind === "optional-effect") {
-      const pending = game.pendingTarget;
-      return (
-        <div className="defense-panel">
-          <h3>{pending.title}</h3>
-          <p className="choice-prompt">{pending.prompt}</p>
-          <div className="defense-actions pending-actions">
-            <button type="button" className="action-ready" onClick={() => onResolveOptionalEffect(true)}>{pending.confirmLabel}</button>
-            <button type="button" onClick={() => onResolveOptionalEffect(false)}>{pending.declineLabel}</button>
-          </div>
-        </div>
-      );
-    }
     if (game.pendingTarget.kind === "hand-discard") {
       const pending = game.pendingTarget;
       const player = game.players[pending.playerIndex];
@@ -361,6 +347,14 @@ export function actionHintText(game: GameState, card: Card | null, zone: string 
     if (human.spentFieldIndexes.has(game.selected?.index ?? -1)) return "消耗中のため行動できません。";
     const defense = chooseAiDefense(opponent, card);
     return defense.type === "none" ? "攻撃するとダメージが通る見込みです。" : "攻撃すると防御される可能性があります。";
+  }
+  if (zone === "memory") {
+    if ((game.selected?.ownerIndex ?? 0) !== 0) return selectedText(card);
+    if (card.effect === "accelerator") {
+      return canUseAcceleratorMemory(game, human)
+        ? "場の召喚獣1体をトラッシュしてもよい。その場合、残りアクションを1増やせます。"
+        : "このターン使用済み、場に召喚獣がない、または残りアクションが上限です。";
+    }
   }
   return selectedText(card);
 }
