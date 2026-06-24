@@ -16,7 +16,7 @@ design plan.
   - Player 1 uses `紅蓮突破デッキ`, focused on fire/water pressure and disruption.
   - Player 2 uses `大地守護デッキ`, focused on wind/earth defense and recursion.
 - The browser UI starts from a battle deck picker. The human player chooses one
-  of the six preset decks, and the rival is selected randomly from the
+  of the seven preset decks, and the rival is selected randomly from the
   remaining presets.
 - Four mono-attribute 20-card decks are available for browser play and balance
   leagues:
@@ -24,6 +24,8 @@ design plan.
   - `water`: draw, filtering, refill finishers, and recursion.
   - `wind`: tempo, ready/spent control, reusable attackers, returning finishers.
   - `earth`: defense, firewall, successful-defense draw, and recursion.
+  - `apex`: a strongest-candidate mixed deck tuned to beat the six existing
+    presets by a large margin.
   - Each preset deck contains at least two summon, command, and relic cards.
     Each mono-attribute deck keeps summon cards within one attribute and uses
     every summon from that attribute at least once.
@@ -151,6 +153,10 @@ directory.
 The latest balanced-deck check used seed `260626`: the six-deck ordered league
 with 1000 games per ordered pair landed at 54.7% `break`, 53.5% `earth`,
 51.0% `control`, 50.6% `fire`, 45.5% `wind`, and 44.7% `water`.
+
+The strongest preset check used seed `260627`: `apex` played 1000 games in each
+seat against each of the six existing presets and landed at 77.9% overall. Its
+lowest matchup was 65.1% against `break`.
 
 ## Play UI
 

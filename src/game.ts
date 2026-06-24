@@ -472,11 +472,37 @@ export const DECKS = {
       "MEM-PIPELINE",
     ],
   },
+  apex: {
+    name: "覇王結束デッキ",
+    description: "各属性の高効率カードを束ねた最強候補。妨害、防御、突破をまとめて押し付けます。",
+    cards: [
+      "AI-FIRE-2B",
+      "AI-FIRE-2B",
+      "AI-FIRE-3B",
+      "AI-FIRE-3B",
+      "AI-FIRE-4",
+      "AI-WATER-2",
+      "AI-WATER-2B",
+      "AI-WATER-2B",
+      "AI-WATER-3B",
+      "AI-WIND-2B",
+      "AI-WIND-3",
+      "AI-WIND-3B",
+      "AI-EARTH-2",
+      "AI-EARTH-4",
+      "CMD-DISRUPT",
+      "CMD-SANDBOX",
+      "CMD-FIRE-RITE",
+      "CMD-WATER-RITE",
+      "MEM-CACHE",
+      "MEM-FIREWALL",
+    ],
+  },
 } as const;
 
 export type DeckId = keyof typeof DECKS;
 
-export const BATTLE_DECK_IDS = ["break", "control", "fire", "water", "wind", "earth"] as const satisfies readonly DeckId[];
+export const BATTLE_DECK_IDS = ["break", "control", "fire", "water", "wind", "earth", "apex"] as const satisfies readonly DeckId[];
 
 export function cloneCard(card: Card): Card {
   return { ...card };

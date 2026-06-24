@@ -72,6 +72,7 @@ class DeckArchetype(str, Enum):
     WATER = "water"
     WIND = "wind"
     EARTH = "earth"
+    APEX = "apex"
 
 
 class Attribute(str, Enum):
@@ -698,6 +699,31 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-OPTIMIZE",
                 "MEM-CACHE",
                 "MEM-PIPELINE",
+            ]
+        )
+    if archetype == DeckArchetype.APEX:
+        return _deck_from_ids(
+            [
+                "AI-FIRE-2B",
+                "AI-FIRE-2B",
+                "AI-FIRE-3B",
+                "AI-FIRE-3B",
+                "AI-FIRE-4",
+                "AI-WATER-2",
+                "AI-WATER-2B",
+                "AI-WATER-2B",
+                "AI-WATER-3B",
+                "AI-WIND-2B",
+                "AI-WIND-3",
+                "AI-WIND-3B",
+                "AI-EARTH-2",
+                "AI-EARTH-4",
+                "CMD-DISRUPT",
+                "CMD-SANDBOX",
+                "CMD-FIRE-RITE",
+                "CMD-WATER-RITE",
+                "MEM-CACHE",
+                "MEM-FIREWALL",
             ]
         )
     raise ValueError(f"Unsupported deck archetype: {archetype}")
