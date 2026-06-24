@@ -15,15 +15,17 @@ design plan.
 - Python simulations use two standard 20-card decks by default:
   - Player 1 uses `紅蓮突破デッキ`, focused on fire/water pressure and disruption.
   - Player 2 uses `大地守護デッキ`, focused on wind/earth defense and recursion.
-- The browser UI starts from a starter deck picker. The human player chooses one
-  mono-attribute deck, and the rival is selected randomly from the remaining
-  mono-attribute decks.
+- The browser UI starts from a battle deck picker. The human player chooses one
+  of the six preset decks, and the rival is selected randomly from the
+  remaining presets.
 - Four mono-attribute 20-card decks are available for browser play and balance
   leagues:
   - `fire`: aggro pressure, hand-defense punishment, disruption, finishers.
   - `water`: draw, filtering, refill finishers, and recursion.
   - `wind`: tempo, ready/spent control, reusable attackers, returning finishers.
   - `earth`: defense, firewall, successful-defense draw, and recursion.
+  - Each mono-attribute deck keeps summon cards within one attribute, then
+    doubles theme-defining summons as needed for balance.
 - Two actions every turn.
 - The game ends by life judgement after 60 player turns if neither player has
   lost by life damage.
@@ -134,8 +136,10 @@ The command writes:
 The league command writes `league-summary.json` under the selected output
 directory.
 
-The latest 4-deck mono-attribute balance check used seed `9301` with 3000 games
-per ordered pair. Deck win rates landed in roughly the 46% to 54% range.
+The latest balanced-deck checks used seed `21001`: `break` vs `control` over
+5000 games landed at 56.8% for first-player `break`; the six-deck ordered league
+with 1000 games per pair landed at 56.0% `earth`, 51.8% `control`, 49.5%
+`water`, 48.6% `break`, 47.4% `wind`, and 46.6% `fire`.
 
 ## Play UI
 

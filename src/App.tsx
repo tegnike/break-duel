@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   CONFIG,
+  BATTLE_DECK_IDS,
   DECKS,
-  STARTER_DECK_IDS,
   type AiAction,
   type DefenseChoice,
   type Card,
@@ -1237,13 +1237,13 @@ function StarterDeckModal({
       <section className="starter-deck-modal">
         <div className="modal-head">
           <div>
-            <h2 id="starter-deck-title">スターターデッキを選択</h2>
+            <h2 id="starter-deck-title">対戦デッキを選択</h2>
             <p>相手は選んだデッキ以外からランダムに決まります。</p>
           </div>
           {canClose && <button type="button" onClick={onClose}>閉じる</button>}
         </div>
         <div className="starter-deck-grid">
-          {STARTER_DECK_IDS.map((deckId) => {
+          {BATTLE_DECK_IDS.map((deckId) => {
             const deck = DECKS[deckId];
             return (
               <button
