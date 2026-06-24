@@ -14,6 +14,7 @@ import {
   bestUpgradeSource,
   canActivePlayerAttack,
   canHumanAct,
+  canHumanEndTurn,
   canUseAcceleratorMemory,
   canUpgrade,
   cloneGame,
@@ -798,7 +799,7 @@ export default function App() {
   }
 
   function endTurn() {
-    if (!canHumanAct(game)) return;
+    if (!canHumanEndTurn(game)) return;
     mutate((draft) => {
       finishTurn(draft, true);
     });
@@ -1009,6 +1010,8 @@ export default function App() {
     || !selectedField
     || !canActivePlayerAttack(game)
     || active.spentFieldIndexes.has(game.selected?.index ?? -1);
+  const endTurnEnabled = canHumanEndTurn(game);
+  const endTurnLabel = game.actionsRemaining <= 0 ? "できることが無くなったのでターン終了" : "ターン終了";
   const matchResult = game.draw
     ? {
         tone: "draw" as const,
@@ -1160,7 +1163,7 @@ export default function App() {
             <button type="button" className={!upgradeDisabled ? "action-ready" : ""} disabled={upgradeDisabled} onClick={upgradeSelectedAi}><span>↑</span>アップグレード</button>
             <button type="button" className={!attackDisabled ? "action-ready" : ""} disabled={attackDisabled} onClick={attackWithSelectedAi}><span>⚔</span>攻撃</button>
             <button type="button" className={canHumanAct(game) && selectedHand ? "action-ready" : ""} disabled={!canHumanAct(game) || !selectedHand} onClick={cycleSelectedCard}><span>↔</span>交換</button>
-            <button type="button" className={canHumanAct(game) ? "action-ready end-turn" : "end-turn"} disabled={!canHumanAct(game)} onClick={endTurn}><span>●</span>ターン終了</button>
+            <button type="button" className={endTurnEnabled ? "action-ready end-turn" : "end-turn"} disabled={!endTurnEnabled} onClick={endTurn}><span>●</span>{endTurnLabel}</button>
           </div>
           <div className="dock-action-footer">
             <div className="action-hint">{actionHintText(game, selectedCard, game.selected?.zone ?? null)}</div>

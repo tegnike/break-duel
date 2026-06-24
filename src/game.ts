@@ -647,7 +647,7 @@ export function finishTurn(game: GameState, logEnd: boolean): void {
 
 export function useAction(game: GameState, cost = 1): void {
   game.actionsRemaining -= cost;
-  if (game.actionsRemaining <= 0 && !game.pendingAttack && game.winner === null && !game.draw) {
+  if (game.actionsRemaining <= 0 && !activePlayer(game).isHuman && !game.pendingAttack && game.winner === null && !game.draw) {
     finishTurn(game, false);
   }
 }
@@ -1179,5 +1179,15 @@ export function canHumanAct(game: GameState): boolean {
     && !game.pendingTarget
     && activePlayer(game).isHuman
     && game.actionsRemaining > 0
+  );
+}
+
+export function canHumanEndTurn(game: GameState): boolean {
+  return (
+    game.winner === null
+    && !game.draw
+    && !game.pendingAttack
+    && !game.pendingTarget
+    && activePlayer(game).isHuman
   );
 }

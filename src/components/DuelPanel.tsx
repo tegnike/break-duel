@@ -13,6 +13,7 @@ import {
   bestUpgradeSource,
   canActivePlayerAttack,
   canHumanAct,
+  canHumanEndTurn,
   canUseAcceleratorMemory,
   canUseFirewall,
   chooseAiDefense,
@@ -328,6 +329,7 @@ export function LogList({ entries }: { entries: string[] }) {
 }
 
 export function actionHintText(game: GameState, card: Card | null, zone: string | null): string {
+  if (canHumanEndTurn(game) && game.actionsRemaining <= 0) return "できることが無くなりました。ターン終了してください。";
   if (!card) return canHumanAct(game) ? "手札と場の明るい枠が、いま使える候補です。" : "ライバルの行動中です。";
   if (!canHumanAct(game)) return selectedText(card);
   const human = game.players[0];
