@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 import unittest
 
 from ai_break_duel.cards import (
@@ -11,6 +12,7 @@ from ai_break_duel.cards import (
     DeckArchetype,
     MEMORY_CARD_POOL,
     Attribute,
+    attack_combat_value,
     build_deck,
     build_player_deck,
     can_defend,
@@ -53,6 +55,48 @@ def no_opening_hands(**overrides):
 
 
 class CoreRuleTests(unittest.TestCase):
+    def test_preset_decks_keep_template_composition(self) -> None:
+        for archetype in DeckArchetype:
+            with self.subTest(archetype=archetype.value):
+                deck = build_deck(archetype)
+                validate_same_name_limit(deck)
+                type_counts = Counter(card.type for card in deck)
+                self.assertEqual(len(deck), 20)
+                self.assertEqual(type_counts[CardType.AI], 14)
+                self.assertEqual(type_counts[CardType.EVENT], 4)
+                self.assertEqual(type_counts[CardType.MEMORY], 2)
+
+    def test_preset_decks_do_not_duplicate_high_power_summons(self) -> None:
+        for archetype in DeckArchetype:
+            with self.subTest(archetype=archetype.value):
+                high_power_counts = Counter(
+                    card.id
+                    for card in build_deck(archetype)
+                    if card.type == CardType.AI and (card.power or 0) >= 3
+                )
+                duplicated = {
+                    card_id: count
+                    for card_id, count in high_power_counts.items()
+                    if count > 1
+                }
+                self.assertEqual(duplicated, {})
+
+    def test_mono_sample_decks_only_use_matching_attribute_summons(self) -> None:
+        expectations = {
+            DeckArchetype.FIRE: Attribute.FIRE,
+            DeckArchetype.WATER: Attribute.WATER,
+            DeckArchetype.WIND: Attribute.WIND,
+            DeckArchetype.EARTH: Attribute.EARTH,
+        }
+        for archetype, expected_attribute in expectations.items():
+            with self.subTest(archetype=archetype.value):
+                attributes = {
+                    card.attribute
+                    for card in build_deck(archetype)
+                    if card.type == CardType.AI
+                }
+                self.assertEqual(attributes, {expected_attribute})
+
     def test_same_attribute_requires_equal_or_higher_power(self) -> None:
         self.assertTrue(can_defend(card("AI-WATER-3"), card("AI-WATER-3")))
         self.assertTrue(can_defend(card("AI-WATER-3"), card("AI-WATER-4")))
@@ -483,7 +527,7 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[1].hand], ["AI-FIRE-1"])
         self.assertEqual(state.log[-1]["effect_opponent_draw_count"], 1)
 
-    def test_wind_3b_readies_spent_summon_without_drawing(self) -> None:
+    def test_wind_3b_draws_and_readies_spent_summon(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].field_ai = [card("AI-WIND-1")]
         state.players[0].spent_field_ai = {0}
@@ -493,9 +537,9 @@ class CoreRuleTests(unittest.TestCase):
         state.players[0].spent_field_ai = {0}
         apply_action(state, Action(ActionType.PLAY_AI, 0))
         self.assertEqual(state.players[0].spent_field_ai, set())
-        self.assertEqual([item.id for item in state.players[0].hand], [])
-        self.assertEqual([item.id for item in state.players[0].deck], ["AI-FIRE-1"])
-        self.assertEqual(state.log[-1]["effect_draw_count"], 0)
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-1"])
+        self.assertEqual(state.players[0].deck, [])
+        self.assertEqual(state.log[-1]["draw_count"], 1)
         self.assertEqual(state.log[-1]["effect_recovered_ai"], "AI-WIND-1")
 
     def test_cannot_hand_defend_drawback_prevents_hand_defense(self) -> None:
@@ -520,6 +564,14 @@ class CoreRuleTests(unittest.TestCase):
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
         self.assertEqual([item.id for item in state.players[0].hand], ["AI-WIND-4B"])
+        self.assertEqual(state.players[0].discard, [])
+
+    def test_wind_power_4_returns_to_hand_after_attack(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WIND-4")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-WIND-4"])
         self.assertEqual(state.players[0].discard, [])
 
     def test_defense_plus_1_ai_gets_defense_bonus(self) -> None:
@@ -561,6 +613,9 @@ class CoreRuleTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             apply_action(state, Action(ActionType.PLAY_AI, 0))
 
+    def test_fire_3_gets_attack_plus_1(self) -> None:
+        self.assertEqual(attack_combat_value(card("AI-FIRE-3")), 4)
+
     def test_power_4_enters_ready(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].hand = [card("AI-FIRE-4")]
@@ -579,15 +634,16 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[0].field_ai, [])
         self.assertEqual(state.players[0].discard[0].id, "AI-WATER-4")
 
-    def test_draw_after_overheat_ai_draws_when_power_4_overheats(self) -> None:
+    def test_fire_4_draws_two_when_power_4_overheats(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].field_ai = [card("AI-FIRE-4")]
-        state.players[0].deck = [card("AI-FIRE-1")]
+        state.players[0].deck = [card("AI-FIRE-1"), card("AI-FIRE-2")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
         self.assertEqual(state.players[0].field_ai, [])
         self.assertEqual([item.id for item in state.players[0].discard], ["AI-FIRE-4"])
-        self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-1"])
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-2", "AI-FIRE-1"])
+        self.assertEqual(state.log[-1]["overheat_draw_count"], 2)
 
     def test_optimize_discards_one_and_draws_two(self) -> None:
         state = new_game(1, no_opening_hands())
