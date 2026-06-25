@@ -209,7 +209,7 @@ def _best_upgrade(player: PlayerState, state: GameState) -> tuple[int, int] | No
         if target.type != CardType.AI or _upgrade_cost(target, state) > state.actions_remaining:
             continue
         for field_index, source in enumerate(player.field_ai):
-            if _can_upgrade(source, target):
+            if _can_upgrade_with_config(state, source, target):
                 candidates.append((hand_index, field_index, target, source))
     if not candidates:
         return None
@@ -546,3 +546,11 @@ def _can_upgrade(source, target) -> bool:
     if source.power is None or target.power is None:
         return False
     return source.power < target.power
+
+
+def _can_upgrade_with_config(state: GameState, source, target) -> bool:
+    if not _can_upgrade(source, target):
+        return False
+    if state.config.exact_upgrade_step:
+        return target.power == source.power + 1
+    return True

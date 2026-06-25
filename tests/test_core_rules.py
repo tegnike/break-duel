@@ -1214,6 +1214,34 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.actions_remaining, 0)
         self.assertEqual(state.log[-1]["action_cost"], 1)
 
+    def test_exact_upgrade_step_blocks_skipping_power(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(
+                first_player_first_turn_actions=2,
+                exact_upgrade_step=True,
+            ),
+        )
+        state.players[0].field_ai = [card("AI-FIRE-1")]
+        state.players[0].hand = [card("AI-FIRE-3")]
+        start_turn(state)
+        with self.assertRaises(ValueError):
+            apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
+
+    def test_exact_upgrade_step_allows_next_power(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(
+                first_player_first_turn_actions=1,
+                exact_upgrade_step=True,
+            ),
+        )
+        state.players[0].field_ai = [card("AI-FIRE-2")]
+        state.players[0].hand = [card("AI-FIRE-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
+        self.assertEqual(state.players[0].field_ai[0].id, "AI-FIRE-3")
+
     def test_large_ai_upgrade_cost_can_be_configured_to_one(self) -> None:
         state = new_game(
             1,

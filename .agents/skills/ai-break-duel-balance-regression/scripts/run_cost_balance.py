@@ -187,6 +187,12 @@ class EvalConfig:
 @dataclass(frozen=True)
 class DeckRuleSet:
     label: str
+    life: int | None = None
+    field_ai_limit: int | None = None
+    hand_defense_limit_per_turn: int | None = None
+    hand_defense_requires_empty_field: bool = False
+    successful_defense_discards_both: bool = True
+    exact_upgrade_step: bool = False
     max_power_3_summons: int | None = None
     max_high_power_summons: int | None = None
     large_ai_play_cost: int | None = None
@@ -199,6 +205,7 @@ class DeckRuleSet:
     power_3_cannot_field_defend: bool = False
     power_3_defense_modifier: int = 0
     power_3_overheats_after_attack: bool = False
+    power_4_enters_spent: bool = False
     power_4_overheats_after_attack: bool = True
 
 
@@ -209,12 +216,164 @@ RULE_SETS: dict[str, DeckRuleSet] = {
         large_ai_play_cost=3,
         large_ai_upgrade_cost=1,
     ),
+    "large_cost_3": DeckRuleSet(
+        "power 3/4 direct cost 3; upgrade uses normal cost minus 1",
+        large_ai_play_cost=3,
+    ),
+    "large_enters_spent": DeckRuleSet(
+        "power 3/4 summons enter spent",
+        power_3_enters_spent=True,
+        power_4_enters_spent=True,
+    ),
+    "large_cost_3_enters_spent": DeckRuleSet(
+        "power 3/4 direct cost 3 and enter spent",
+        large_ai_play_cost=3,
+        power_3_enters_spent=True,
+        power_4_enters_spent=True,
+    ),
+    "exact_upgrade_step": DeckRuleSet(
+        "upgrades must advance exactly one power step",
+        exact_upgrade_step=True,
+    ),
+    "large_cost_3_exact_upgrade": DeckRuleSet(
+        "power 3/4 direct cost 3 and upgrades advance exactly one step",
+        large_ai_play_cost=3,
+        exact_upgrade_step=True,
+    ),
+    "large_cost_3_exact_upgrade_enters_spent": DeckRuleSet(
+        "power 3/4 direct cost 3, exact-step upgrades, and enter spent",
+        large_ai_play_cost=3,
+        exact_upgrade_step=True,
+        power_3_enters_spent=True,
+        power_4_enters_spent=True,
+    ),
+    "field_limit_2": DeckRuleSet(
+        "field summon limit 2",
+        field_ai_limit=2,
+    ),
+    "life_6": DeckRuleSet(
+        "starting life 6",
+        life=6,
+    ),
+    "life_7": DeckRuleSet(
+        "starting life 7",
+        life=7,
+    ),
+    "hand_defense_empty_only": DeckRuleSet(
+        "hand defense requires an empty field",
+        hand_defense_requires_empty_field=True,
+    ),
+    "hand_defense_0": DeckRuleSet(
+        "hand defense disabled",
+        hand_defense_limit_per_turn=0,
+    ),
+    "field_limit_2_large_cost_3": DeckRuleSet(
+        "field summon limit 2 and power 3/4 direct cost 3",
+        field_ai_limit=2,
+        large_ai_play_cost=3,
+    ),
+    "life_6_large_cost_3": DeckRuleSet(
+        "starting life 6 and power 3/4 direct cost 3",
+        life=6,
+        large_ai_play_cost=3,
+    ),
+    "life_6_field_limit_2": DeckRuleSet(
+        "starting life 6 and field summon limit 2",
+        life=6,
+        field_ai_limit=2,
+    ),
+    "life_6_field_limit_2_large_cost_3": DeckRuleSet(
+        "starting life 6, field summon limit 2, and power 3/4 direct cost 3",
+        life=6,
+        field_ai_limit=2,
+        large_ai_play_cost=3,
+    ),
     "p3_cap_6": DeckRuleSet("power 3 summons max 6", max_power_3_summons=6),
     "p3_cap_4": DeckRuleSet("power 3 summons max 4", max_power_3_summons=4),
     "p3_cap_2": DeckRuleSet("power 3 summons max 2", max_power_3_summons=2),
     "p3_cap_1": DeckRuleSet("power 3 summons max 1", max_power_3_summons=1),
     "high_cap_6": DeckRuleSet("power 3+ summons max 6", max_high_power_summons=6),
     "high_cap_4": DeckRuleSet("power 3+ summons max 4", max_high_power_summons=4),
+    "high_cap_3": DeckRuleSet("power 3+ summons max 3", max_high_power_summons=3),
+    "high_cap_2": DeckRuleSet("power 3+ summons max 2", max_high_power_summons=2),
+    "high_cap_2_p4_cost_1": DeckRuleSet(
+        "power 3+ summons max 2 and power 4 costs 1",
+        max_high_power_summons=2,
+        power_4_play_cost=1,
+    ),
+    "high_cap_2_p4_no_overheat": DeckRuleSet(
+        "power 3+ summons max 2 and power 4 does not overheat",
+        max_high_power_summons=2,
+        power_4_overheats_after_attack=False,
+    ),
+    "high_cap_2_p4_cost_1_no_overheat": DeckRuleSet(
+        "power 3+ summons max 2, power 4 costs 1, and power 4 does not overheat",
+        max_high_power_summons=2,
+        power_4_play_cost=1,
+        power_4_overheats_after_attack=False,
+    ),
+    "high_cap_3_p4_no_overheat": DeckRuleSet(
+        "power 3+ summons max 3 and power 4 does not overheat",
+        max_high_power_summons=3,
+        power_4_overheats_after_attack=False,
+    ),
+    "high_cap_4_p4_cost_1": DeckRuleSet(
+        "power 3+ summons max 4 and power 4 costs 1",
+        max_high_power_summons=4,
+        power_4_play_cost=1,
+    ),
+    "high_cap_4_p4_no_overheat": DeckRuleSet(
+        "power 3+ summons max 4 and power 4 does not overheat",
+        max_high_power_summons=4,
+        power_4_overheats_after_attack=False,
+    ),
+    "high_cap_4_p4_cost_1_no_overheat": DeckRuleSet(
+        "power 3+ summons max 4, power 4 costs 1, and power 4 does not overheat",
+        max_high_power_summons=4,
+        power_4_play_cost=1,
+        power_4_overheats_after_attack=False,
+    ),
+    "high_cap_6_p4_no_overheat": DeckRuleSet(
+        "power 3+ summons max 6 and power 4 does not overheat",
+        max_high_power_summons=6,
+        power_4_overheats_after_attack=False,
+    ),
+    "high_cap_4_hand_defense_empty_only": DeckRuleSet(
+        "power 3+ summons max 4 and hand defense requires empty field",
+        max_high_power_summons=4,
+        hand_defense_requires_empty_field=True,
+    ),
+    "high_cap_4_large_enters_spent": DeckRuleSet(
+        "power 3+ summons max 4 and power 3/4 enter spent",
+        max_high_power_summons=4,
+        power_3_enters_spent=True,
+        power_4_enters_spent=True,
+    ),
+    "high_cap_4_large_cost_3": DeckRuleSet(
+        "power 3+ summons max 4 and power 3/4 direct cost 3",
+        max_high_power_summons=4,
+        large_ai_play_cost=3,
+    ),
+    "high_cap_4_field_limit_2": DeckRuleSet(
+        "power 3+ summons max 4 and field summon limit 2",
+        max_high_power_summons=4,
+        field_ai_limit=2,
+    ),
+    "high_cap_4_life_6": DeckRuleSet(
+        "power 3+ summons max 4 and starting life 6",
+        max_high_power_summons=4,
+        life=6,
+    ),
+    "high_cap_3_p4_cost_1": DeckRuleSet(
+        "power 3+ summons max 3 and power 4 costs 1",
+        max_high_power_summons=3,
+        power_4_play_cost=1,
+    ),
+    "high_cap_3_hand_defense_empty_only": DeckRuleSet(
+        "power 3+ summons max 3 and hand defense requires empty field",
+        max_high_power_summons=3,
+        hand_defense_requires_empty_field=True,
+    ),
     "p3_cap_2_high_cap_4": DeckRuleSet(
         "power 3 summons max 2 and power 3+ summons max 4",
         max_power_3_summons=2,
@@ -449,6 +608,20 @@ def evaluate_candidate(
     rule_set = RULE_SETS[eval_config.rule_set]
     config = GameConfig(
         max_turns=eval_config.max_turns,
+        life=rule_set.life if rule_set.life is not None else GameConfig().life,
+        field_ai_limit=(
+            rule_set.field_ai_limit
+            if rule_set.field_ai_limit is not None
+            else GameConfig().field_ai_limit
+        ),
+        hand_defense_limit_per_turn=(
+            rule_set.hand_defense_limit_per_turn
+            if rule_set.hand_defense_limit_per_turn is not None
+            else GameConfig().hand_defense_limit_per_turn
+        ),
+        hand_defense_requires_empty_field=rule_set.hand_defense_requires_empty_field,
+        successful_defense_discards_both=rule_set.successful_defense_discards_both,
+        exact_upgrade_step=rule_set.exact_upgrade_step,
         large_ai_play_cost=(
             rule_set.large_ai_play_cost
             if rule_set.large_ai_play_cost is not None
@@ -463,6 +636,7 @@ def evaluate_candidate(
         power_3_cannot_field_defend=rule_set.power_3_cannot_field_defend,
         power_3_defense_modifier=rule_set.power_3_defense_modifier,
         power_3_overheats_after_attack=rule_set.power_3_overheats_after_attack,
+        power_4_enters_spent=rule_set.power_4_enters_spent,
         power_4_overheats_after_attack=rule_set.power_4_overheats_after_attack,
     )
     candidate_ids = twenty_cards(card_ids, rule_set)
@@ -586,6 +760,12 @@ def main() -> int:
         "rule_sets": {
             key: {
                 "label": value.label,
+                "life": value.life,
+                "field_ai_limit": value.field_ai_limit,
+                "hand_defense_limit_per_turn": value.hand_defense_limit_per_turn,
+                "hand_defense_requires_empty_field": value.hand_defense_requires_empty_field,
+                "successful_defense_discards_both": value.successful_defense_discards_both,
+                "exact_upgrade_step": value.exact_upgrade_step,
                 "max_power_3_summons": value.max_power_3_summons,
                 "max_high_power_summons": value.max_high_power_summons,
                 "large_ai_play_cost": value.large_ai_play_cost,
@@ -600,6 +780,7 @@ def main() -> int:
                 "power_3_overheats_after_attack": (
                     value.power_3_overheats_after_attack
                 ),
+                "power_4_enters_spent": value.power_4_enters_spent,
                 "power_4_overheats_after_attack": (
                     value.power_4_overheats_after_attack
                 ),

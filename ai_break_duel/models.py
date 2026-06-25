@@ -87,6 +87,7 @@ class GameConfig:
     exhaust_after_attack: bool = True
     exhausted_ai_can_defend: bool = False
     successful_defense_discards_both: bool = True
+    exact_upgrade_step: bool = False
     power_1_draws_on_play: bool = True
     power_2_defense_bonus: int = 1
     large_ai_play_cost: int = 2

@@ -197,6 +197,7 @@ def result_summary(state: GameState) -> dict[str, Any]:
             ),
             "exhaust_after_attack": state.config.exhaust_after_attack,
             "exhausted_ai_can_defend": state.config.exhausted_ai_can_defend,
+            "exact_upgrade_step": state.config.exact_upgrade_step,
             "successful_defense_discards_both": (
                 state.config.successful_defense_discards_both
             ),
@@ -356,7 +357,7 @@ def _upgrade_ai(state: GameState, action: Action) -> None:
     if card.type != CardType.AI:
         player.hand.insert(action.source_index, card)
         raise ValueError("Only summon cards can upgrade.")
-    if not _can_upgrade(source, card):
+    if not _can_upgrade_with_config(state, source, card):
         player.hand.insert(action.source_index, card)
         raise ValueError("Upgrade requires a lower-power summon with the same attribute.")
 
@@ -1439,4 +1440,14 @@ def _can_upgrade(source, target) -> bool:
         return False
     if source.power is None or target.power is None:
         return False
-    return source.power < target.power
+    if source.power >= target.power:
+        return False
+    return True
+
+
+def _can_upgrade_with_config(state: GameState, source, target) -> bool:
+    if not _can_upgrade(source, target):
+        return False
+    if state.config.exact_upgrade_step:
+        return target.power == source.power + 1
+    return True

@@ -189,6 +189,7 @@ export const CONFIG = {
   handDefenseEmptyOnly: false,
   exhaustAfterAttack: true,
   exhaustedCanDefend: false,
+  exactUpgradeStep: false,
   firstPlayerFirstTurnDraw: false,
   power1DrawsOnPlay: true,
   power2DefenseBonus: 1,
@@ -837,12 +838,16 @@ export function upgradeCost(card: Card): number {
 }
 
 export function canUpgrade(source: Card | undefined, target: Card | undefined): boolean {
-  return Boolean(
+  if (!(
     source?.type === "ai"
       && target?.type === "ai"
       && source.attribute === target.attribute
-      && (source.power ?? 0) < (target.power ?? 0),
-  );
+      && (source.power ?? 0) < (target.power ?? 0)
+  )) {
+    return false;
+  }
+  if (CONFIG.exactUpgradeStep) return target.power === (source.power ?? 0) + 1;
+  return true;
 }
 
 export function bestUpgradeSource(player: PlayerState, targetCard: Card): number | null {
