@@ -146,6 +146,15 @@ HIGH_COST_CARD_IDS = (
     "AI-EARTH-3",
 )
 
+SUPPORT_CARD_IDS = (
+    "CMD-DISRUPT",
+    "CMD-SANDBOX",
+    "CMD-TRINITY",
+    "CMD-OPTIMIZE",
+    "MEM-CACHE",
+    "MEM-FIREWALL",
+)
+
 EXISTING_DECKS = (
     DeckArchetype.BREAK,
     DeckArchetype.CONTROL,
@@ -156,13 +165,13 @@ EXISTING_DECKS = (
 )
 
 CANDIDATES: dict[str, tuple[str, tuple[str, ...]]] = {
-    "p1": ("power 1 only", POWER_CARD_IDS[1] * 3),
-    "p2": ("power 2 only", POWER_CARD_IDS[2] * 3),
-    "p3": ("power 3 only", POWER_CARD_IDS[3] * 3),
-    "p4": ("power 4 only", POWER_CARD_IDS[4] * 3),
-    "p1_2": ("power 1-2 only", LOW_COST_CARD_IDS),
-    "p2_3": ("power 2-3 only", MID_COST_CARD_IDS),
-    "p3_4": ("power 3-4 only", HIGH_COST_CARD_IDS),
+    "p1": ("power 1 summon slots", POWER_CARD_IDS[1] * 3),
+    "p2": ("power 2 summon slots", POWER_CARD_IDS[2] * 3),
+    "p3": ("power 3 summon slots", POWER_CARD_IDS[3] * 3),
+    "p4": ("power 4 summon slots", POWER_CARD_IDS[4] * 3),
+    "p1_2": ("power 1-2 summon slots", LOW_COST_CARD_IDS),
+    "p2_3": ("power 2-3 summon slots", MID_COST_CARD_IDS),
+    "p3_4": ("power 3-4 summon slots", HIGH_COST_CARD_IDS),
 }
 
 
@@ -174,7 +183,7 @@ class EvalConfig:
 
 
 def twenty_cards(card_ids: tuple[str, ...]) -> tuple[str, ...]:
-    return card_ids[:20]
+    return card_ids[:14] + SUPPORT_CARD_IDS
 
 
 def cards_from_ids(card_ids: tuple[str, ...]):

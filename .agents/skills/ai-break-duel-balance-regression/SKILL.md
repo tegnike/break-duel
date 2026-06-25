@@ -15,7 +15,7 @@ description: Run and interpret AI Break Duel biased-cost deck balance regression
 python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --games-per-order 1000 --seed 3000000
 ```
 
-Use lower `--games-per-order` values such as `100` only for quick smoke checks. Use `1000` or more for user-facing balance reports.
+Use lower `--games-per-order` values such as `100` only for quick smoke checks. Use `1000` or more for user-facing balance reports. Candidates use the deck-builder template: 14 summon slots from the target cost band, plus 4 generic commands and 2 generic relics.
 
 4. Treat `candidate_win_rate > 0.5` against the six existing decks combined as a balance risk. Report both combined and per-existing-deck rates.
 5. If the user asks to preserve the guard in tests, keep `tests/test_cost_balance.py` aligned with the script's candidate definitions and threshold.
@@ -29,13 +29,13 @@ PATH="/Users/user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/
 
 The regression set is:
 
-- `p1`: power 1 only
-- `p2`: power 2 only
-- `p3`: power 3 only
-- `p4`: power 4 only
-- `p1_2`: power 1-2 only
-- `p2_3`: power 2-3 only
-- `p3_4`: power 3-4 only
+- `p1`: power 1 summon slots
+- `p2`: power 2 summon slots
+- `p3`: power 3 summon slots
+- `p4`: power 4 summon slots
+- `p1_2`: power 1-2 summon slots
+- `p2_3`: power 2-3 summon slots
+- `p3_4`: power 3-4 summon slots
 
 The baseline opponents are the existing six deck archetypes: `break`, `control`, `fire`, `water`, `wind`, `earth`.
 
