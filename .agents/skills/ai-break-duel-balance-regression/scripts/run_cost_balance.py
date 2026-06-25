@@ -211,6 +211,11 @@ RULE_SETS: dict[str, DeckRuleSet] = {
         max_power_3_summons=1,
         max_high_power_summons=4,
     ),
+    "p3_cap_1_high_cap_6": DeckRuleSet(
+        "power 3 summons max 1 and power 3+ summons max 6",
+        max_power_3_summons=1,
+        max_high_power_summons=6,
+    ),
     "p3_enters_spent": DeckRuleSet(
         "power 3 summons enter spent",
         power_3_enters_spent=True,
