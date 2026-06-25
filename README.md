@@ -29,6 +29,8 @@ design plan.
   - Each preset deck contains at least two summon, command, and relic cards.
     Each mono-attribute deck keeps summon cards within one attribute and uses
     every summon from that attribute at least once.
+  - Preset and saved decks are 20 cards: 14 summons, 4 commands, and 2 relics.
+    Power 3+ summons are singleton by card ID and capped at 4 total.
 - Turns normally start with two actions. The first player's first turn starts
   with one action.
 - Once per turn, the active player may charge a power 1/2 summon, command, or
@@ -53,7 +55,8 @@ design plan.
   - The summon pool has 36 cards: 4 attributes x 4 power values x A/B variants,
     plus one charge-focused summon for each attribute.
   - power 1/2: costs 1 action and works well as upgrade material.
-  - power 3: costs 2 actions as a mid-size summon.
+  - power 3: costs 2 actions as a mid-size summon and skips the next
+    turn-start ready step after attacking.
   - power 4: costs 2 actions and goes to discard after attacking.
   - selected summon cards have effects such as attack value +1, draw on play,
     hand-defense punishment, blocked-attack draw, ready/spent control,
@@ -93,8 +96,10 @@ design plan.
   satisfies the defense check, regardless of field state. The hand defender
   goes to discard and prevents damage, so hand size acts as a real defensive
   resource without becoming unlimited protection.
-- A summon that attacks becomes spent until its controller's next turn. Spent
-  summons cannot attack again and cannot defend.
+- A summon that attacks becomes spent until its controller's next turn. Power 3
+  attackers that remain in the field skip that next turn-start ready step and
+  ready on the following own turn instead. Spent summons cannot attack again and
+  cannot defend.
 - A power 4 summon retreats after attacking and goes to discard. This makes it a
   finisher instead of a permanent attacker and prevents alternating power-4
   attacks from dominating the game.
@@ -150,13 +155,14 @@ The command writes:
 The league command writes `league-summary.json` under the selected output
 directory.
 
-The latest balanced-deck check used seed `260626`: the six-deck ordered league
-with 1000 games per ordered pair landed at 54.7% `break`, 53.5% `earth`,
-51.0% `control`, 50.6% `fire`, 45.5% `wind`, and 44.7% `water`.
+The latest balanced-deck check used seed `3320000`: the six-deck ordered league
+with 1000 games per ordered pair landed at 59.4% `break`, 54.7% `control`,
+50.5% `wind`, 46.7% `earth`, 46.2% `water`, and 42.5% `fire`.
 
-The strongest preset check used seed `260627`: `apex` played 1000 games in each
-seat against each of the six existing presets and landed at 77.9% overall. Its
-lowest matchup was 65.1% against `break`.
+The strongest preset check used seed `3330000`: the seven-deck ordered league
+with 500 games per ordered pair landed at 74.3% `apex`, 55.3% `break`,
+49.6% `control`, 44.5% `wind`, 44.1% `earth`, 41.7% `water`, and 40.5%
+`fire`.
 
 ## Play UI
 

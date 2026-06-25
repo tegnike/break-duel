@@ -81,6 +81,19 @@ class CoreRuleTests(unittest.TestCase):
                 }
                 self.assertEqual(duplicated, {})
 
+    def test_preset_decks_limit_total_high_power_summons(self) -> None:
+        for archetype in DeckArchetype:
+            with self.subTest(archetype=archetype.value):
+                high_power_count = sum(
+                    1
+                    for card in build_deck(archetype)
+                    if card.type == CardType.AI and (card.power or 0) >= 3
+                )
+                self.assertLessEqual(high_power_count, 4)
+
+    def test_power_3_recovery_delay_is_standard_rule(self) -> None:
+        self.assertTrue(GameConfig().power_3_attack_recovery_delay)
+
     def test_mono_sample_decks_only_use_matching_attribute_summons(self) -> None:
         expectations = {
             DeckArchetype.FIRE: Attribute.FIRE,

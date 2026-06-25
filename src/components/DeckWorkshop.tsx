@@ -18,6 +18,7 @@ const SAME_NAME_LIMIT = 2;
 const REQUIRED_AI_COUNT = 14;
 const REQUIRED_EVENT_COUNT = 4;
 const REQUIRED_MEMORY_COUNT = 2;
+const HIGH_POWER_LIMIT = 4;
 export const SAVED_DECKS_STORAGE_KEY = "break-duel:saved-decks";
 
 type TypeFilter = CardType | "all";
@@ -218,7 +219,7 @@ export function DeckBuilderPage() {
       <div className="workshop-heading">
         <div>
           <h2>デッキ制作</h2>
-          <p>20枚 / 召喚獣14・指令4・遺物2 / 同名2枚まで / JSON保存</p>
+          <p>20枚 / 召喚獣14・指令4・遺物2 / 同名2枚まで / P3+は4枚まで / JSON保存</p>
         </div>
         <div className="workshop-actions">
           {(Object.keys(DECKS) as (keyof typeof DECKS)[]).map((deckId) => (
@@ -394,9 +395,11 @@ export function validateDeck(cardIds: string[]): { valid: boolean; messages: str
   const aiCount = knownCards.filter((card) => card.type === "ai").length;
   const eventCount = knownCards.filter((card) => card.type === "event").length;
   const memoryCount = knownCards.filter((card) => card.type === "memory").length;
+  const highPowerCount = knownCards.filter((card) => card.type === "ai" && (card.power ?? 0) >= 3).length;
   if (aiCount !== REQUIRED_AI_COUNT) messages.push(`召喚獣は${REQUIRED_AI_COUNT}枚にしてください`);
   if (eventCount !== REQUIRED_EVENT_COUNT) messages.push(`指令は${REQUIRED_EVENT_COUNT}枚にしてください`);
   if (memoryCount !== REQUIRED_MEMORY_COUNT) messages.push(`遺物は${REQUIRED_MEMORY_COUNT}枚にしてください`);
+  if (highPowerCount > HIGH_POWER_LIMIT) messages.push(`power 3以上の召喚獣は${HIGH_POWER_LIMIT}枚までです`);
   const counts = countCards(cardIds);
   const exceeded = [...counts.entries()].filter(([, count]) => count > SAME_NAME_LIMIT);
   if (exceeded.length > 0) messages.push(`同名${SAME_NAME_LIMIT}枚を超えています`);

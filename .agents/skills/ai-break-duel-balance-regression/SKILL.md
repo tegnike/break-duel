@@ -15,7 +15,7 @@ description: Run and interpret AI Break Duel biased-cost deck balance regression
 python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --games-per-order 1000 --seed 3000000
 ```
 
-Use lower `--games-per-order` values such as `100` only for quick smoke checks. Use `1000` or more for user-facing balance reports. Candidates use the deck-builder template: 14 summon slots from the target cost band, plus 4 generic commands and 2 generic relics. Candidate generation also applies the fixed-deck high-power rule: power 3 or higher summons are singleton by card ID, with remaining summon slots filled by low-power summons when a target band cannot supply 14 legal summons.
+Use lower `--games-per-order` values such as `100` only for quick smoke checks. Use `1000` or more for user-facing balance reports. Candidates use the deck-builder template: 14 summon slots from the target cost band, plus 4 generic commands and 2 generic relics. Candidate generation also applies the current high-power construction rules: power 3 or higher summons are singleton by card ID and power 3+ summons are capped at 4 total, with remaining summon slots filled by low-power summons when a target band cannot supply 14 legal summons.
 
 4. Treat `candidate_win_rate > 0.5` against the six existing decks combined as a balance risk. Report both combined and per-existing-deck rates.
 5. If the user asks to preserve the guard in tests, keep `tests/test_cost_balance.py` aligned with the script's candidate definitions and threshold.

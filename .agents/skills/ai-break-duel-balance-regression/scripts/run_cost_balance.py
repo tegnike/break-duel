@@ -205,13 +205,13 @@ class DeckRuleSet:
     power_3_cannot_field_defend: bool = False
     power_3_defense_modifier: int = 0
     power_3_overheats_after_attack: bool = False
-    power_3_attack_recovery_delay: bool = False
+    power_3_attack_recovery_delay: bool | None = None
     power_4_enters_spent: bool = False
     power_4_overheats_after_attack: bool = True
 
 
 RULE_SETS: dict[str, DeckRuleSet] = {
-    "current": DeckRuleSet("current high-power singleton"),
+    "current": DeckRuleSet("current high-power cap 4", max_high_power_summons=4),
     "high_direct_3_upgrade_1": DeckRuleSet(
         "power 3/4 cost 3 directly and cost 1 by upgrade",
         large_ai_play_cost=3,
@@ -662,7 +662,11 @@ def evaluate_candidate(
         power_3_cannot_field_defend=rule_set.power_3_cannot_field_defend,
         power_3_defense_modifier=rule_set.power_3_defense_modifier,
         power_3_overheats_after_attack=rule_set.power_3_overheats_after_attack,
-        power_3_attack_recovery_delay=rule_set.power_3_attack_recovery_delay,
+        power_3_attack_recovery_delay=(
+            rule_set.power_3_attack_recovery_delay
+            if rule_set.power_3_attack_recovery_delay is not None
+            else GameConfig().power_3_attack_recovery_delay
+        ),
         power_4_enters_spent=rule_set.power_4_enters_spent,
         power_4_overheats_after_attack=rule_set.power_4_overheats_after_attack,
     )

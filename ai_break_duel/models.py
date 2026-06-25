@@ -101,7 +101,7 @@ class GameConfig:
     power_3_cannot_field_defend: bool = False
     power_3_defense_modifier: int = 0
     power_3_overheats_after_attack: bool = False
-    power_3_attack_recovery_delay: bool = False
+    power_3_attack_recovery_delay: bool = True
     power_4_enters_spent: bool = False
     power_4_overheats_after_attack: bool = True
     hand_limit: int | None = None
