@@ -229,11 +229,13 @@ export default function App() {
     game.players[0].discard.length,
     game.players[1].discard.length,
   ]);
-  const previousDrawCounts = useRef<[number, number, number, number]>([
+  const previousDrawCounts = useRef<[number, number, number, number, number, number]>([
     game.players[0].deck.length,
     game.players[0].hand.length,
+    game.players[0].cardsDrawn,
     game.players[1].deck.length,
     game.players[1].hand.length,
+    game.players[1].cardsDrawn,
   ]);
 
   const human = game.players[0];
@@ -324,8 +326,10 @@ export default function App() {
     previousDrawCounts.current = [
       nextGame.players[0].deck.length,
       nextGame.players[0].hand.length,
+      nextGame.players[0].cardsDrawn,
       nextGame.players[1].deck.length,
       nextGame.players[1].hand.length,
+      nextGame.players[1].cardsDrawn,
     ];
     previousDiscardCounts.current = [
       nextGame.players[0].discard.length,
@@ -707,24 +711,27 @@ export default function App() {
   }, [page, game.players[0].discard.length, game.players[1].discard.length]);
 
   useEffect(() => {
-    const current: [number, number, number, number] = [
+    const current: [number, number, number, number, number, number] = [
       game.players[0].deck.length,
       game.players[0].hand.length,
+      game.players[0].cardsDrawn,
       game.players[1].deck.length,
       game.players[1].hand.length,
+      game.players[1].cardsDrawn,
     ];
     const previous = previousDrawCounts.current;
     previousDrawCounts.current = current;
     if (page !== "duel") return;
 
     [0, 1].forEach((ownerIndex) => {
-      const deckSlot = ownerIndex === 0 ? 0 : 2;
-      const handSlot = ownerIndex === 0 ? 1 : 3;
+      const deckSlot = ownerIndex === 0 ? 0 : 3;
+      const handSlot = ownerIndex === 0 ? 1 : 4;
+      const drawnSlot = ownerIndex === 0 ? 2 : 5;
       const deckDelta = previous[deckSlot] - current[deckSlot];
-      const handDelta = current[handSlot] - previous[handSlot];
-      const drawnCount = Math.min(deckDelta, handDelta);
+      const drawnDelta = current[drawnSlot] - previous[drawnSlot];
+      const drawnCount = Math.min(deckDelta, drawnDelta);
       if (drawnCount <= 0) return;
-      const firstNewHandIndex = current[handSlot] - drawnCount;
+      const firstNewHandIndex = Math.max(0, current[handSlot] - drawnCount);
       for (let offset = 0; offset < drawnCount; offset += 1) {
         launchDrawFlight(ownerIndex, firstNewHandIndex + offset, offset * 90);
       }
@@ -734,8 +741,10 @@ export default function App() {
     page,
     game.players[0].deck.length,
     game.players[0].hand.length,
+    game.players[0].cardsDrawn,
     game.players[1].deck.length,
     game.players[1].hand.length,
+    game.players[1].cardsDrawn,
   ]);
 
   useEffect(() => {
