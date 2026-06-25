@@ -220,6 +220,13 @@ export function roleLabel(card: Card): string {
   return "召喚獣";
 }
 
+export function aiBaseRuleText(card: Card): string {
+  if (card.type !== "ai") return "";
+  if (card.power === 3) return "攻撃後、次の自分ターン開始では回復しない";
+  if (card.power === 4) return "攻撃後退場";
+  return "";
+}
+
 export function roleText(card: Card): string {
   if (card.effect === "optimize") return "1アクション。手札1枚を捨て、山札からカードを2枚引く";
   if (card.effect === "patch") return "1アクション。自分の消耗召喚獣1体を回復";
@@ -239,8 +246,8 @@ export function roleText(card: Card): string {
   const trait = card.effect ? ` / ${aiEffectText(card)}` : "";
   if (card.power === 1) return `1アクション${trait}`;
   if (card.power === 2) return `1アクション${trait}`;
-  if (card.power === 3) return `${playCost(card)}アクション / アップグレード${upgradeCost(card)}アクション${trait}`;
-  if (card.power === 4) return `${playCost(card)}アクション / アップグレード${upgradeCost(card)}アクション。攻撃後退場${trait}`;
+  if (card.power === 3) return `${playCost(card)}アクション / アップグレード${upgradeCost(card)}アクション。${aiBaseRuleText(card)}${trait}`;
+  if (card.power === 4) return `${playCost(card)}アクション / アップグレード${upgradeCost(card)}アクション。${aiBaseRuleText(card)}${trait}`;
   return "召喚獣";
 }
 

@@ -30,7 +30,7 @@ import {
   upgradeCost,
 } from "../game";
 import { CardView } from "./CardView";
-import { cardColor, cardTypeLabel, roleText, selectedText } from "./cardPresentation";
+import { aiBaseRuleText, cardColor, cardTypeLabel, roleText, selectedText } from "./cardPresentation";
 
 export function SelectedCardDetail({ card, zone, game }: { card: Card | null; zone: string | null; game: GameState }) {
   if (!card) {
@@ -53,7 +53,7 @@ export function SelectedCardDetail({ card, zone, game }: { card: Card | null; zo
     zone === "field" && selectedOwner.spentFieldIndexes.has(game.selected?.index ?? -1) ? "消耗中" : null,
   ].filter(Boolean);
   const baseRuleText = card.type === "ai"
-    ? (card.power === 4 ? "攻撃後退場" : "")
+    ? aiBaseRuleText(card)
     : roleText(card);
   return (
     <div className="selected-card">
