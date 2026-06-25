@@ -5214,6 +5214,61 @@ h1 {
   padding-bottom: 18px;
 }
 
+.starter-duel-selectors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 16px 18px 0;
+}
+
+.starter-deck-picker {
+  min-width: 0;
+}
+
+.starter-deck-picker h3 {
+  margin: 0 0 12px;
+  color: #f7fbfb;
+  font-size: 15px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.starter-deck-group {
+  margin-top: 14px;
+}
+
+.starter-deck-group h4 {
+  margin: 0 0 8px;
+  color: #b9cacb;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.starter-deck-grid.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.starter-deck-grid.compact button {
+  min-height: 80px;
+  padding: 11px 12px;
+}
+
+.starter-deck-grid.compact span {
+  font-size: 14px;
+}
+
+.starter-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 18px 18px;
+}
+
+.starter-modal-actions .primary-action {
+  min-width: 180px;
+}
+
 .starter-saved-decks h3,
 .starter-fixed-decks h3 {
   margin: 0 0 10px;
@@ -6714,6 +6769,10 @@ h1 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .starter-duel-selectors {
+    grid-template-columns: 1fr;
+  }
+
   .stitch-battlefield {
     gap: 24px;
     padding: 20px 16px;
@@ -6771,6 +6830,10 @@ h1 {
 
 @media (max-width: 560px) {
   .starter-deck-modal .starter-deck-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .starter-deck-grid.compact {
     grid-template-columns: 1fr;
   }
 

@@ -80,6 +80,10 @@ export type PlayerState = {
   spentFieldIndexes: Set<number>;
 };
 
+export type DuelDeckSource =
+  | { kind: "preset"; deckId: DeckId }
+  | { kind: "custom"; name: string; cardIds: string[] };
+
 export type Selection = {
   zone: "hand" | "field" | "memory";
   index: number;
@@ -603,6 +607,21 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
   };
 }
 
+function makePlayerFromDeckSource(name: string, isHuman: boolean, source: DuelDeckSource, rng: () => number): PlayerState {
+  if (source.kind === "preset") return makePlayer(name, isHuman, source.deckId, rng);
+  return makeCustomDeckPlayer(name, isHuman, source.name, source.cardIds, rng);
+}
+
+function deckSourceName(source: DuelDeckSource): string {
+  if (source.kind === "preset") return DECKS[source.deckId].name;
+  return source.name;
+}
+
+function normalizeDeckSource(source: DeckId | DuelDeckSource): DuelDeckSource {
+  if (typeof source === "string") return { kind: "preset", deckId: source };
+  return source;
+}
+
 export function cloneGame(game: GameState): GameState {
   return {
     ...game,
@@ -624,15 +643,18 @@ export function cloneGame(game: GameState): GameState {
   };
 }
 
-export function createGame(seed: number, playerDeckId: DeckId = "fire", opponentDeckId?: DeckId): GameState {
+export function createGame(seed: number, playerDeck: DeckId | DuelDeckSource = "fire", opponentDeck?: DeckId | DuelDeckSource): GameState {
   const rng = makeRng(seed);
-  const rivalDeckId = opponentDeckId ?? randomStarterDeckId(rng, playerDeckId);
+  const playerSource = normalizeDeckSource(playerDeck);
+  const opponentSource = opponentDeck
+    ? normalizeDeckSource(opponentDeck)
+    : { kind: "preset" as const, deckId: randomStarterDeckId(rng, playerSource.kind === "preset" ? playerSource.deckId : undefined) };
   const game: GameState = {
     rng,
     seed,
     players: [
-      makePlayer("あなた", true, playerDeckId, rng),
-      makePlayer("ライバル", false, rivalDeckId, rng),
+      makePlayerFromDeckSource("あなた", true, playerSource, rng),
+      makePlayerFromDeckSource("ライバル", false, opponentSource, rng),
     ],
     active: 0,
     turn: 0,
@@ -650,40 +672,13 @@ export function createGame(seed: number, playerDeckId: DeckId = "fire", opponent
   };
   draw(game.players[0], CONFIG.firstPlayerInitialHand);
   draw(game.players[1], CONFIG.secondPlayerInitialHand);
-  addLog(game, `Seed ${seed} で対戦開始。あなた: ${DECKS[playerDeckId].name} / ライバル: ${DECKS[rivalDeckId].name}。`);
+  addLog(game, `Seed ${seed} で対戦開始。あなた: ${deckSourceName(playerSource)} / ライバル: ${deckSourceName(opponentSource)}。`);
   startTurn(game);
   return game;
 }
 
 export function createGameWithCustomPlayerDeck(seed: number, playerDeck: { name: string; cardIds: string[] }, opponentDeckId?: DeckId): GameState {
-  const rng = makeRng(seed);
-  const rivalDeckId = opponentDeckId ?? randomStarterDeckId(rng);
-  const game: GameState = {
-    rng,
-    seed,
-    players: [
-      makeCustomDeckPlayer("あなた", true, playerDeck.name, playerDeck.cardIds, rng),
-      makePlayer("ライバル", false, rivalDeckId, rng),
-    ],
-    active: 0,
-    turn: 0,
-    actionsRemaining: 0,
-    chargedActionsRemaining: 0,
-    winner: null,
-    draw: false,
-    selected: null,
-    pendingAttack: null,
-    pendingTarget: null,
-    log: [],
-    aiRunning: false,
-    discardViewerOwner: null,
-    discardViewerIndex: null,
-  };
-  draw(game.players[0], CONFIG.firstPlayerInitialHand);
-  draw(game.players[1], CONFIG.secondPlayerInitialHand);
-  addLog(game, `Seed ${seed} で対戦開始。あなた: ${playerDeck.name} / ライバル: ${DECKS[rivalDeckId].name}。`);
-  startTurn(game);
-  return game;
+  return createGame(seed, { kind: "custom", name: playerDeck.name, cardIds: playerDeck.cardIds }, opponentDeckId);
 }
 
 export function activePlayer(game: GameState): PlayerState {

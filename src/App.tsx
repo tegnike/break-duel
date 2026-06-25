@@ -7,6 +7,7 @@ import {
   type DefenseChoice,
   type Card,
   type DeckId,
+  type DuelDeckSource,
   type GameState,
   type PlayerState,
   addLog,
@@ -24,13 +25,13 @@ import {
   cloneGame,
   commandUsable,
   createGame,
-  createGameWithCustomPlayerDeck,
   chooseAiAction,
   chooseAiDefense,
   defenseCombatValue,
   finishTurn,
   legalFieldDefenders,
   legalHandDefenders,
+  makeRng,
   needsFirewallFuel,
   opponentPlayer,
   playCost,
@@ -77,6 +78,15 @@ let eventId = 1;
 const INITIAL_SEED = randomSeed();
 
 type AppPage = "duel" | "cards" | "builder";
+
+type DeckSelection =
+  | { kind: "random" }
+  | { kind: "preset"; deckId: DeckId }
+  | { kind: "saved"; deckId: string };
+
+type ResolvedDeckSelection =
+  | { kind: "preset"; deckId: DeckId }
+  | { kind: "saved"; deck: SavedDeck };
 
 const PAGE_PATHS: Record<AppPage, string> = {
   duel: "/duel",
@@ -184,7 +194,8 @@ function trashSurgeForEvent(event: DuelEventPayload | DuelEvent | null): TrashSu
 export default function App() {
   const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [seed, setSeed] = useState(INITIAL_SEED);
-  const [playerDeckId, setPlayerDeckId] = useState<DeckId>("fire");
+  const [playerDeckSelection, setPlayerDeckSelection] = useState<DeckSelection>({ kind: "preset", deckId: "fire" });
+  const [opponentDeckSelection, setOpponentDeckSelection] = useState<DeckSelection>({ kind: "random" });
   const [savedDecks, setSavedDecks] = useState<SavedDeck[]>(() => loadSavedDecks());
   const [game, setGame] = useState<GameState>(() => createGame(INITIAL_SEED, "fire"));
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -555,46 +566,52 @@ export default function App() {
     return action.type === "attack" ? 360 : 180;
   }
 
-  function startNewGame(deckId: DeckId = playerDeckId) {
-    const nextSeed = randomSeed();
-    setSeed(nextSeed);
-    setPlayerDeckId(deckId);
-    const nextGame = createGame(nextSeed, deckId);
-    resetDrawTracker(nextGame);
-    setGame(nextGame);
-    resetDuelEvents();
-    setRulesOpen(false);
-    setStarterDeckModalOpen(false);
-    setStarterDeckChosen(true);
-    showToast("対戦開始", `${DECKS[deckId].name} / 相手: ${nextGame.players[1].deckName}`);
-    showBanner({
-      kind: "start",
-      title: "BREAK DUEL",
-      detail: `Seed ${nextSeed} / 相手: ${nextGame.players[1].deckName} / ${CONFIG.maxTurns}手番制限`,
-    });
+  function playableDeckOptions(): ResolvedDeckSelection[] {
+    const fixedDecks: ResolvedDeckSelection[] = BATTLE_DECK_IDS.map((deckId) => ({ kind: "preset", deckId }));
+    const customDecks: ResolvedDeckSelection[] = savedDecks
+      .filter((deck) => validateDeck(deck.cardIds).valid)
+      .map((deck) => ({ kind: "saved", deck }));
+    return [...fixedDecks, ...customDecks];
   }
 
-  function startSavedDeckGame(deck: SavedDeck) {
-    const validation = validateDeck(deck.cardIds);
-    if (!validation.valid) {
-      showToast("使用できません", validation.messages[0] ?? "デッキ条件を満たしていません");
-      return;
+  function resolveDeckSelection(selection: DeckSelection, rng: () => number): ResolvedDeckSelection {
+    if (selection.kind === "random") {
+      const options = playableDeckOptions();
+      const index = Math.floor(rng() * options.length);
+      return options[index];
     }
+    if (selection.kind === "preset") return { kind: "preset", deckId: selection.deckId };
+    const deck = savedDecks.find((item) => item.id === selection.deckId);
+    if (!deck) throw new Error("保存済みデッキが見つかりません");
+    const validation = validateDeck(deck.cardIds);
+    if (!validation.valid) throw new Error(validation.messages[0] ?? "デッキ条件を満たしていません");
+    return { kind: "saved", deck };
+  }
+
+  function toDuelDeckSource(selection: ResolvedDeckSelection): DuelDeckSource {
+    if (selection.kind === "preset") return { kind: "preset", deckId: selection.deckId };
+    return { kind: "custom", name: selection.deck.name, cardIds: selection.deck.cardIds };
+  }
+
+  function startSelectedDeckGame() {
     try {
       const nextSeed = randomSeed();
+      const selectionRng = makeRng(nextSeed);
+      const playerSelection = resolveDeckSelection(playerDeckSelection, selectionRng);
+      const opponentSelection = resolveDeckSelection(opponentDeckSelection, selectionRng);
+      const nextGame = createGame(nextSeed, toDuelDeckSource(playerSelection), toDuelDeckSource(opponentSelection));
       setSeed(nextSeed);
-      const nextGame = createGameWithCustomPlayerDeck(nextSeed, deck);
       resetDrawTracker(nextGame);
       setGame(nextGame);
       resetDuelEvents();
       setRulesOpen(false);
       setStarterDeckModalOpen(false);
       setStarterDeckChosen(true);
-      showToast("対戦開始", `${deck.name} / 相手: ${nextGame.players[1].deckName}`);
+      showToast("対戦開始", `${nextGame.players[0].deckName} / 相手: ${nextGame.players[1].deckName}`);
       showBanner({
         kind: "start",
         title: "BREAK DUEL",
-        detail: `Seed ${nextSeed} / 相手: ${nextGame.players[1].deckName} / ${CONFIG.maxTurns}手番制限`,
+        detail: `Seed ${nextSeed} / あなた: ${nextGame.players[0].deckName} / 相手: ${nextGame.players[1].deckName}`,
       });
     } catch (error) {
       showToast("使用できません", error instanceof Error ? error.message : "デッキを読み込めませんでした");
@@ -1727,12 +1744,14 @@ export default function App() {
       {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
       {starterDeckModalOpen && (
         <StarterDeckModal
-          selectedDeckId={playerDeckId}
+          playerSelection={playerDeckSelection}
+          opponentSelection={opponentDeckSelection}
           savedDecks={savedDecks}
           canClose={starterDeckChosen}
           onClose={() => setStarterDeckModalOpen(false)}
-          onSelect={startNewGame}
-          onSelectSaved={startSavedDeckGame}
+          onChangePlayerSelection={setPlayerDeckSelection}
+          onChangeOpponentSelection={setOpponentDeckSelection}
+          onStart={startSelectedDeckGame}
         />
       )}
       {game.discardViewerOwner !== null && (
@@ -1761,19 +1780,23 @@ function NoActionsEndTurnPrompt({ onConfirm }: { onConfirm: () => void }) {
 }
 
 function StarterDeckModal({
-  selectedDeckId,
+  playerSelection,
+  opponentSelection,
   savedDecks,
   canClose,
   onClose,
-  onSelect,
-  onSelectSaved,
+  onChangePlayerSelection,
+  onChangeOpponentSelection,
+  onStart,
 }: {
-  selectedDeckId: DeckId;
+  playerSelection: DeckSelection;
+  opponentSelection: DeckSelection;
   savedDecks: SavedDeck[];
   canClose: boolean;
   onClose: () => void;
-  onSelect: (deckId: DeckId) => void;
-  onSelectSaved: (deck: SavedDeck) => void;
+  onChangePlayerSelection: (selection: DeckSelection) => void;
+  onChangeOpponentSelection: (selection: DeckSelection) => void;
+  onStart: () => void;
 }) {
   return (
     <div className="modal-backdrop starter-deck-backdrop" role="dialog" aria-modal="true" aria-labelledby="starter-deck-title" onClick={(event) => {
@@ -1783,54 +1806,109 @@ function StarterDeckModal({
         <div className="modal-head">
           <div>
             <h2 id="starter-deck-title">対戦デッキを選択</h2>
-            <p>相手は固定デッキからランダムに決まります。</p>
+            <p>自分と相手のデッキを選べます。ランダムは固定デッキと使用可能な保存済みデッキから選びます。</p>
           </div>
           {canClose && <button type="button" onClick={onClose}>閉じる</button>}
         </div>
-        {savedDecks.length > 0 && (
-          <div className="starter-saved-decks">
-            <h3>保存済みデッキ</h3>
-            <div className="starter-deck-grid">
-              {savedDecks.map((deck) => {
-                const validation = validateDeck(deck.cardIds);
-                return (
-                  <button
-                    type="button"
-                    key={deck.id}
-                    disabled={!validation.valid}
-                    title={validation.valid ? deck.name : validation.messages.join(" / ")}
-                    onClick={() => onSelectSaved(deck)}
-                  >
-                    <span>{deck.name}</span>
-                    <em>{deck.cardIds.length}枚{validation.valid ? "" : ` / ${validation.messages[0] ?? "使用不可"}`}</em>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        <div className="starter-fixed-decks">
-          <h3>固定デッキ</h3>
-          <div className="starter-deck-grid">
-            {BATTLE_DECK_IDS.map((deckId) => {
-              const deck = DECKS[deckId];
+        <div className="starter-duel-selectors">
+          <DeckSelectionPicker
+            title="自分のデッキ"
+            selection={playerSelection}
+            savedDecks={savedDecks}
+            onChange={onChangePlayerSelection}
+          />
+          <DeckSelectionPicker
+            title="相手のデッキ"
+            selection={opponentSelection}
+            savedDecks={savedDecks}
+            onChange={onChangeOpponentSelection}
+          />
+        </div>
+        <div className="starter-modal-actions">
+          <button type="button" className="primary-action" onClick={onStart}>対戦開始</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DeckSelectionPicker({
+  title,
+  selection,
+  savedDecks,
+  onChange,
+}: {
+  title: string;
+  selection: DeckSelection;
+  savedDecks: SavedDeck[];
+  onChange: (selection: DeckSelection) => void;
+}) {
+  return (
+    <section className="starter-deck-picker" aria-label={title}>
+      <h3>{title}</h3>
+      <div className="starter-deck-grid compact">
+        <button
+          type="button"
+          className={isDeckSelectionEqual(selection, { kind: "random" }) ? "selected" : ""}
+          onClick={() => onChange({ kind: "random" })}
+        >
+          <span>ランダム</span>
+          <em>固定デッキと保存済みデッキから選択</em>
+        </button>
+      </div>
+      {savedDecks.length > 0 && (
+        <div className="starter-deck-group">
+          <h4>保存済み</h4>
+          <div className="starter-deck-grid compact">
+            {savedDecks.map((deck) => {
+              const validation = validateDeck(deck.cardIds);
+              const savedSelection: DeckSelection = { kind: "saved", deckId: deck.id };
               return (
                 <button
                   type="button"
-                  key={deckId}
-                  className={selectedDeckId === deckId ? "selected" : ""}
-                  onClick={() => onSelect(deckId)}
+                  key={deck.id}
+                  className={isDeckSelectionEqual(selection, savedSelection) ? "selected" : ""}
+                  disabled={!validation.valid}
+                  title={validation.valid ? deck.name : validation.messages.join(" / ")}
+                  onClick={() => onChange(savedSelection)}
                 >
                   <span>{deck.name}</span>
-                  <em>{deck.description}</em>
+                  <em>{deck.cardIds.length}枚{validation.valid ? "" : ` / ${validation.messages[0] ?? "使用不可"}`}</em>
                 </button>
               );
             })}
           </div>
         </div>
-      </section>
-    </div>
+      )}
+      <div className="starter-deck-group">
+        <h4>固定デッキ</h4>
+        <div className="starter-deck-grid compact">
+          {BATTLE_DECK_IDS.map((deckId) => {
+            const deck = DECKS[deckId];
+            const presetSelection: DeckSelection = { kind: "preset", deckId };
+            return (
+              <button
+                type="button"
+                key={deckId}
+                className={isDeckSelectionEqual(selection, presetSelection) ? "selected" : ""}
+                onClick={() => onChange(presetSelection)}
+              >
+                <span>{deck.name}</span>
+                <em>{deck.description}</em>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
+}
+
+function isDeckSelectionEqual(left: DeckSelection, right: DeckSelection): boolean {
+  if (left.kind !== right.kind) return false;
+  if (left.kind === "preset" && right.kind === "preset") return left.deckId === right.deckId;
+  if (left.kind === "saved" && right.kind === "saved") return left.deckId === right.deckId;
+  return left.kind === "random";
 }
 
 function WorkspaceHeader({
