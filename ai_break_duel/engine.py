@@ -203,6 +203,7 @@ def result_summary(state: GameState) -> dict[str, Any]:
             "power_1_draws_on_play": state.config.power_1_draws_on_play,
             "power_2_defense_bonus": state.config.power_2_defense_bonus,
             "large_ai_play_cost": state.config.large_ai_play_cost,
+            "large_ai_upgrade_cost": state.config.large_ai_upgrade_cost,
             "power_3_play_cost": state.config.power_3_play_cost,
             "power_4_play_cost": state.config.power_4_play_cost,
             "power_3_enters_spent": state.config.power_3_enters_spent,
@@ -1065,6 +1066,12 @@ def _play_cost(state: GameState, card) -> int:
 
 
 def _upgrade_cost(state: GameState, card) -> int:
+    if (
+        card.type == CardType.AI
+        and (card.power or 0) >= 3
+        and state.config.large_ai_upgrade_cost is not None
+    ):
+        return state.config.large_ai_upgrade_cost
     return max(1, _play_cost(state, card) - 1)
 
 

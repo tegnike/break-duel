@@ -193,6 +193,7 @@ export const CONFIG = {
   power1DrawsOnPlay: true,
   power2DefenseBonus: 1,
   largeAiPlayCost: 2,
+  largeAiUpgradeCost: null as number | null,
   power3PlayCost: null as number | null,
   power4PlayCost: null as number | null,
   power3EntersSpent: false,
@@ -829,6 +830,9 @@ export function playCost(card: Card | null | undefined): number {
 }
 
 export function upgradeCost(card: Card): number {
+  if (card.type === "ai" && (card.power ?? 0) >= 3 && CONFIG.largeAiUpgradeCost !== null) {
+    return CONFIG.largeAiUpgradeCost;
+  }
   return Math.max(1, playCost(card) - 1);
 }
 

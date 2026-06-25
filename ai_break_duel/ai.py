@@ -482,6 +482,12 @@ def _play_cost(card, state: GameState) -> int:
 
 
 def _upgrade_cost(card, state: GameState) -> int:
+    if (
+        card.type == CardType.AI
+        and (card.power or 0) >= 3
+        and state.config.large_ai_upgrade_cost is not None
+    ):
+        return state.config.large_ai_upgrade_cost
     return max(1, _play_cost(card, state) - 1)
 
 

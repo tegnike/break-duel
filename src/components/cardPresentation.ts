@@ -1,11 +1,11 @@
 import {
   ATTRIBUTES,
   COMMAND_COLOR,
-  CONFIG,
   MEMORY_COLOR,
   aiEffectText,
   type Card,
   playCost,
+  upgradeCost,
 } from "../game";
 import aiEarth1Art from "../assets/card-art/ai-earth-1.webp";
 import aiEarth1bArt from "../assets/card-art/ai-earth-1b.webp";
@@ -239,8 +239,8 @@ export function roleText(card: Card): string {
   const trait = card.effect ? ` / ${aiEffectText(card)}` : "";
   if (card.power === 1) return `1アクション${trait}`;
   if (card.power === 2) return `1アクション${trait}`;
-  if (card.power === 3) return `${CONFIG.largeAiPlayCost}アクション${trait}`;
-  if (card.power === 4) return `${CONFIG.largeAiPlayCost}アクション。攻撃後退場${trait}`;
+  if (card.power === 3) return `${playCost(card)}アクション / アップグレード${upgradeCost(card)}アクション${trait}`;
+  if (card.power === 4) return `${playCost(card)}アクション / アップグレード${upgradeCost(card)}アクション。攻撃後退場${trait}`;
   return "召喚獣";
 }
 

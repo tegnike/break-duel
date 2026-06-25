@@ -189,6 +189,8 @@ class DeckRuleSet:
     label: str
     max_power_3_summons: int | None = None
     max_high_power_summons: int | None = None
+    large_ai_play_cost: int | None = None
+    large_ai_upgrade_cost: int | None = None
     power_3_enters_spent: bool = False
     power_3_play_cost: int | None = None
     power_4_play_cost: int | None = None
@@ -202,6 +204,11 @@ class DeckRuleSet:
 
 RULE_SETS: dict[str, DeckRuleSet] = {
     "current": DeckRuleSet("current high-power singleton"),
+    "high_direct_3_upgrade_1": DeckRuleSet(
+        "power 3/4 cost 3 directly and cost 1 by upgrade",
+        large_ai_play_cost=3,
+        large_ai_upgrade_cost=1,
+    ),
     "p3_cap_6": DeckRuleSet("power 3 summons max 6", max_power_3_summons=6),
     "p3_cap_4": DeckRuleSet("power 3 summons max 4", max_power_3_summons=4),
     "p3_cap_2": DeckRuleSet("power 3 summons max 2", max_power_3_summons=2),
@@ -442,6 +449,12 @@ def evaluate_candidate(
     rule_set = RULE_SETS[eval_config.rule_set]
     config = GameConfig(
         max_turns=eval_config.max_turns,
+        large_ai_play_cost=(
+            rule_set.large_ai_play_cost
+            if rule_set.large_ai_play_cost is not None
+            else GameConfig().large_ai_play_cost
+        ),
+        large_ai_upgrade_cost=rule_set.large_ai_upgrade_cost,
         power_3_enters_spent=rule_set.power_3_enters_spent,
         power_3_play_cost=rule_set.power_3_play_cost,
         power_4_play_cost=rule_set.power_4_play_cost,
@@ -575,6 +588,8 @@ def main() -> int:
                 "label": value.label,
                 "max_power_3_summons": value.max_power_3_summons,
                 "max_high_power_summons": value.max_high_power_summons,
+                "large_ai_play_cost": value.large_ai_play_cost,
+                "large_ai_upgrade_cost": value.large_ai_upgrade_cost,
                 "power_3_enters_spent": value.power_3_enters_spent,
                 "power_3_play_cost": value.power_3_play_cost,
                 "power_4_play_cost": value.power_4_play_cost,

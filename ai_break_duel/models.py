@@ -90,6 +90,7 @@ class GameConfig:
     power_1_draws_on_play: bool = True
     power_2_defense_bonus: int = 1
     large_ai_play_cost: int = 2
+    large_ai_upgrade_cost: int | None = None
     power_3_play_cost: int | None = None
     power_4_play_cost: int | None = None
     power_3_enters_spent: bool = False
