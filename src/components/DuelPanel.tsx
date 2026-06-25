@@ -99,8 +99,8 @@ function OpponentDefensePreview({ game, attackCard }: { game: GameState; attackC
     <div className="affinity-preview">
       <div className="affinity-preview-title">相手の場の防御候補</div>
       <div className="affinity-defense-list">
-        {rows.map(({ card }) => {
-          const defenseValue = defenseCombatValue(attackCard, card, opponent);
+        {rows.map(({ card, index }) => {
+          const defenseValue = defenseCombatValue(attackCard, card, opponent, { fieldIndex: index });
           const attackValue = attackCombatValue(attackCard);
           const result = defenseValue > attackValue ? "防御側が残る" : defenseValue === attackValue ? "相打ち" : "防御不可";
           return (
@@ -241,7 +241,7 @@ export function DefensePanel({
       <h3>{attackCard.name}への防御を選択</h3>
       <div className="defense-context">攻撃値 {attackCombatValue(attackCard)} / 場ブロックは同値なら相打ち、上回れば防御側が残ります。手札ブロックは使い切りです。</div>
       <div className="defense-choice-grid">
-        {fieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} attackCard={attackCard} defender={defender} onClick={() => onResolve({ type: "field", index })} />)}
+        {fieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} attackCard={attackCard} defender={defender} fieldIndex={index} onClick={() => onResolve({ type: "field", index })} />)}
         {handOptions.map(({ card, index }) => <DefenseChoiceButton key={`hand-${index}`} source="手札" card={card} attackCard={attackCard} defender={defender} hand onClick={() => onResolve({ type: "hand", index })} />)}
         {fieldOptions.length === 0 && handOptions.length === 0 && <div className="defense-context">防御できるカードはありません。</div>}
         <button type="button" className="defense-pass" onClick={() => onResolve({ type: "none" })}>防御しない</button>
@@ -288,8 +288,8 @@ function PendingCardChoice({
   );
 }
 
-function DefenseChoiceButton({ source, card, attackCard, defender, hand = false, onClick }: { source: string; card: Card; attackCard: Card; defender: PlayerState; hand?: boolean; onClick: () => void }) {
-  const defenseOptions = { fieldDefense: !hand };
+function DefenseChoiceButton({ source, card, attackCard, defender, hand = false, fieldIndex, onClick }: { source: string; card: Card; attackCard: Card; defender: PlayerState; hand?: boolean; fieldIndex?: number; onClick: () => void }) {
+  const defenseOptions = { fieldDefense: !hand, fieldIndex };
   const baseDefenseValue = defenseCombatValue(attackCard, card, defender, defenseOptions);
   const paidDefenseValue = canUseFirewall(defender, card, attackCard)
     ? defenseCombatValue(attackCard, card, defender, { firewallPaid: true, ...defenseOptions })

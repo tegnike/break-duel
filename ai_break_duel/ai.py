@@ -119,6 +119,7 @@ def choose_defender(
                 power_2_defense_bonus,
                 defender,
                 attack_ai,
+                field_index=index,
             ),
         )
     ]
@@ -460,6 +461,7 @@ def _defense_power_bonus(
     power_2_defense_bonus: int,
     defender: PlayerState | None = None,
     attack_ai=None,
+    field_index: int | None = None,
 ) -> int:
     bonus = 0
     if (
@@ -473,7 +475,7 @@ def _defense_power_bonus(
         and _firewall_should_pay(card, defender, attack_ai)
     ):
         bonus += 1
-    if defender is not None and defender.pending_effects.get("charge_guard"):
+    if defender is not None and field_index is not None and field_index in defender.charge_guarded_field_ai:
         bonus += 1
     return bonus
 

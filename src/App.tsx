@@ -466,11 +466,11 @@ export default function App() {
     if (!attacker || !defender || !attackCard) return;
     if (choice.type === "field") {
       const defenseCard = defender.field[choice.index];
-      if (!defenseCard || !canDefendWithOptionalFirewall(attackCard, defenseCard, defender)) return;
-      if (defender.isHuman && needsFirewallFuel(defender, defenseCard, attackCard) && choice.firewallDiscardIndex === undefined) return;
+      if (!defenseCard || !canDefendWithOptionalFirewall(attackCard, defenseCard, defender, choice.index)) return;
+      if (defender.isHuman && needsFirewallFuel(defender, defenseCard, attackCard, choice.index) && choice.firewallDiscardIndex === undefined) return;
       launchTrashFlight(attackCard, { ownerIndex: attackerIndex, zone: "field", index: fieldIndex }, attackerIndex, "攻撃札退場", 760);
       const firewallPaid = typeof choice.firewallDiscardIndex === "number";
-      const isTrade = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid }) === attackCombatValue(attackCard);
+      const isTrade = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid, fieldIndex: choice.index }) === attackCombatValue(attackCard);
       if (isTrade) {
         launchTrashFlight(defenseCard, { ownerIndex: defenderIndex, zone: "field", index: choice.index }, defenderIndex, "相打ち", 760);
       }
@@ -1049,6 +1049,7 @@ export default function App() {
       player.discard.push(source);
       player.field[sourceIndex] = card;
       player.spentFieldIndexes.delete(sourceIndex);
+      player.chargeGuardedFieldIndexes.delete(sourceIndex);
       draft.pendingTarget = null;
       let text = `${player.name}は${source.name}を元に${card.name}へアップグレード。`;
       text += applyPlayEffects(draft, player, card, sourceIndex, cost, source);
@@ -1190,6 +1191,29 @@ export default function App() {
     const player = activePlayer(game);
     const card = player.hand[game.selected.index];
     if (!card) return;
+    if (card.effect === "charge_guard" && player.field.length > 0) {
+      const handIndex = game.selected.index;
+      mutate((draft) => {
+        const current = draft.players[0].hand[handIndex];
+        if (!current || current.effect !== "charge_guard") return;
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "charge-guard",
+          zone: "field",
+          playerIndex: 0,
+          title: `${current.name}の防御強化対象を選択`,
+          prompt: "次の自分ターンまで場防御値 +1 する召喚獣を1体選んでください。",
+          confirmLabel: "この召喚獣を強化",
+          min: 1,
+          max: 1,
+          excludeIndexes: [],
+          selectedIndexes: [],
+          sourceIndex: handIndex,
+          cancelable: true,
+        };
+      });
+      return;
+    }
     launchTrashFlight(card, { ownerIndex: 0, zone: "hand", index: game.selected.index }, 0, "チャージ");
     mutate((draft) => {
       if (draft.selected?.zone !== "hand" || draft.selected.ownerIndex !== 0) return;
@@ -1274,6 +1298,12 @@ export default function App() {
       useCommandAt(pending.sourceIndex!, selectedIndex, pending.discardIndexes ?? []);
       return;
     }
+    if (pending.reason === "charge-guard") {
+      const charged = pendingPlayer.hand[pending.sourceIndex!];
+      if (charged) {
+        launchTrashFlight(charged, { ownerIndex: pending.playerIndex, zone: flightHandZone(pendingPlayer), index: pendingPlayer.isHuman ? pending.sourceIndex! : 0 }, pending.playerIndex, "チャージ");
+      }
+    }
     if (pending.reason === "filter-discard" || pending.reason === "block-pressure") {
       const discarded = pendingPlayer.hand[selectedIndex];
       launchTrashFlight(
@@ -1350,6 +1380,20 @@ export default function App() {
             resultLabel: "アクション +1",
             tone: player.isHuman ? "magenta" : "cyan",
             cards: [{ card: sacrificed, label: "代償", state: "trash" }],
+          });
+        }
+        return;
+      } else if (current.reason === "charge-guard") {
+        const charged = chargeHandCardInDraft(draft, current.playerIndex, current.sourceIndex!, selectedIndex);
+        if (charged) {
+          queueDuelEvent({
+            kind: "command",
+            title: `${player.name}がチャージ`,
+            detail: `${charged.name}をトラッシュへ送り、このターンのアクションを1増やしました。${player.field[selectedIndex]?.name ?? "選んだ召喚獣"}の場防御値を次の自分ターンまで+1します。`,
+            fromLabel: "手札",
+            toLabel: "トラッシュ",
+            tone: player.isHuman ? "magenta" : "cyan",
+            cards: [{ card: charged, label: "チャージ", state: "trash" }],
           });
         }
         return;
@@ -1944,7 +1988,7 @@ function combatPreviewForSelection(game: GameState): CombatPreview | null {
   const attackValue = attackCombatValue(attacker);
   const fieldDefenses = new Map<number, { result: "trade" | "hold"; label: string }>();
   legalFieldDefenders(defender, attacker).forEach(({ card, index }) => {
-    const defenseValue = defenseCombatValue(attacker, card, defender, { fieldDefense: true });
+    const defenseValue = defenseCombatValue(attacker, card, defender, { fieldDefense: true, fieldIndex: index });
     fieldDefenses.set(index, {
       result: defenseValue > attackValue ? "hold" : "trade",
       label: defenseValue > attackValue ? `DEF ${defenseValue} / 残る` : `DEF ${defenseValue} / 相打ち`,

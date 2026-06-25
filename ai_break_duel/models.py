@@ -42,6 +42,7 @@ class PlayerState:
     turns_started: int = 0
     hand_defenses_used_this_turn: int = 0
     spent_field_ai: set[int] = field(default_factory=set)
+    charge_guarded_field_ai: set[int] = field(default_factory=set)
 
     def draw(self, count: int, rng: Random | None) -> int:
         drawn = 0

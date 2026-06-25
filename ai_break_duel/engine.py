@@ -82,7 +82,7 @@ def start_turn(state: GameState) -> None:
     state.active().pending_effects["pipeline_used"] = False
     state.active().pending_effects["accelerator_used"] = False
     state.active().pending_effects["charge_used"] = False
-    state.active().pending_effects.pop("charge_guard", None)
+    state.active().charge_guarded_field_ai.clear()
     state.active().pending_effects.pop("sandbox_shield", None)
     state.active().turns_started += 1
     drawn = state.active().draw(1, state.rng) if _should_draw_for_turn(state) else 0
@@ -347,6 +347,7 @@ def _upgrade_ai(state: GameState, action: Action) -> None:
     player.ai_lost += 1
     player.field_ai[action.target_index] = card
     player.spent_field_ai.discard(action.target_index)
+    player.charge_guarded_field_ai.discard(action.target_index)
     drawn = 0
     if state.config.power_4_enters_spent and card.power == 4:
         player.spent_field_ai.add(action.target_index)
@@ -457,6 +458,7 @@ def _attack(state: GameState, action: Action) -> None:
                 defender,
                 defense_ai,
                 attack_ai,
+                field_index=defense_index,
             ),
         ):
             state.stats.successful_defenses += 1
@@ -471,6 +473,7 @@ def _attack(state: GameState, action: Action) -> None:
                     defender,
                     defense_ai,
                     attack_ai,
+                    field_index=defense_index,
                 ),
             )
             attack_value = attack_combat_value(attack_ai)
@@ -583,7 +586,7 @@ def _apply_charge_effect(state: GameState, player: PlayerState, charged_card) ->
         "opponent_discarded_card": None,
         "draw_count": 0,
         "readied_ai": None,
-        "charge_guard": False,
+        "charge_guarded_ai": None,
         "resonator_draw_count": 0,
     }
     if charged_card.effect == AiEffect.CHARGE_PRESSURE.value and len(opponent.hand) >= 3:
@@ -601,9 +604,11 @@ def _apply_charge_effect(state: GameState, player: PlayerState, charged_card) ->
             result["readied_ai"] = target.id
             state.stats.record_card_usage(charged_card.id, "charge_ready_ally")
     if charged_card.effect == AiEffect.CHARGE_GUARD.value:
-        player.pending_effects["charge_guard"] = 1
-        result["charge_guard"] = True
-        state.stats.record_card_usage(charged_card.id, "charge_guard")
+        target_index = _highest_power_field_ai(player)
+        if target_index is not None:
+            player.charge_guarded_field_ai.add(target_index)
+            result["charge_guarded_ai"] = player.field_ai[target_index].id
+            state.stats.record_card_usage(charged_card.id, "charge_guard")
     if (
         player.memory is not None
         and player.memory.effect == MemoryEffect.RESONATOR.value
@@ -906,6 +911,11 @@ def _remove_field_ai(player: PlayerState, index: int):
         for spent_index in player.spent_field_ai
         if spent_index != index
     }
+    player.charge_guarded_field_ai = {
+        guarded_index if guarded_index < index else guarded_index - 1
+        for guarded_index in player.charge_guarded_field_ai
+        if guarded_index != index
+    }
     return lost_ai
 
 
@@ -1021,6 +1031,7 @@ def _defense_power_bonus(
     defender: PlayerState,
     card,
     attack_ai=None,
+    field_index: int | None = None,
 ) -> int:
     bonus = 0
     if (
@@ -1033,7 +1044,7 @@ def _defense_power_bonus(
         and _firewall_should_pay(state, defender, card, attack_ai)
     ):
         bonus += 1
-    if defender.pending_effects.get("charge_guard"):
+    if field_index is not None and field_index in defender.charge_guarded_field_ai:
         bonus += 1
     return bonus
 
@@ -1142,6 +1153,13 @@ def _highest_power_ready_ai(player: PlayerState) -> int | None:
         for index, card in enumerate(player.field_ai)
         if index not in player.spent_field_ai
     ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: (item[1].power or 0, item[1].id))[0]
+
+
+def _highest_power_field_ai(player: PlayerState) -> int | None:
+    candidates = list(enumerate(player.field_ai))
     if not candidates:
         return None
     return max(candidates, key=lambda item: (item[1].power or 0, item[1].id))[0]

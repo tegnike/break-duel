@@ -75,7 +75,7 @@ export type PlayerState = {
   pipelineUsed: boolean;
   acceleratorUsed: boolean;
   chargeUsed: boolean;
-  chargeGuard: number;
+  chargeGuardedFieldIndexes: Set<number>;
   sandboxShield: number;
   spentFieldIndexes: Set<number>;
 };
@@ -116,7 +116,7 @@ export type PendingTarget =
     }
   | {
       kind: "card-select";
-      reason: "filter-discard" | "relearn-recover" | "recover-on-play" | "upgrade-source" | "ready-ally" | "spend-enemy" | "block-pressure" | "accelerator-sacrifice";
+      reason: "filter-discard" | "relearn-recover" | "recover-on-play" | "upgrade-source" | "ready-ally" | "spend-enemy" | "block-pressure" | "accelerator-sacrifice" | "charge-guard";
       zone: "hand" | "field" | "discard";
       playerIndex: number;
       title: string;
@@ -572,7 +572,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     pipelineUsed: false,
     acceleratorUsed: false,
     chargeUsed: false,
-    chargeGuard: 0,
+    chargeGuardedFieldIndexes: new Set(),
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
   };
@@ -597,7 +597,7 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     pipelineUsed: false,
     acceleratorUsed: false,
     chargeUsed: false,
-    chargeGuard: 0,
+    chargeGuardedFieldIndexes: new Set(),
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
   };
@@ -613,6 +613,7 @@ export function cloneGame(game: GameState): GameState {
       field: [...player.field],
       discard: [...player.discard],
       spentFieldIndexes: new Set(player.spentFieldIndexes),
+      chargeGuardedFieldIndexes: new Set(player.chargeGuardedFieldIndexes),
     })),
     selected: game.selected ? { ...game.selected } : null,
     pendingAttack: game.pendingAttack ? { ...game.pendingAttack } : null,
@@ -736,7 +737,7 @@ export function startTurn(game: GameState): void {
   player.pipelineUsed = false;
   player.acceleratorUsed = false;
   player.chargeUsed = false;
-  player.chargeGuard = 0;
+  player.chargeGuardedFieldIndexes.clear();
   player.sandboxShield = 0;
   player.turnsStarted += 1;
   const drawnCards = shouldDrawForTurn(game) ? drawCards(player, 1) : [];
@@ -885,10 +886,10 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "return_after_overheat_cannot_hand_defend") return "攻撃後退場時、手札に戻る。消耗で出る。手札防御に使えない";
   if (card.effect === "draw_on_successful_defense") return "場防御成功時、山札からカードを1枚引く";
   if (card.effect === "draw_on_successful_defense_enters_spent") return "場防御成功時、山札からカードを1枚引く。消耗で出る";
-  if (card.effect === "charge_pressure") return "チャージ時、相手の手札が3枚以上なら1枚トラッシュ";
-  if (card.effect === "charge_draw") return "チャージ時、山札からカードを1枚引く";
-  if (card.effect === "charge_ready_ally") return "チャージ時、自分の消耗召喚獣1体を回復";
-  if (card.effect === "charge_guard") return "自分がこのカードをチャージした後、次の自分ターンまで場防御値 +1";
+  if (card.effect === "charge_pressure") return "このカードをチャージした時、相手の手札が3枚以上なら1枚トラッシュ";
+  if (card.effect === "charge_draw") return "このカードをチャージした時、山札からカードを1枚引く";
+  if (card.effect === "charge_ready_ally") return "このカードをチャージした時、自分の消耗召喚獣1体を回復";
+  if (card.effect === "charge_guard") return "このカードをチャージした時、場の召喚獣を1体選び、その召喚獣は次の自分ターンまで場防御値 +1";
   return "効果なし";
 }
 
@@ -993,7 +994,9 @@ export function cannotHandDefend(card: Card): boolean {
   );
 }
 
-export function defensePowerBonus(card: Card, defender: PlayerState | null = null, attackCard: Card | null = null, options: { firewallPaid?: boolean; fieldDefense?: boolean } = {}): number {
+type DefenseOptions = { firewallPaid?: boolean; fieldDefense?: boolean; fieldIndex?: number };
+
+export function defensePowerBonus(card: Card, defender: PlayerState | null = null, attackCard: Card | null = null, options: DefenseOptions = {}): number {
   const fieldDefense = options.fieldDefense ?? true;
   let bonus = fieldDefense && (
     card.effect === "defense_plus_1"
@@ -1007,20 +1010,24 @@ export function defensePowerBonus(card: Card, defender: PlayerState | null = nul
   ) {
     bonus += 1;
   }
-  if (fieldDefense && defender?.chargeGuard) {
+  if (
+    fieldDefense
+    && typeof options.fieldIndex === "number"
+    && defender?.chargeGuardedFieldIndexes.has(options.fieldIndex)
+  ) {
     bonus += 1;
   }
   return bonus;
 }
 
-export function defenseCombatValue(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: { firewallPaid?: boolean; fieldDefense?: boolean } = {}): number {
+export function defenseCombatValue(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: DefenseOptions = {}): number {
   if (!attackCard.attribute || !defenseCard.attribute) return 0;
   return (defenseCard.power ?? 0)
     + defensePowerBonus(defenseCard, defender, attackCard, options)
     + matchupModifier(defenseCard.attribute, attackCard.attribute);
 }
 
-export function canDefend(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: { fieldDefense?: boolean } = {}): boolean {
+export function canDefend(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: DefenseOptions = {}): boolean {
   return defenseCombatValue(attackCard, defenseCard, defender, options) >= attackCombatValue(attackCard);
 }
 
@@ -1032,18 +1039,18 @@ export function canUseFirewall(defender: PlayerState, defenseCard: Card, attackC
   );
 }
 
-export function canDefendWithOptionalFirewall(attackCard: Card, defenseCard: Card, defender: PlayerState): boolean {
-  return canDefend(attackCard, defenseCard, defender)
+export function canDefendWithOptionalFirewall(attackCard: Card, defenseCard: Card, defender: PlayerState, fieldIndex?: number): boolean {
+  return canDefend(attackCard, defenseCard, defender, { fieldIndex })
     || (
       canUseFirewall(defender, defenseCard, attackCard)
-      && defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: true }) >= attackCombatValue(attackCard)
+      && defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: true, fieldIndex }) >= attackCombatValue(attackCard)
     );
 }
 
 export function legalFieldDefenders(defender: PlayerState, attackCard: Card): { card: Card; index: number }[] {
   return defender.field
     .map((card, index) => ({ card, index }))
-    .filter(({ card, index }) => (CONFIG.exhaustedCanDefend || !defender.spentFieldIndexes.has(index)) && canDefendWithOptionalFirewall(attackCard, card, defender));
+    .filter(({ card, index }) => (CONFIG.exhaustedCanDefend || !defender.spentFieldIndexes.has(index)) && canDefendWithOptionalFirewall(attackCard, card, defender, index));
 }
 
 export function legalHandDefenders(defender: PlayerState, attackCard: Card): { card: Card; index: number }[] {
@@ -1058,7 +1065,7 @@ export function legalHandDefenders(defender: PlayerState, attackCard: Card): { c
     .filter(({ card }) => card.type === "ai" && !cannotHandDefend(card) && canDefend(attackCard, card, defender, { fieldDefense: false }));
 }
 
-export function defenseMathText(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: { fieldDefense?: boolean } = {}): string {
+export function defenseMathText(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: DefenseOptions = {}): string {
   if (!attackCard.attribute || !defenseCard.attribute) return "";
   const label = matchupLabel(defenseCard.attribute, attackCard.attribute);
   const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, options);
@@ -1071,10 +1078,10 @@ export function defenseMathText(attackCard: Card, defenseCard: Card, defender: P
   return `${label} / 防御値${defenseValue} vs 攻撃値${attackValue} / ${result}`;
 }
 
-export function needsFirewallFuel(defender: PlayerState, defenseCard: Card, attackCard: Card): boolean {
+export function needsFirewallFuel(defender: PlayerState, defenseCard: Card, attackCard: Card, fieldIndex?: number): boolean {
   if (!canUseFirewall(defender, defenseCard, attackCard)) return false;
-  const baseValue = defenseCombatValue(attackCard, defenseCard, defender);
-  const paidValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: true });
+  const baseValue = defenseCombatValue(attackCard, defenseCard, defender, { fieldIndex });
+  const paidValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: true, fieldIndex });
   const attackValue = attackCombatValue(attackCard);
   return baseValue < attackValue || (baseValue === attackValue && paidValue > attackValue);
 }
@@ -1089,8 +1096,8 @@ export function discardLowPriorityCards(player: PlayerState, count: number): Car
   return discarded;
 }
 
-export function discardFirewallFuel(defender: PlayerState, defenseCard: Card, attackCard: Card): Card | null {
-  if (!needsFirewallFuel(defender, defenseCard, attackCard)) return null;
+export function discardFirewallFuel(defender: PlayerState, defenseCard: Card, attackCard: Card, fieldIndex?: number): Card | null {
+  if (!needsFirewallFuel(defender, defenseCard, attackCard, fieldIndex)) return null;
   return discardLowPriorityCards(defender, 1)[0] ?? null;
 }
 
@@ -1102,6 +1109,12 @@ export function removeFieldCard(player: PlayerState, index: number): Card {
     if (spentIndex > index) nextSpent.add(spentIndex - 1);
   });
   player.spentFieldIndexes = nextSpent;
+  const nextChargeGuarded = new Set<number>();
+  player.chargeGuardedFieldIndexes.forEach((guardedIndex) => {
+    if (guardedIndex < index) nextChargeGuarded.add(guardedIndex);
+    if (guardedIndex > index) nextChargeGuarded.add(guardedIndex - 1);
+  });
+  player.chargeGuardedFieldIndexes = nextChargeGuarded;
   return card;
 }
 
@@ -1109,6 +1122,13 @@ export function highestPowerSpentAi(player: PlayerState): number | null {
   const options = [...player.spentFieldIndexes]
     .filter((index) => player.field[index])
     .map((index) => ({ card: player.field[index], index }));
+  if (options.length === 0) return null;
+  options.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
+  return options[0].index;
+}
+
+export function highestPowerFieldAi(player: PlayerState): number | null {
+  const options = player.field.map((card, index) => ({ card, index }));
   if (options.length === 0) return null;
   options.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
   return options[0].index;

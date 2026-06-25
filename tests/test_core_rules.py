@@ -904,7 +904,7 @@ class CoreRuleTests(unittest.TestCase):
         apply_action(state, Action(ActionType.CHARGE, 0))
         self.assertEqual(state.players[0].spent_field_ai, set())
 
-    def test_earth_charge_summon_adds_next_defense_bonus_until_next_turn(self) -> None:
+    def test_earth_charge_summon_adds_selected_next_defense_bonus_until_next_turn(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].field_ai = [card("AI-EARTH-3")]
         state.players[0].hand = [card("AI-EARTH-2C")]
@@ -912,13 +912,29 @@ class CoreRuleTests(unittest.TestCase):
         state.turn = 1
         start_turn(state)
         apply_action(state, Action(ActionType.CHARGE, 0))
-        self.assertEqual(state.players[0].pending_effects["charge_guard"], 1)
+        self.assertEqual(state.players[0].charge_guarded_field_ai, {0})
         state.players[1].field_ai = [card("AI-FIRE-3B")]
         end_turn(state)
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
         self.assertEqual(state.stats.successful_defenses, 1)
         self.assertEqual([item.id for item in state.players[0].discard], ["AI-EARTH-2C", "AI-EARTH-3"])
+
+    def test_earth_charge_summon_does_not_boost_unselected_field_ai(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].field_ai = [card("AI-EARTH-2B"), card("AI-EARTH-3")]
+        state.players[0].hand = [card("AI-EARTH-2C")]
+        state.players[0].turns_started = 1
+        state.turn = 1
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual(state.players[0].charge_guarded_field_ai, {1})
+        state.players[1].field_ai = [card("AI-FIRE-2")]
+        end_turn(state)
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual([item.id for item in state.players[0].field_ai], ["AI-EARTH-2B", "AI-EARTH-3"])
+        self.assertEqual(state.players[0].spent_field_ai, {1})
 
     def test_resonator_memory_draws_after_charge_when_hand_is_low(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))

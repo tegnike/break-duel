@@ -34,6 +34,7 @@ import {
   filtersOnPlay,
   finishTurn,
   highestPowerAiInDiscard,
+  highestPowerFieldAi,
   highestPowerReadyAi,
   highestPowerSpentAi,
   highestPowerSpentAiByAttribute,
@@ -102,7 +103,7 @@ export function useAcceleratorMemoryInDraft(draft: GameState, playerIndex: numbe
   return sacrificed;
 }
 
-export function chargeHandCardInDraft(draft: GameState, playerIndex: number, handIndex: number): Card | null {
+export function chargeHandCardInDraft(draft: GameState, playerIndex: number, handIndex: number, chargeGuardTargetIndex?: number | null): Card | null {
   const player = draft.players[playerIndex];
   if (!player || !canUseCharge(draft, player)) return null;
   const charged = player.hand[handIndex];
@@ -113,7 +114,7 @@ export function chargeHandCardInDraft(draft: GameState, playerIndex: number, han
   const before = draft.actionsRemaining;
   draft.actionsRemaining = Math.min(3, draft.actionsRemaining + 1);
   draft.chargedActionsRemaining += draft.actionsRemaining > before ? 1 : 0;
-  const effectText = applyChargeEffects(draft, playerIndex, charged);
+  const effectText = applyChargeEffects(draft, playerIndex, charged, chargeGuardTargetIndex);
   addLog(draft, `${player.name}は${charged.name}をチャージし、残りアクションを${before}から${draft.actionsRemaining}に増やした。${effectText}`);
   draft.selected = null;
   draft.pendingTarget = null;
@@ -122,7 +123,7 @@ export function chargeHandCardInDraft(draft: GameState, playerIndex: number, han
   return charged;
 }
 
-function applyChargeEffects(draft: GameState, playerIndex: number, charged: Card): string {
+function applyChargeEffects(draft: GameState, playerIndex: number, charged: Card, chargeGuardTargetIndex?: number | null): string {
   const player = draft.players[playerIndex];
   const opponent = draft.players[1 - playerIndex];
   const texts: string[] = [];
@@ -142,8 +143,11 @@ function applyChargeEffects(draft: GameState, playerIndex: number, charged: Card
     }
   }
   if (charged.effect === "charge_guard") {
-    player.chargeGuard = 1;
-    texts.push("次の自分ターンまで場防御値+1。");
+    const targetIndex = chargeGuardTargetIndex ?? highestPowerFieldAi(player);
+    if (targetIndex !== null && player.field[targetIndex]) {
+      player.chargeGuardedFieldIndexes.add(targetIndex);
+      texts.push(`${player.field[targetIndex].name}は次の自分ターンまで場防御値+1。`);
+    }
   }
   if (player.memory?.effect === "resonator" && player.hand.length <= 2) {
     const drawnCards = drawCards(player, 1);
@@ -468,10 +472,10 @@ export function resolveDefenseInDraft(
 
   if (choice.type === "field") {
     const defenseCard = defender.field[choice.index];
-    if (!defenseCard || !canDefendWithOptionalFirewall(attackCard, defenseCard, defender)) return;
+    if (!defenseCard || !canDefendWithOptionalFirewall(attackCard, defenseCard, defender, choice.index)) return;
     draft.pendingTarget = null;
-    if (defender.isHuman && needsFirewallFuel(defender, defenseCard, attackCard) && choice.firewallDiscardIndex === undefined) {
-      const baseCanDefend = canDefend(attackCard, defenseCard, defender);
+    if (defender.isHuman && needsFirewallFuel(defender, defenseCard, attackCard, choice.index) && choice.firewallDiscardIndex === undefined) {
+      const baseCanDefend = canDefend(attackCard, defenseCard, defender, { fieldIndex: choice.index });
       draft.pendingTarget = {
         kind: "hand-discard",
         reason: "firewall",
@@ -494,8 +498,8 @@ export function resolveDefenseInDraft(
       ? discardHandCards(draft, defenderIndex, [choice.firewallDiscardIndex])[0]
       : choice.firewallDiscardIndex === null
         ? null
-        : discardFirewallFuel(defender, defenseCard, attackCard);
-    const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: Boolean(firewallFuel) });
+        : discardFirewallFuel(defender, defenseCard, attackCard, choice.index);
+    const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: Boolean(firewallFuel), fieldIndex: choice.index });
     const attackValue = attackCombatValue(attackCard);
     const isTrade = defenseValue === attackValue;
     const fuelText = firewallFuel ? ` ${defender.memory!.name}で${firewallFuel.name}をトラッシュ。` : "";
@@ -710,6 +714,7 @@ export function performAiActionInDraft(
     player.discard.push(source);
     player.field[action.fieldIndex] = card;
     player.spentFieldIndexes.delete(action.fieldIndex);
+    player.chargeGuardedFieldIndexes.delete(action.fieldIndex);
     let text = `${player.name}は${source.name}を元に${card.name}へアップグレード。`;
     text += applyPlayEffects(draft, player, card, action.fieldIndex, upgradeCost(card), source);
     addLog(draft, text);
