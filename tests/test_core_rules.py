@@ -560,6 +560,15 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[1].life, 4)
         self.assertEqual([item.id for item in state.players[1].hand], ["AI-WATER-3"])
 
+    def test_power_3_cannot_field_defend_when_configured(self) -> None:
+        state = new_game(1, no_opening_hands(power_3_cannot_field_defend=True))
+        state.players[0].field_ai = [card("AI-FIRE-1")]
+        state.players[1].field_ai = [card("AI-WATER-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-WATER-3"])
+
     def test_enters_spent_drawback_spends_card_on_play(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].hand = [card("AI-WIND-4B")]
@@ -648,8 +657,31 @@ class CoreRuleTests(unittest.TestCase):
         apply_action(state, Action(ActionType.PLAY_AI, 0))
         self.assertEqual(state.actions_remaining, 1)
 
+    def test_power_4_play_cost_can_be_configured(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(
+                first_player_first_turn_actions=2,
+                power_4_play_cost=1,
+            ),
+        )
+        state.players[0].hand = [card("AI-FIRE-4")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual(state.actions_remaining, 1)
+
     def test_fire_3_gets_attack_plus_1(self) -> None:
         self.assertEqual(attack_combat_value(card("AI-FIRE-3")), 4)
+
+    def test_power_3_defense_modifier_can_be_configured(self) -> None:
+        state = new_game(1, no_opening_hands(power_3_defense_modifier=-1))
+        state.players[0].field_ai = [card("AI-FIRE-3")]
+        state.players[1].field_ai = [card("AI-WATER-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual(state.players[0].field_ai, [card("AI-FIRE-3")])
+        self.assertEqual(state.players[1].field_ai, [card("AI-WATER-3")])
 
     def test_power_4_enters_ready(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))

@@ -42,6 +42,8 @@ def choose_action(state: GameState) -> Action:
             same_attribute_strict=state.config.same_attribute_strict_defense,
             exhausted_ai_can_defend=state.config.exhausted_ai_can_defend,
             power_2_defense_bonus=state.config.power_2_defense_bonus,
+            power_3_cannot_field_defend=state.config.power_3_cannot_field_defend,
+            power_3_defense_modifier=state.config.power_3_defense_modifier,
         )
         if damaging_attack is not None:
             return Action(ActionType.ATTACK, damaging_attack)
@@ -103,11 +105,14 @@ def choose_defender(
     same_attribute_strict: bool = False,
     exhausted_ai_can_defend: bool = False,
     power_2_defense_bonus: int = 0,
+    power_3_cannot_field_defend: bool = False,
+    power_3_defense_modifier: int = 0,
 ) -> int | None:
     successful = [
         (index, card)
         for index, card in enumerate(defender.field_ai)
         if (exhausted_ai_can_defend or index not in defender.spent_field_ai)
+        and not (power_3_cannot_field_defend and card.power == 3)
         and can_defend(
             attack_ai,
             card,
@@ -120,6 +125,7 @@ def choose_defender(
                 defender,
                 attack_ai,
                 field_index=index,
+                power_3_defense_modifier=power_3_defense_modifier,
             ),
         )
     ]
@@ -137,6 +143,7 @@ def choose_hand_defender(
     same_attribute_strict: bool = False,
     power_2_defense_bonus: int = 0,
     power_3_cannot_hand_defend: bool = False,
+    power_3_defense_modifier: int = 0,
 ) -> int | None:
     if blocks_low_life_hand_defense(attack_ai) and defender.life <= 2:
         return None
@@ -152,7 +159,11 @@ def choose_hand_defender(
             advantage_bonus=advantage_bonus,
             disadvantage_penalty=disadvantage_penalty,
             same_attribute_strict=same_attribute_strict,
-            defense_power_bonus=_defense_power_bonus(card, power_2_defense_bonus),
+            defense_power_bonus=_defense_power_bonus(
+                card,
+                power_2_defense_bonus,
+                power_3_defense_modifier=power_3_defense_modifier,
+            ),
             include_defense_effect_bonus=False,
         )
     ]
@@ -222,6 +233,8 @@ def _best_damaging_attacker(
     same_attribute_strict: bool,
     exhausted_ai_can_defend: bool,
     power_2_defense_bonus: int,
+    power_3_cannot_field_defend: bool,
+    power_3_defense_modifier: int,
 ) -> int | None:
     candidates = []
     for index, card in enumerate(player.field_ai):
@@ -236,6 +249,8 @@ def _best_damaging_attacker(
                 same_attribute_strict=same_attribute_strict,
                 exhausted_ai_can_defend=exhausted_ai_can_defend,
                 power_2_defense_bonus=power_2_defense_bonus,
+                power_3_cannot_field_defend=power_3_cannot_field_defend,
+                power_3_defense_modifier=power_3_defense_modifier,
             )
             is None
         ):
@@ -455,6 +470,12 @@ def _play_cost(card, state: GameState) -> int:
         and state.config.power_3_play_cost is not None
     ):
         return state.config.power_3_play_cost
+    if (
+        card.type == CardType.AI
+        and card.power == 4
+        and state.config.power_4_play_cost is not None
+    ):
+        return state.config.power_4_play_cost
     if card.type == CardType.AI and (card.power or 0) >= 3:
         return state.config.large_ai_play_cost
     return 1
@@ -470,8 +491,11 @@ def _defense_power_bonus(
     defender: PlayerState | None = None,
     attack_ai=None,
     field_index: int | None = None,
+    power_3_defense_modifier: int = 0,
 ) -> int:
     bonus = 0
+    if card.power == 3:
+        bonus += power_3_defense_modifier
     if (
         defender is not None
         and attack_ai is not None

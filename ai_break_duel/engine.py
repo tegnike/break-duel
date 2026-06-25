@@ -204,9 +204,12 @@ def result_summary(state: GameState) -> dict[str, Any]:
             "power_2_defense_bonus": state.config.power_2_defense_bonus,
             "large_ai_play_cost": state.config.large_ai_play_cost,
             "power_3_play_cost": state.config.power_3_play_cost,
+            "power_4_play_cost": state.config.power_4_play_cost,
             "power_3_enters_spent": state.config.power_3_enters_spent,
             "power_3_discards_on_play": state.config.power_3_discards_on_play,
             "power_3_cannot_hand_defend": state.config.power_3_cannot_hand_defend,
+            "power_3_cannot_field_defend": state.config.power_3_cannot_field_defend,
+            "power_3_defense_modifier": state.config.power_3_defense_modifier,
             "power_3_overheats_after_attack": (
                 state.config.power_3_overheats_after_attack
             ),
@@ -415,6 +418,8 @@ def _attack(state: GameState, action: Action) -> None:
         same_attribute_strict=state.config.same_attribute_strict_defense,
         exhausted_ai_can_defend=state.config.exhausted_ai_can_defend,
         power_2_defense_bonus=state.config.power_2_defense_bonus,
+        power_3_cannot_field_defend=state.config.power_3_cannot_field_defend,
+        power_3_defense_modifier=state.config.power_3_defense_modifier,
     )
     hand_defense_index = _choose_hand_defender(state, attack_ai, defender)
     if defense_index is not None and hand_defense_index is not None:
@@ -844,6 +849,7 @@ def _choose_hand_defender(state: GameState, attack_ai, defender: PlayerState) ->
         same_attribute_strict=state.config.same_attribute_strict_defense,
         power_2_defense_bonus=state.config.power_2_defense_bonus,
         power_3_cannot_hand_defend=state.config.power_3_cannot_hand_defend,
+        power_3_defense_modifier=state.config.power_3_defense_modifier,
     )
 
 
@@ -1047,6 +1053,12 @@ def _play_cost(state: GameState, card) -> int:
         and state.config.power_3_play_cost is not None
     ):
         return state.config.power_3_play_cost
+    if (
+        card.type == CardType.AI
+        and card.power == 4
+        and state.config.power_4_play_cost is not None
+    ):
+        return state.config.power_4_play_cost
     if card.type == CardType.AI and (card.power or 0) >= 3:
         return state.config.large_ai_play_cost
     return 1
@@ -1064,6 +1076,8 @@ def _defense_power_bonus(
     field_index: int | None = None,
 ) -> int:
     bonus = 0
+    if card.power == 3:
+        bonus += state.config.power_3_defense_modifier
     if (
         attack_ai is not None
         and defender.memory is not None

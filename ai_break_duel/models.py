@@ -91,9 +91,12 @@ class GameConfig:
     power_2_defense_bonus: int = 1
     large_ai_play_cost: int = 2
     power_3_play_cost: int | None = None
+    power_4_play_cost: int | None = None
     power_3_enters_spent: bool = False
     power_3_discards_on_play: bool = False
     power_3_cannot_hand_defend: bool = False
+    power_3_cannot_field_defend: bool = False
+    power_3_defense_modifier: int = 0
     power_3_overheats_after_attack: bool = False
     power_4_enters_spent: bool = False
     power_4_overheats_after_attack: bool = True

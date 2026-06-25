@@ -191,8 +191,11 @@ class DeckRuleSet:
     max_high_power_summons: int | None = None
     power_3_enters_spent: bool = False
     power_3_play_cost: int | None = None
+    power_4_play_cost: int | None = None
     power_3_discards_on_play: bool = False
     power_3_cannot_hand_defend: bool = False
+    power_3_cannot_field_defend: bool = False
+    power_3_defense_modifier: int = 0
     power_3_overheats_after_attack: bool = False
     power_4_overheats_after_attack: bool = True
 
@@ -209,6 +212,33 @@ RULE_SETS: dict[str, DeckRuleSet] = {
         "power 3 summons max 2 and power 3+ summons max 4",
         max_power_3_summons=2,
         max_high_power_summons=4,
+    ),
+    "p3_cap_2_p4_cost_1": DeckRuleSet(
+        "power 3 summons max 2 and power 4 summons cost 1 action",
+        max_power_3_summons=2,
+        power_4_play_cost=1,
+    ),
+    "p3_cap_2_defense_minus_1": DeckRuleSet(
+        "power 3 summons max 2 and get -1 defense value",
+        max_power_3_summons=2,
+        power_3_defense_modifier=-1,
+    ),
+    "p3_cap_2_p4_cost_1_defense_minus_1": DeckRuleSet(
+        "power 3 summons max 2 and get -1 defense value; power 4 costs 1",
+        max_power_3_summons=2,
+        power_3_defense_modifier=-1,
+        power_4_play_cost=1,
+    ),
+    "p3_cap_2_high_cap_6": DeckRuleSet(
+        "power 3 summons max 2 and power 3+ summons max 6",
+        max_power_3_summons=2,
+        max_high_power_summons=6,
+    ),
+    "p3_cap_2_high_cap_6_p4_cost_1": DeckRuleSet(
+        "power 3 summons max 2, power 3+ max 6, and power 4 costs 1",
+        max_power_3_summons=2,
+        max_high_power_summons=6,
+        power_4_play_cost=1,
     ),
     "p3_cap_1_high_cap_4": DeckRuleSet(
         "power 3 summons max 1 and power 3+ summons max 4",
@@ -227,6 +257,69 @@ RULE_SETS: dict[str, DeckRuleSet] = {
     "p3_cost_3": DeckRuleSet(
         "power 3 summons cost 3 actions",
         power_3_play_cost=3,
+    ),
+    "p4_cost_1": DeckRuleSet(
+        "power 4 summons cost 1 action",
+        power_4_play_cost=1,
+    ),
+    "p3_cost_3_p4_cost_1": DeckRuleSet(
+        "power 3 summons cost 3 actions and power 4 summons cost 1 action",
+        power_3_play_cost=3,
+        power_4_play_cost=1,
+    ),
+    "p3_cost_3_overheats": DeckRuleSet(
+        "power 3 summons cost 3 actions and overheat after attacking",
+        power_3_play_cost=3,
+        power_3_overheats_after_attack=True,
+    ),
+    "p3_cost_3_overheats_p4_cost_1": DeckRuleSet(
+        "power 3 summons cost 3 actions and overheat; power 4 costs 1",
+        power_3_play_cost=3,
+        power_3_overheats_after_attack=True,
+        power_4_play_cost=1,
+    ),
+    "p3_cost_3_overheats_p4_no_overheat": DeckRuleSet(
+        "power 3 summons cost 3 actions and overheat; power 4 does not",
+        power_3_play_cost=3,
+        power_3_overheats_after_attack=True,
+        power_4_overheats_after_attack=False,
+    ),
+    "p3_defense_minus_1": DeckRuleSet(
+        "power 3 summons get -1 defense value",
+        power_3_defense_modifier=-1,
+    ),
+    "p3_no_field_defend": DeckRuleSet(
+        "power 3 summons cannot field defend",
+        power_3_cannot_field_defend=True,
+    ),
+    "p3_no_defend": DeckRuleSet(
+        "power 3 summons cannot field defend or hand defend",
+        power_3_cannot_field_defend=True,
+        power_3_cannot_hand_defend=True,
+    ),
+    "p3_cost_3_defense_minus_1": DeckRuleSet(
+        "power 3 summons cost 3 actions and get -1 defense value",
+        power_3_play_cost=3,
+        power_3_defense_modifier=-1,
+    ),
+    "p3_cost_3_no_defend": DeckRuleSet(
+        "power 3 summons cost 3 actions and cannot defend",
+        power_3_play_cost=3,
+        power_3_cannot_field_defend=True,
+        power_3_cannot_hand_defend=True,
+    ),
+    "p3_cost_3_p4_cost_1_defense_minus_1": DeckRuleSet(
+        "power 3 summons cost 3 actions and get -1 defense value; power 4 costs 1",
+        power_3_play_cost=3,
+        power_3_defense_modifier=-1,
+        power_4_play_cost=1,
+    ),
+    "p3_cost_3_p4_cost_1_no_defend": DeckRuleSet(
+        "power 3 summons cost 3 actions and cannot defend; power 4 costs 1",
+        power_3_play_cost=3,
+        power_3_cannot_field_defend=True,
+        power_3_cannot_hand_defend=True,
+        power_4_play_cost=1,
     ),
     "p3_overheats": DeckRuleSet(
         "power 3 summons overheat after attacking",
@@ -351,8 +444,11 @@ def evaluate_candidate(
         max_turns=eval_config.max_turns,
         power_3_enters_spent=rule_set.power_3_enters_spent,
         power_3_play_cost=rule_set.power_3_play_cost,
+        power_4_play_cost=rule_set.power_4_play_cost,
         power_3_discards_on_play=rule_set.power_3_discards_on_play,
         power_3_cannot_hand_defend=rule_set.power_3_cannot_hand_defend,
+        power_3_cannot_field_defend=rule_set.power_3_cannot_field_defend,
+        power_3_defense_modifier=rule_set.power_3_defense_modifier,
         power_3_overheats_after_attack=rule_set.power_3_overheats_after_attack,
         power_4_overheats_after_attack=rule_set.power_4_overheats_after_attack,
     )
@@ -481,8 +577,11 @@ def main() -> int:
                 "max_high_power_summons": value.max_high_power_summons,
                 "power_3_enters_spent": value.power_3_enters_spent,
                 "power_3_play_cost": value.power_3_play_cost,
+                "power_4_play_cost": value.power_4_play_cost,
                 "power_3_discards_on_play": value.power_3_discards_on_play,
                 "power_3_cannot_hand_defend": value.power_3_cannot_hand_defend,
+                "power_3_cannot_field_defend": value.power_3_cannot_field_defend,
+                "power_3_defense_modifier": value.power_3_defense_modifier,
                 "power_3_overheats_after_attack": (
                     value.power_3_overheats_after_attack
                 ),

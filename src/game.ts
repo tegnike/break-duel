@@ -194,9 +194,12 @@ export const CONFIG = {
   power2DefenseBonus: 1,
   largeAiPlayCost: 2,
   power3PlayCost: null as number | null,
+  power4PlayCost: null as number | null,
   power3EntersSpent: false,
   power3DiscardsOnPlay: false,
   power3CannotHandDefend: false,
+  power3CannotFieldDefend: false,
+  power3DefenseModifier: 0,
   power3OverheatsAfterAttack: false,
   power4EntersSpent: false,
   power4OverheatsAfterAttack: true,
@@ -821,6 +824,7 @@ export function playCost(card: Card | null | undefined): number {
   if (!card) return 99;
   if (card.type === "event" || card.type === "memory") return 1;
   if (card.power === 3 && CONFIG.power3PlayCost !== null) return CONFIG.power3PlayCost;
+  if (card.power === 4 && CONFIG.power4PlayCost !== null) return CONFIG.power4PlayCost;
   return (card.power ?? 0) >= 3 ? CONFIG.largeAiPlayCost : 1;
 }
 
@@ -1004,6 +1008,9 @@ export function defensePowerBonus(card: Card, defender: PlayerState | null = nul
     card.effect === "defense_plus_1"
     || card.effect === "defense_plus_1_enters_spent"
   ) ? CONFIG.power2DefenseBonus : 0;
+  if (card.power === 3) {
+    bonus += CONFIG.power3DefenseModifier;
+  }
   if (
     defender?.memory?.effect === "firewall"
     && options.firewallPaid
@@ -1052,7 +1059,9 @@ export function canDefendWithOptionalFirewall(attackCard: Card, defenseCard: Car
 export function legalFieldDefenders(defender: PlayerState, attackCard: Card): { card: Card; index: number }[] {
   return defender.field
     .map((card, index) => ({ card, index }))
-    .filter(({ card, index }) => (CONFIG.exhaustedCanDefend || !defender.spentFieldIndexes.has(index)) && canDefendWithOptionalFirewall(attackCard, card, defender, index));
+    .filter(({ card, index }) => !(
+      CONFIG.power3CannotFieldDefend && card.power === 3
+    ) && (CONFIG.exhaustedCanDefend || !defender.spentFieldIndexes.has(index)) && canDefendWithOptionalFirewall(attackCard, card, defender, index));
 }
 
 export function legalHandDefenders(defender: PlayerState, attackCard: Card): { card: Card; index: number }[] {
