@@ -55,16 +55,12 @@ def no_opening_hands(**overrides):
 
 
 class CoreRuleTests(unittest.TestCase):
-    def test_preset_decks_keep_template_composition(self) -> None:
+    def test_preset_decks_keep_curated_size_and_same_name_limit(self) -> None:
         for archetype in DeckArchetype:
             with self.subTest(archetype=archetype.value):
                 deck = build_deck(archetype)
                 validate_same_name_limit(deck)
-                type_counts = Counter(card.type for card in deck)
                 self.assertEqual(len(deck), 20)
-                self.assertEqual(type_counts[CardType.AI], 14)
-                self.assertEqual(type_counts[CardType.EVENT], 4)
-                self.assertEqual(type_counts[CardType.MEMORY], 2)
 
     def test_preset_decks_do_not_duplicate_high_power_summons(self) -> None:
         for archetype in DeckArchetype:

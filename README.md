@@ -29,8 +29,8 @@ design plan.
   - Each preset deck contains at least two summon, command, and relic cards.
     Each mono-attribute deck keeps summon cards within one attribute and uses
     every summon from that attribute at least once.
-  - Preset and saved decks are 20 cards: 14 summons, 4 commands, and 2 relics.
-    Power 3+ summons are singleton by card ID and capped at 4 total.
+  - Preset and saved decks are 20 cards. Saved decks may mix card types freely,
+    with same-name cards capped at 2 and power 3+ summons capped at 4 total.
 - Turns normally start with two actions. The first player's first turn starts
   with one action.
 - Once per turn, the active player may charge a power 1/2 summon, command, or
