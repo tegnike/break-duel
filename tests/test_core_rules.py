@@ -551,6 +551,15 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[1].life, 4)
         self.assertEqual([item.id for item in state.players[1].hand], ["AI-WATER-1B"])
 
+    def test_power_3_cannot_hand_defend_when_configured(self) -> None:
+        state = new_game(1, no_opening_hands(power_3_cannot_hand_defend=True))
+        state.players[0].field_ai = [card("AI-FIRE-1")]
+        state.players[1].hand = [card("AI-WATER-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-WATER-3"])
+
     def test_enters_spent_drawback_spends_card_on_play(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].hand = [card("AI-WIND-4B")]
@@ -663,6 +672,22 @@ class CoreRuleTests(unittest.TestCase):
         apply_action(state, Action(ActionType.PLAY_AI, 0))
         self.assertEqual(state.players[0].spent_field_ai, {0})
 
+    def test_power_3_can_discard_on_play_when_configured(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(
+                first_player_first_turn_actions=2,
+                power_3_discards_on_play=True,
+            ),
+        )
+        state.players[0].hand = [card("AI-FIRE-3"), card("AI-FIRE-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual([item.id for item in state.players[0].field_ai], ["AI-FIRE-3"])
+        self.assertEqual(state.players[0].hand, [])
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-FIRE-1"])
+        self.assertEqual(state.log[-1]["power_3_discarded_card"], "AI-FIRE-1")
+
     def test_power_4_overheats_after_attack(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].field_ai = [card("AI-WATER-4")]
@@ -672,6 +697,30 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[1].life, 4)
         self.assertEqual(state.players[0].field_ai, [])
         self.assertEqual(state.players[0].discard[0].id, "AI-WATER-4")
+
+    def test_power_3_can_overheat_after_attack_when_configured(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(power_3_overheats_after_attack=True),
+        )
+        state.players[0].field_ai = [card("AI-FIRE-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual(state.players[0].field_ai, [])
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-FIRE-3"])
+
+    def test_power_4_overheat_can_be_disabled(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(power_4_overheats_after_attack=False),
+        )
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual([item.id for item in state.players[0].field_ai], ["AI-WATER-4"])
+        self.assertEqual(state.players[0].discard, [])
 
     def test_fire_4_draws_two_when_power_4_overheats(self) -> None:
         state = new_game(1, no_opening_hands())

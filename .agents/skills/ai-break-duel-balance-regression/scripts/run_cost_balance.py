@@ -191,6 +191,10 @@ class DeckRuleSet:
     max_high_power_summons: int | None = None
     power_3_enters_spent: bool = False
     power_3_play_cost: int | None = None
+    power_3_discards_on_play: bool = False
+    power_3_cannot_hand_defend: bool = False
+    power_3_overheats_after_attack: bool = False
+    power_4_overheats_after_attack: bool = True
 
 
 RULE_SETS: dict[str, DeckRuleSet] = {
@@ -223,6 +227,32 @@ RULE_SETS: dict[str, DeckRuleSet] = {
     "p3_cost_3": DeckRuleSet(
         "power 3 summons cost 3 actions",
         power_3_play_cost=3,
+    ),
+    "p3_overheats": DeckRuleSet(
+        "power 3 summons overheat after attacking",
+        power_3_overheats_after_attack=True,
+    ),
+    "p3_discards_on_play": DeckRuleSet(
+        "power 3 summons discard 1 card on play",
+        power_3_discards_on_play=True,
+    ),
+    "p3_cannot_hand_defend": DeckRuleSet(
+        "power 3 summons cannot hand defend",
+        power_3_cannot_hand_defend=True,
+    ),
+    "p4_no_overheat": DeckRuleSet(
+        "power 4 summons do not overheat after attacking",
+        power_4_overheats_after_attack=False,
+    ),
+    "p3_discards_on_play_p4_no_overheat": DeckRuleSet(
+        "power 3 summons discard 1 card on play and power 4 summons do not overheat",
+        power_3_discards_on_play=True,
+        power_4_overheats_after_attack=False,
+    ),
+    "p3_overheats_p4_no_overheat": DeckRuleSet(
+        "power 3 summons overheat after attacking and power 4 summons do not",
+        power_3_overheats_after_attack=True,
+        power_4_overheats_after_attack=False,
     ),
     "p3_cap_2_cost_3": DeckRuleSet(
         "power 3 summons max 2 and cost 3 actions",
@@ -321,6 +351,10 @@ def evaluate_candidate(
         max_turns=eval_config.max_turns,
         power_3_enters_spent=rule_set.power_3_enters_spent,
         power_3_play_cost=rule_set.power_3_play_cost,
+        power_3_discards_on_play=rule_set.power_3_discards_on_play,
+        power_3_cannot_hand_defend=rule_set.power_3_cannot_hand_defend,
+        power_3_overheats_after_attack=rule_set.power_3_overheats_after_attack,
+        power_4_overheats_after_attack=rule_set.power_4_overheats_after_attack,
     )
     candidate_ids = twenty_cards(card_ids, rule_set)
     candidate_deck = cards_from_ids(candidate_ids)
@@ -447,6 +481,14 @@ def main() -> int:
                 "max_high_power_summons": value.max_high_power_summons,
                 "power_3_enters_spent": value.power_3_enters_spent,
                 "power_3_play_cost": value.power_3_play_cost,
+                "power_3_discards_on_play": value.power_3_discards_on_play,
+                "power_3_cannot_hand_defend": value.power_3_cannot_hand_defend,
+                "power_3_overheats_after_attack": (
+                    value.power_3_overheats_after_attack
+                ),
+                "power_4_overheats_after_attack": (
+                    value.power_4_overheats_after_attack
+                ),
             }
             for key, value in RULE_SETS.items()
         },

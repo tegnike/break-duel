@@ -52,6 +52,7 @@ Include:
 
 Useful experimental rule sets include `p3_cap_6`, `p3_cap_4`, `p3_cap_2`,
 `p3_cap_1`, `high_cap_6`, `high_cap_4`, `p3_enters_spent`, `p3_cost_3`,
-and combined rule sets such as `p3_cap_1_high_cap_4`.
+`p3_overheats`, `p3_discards_on_play`, `p3_cannot_hand_defend`,
+`p4_no_overheat`, and combined rule sets such as `p3_cap_1_high_cap_4`.
 
 Do not call a candidate "strong" just because it beats one or two archetypes. Use the combined rate against all six existing decks for the main conclusion.

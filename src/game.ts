@@ -195,6 +195,9 @@ export const CONFIG = {
   largeAiPlayCost: 2,
   power3PlayCost: null as number | null,
   power3EntersSpent: false,
+  power3DiscardsOnPlay: false,
+  power3CannotHandDefend: false,
+  power3OverheatsAfterAttack: false,
   power4EntersSpent: false,
   power4OverheatsAfterAttack: true,
   handLimit: null as number | null,
@@ -1061,7 +1064,10 @@ export function legalHandDefenders(defender: PlayerState, attackCard: Card): { c
   if (CONFIG.handDefenseEmptyOnly && defender.field.length > 0) return [];
   return defender.hand
     .map((card, index) => ({ card, index }))
-    .filter(({ card }) => card.type === "ai" && !cannotHandDefend(card) && canDefend(attackCard, card, defender, { fieldDefense: false }));
+    .filter(({ card }) => card.type === "ai"
+      && !cannotHandDefend(card)
+      && !(CONFIG.power3CannotHandDefend && card.power === 3)
+      && canDefend(attackCard, card, defender, { fieldDefense: false }));
 }
 
 export function defenseMathText(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: DefenseOptions = {}): string {

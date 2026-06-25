@@ -92,6 +92,9 @@ class GameConfig:
     large_ai_play_cost: int = 2
     power_3_play_cost: int | None = None
     power_3_enters_spent: bool = False
+    power_3_discards_on_play: bool = False
+    power_3_cannot_hand_defend: bool = False
+    power_3_overheats_after_attack: bool = False
     power_4_enters_spent: bool = False
     power_4_overheats_after_attack: bool = True
     hand_limit: int | None = None

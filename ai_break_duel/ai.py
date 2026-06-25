@@ -136,6 +136,7 @@ def choose_hand_defender(
     disadvantage_penalty: int = 1,
     same_attribute_strict: bool = False,
     power_2_defense_bonus: int = 0,
+    power_3_cannot_hand_defend: bool = False,
 ) -> int | None:
     if blocks_low_life_hand_defense(attack_ai) and defender.life <= 2:
         return None
@@ -144,6 +145,7 @@ def choose_hand_defender(
         for index, card in enumerate(defender.hand)
         if card.type == CardType.AI
         and not cannot_hand_defend(card)
+        and not (power_3_cannot_hand_defend and card.power == 3)
         and can_defend(
             attack_ai,
             card,

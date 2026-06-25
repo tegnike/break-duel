@@ -177,6 +177,12 @@ export function applyPlayEffects(
     player.spentFieldIndexes.add(fieldIndex);
     text += " 代償として消耗で出た。";
   }
+  if (CONFIG.power3DiscardsOnPlay && card.power === 3) {
+    const discarded = discardLowPriorityCards(player, 1);
+    if (discarded.length > 0) {
+      text += ` 代償として${cardNameList(discarded)}を捨てた。`;
+    }
+  }
   if (selfDamagesOnPlay(card)) {
     player.life -= 1;
     text += " 代償として自分に1ダメージ。";
@@ -648,9 +654,11 @@ function overheatAttackerIfNeeded(
   attackCard: Card,
   effects: GameActionEffects,
 ): void {
-  if (!CONFIG.power4OverheatsAfterAttack || attackCard.power !== 4) return;
+  const power4Overheats = attackCard.power === 4 && CONFIG.power4OverheatsAfterAttack;
+  const power3Overheats = attackCard.power === 3 && CONFIG.power3OverheatsAfterAttack;
+  if (!power4Overheats && !power3Overheats) return;
   if (attacker.field[fieldIndex] !== attackCard) return;
-  if (attacker.sandboxShield > 0) {
+  if (power4Overheats && attacker.sandboxShield > 0) {
     attacker.sandboxShield -= 1;
     attacker.spentFieldIndexes.add(fieldIndex);
     addLog(draft, `${attacker.name}は蒼殻バリアで${attackCard.name}の攻撃後退場を防いだ。`);

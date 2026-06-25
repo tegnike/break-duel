@@ -205,6 +205,11 @@ def result_summary(state: GameState) -> dict[str, Any]:
             "large_ai_play_cost": state.config.large_ai_play_cost,
             "power_3_play_cost": state.config.power_3_play_cost,
             "power_3_enters_spent": state.config.power_3_enters_spent,
+            "power_3_discards_on_play": state.config.power_3_discards_on_play,
+            "power_3_cannot_hand_defend": state.config.power_3_cannot_hand_defend,
+            "power_3_overheats_after_attack": (
+                state.config.power_3_overheats_after_attack
+            ),
             "power_4_enters_spent": state.config.power_4_enters_spent,
             "power_4_overheats_after_attack": (
                 state.config.power_4_overheats_after_attack
@@ -251,6 +256,7 @@ def _play_ai(state: GameState, action: Action) -> None:
         player.spent_field_ai.add(field_index)
     if enters_spent_on_play(card):
         player.spent_field_ai.add(field_index)
+    power_3_discarded = _discard_power_3_play_fuel(state, player, card)
     if state.config.power_1_draws_on_play and draws_on_play(card):
         drawn = player.draw(1, state.rng)
     enter_effect = _apply_ai_enter_effect(state, player, card)
@@ -263,6 +269,9 @@ def _play_ai(state: GameState, action: Action) -> None:
             "result": "played",
             "action_cost": _play_cost(state, card),
             "draw_count": drawn,
+            "power_3_discarded_card": (
+                power_3_discarded.id if power_3_discarded else None
+            ),
             "effect_draw_count": enter_effect["draw_count"],
             "effect_discarded_card": enter_effect["discarded_card"],
             "effect_spent_ai": enter_effect["spent_ai"],
@@ -359,6 +368,7 @@ def _upgrade_ai(state: GameState, action: Action) -> None:
         player.spent_field_ai.add(action.target_index)
     if enters_spent_on_play(card):
         player.spent_field_ai.add(action.target_index)
+    power_3_discarded = _discard_power_3_play_fuel(state, player, card)
     if state.config.power_1_draws_on_play and draws_on_play(card):
         drawn = player.draw(1, state.rng)
     enter_effect = _apply_ai_enter_effect(state, player, card, excluded_recover_card=source)
@@ -373,6 +383,9 @@ def _upgrade_ai(state: GameState, action: Action) -> None:
             "result": "upgraded",
             "action_cost": _upgrade_cost(state, card),
             "draw_count": drawn,
+            "power_3_discarded_card": (
+                power_3_discarded.id if power_3_discarded else None
+            ),
             "effect_draw_count": enter_effect["draw_count"],
             "effect_discarded_card": enter_effect["discarded_card"],
             "effect_spent_ai": enter_effect["spent_ai"],
@@ -830,6 +843,7 @@ def _choose_hand_defender(state: GameState, attack_ai, defender: PlayerState) ->
         disadvantage_penalty=state.config.defense_disadvantage_penalty,
         same_attribute_strict=state.config.same_attribute_strict_defense,
         power_2_defense_bonus=state.config.power_2_defense_bonus,
+        power_3_cannot_hand_defend=state.config.power_3_cannot_hand_defend,
     )
 
 
@@ -936,15 +950,19 @@ def _overheat_attacker_after_attack(
         "sandbox_command_used": False,
         "overheat_draw_count": 0,
     }
-    if not state.config.power_4_overheats_after_attack:
-        return result
-    if attack_ai.power != 4:
+    power_4_overheats = (
+        attack_ai.power == 4 and state.config.power_4_overheats_after_attack
+    )
+    power_3_overheats = (
+        attack_ai.power == 3 and state.config.power_3_overheats_after_attack
+    )
+    if not power_4_overheats and not power_3_overheats:
         return result
     if attack_index >= len(attacker.field_ai):
         return result
     if attacker.field_ai[attack_index] is not attack_ai:
         return result
-    if attacker.pending_effects.get("sandbox_shield", 0) > 0:
+    if power_4_overheats and attacker.pending_effects.get("sandbox_shield", 0) > 0:
         attacker.pending_effects["sandbox_shield"] -= 1
         if attacker.pending_effects["sandbox_shield"] <= 0:
             attacker.pending_effects.pop("sandbox_shield", None)
@@ -1379,6 +1397,18 @@ def _discard_low_priority_cards(player: PlayerState, count: int) -> list:
         player.discard.append(discarded_card)
         discarded.append(discarded_card)
     return discarded
+
+
+def _discard_power_3_play_fuel(state: GameState, player: PlayerState, card) -> Any:
+    if (
+        not state.config.power_3_discards_on_play
+        or card.type != CardType.AI
+        or card.power != 3
+        or not player.hand
+    ):
+        return None
+    discarded = _discard_low_priority_cards(player, 1)
+    return discarded[0] if discarded else None
 
 
 def _can_upgrade(source, target) -> bool:
