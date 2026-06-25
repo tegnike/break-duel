@@ -34,6 +34,7 @@ The regression set is:
 - `p3`: power 3 only
 - `p4`: power 4 only
 - `p1_2`: power 1-2 only
+- `p2_3`: power 2-3 only
 - `p3_4`: power 3-4 only
 
 The baseline opponents are the existing six deck archetypes: `break`, `control`, `fire`, `water`, `wind`, `earth`.

@@ -100,6 +100,29 @@ LOW_COST_CARD_IDS = (
     "AI-EARTH-1",
 )
 
+MID_COST_CARD_IDS = (
+    "AI-FIRE-2",
+    "AI-FIRE-2B",
+    "AI-WATER-2",
+    "AI-WATER-2B",
+    "AI-WIND-2",
+    "AI-WIND-2B",
+    "AI-WIND-2C",
+    "AI-EARTH-2",
+    "AI-EARTH-2B",
+    "AI-EARTH-2C",
+    "AI-FIRE-3",
+    "AI-FIRE-3B",
+    "AI-WATER-3",
+    "AI-WATER-3B",
+    "AI-WIND-3",
+    "AI-WIND-3B",
+    "AI-EARTH-3",
+    "AI-EARTH-3B",
+    "AI-FIRE-2",
+    "AI-WATER-2",
+)
+
 HIGH_COST_CARD_IDS = (
     "AI-FIRE-3",
     "AI-FIRE-3B",
@@ -138,6 +161,7 @@ CANDIDATES: dict[str, tuple[str, tuple[str, ...]]] = {
     "p3": ("power 3 only", POWER_CARD_IDS[3] * 3),
     "p4": ("power 4 only", POWER_CARD_IDS[4] * 3),
     "p1_2": ("power 1-2 only", LOW_COST_CARD_IDS),
+    "p2_3": ("power 2-3 only", MID_COST_CARD_IDS),
     "p3_4": ("power 3-4 only", HIGH_COST_CARD_IDS),
 }
 
