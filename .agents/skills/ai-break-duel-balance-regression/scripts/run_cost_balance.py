@@ -205,6 +205,7 @@ class DeckRuleSet:
     power_3_cannot_field_defend: bool = False
     power_3_defense_modifier: int = 0
     power_3_overheats_after_attack: bool = False
+    power_3_attack_recovery_delay: bool = False
     power_4_enters_spent: bool = False
     power_4_overheats_after_attack: bool = True
 
@@ -354,6 +355,22 @@ RULE_SETS: dict[str, DeckRuleSet] = {
         max_high_power_summons=4,
         large_ai_play_cost=3,
     ),
+    "high_cap_4_p3_slow_recovery": DeckRuleSet(
+        "power 3+ summons max 4 and power 3 recovers slowly after attacking",
+        max_high_power_summons=4,
+        power_3_attack_recovery_delay=True,
+    ),
+    "high_cap_4_p3_slow_recovery_exact_upgrade": DeckRuleSet(
+        "power 3+ summons max 4, power 3 recovers slowly, and upgrades advance exactly one step",
+        max_high_power_summons=4,
+        power_3_attack_recovery_delay=True,
+        exact_upgrade_step=True,
+    ),
+    "large_cost_3_p3_slow_recovery": DeckRuleSet(
+        "power 3/4 direct cost 3 and power 3 recovers slowly after attacking",
+        large_ai_play_cost=3,
+        power_3_attack_recovery_delay=True,
+    ),
     "high_cap_4_field_limit_2": DeckRuleSet(
         "power 3+ summons max 4 and field summon limit 2",
         max_high_power_summons=4,
@@ -419,6 +436,15 @@ RULE_SETS: dict[str, DeckRuleSet] = {
     "p3_enters_spent": DeckRuleSet(
         "power 3 summons enter spent",
         power_3_enters_spent=True,
+    ),
+    "p3_slow_recovery": DeckRuleSet(
+        "power 3 summons stay spent through their next ready step after attacking",
+        power_3_attack_recovery_delay=True,
+    ),
+    "p3_slow_recovery_exact_upgrade": DeckRuleSet(
+        "power 3 summons recover slowly after attacking and upgrades must advance exactly one step",
+        power_3_attack_recovery_delay=True,
+        exact_upgrade_step=True,
     ),
     "p3_cost_3": DeckRuleSet(
         "power 3 summons cost 3 actions",
@@ -636,6 +662,7 @@ def evaluate_candidate(
         power_3_cannot_field_defend=rule_set.power_3_cannot_field_defend,
         power_3_defense_modifier=rule_set.power_3_defense_modifier,
         power_3_overheats_after_attack=rule_set.power_3_overheats_after_attack,
+        power_3_attack_recovery_delay=rule_set.power_3_attack_recovery_delay,
         power_4_enters_spent=rule_set.power_4_enters_spent,
         power_4_overheats_after_attack=rule_set.power_4_overheats_after_attack,
     )
@@ -779,6 +806,9 @@ def main() -> int:
                 "power_3_defense_modifier": value.power_3_defense_modifier,
                 "power_3_overheats_after_attack": (
                     value.power_3_overheats_after_attack
+                ),
+                "power_3_attack_recovery_delay": (
+                    value.power_3_attack_recovery_delay
                 ),
                 "power_4_enters_spent": value.power_4_enters_spent,
                 "power_4_overheats_after_attack": (

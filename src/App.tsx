@@ -1075,6 +1075,7 @@ export default function App() {
       player.discard.push(source);
       player.field[sourceIndex] = card;
       player.spentFieldIndexes.delete(sourceIndex);
+      player.power3RecoveryDelayedFieldIndexes.delete(sourceIndex);
       player.chargeGuardedFieldIndexes.delete(sourceIndex);
       draft.pendingTarget = null;
       let text = `${player.name}は${source.name}を元に${card.name}へアップグレード。`;
@@ -1384,6 +1385,7 @@ export default function App() {
         const card = player.field[selectedIndex];
         if (card) {
           player.spentFieldIndexes.delete(selectedIndex);
+          player.power3RecoveryDelayedFieldIndexes.delete(selectedIndex);
           addLog(draft, `${player.name}は${card.name}を回復。`);
         }
       } else if (current.reason === "spend-enemy") {

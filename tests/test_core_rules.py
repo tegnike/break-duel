@@ -1242,6 +1242,55 @@ class CoreRuleTests(unittest.TestCase):
         apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
         self.assertEqual(state.players[0].field_ai[0].id, "AI-FIRE-3")
 
+    def test_power_3_attack_recovery_delay_skips_next_ready_step(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(
+                first_player_first_turn_actions=2,
+                power_3_attack_recovery_delay=True,
+            ),
+        )
+        state.players[0].field_ai = [card("AI-FIRE-3")]
+        state.players[1].hand = [command("CMD-OPTIMIZE")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertIn(0, state.players[0].spent_field_ai)
+        self.assertIn(0, state.players[0].power_3_recovery_delayed_field_ai)
+
+        end_turn(state)
+        start_turn(state)
+        end_turn(state)
+        start_turn(state)
+
+        self.assertIn(0, state.players[0].spent_field_ai)
+        self.assertEqual(state.players[0].power_3_recovery_delayed_field_ai, set())
+
+        end_turn(state)
+        start_turn(state)
+        end_turn(state)
+        start_turn(state)
+
+        self.assertNotIn(0, state.players[0].spent_field_ai)
+
+    def test_power_3_recovery_delay_clears_when_upgraded(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(
+                first_player_first_turn_actions=2,
+                power_3_attack_recovery_delay=True,
+            ),
+        )
+        state.players[0].field_ai = [card("AI-FIRE-3")]
+        state.players[0].hand = [card("AI-FIRE-4")]
+        state.players[1].hand = [command("CMD-OPTIMIZE")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
+
+        self.assertEqual(state.players[0].field_ai[0].id, "AI-FIRE-4")
+        self.assertNotIn(0, state.players[0].spent_field_ai)
+        self.assertEqual(state.players[0].power_3_recovery_delayed_field_ai, set())
+
     def test_large_ai_upgrade_cost_can_be_configured_to_one(self) -> None:
         state = new_game(
             1,

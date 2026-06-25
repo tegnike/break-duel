@@ -42,6 +42,7 @@ class PlayerState:
     turns_started: int = 0
     hand_defenses_used_this_turn: int = 0
     spent_field_ai: set[int] = field(default_factory=set)
+    power_3_recovery_delayed_field_ai: set[int] = field(default_factory=set)
     charge_guarded_field_ai: set[int] = field(default_factory=set)
 
     def draw(self, count: int, rng: Random | None) -> int:
@@ -100,6 +101,7 @@ class GameConfig:
     power_3_cannot_field_defend: bool = False
     power_3_defense_modifier: int = 0
     power_3_overheats_after_attack: bool = False
+    power_3_attack_recovery_delay: bool = False
     power_4_enters_spent: bool = False
     power_4_overheats_after_attack: bool = True
     hand_limit: int | None = None

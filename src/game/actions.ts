@@ -139,6 +139,7 @@ function applyChargeEffects(draft: GameState, playerIndex: number, charged: Card
     const targetIndex = highestPowerSpentAi(player);
     if (targetIndex !== null) {
       player.spentFieldIndexes.delete(targetIndex);
+      player.power3RecoveryDelayedFieldIndexes.delete(targetIndex);
       texts.push(`${player.field[targetIndex].name}を回復。`);
     }
   }
@@ -310,6 +311,7 @@ export function applyPlayEffects(
         text += " 回復する召喚獣を選択。";
       } else {
         player.spentFieldIndexes.delete(targetIndex);
+        player.power3RecoveryDelayedFieldIndexes.delete(targetIndex);
         text += ` ${player.field[targetIndex].name}を回復。`;
       }
     }
@@ -353,6 +355,7 @@ export function useCommandAtInDraft(
     const target = targetIndex ?? highestPowerSpentAi(player);
     if (target !== null) {
       player.spentFieldIndexes.delete(target);
+      player.power3RecoveryDelayedFieldIndexes.delete(target);
       text += ` ${player.field[target].name}を回復。`;
     }
   } else if (used.effect === "disrupt") {
@@ -405,6 +408,7 @@ export function useCommandAtInDraft(
     }
     if (readiedIndex !== null) {
       player.spentFieldIndexes.delete(readiedIndex);
+      player.power3RecoveryDelayedFieldIndexes.delete(readiedIndex);
       text += ` ${player.field[readiedIndex].name}を回復。`;
     }
   } else if (used.effect === "earth_rite") {
@@ -461,7 +465,12 @@ export function beginAttackInDraft(
       cards: [{ card: attackCard, label: "攻撃", state: "neutral" }],
     });
   }
-  if (CONFIG.exhaustAfterAttack && !keepsReadyAfterAttack(attackCard)) attacker.spentFieldIndexes.add(fieldIndex);
+  if (CONFIG.exhaustAfterAttack && !keepsReadyAfterAttack(attackCard)) {
+    attacker.spentFieldIndexes.add(fieldIndex);
+    if (CONFIG.power3AttackRecoveryDelay && attackCard.power === 3) {
+      attacker.power3RecoveryDelayedFieldIndexes.add(fieldIndex);
+    }
+  }
   draft.pendingAttack = { attackerIndex, defenderIndex, fieldIndex };
   draft.selected = null;
   if (!defender.isHuman) resolveDefenseInDraft(draft, chooseAiDefense(defender, attackCard), effects);
@@ -726,6 +735,7 @@ export function performAiActionInDraft(
     player.discard.push(source);
     player.field[action.fieldIndex] = card;
     player.spentFieldIndexes.delete(action.fieldIndex);
+    player.power3RecoveryDelayedFieldIndexes.delete(action.fieldIndex);
     player.chargeGuardedFieldIndexes.delete(action.fieldIndex);
     let text = `${player.name}は${source.name}を元に${card.name}へアップグレード。`;
     text += applyPlayEffects(draft, player, card, action.fieldIndex, upgradeCost(card), source);

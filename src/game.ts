@@ -78,6 +78,7 @@ export type PlayerState = {
   chargeGuardedFieldIndexes: Set<number>;
   sandboxShield: number;
   spentFieldIndexes: Set<number>;
+  power3RecoveryDelayedFieldIndexes: Set<number>;
 };
 
 export type DuelDeckSource =
@@ -203,6 +204,7 @@ export const CONFIG = {
   power3CannotFieldDefend: false,
   power3DefenseModifier: 0,
   power3OverheatsAfterAttack: false,
+  power3AttackRecoveryDelay: false,
   power4EntersSpent: false,
   power4OverheatsAfterAttack: true,
   handLimit: null as number | null,
@@ -590,6 +592,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     chargeGuardedFieldIndexes: new Set(),
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
+    power3RecoveryDelayedFieldIndexes: new Set<number>(),
   };
 }
 
@@ -615,6 +618,7 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     chargeGuardedFieldIndexes: new Set(),
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
+    power3RecoveryDelayedFieldIndexes: new Set<number>(),
   };
 }
 
@@ -643,6 +647,7 @@ export function cloneGame(game: GameState): GameState {
       field: [...player.field],
       discard: [...player.discard],
       spentFieldIndexes: new Set(player.spentFieldIndexes),
+      power3RecoveryDelayedFieldIndexes: new Set(player.power3RecoveryDelayedFieldIndexes),
       chargeGuardedFieldIndexes: new Set(player.chargeGuardedFieldIndexes),
     })),
     selected: game.selected ? { ...game.selected } : null,
@@ -739,7 +744,7 @@ export function startTurn(game: GameState): void {
     player.handDefensesUsed = 0;
   });
   const player = activePlayer(game);
-  player.spentFieldIndexes.clear();
+  readyFieldForTurn(player);
   player.pipelineUsed = false;
   player.acceleratorUsed = false;
   player.chargeUsed = false;
@@ -757,6 +762,17 @@ export function startTurn(game: GameState): void {
 
 export function shouldDrawForTurn(game: GameState): boolean {
   return !(game.turn === 1 && game.active === 0 && !CONFIG.firstPlayerFirstTurnDraw);
+}
+
+export function readyFieldForTurn(player: PlayerState): void {
+  const delayed = CONFIG.power3AttackRecoveryDelay
+    ? new Set(player.power3RecoveryDelayedFieldIndexes)
+    : new Set<number>();
+  player.spentFieldIndexes.clear();
+  delayed.forEach((index) => {
+    if (player.field[index]) player.spentFieldIndexes.add(index);
+  });
+  player.power3RecoveryDelayedFieldIndexes.clear();
 }
 
 export function canActivePlayerAttack(game: GameState): boolean {
@@ -1132,6 +1148,12 @@ export function removeFieldCard(player: PlayerState, index: number): Card {
     if (spentIndex > index) nextSpent.add(spentIndex - 1);
   });
   player.spentFieldIndexes = nextSpent;
+  const nextPower3Delayed = new Set<number>();
+  player.power3RecoveryDelayedFieldIndexes.forEach((delayedIndex) => {
+    if (delayedIndex < index) nextPower3Delayed.add(delayedIndex);
+    if (delayedIndex > index) nextPower3Delayed.add(delayedIndex - 1);
+  });
+  player.power3RecoveryDelayedFieldIndexes = nextPower3Delayed;
   const nextChargeGuarded = new Set<number>();
   player.chargeGuardedFieldIndexes.forEach((guardedIndex) => {
     if (guardedIndex < index) nextChargeGuarded.add(guardedIndex);

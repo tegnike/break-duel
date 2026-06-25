@@ -78,7 +78,7 @@ def start_turn(state: GameState) -> None:
     state.phase = "main"
     for player in state.players:
         player.hand_defenses_used_this_turn = 0
-    state.active().spent_field_ai.clear()
+    _ready_active_field_ai_for_turn(state)
     state.active().pending_effects["pipeline_used"] = False
     state.active().pending_effects["accelerator_used"] = False
     state.active().pending_effects["charge_used"] = False
@@ -119,6 +119,20 @@ def end_turn(state: GameState) -> None:
     state.charged_actions_remaining = 0
     state.active_player = state.non_active_player
     _check_resource_exhaustion(state)
+
+
+def _ready_active_field_ai_for_turn(state: GameState) -> None:
+    player = state.active()
+    delayed = (
+        set(player.power_3_recovery_delayed_field_ai)
+        if state.config.power_3_attack_recovery_delay
+        else set()
+    )
+    player.spent_field_ai.clear()
+    player.spent_field_ai.update(
+        index for index in delayed if 0 <= index < len(player.field_ai)
+    )
+    player.power_3_recovery_delayed_field_ai.clear()
 
 
 def apply_action(state: GameState, action: Action) -> None:
@@ -214,6 +228,9 @@ def result_summary(state: GameState) -> dict[str, Any]:
             "power_3_defense_modifier": state.config.power_3_defense_modifier,
             "power_3_overheats_after_attack": (
                 state.config.power_3_overheats_after_attack
+            ),
+            "power_3_attack_recovery_delay": (
+                state.config.power_3_attack_recovery_delay
             ),
             "power_4_enters_spent": state.config.power_4_enters_spent,
             "power_4_overheats_after_attack": (
@@ -365,6 +382,7 @@ def _upgrade_ai(state: GameState, action: Action) -> None:
     player.ai_lost += 1
     player.field_ai[action.target_index] = card
     player.spent_field_ai.discard(action.target_index)
+    player.power_3_recovery_delayed_field_ai.discard(action.target_index)
     player.charge_guarded_field_ai.discard(action.target_index)
     drawn = 0
     if state.config.power_3_enters_spent and card.power == 3:
@@ -449,6 +467,8 @@ def _attack(state: GameState, action: Action) -> None:
     state.stats.record_card_usage(attack_ai.id, "attacked")
     if state.config.exhaust_after_attack and not keeps_ready_after_attack(attack_ai):
         attacker.spent_field_ai.add(action.source_index)
+        if state.config.power_3_attack_recovery_delay and attack_ai.power == 3:
+            attacker.power_3_recovery_delayed_field_ai.add(action.source_index)
 
     if defense_index is None:
         if hand_defense_index is None:
@@ -627,6 +647,7 @@ def _apply_charge_effect(state: GameState, player: PlayerState, charged_card) ->
         if target_index is not None:
             target = player.field_ai[target_index]
             player.spent_field_ai.remove(target_index)
+            player.power_3_recovery_delayed_field_ai.discard(target_index)
             result["readied_ai"] = target.id
             state.stats.record_card_usage(charged_card.id, "charge_ready_ally")
     if charged_card.effect == AiEffect.CHARGE_GUARD.value:
@@ -683,6 +704,7 @@ def _use_command(state: GameState, action: Action) -> None:
             player.hand.insert(action.source_index, command)
             raise ValueError("Patch target must be a spent summon.")
         player.spent_field_ai.remove(ready_index)
+        player.power_3_recovery_delayed_field_ai.discard(ready_index)
         player.discard.append(command)
         result |= {"readied_ai": player.field_ai[ready_index].id}
     elif command.effect == CommandEffect.DISRUPT.value:
@@ -802,6 +824,7 @@ def _use_command(state: GameState, action: Action) -> None:
             disrupted_ai = opponent.field_ai[disrupted_index].id
         if readied_index is not None:
             player.spent_field_ai.remove(readied_index)
+            player.power_3_recovery_delayed_field_ai.discard(readied_index)
             readied_ai = player.field_ai[readied_index].id
         result |= {
             "disrupted_ai": disrupted_ai,
@@ -938,6 +961,11 @@ def _remove_field_ai(player: PlayerState, index: int):
         spent_index if spent_index < index else spent_index - 1
         for spent_index in player.spent_field_ai
         if spent_index != index
+    }
+    player.power_3_recovery_delayed_field_ai = {
+        delayed_index if delayed_index < index else delayed_index - 1
+        for delayed_index in player.power_3_recovery_delayed_field_ai
+        if delayed_index != index
     }
     player.charge_guarded_field_ai = {
         guarded_index if guarded_index < index else guarded_index - 1
@@ -1355,6 +1383,7 @@ def _apply_ai_enter_effect(
         if target_index is not None:
             target = player.field_ai[target_index]
             player.spent_field_ai.remove(target_index)
+            player.power_3_recovery_delayed_field_ai.discard(target_index)
             result["recovered_ai"] = target.id
             state.stats.record_card_usage(played_card.id, "readied_ally")
     return result
