@@ -817,21 +817,21 @@ python3 -m ai_break_duel.cli league --games-per-pair 1000 --seed 260626 --out tm
 
 ### 18.4 14/4/2 偏りデッキ監査メモ
 
-2026-06-25 に、デッキ制作画面の保存デッキ検証へ 14/4/2 構成を追加し、偏りデッキ回帰スクリプトも 14 召喚獣、4 指令、2 遺物のテンプレ構成で評価するようにしました。サポート枠は `CMD-DISRUPT`、`CMD-SANDBOX`、`CMD-TRINITY`、`CMD-OPTIMIZE`、`MEM-CACHE`、`MEM-FIREWALL` です。
+2026-06-25 に、デッキ制作画面の保存デッキ検証へ 14/4/2 構成を追加し、偏りデッキ回帰スクリプトも 14 召喚獣、4 指令、2 遺物のテンプレ構成で評価するようにしました。さらに偏りデッキにも `power 3 以上の同名召喚獣は 1 枚まで` を反映しました。対象帯だけで 14 召喚獣を埋められない場合は、残りを低 power 召喚獣で補います。サポート枠は `CMD-DISRUPT`、`CMD-SANDBOX`、`CMD-TRINITY`、`CMD-OPTIMIZE`、`MEM-CACHE`、`MEM-FIREWALL` です。
 
-条件は既存 6 デッキに対する先攻・後攻それぞれ 1000 戦、各候補 12000 戦、seed `3000000` です。実行コマンドは `python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --games-per-order 1000 --seed 3000000` です。JSON 結果は `tmp/cost-balance-template-14-4-2-3000000.json` に保存しました。
+条件は既存 6 デッキに対する先攻・後攻それぞれ 1000 戦、各候補 12000 戦、seed `3000000` です。実行コマンドは `python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --games-per-order 1000 --seed 3000000` です。JSON 結果は `tmp/cost-balance-template-high-power-singleton-3000000.json` に保存しました。
 
 | 候補 | 合算勝率 | 勝ち | 総戦数 | 判定 |
 | --- | ---: | ---: | ---: | --- |
 | `p1` | 6.4% | 768 | 12000 | OK |
 | `p1_2` | 20.7% | 2487 | 12000 | OK |
 | `p2` | 32.2% | 3865 | 12000 | OK |
-| `p2_3` | 68.1% | 8175 | 12000 | RISK |
-| `p3` | 78.7% | 9442 | 12000 | RISK |
+| `p2_3` | 81.8% | 9814 | 12000 | RISK |
+| `p3` | 82.5% | 9902 | 12000 | RISK |
 | `p3_4` | 49.0% | 5876 | 12000 | OK |
-| `p4` | 33.7% | 4049 | 12000 | OK |
+| `p4` | 45.9% | 5505 | 12000 | OK |
 
-`p2_3` の相手別勝率は `break` 44.3%、`control` 61.3%、`fire` 59.8%、`water` 75.6%、`wind` 85.0%、`earth` 82.7% です。`p3` の相手別勝率は `break` 56.4%、`control` 81.5%、`fire` 59.1%、`water` 90.5%、`wind` 90.3%、`earth` 94.3% です。14/4/2 構成でも `p2_3` と `p3` が既存 6 デッキ合算で 50% を大きく超えるため、次の調整では power 3 帯の効率を優先して見直します。
+`p2_3` の相手別勝率は `break` 58.1%、`control` 79.9%、`fire` 67.3%、`water` 93.8%、`wind` 96.0%、`earth` 95.5% です。`p3` の相手別勝率は `break` 60.1%、`control` 81.3%、`fire` 69.0%、`water` 94.4%、`wind` 95.0%、`earth` 95.3% です。14/4/2 構成と高 power 同名 1 枚制限を反映しても `p2_3` と `p3` が既存 6 デッキ合算で 50% を大きく超えるため、次の調整では power 3 帯の効率を優先して見直します。
 
 ## 19. 既知の命名上の注意
 

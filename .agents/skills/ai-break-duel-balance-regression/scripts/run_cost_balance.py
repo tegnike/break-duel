@@ -101,6 +101,14 @@ LOW_COST_CARD_IDS = (
 )
 
 MID_COST_CARD_IDS = (
+    "AI-FIRE-3",
+    "AI-FIRE-3B",
+    "AI-WATER-3",
+    "AI-WATER-3B",
+    "AI-WIND-3",
+    "AI-WIND-3B",
+    "AI-EARTH-3",
+    "AI-EARTH-3B",
     "AI-FIRE-2",
     "AI-FIRE-2B",
     "AI-WATER-2",
@@ -111,14 +119,6 @@ MID_COST_CARD_IDS = (
     "AI-EARTH-2",
     "AI-EARTH-2B",
     "AI-EARTH-2C",
-    "AI-FIRE-3",
-    "AI-FIRE-3B",
-    "AI-WATER-3",
-    "AI-WATER-3B",
-    "AI-WIND-3",
-    "AI-WIND-3B",
-    "AI-EARTH-3",
-    "AI-EARTH-3B",
     "AI-FIRE-2",
     "AI-WATER-2",
 )
@@ -154,6 +154,7 @@ SUPPORT_CARD_IDS = (
     "MEM-CACHE",
     "MEM-FIREWALL",
 )
+FILLER_SUMMON_CARD_IDS = POWER_CARD_IDS[2] + POWER_CARD_IDS[1]
 
 EXISTING_DECKS = (
     DeckArchetype.BREAK,
@@ -183,7 +184,23 @@ class EvalConfig:
 
 
 def twenty_cards(card_ids: tuple[str, ...]) -> tuple[str, ...]:
-    return card_ids[:14] + SUPPORT_CARD_IDS
+    summon_ids: list[str] = []
+    high_power_seen: set[str] = set()
+    low_power_counts: Counter[str] = Counter()
+    for card_id in (*card_ids, *FILLER_SUMMON_CARD_IDS):
+        card = CARD_BY_ID[card_id]
+        if (card.power or 0) >= 3:
+            if card_id in high_power_seen:
+                continue
+            high_power_seen.add(card_id)
+        else:
+            if low_power_counts[card_id] >= 2:
+                continue
+            low_power_counts[card_id] += 1
+        summon_ids.append(card_id)
+        if len(summon_ids) == 14:
+            return tuple(summon_ids) + SUPPORT_CARD_IDS
+    raise ValueError("Unable to build a 14 summon stress deck.")
 
 
 def cards_from_ids(card_ids: tuple[str, ...]):
