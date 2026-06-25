@@ -193,6 +193,8 @@ export const CONFIG = {
   power1DrawsOnPlay: true,
   power2DefenseBonus: 1,
   largeAiPlayCost: 2,
+  power3PlayCost: null as number | null,
+  power3EntersSpent: false,
   power4EntersSpent: false,
   power4OverheatsAfterAttack: true,
   handLimit: null as number | null,
@@ -815,6 +817,7 @@ export function useAction(game: GameState, cost = 1, kind: "normal" | "attack" =
 export function playCost(card: Card | null | undefined): number {
   if (!card) return 99;
   if (card.type === "event" || card.type === "memory") return 1;
+  if (card.power === 3 && CONFIG.power3PlayCost !== null) return CONFIG.power3PlayCost;
   return (card.power ?? 0) >= 3 ? CONFIG.largeAiPlayCost : 1;
 }
 

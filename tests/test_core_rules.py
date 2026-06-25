@@ -613,6 +613,32 @@ class CoreRuleTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             apply_action(state, Action(ActionType.PLAY_AI, 0))
 
+    def test_power_3_play_cost_can_be_configured(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(
+                first_player_first_turn_actions=3,
+                power_3_play_cost=3,
+            ),
+        )
+        state.players[0].hand = [card("AI-FIRE-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual(state.actions_remaining, 0)
+
+    def test_power_3_play_cost_override_does_not_change_power_4_cost(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(
+                first_player_first_turn_actions=3,
+                power_3_play_cost=3,
+            ),
+        )
+        state.players[0].hand = [card("AI-FIRE-4")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual(state.actions_remaining, 1)
+
     def test_fire_3_gets_attack_plus_1(self) -> None:
         self.assertEqual(attack_combat_value(card("AI-FIRE-3")), 4)
 
@@ -623,6 +649,19 @@ class CoreRuleTests(unittest.TestCase):
         apply_action(state, Action(ActionType.PLAY_AI, 0))
         self.assertNotIn(0, state.players[0].spent_field_ai)
         self.assertEqual(state.actions_remaining, 0)
+
+    def test_power_3_can_enter_spent_when_configured(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(
+                first_player_first_turn_actions=2,
+                power_3_enters_spent=True,
+            ),
+        )
+        state.players[0].hand = [card("AI-FIRE-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual(state.players[0].spent_field_ai, {0})
 
     def test_power_4_overheats_after_attack(self) -> None:
         state = new_game(1, no_opening_hands())

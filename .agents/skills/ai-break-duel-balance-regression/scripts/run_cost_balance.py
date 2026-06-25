@@ -181,18 +181,84 @@ class EvalConfig:
     games_per_order: int
     seed: int
     max_turns: int
+    rule_set: str
 
 
-def twenty_cards(card_ids: tuple[str, ...]) -> tuple[str, ...]:
+@dataclass(frozen=True)
+class DeckRuleSet:
+    label: str
+    max_power_3_summons: int | None = None
+    max_high_power_summons: int | None = None
+    power_3_enters_spent: bool = False
+    power_3_play_cost: int | None = None
+
+
+RULE_SETS: dict[str, DeckRuleSet] = {
+    "current": DeckRuleSet("current high-power singleton"),
+    "p3_cap_6": DeckRuleSet("power 3 summons max 6", max_power_3_summons=6),
+    "p3_cap_4": DeckRuleSet("power 3 summons max 4", max_power_3_summons=4),
+    "p3_cap_2": DeckRuleSet("power 3 summons max 2", max_power_3_summons=2),
+    "p3_cap_1": DeckRuleSet("power 3 summons max 1", max_power_3_summons=1),
+    "high_cap_6": DeckRuleSet("power 3+ summons max 6", max_high_power_summons=6),
+    "high_cap_4": DeckRuleSet("power 3+ summons max 4", max_high_power_summons=4),
+    "p3_cap_2_high_cap_4": DeckRuleSet(
+        "power 3 summons max 2 and power 3+ summons max 4",
+        max_power_3_summons=2,
+        max_high_power_summons=4,
+    ),
+    "p3_cap_1_high_cap_4": DeckRuleSet(
+        "power 3 summons max 1 and power 3+ summons max 4",
+        max_power_3_summons=1,
+        max_high_power_summons=4,
+    ),
+    "p3_enters_spent": DeckRuleSet(
+        "power 3 summons enter spent",
+        power_3_enters_spent=True,
+    ),
+    "p3_cost_3": DeckRuleSet(
+        "power 3 summons cost 3 actions",
+        power_3_play_cost=3,
+    ),
+    "p3_cap_2_cost_3": DeckRuleSet(
+        "power 3 summons max 2 and cost 3 actions",
+        max_power_3_summons=2,
+        power_3_play_cost=3,
+    ),
+    "p3_cap_2_high_cap_4_cost_3": DeckRuleSet(
+        "power 3 summons max 2, power 3+ summons max 4, and power 3 costs 3 actions",
+        max_power_3_summons=2,
+        max_high_power_summons=4,
+        power_3_play_cost=3,
+    ),
+}
+
+
+def twenty_cards(card_ids: tuple[str, ...], rule_set: DeckRuleSet) -> tuple[str, ...]:
     summon_ids: list[str] = []
     high_power_seen: set[str] = set()
     low_power_counts: Counter[str] = Counter()
+    power_3_count = 0
+    high_power_count = 0
     for card_id in (*card_ids, *FILLER_SUMMON_CARD_IDS):
         card = CARD_BY_ID[card_id]
         if (card.power or 0) >= 3:
             if card_id in high_power_seen:
                 continue
+            if (
+                card.power == 3
+                and rule_set.max_power_3_summons is not None
+                and power_3_count >= rule_set.max_power_3_summons
+            ):
+                continue
+            if (
+                rule_set.max_high_power_summons is not None
+                and high_power_count >= rule_set.max_high_power_summons
+            ):
+                continue
             high_power_seen.add(card_id)
+            high_power_count += 1
+            if card.power == 3:
+                power_3_count += 1
         else:
             if low_power_counts[card_id] >= 2:
                 continue
@@ -245,8 +311,14 @@ def evaluate_candidate(
     card_ids: tuple[str, ...],
     eval_config: EvalConfig,
 ) -> dict[str, Any]:
-    config = GameConfig(max_turns=eval_config.max_turns)
-    candidate_deck = cards_from_ids(twenty_cards(card_ids))
+    rule_set = RULE_SETS[eval_config.rule_set]
+    config = GameConfig(
+        max_turns=eval_config.max_turns,
+        power_3_enters_spent=rule_set.power_3_enters_spent,
+        power_3_play_cost=rule_set.power_3_play_cost,
+    )
+    candidate_ids = twenty_cards(card_ids, rule_set)
+    candidate_deck = cards_from_ids(candidate_ids)
     current_seed = eval_config.seed
     wins = Counter()
     per_opponent = {}
@@ -293,6 +365,9 @@ def evaluate_candidate(
     total_games = sum(wins.values())
     return {
         "candidate": candidate_key,
+        "rule_set": eval_config.rule_set,
+        "rule_label": rule_set.label,
+        "deck_ids": list(candidate_ids),
         "games": total_games,
         "candidate_win_rate": wins["candidate_wins"] / total_games,
         "existing_win_rate": wins["existing_wins"] / total_games,
@@ -321,6 +396,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=3_000_000)
     parser.add_argument("--max-turns", type=int, default=60)
     parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument(
+        "--rule-set",
+        choices=[*sorted(RULE_SETS), "all"],
+        action="append",
+        help="Deck construction rule set to apply. Repeat for multiple. Defaults to current.",
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON only.")
     return parser.parse_args()
 
@@ -328,27 +409,42 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     selected = args.candidate or sorted(CANDIDATES)
+    selected_rule_sets = args.rule_set or ["current"]
+    if "all" in selected_rule_sets:
+        selected_rule_sets = sorted(RULE_SETS)
     results = []
     seed = args.seed
-    for key in selected:
-        _, card_ids = CANDIDATES[key]
-        result = evaluate_candidate(
-            key,
-            card_ids,
-            EvalConfig(
-                games_per_order=args.games_per_order,
-                seed=seed,
-                max_turns=args.max_turns,
-            ),
-        )
-        results.append(result)
-        seed += args.games_per_order * len(EXISTING_DECKS) * 2 + 10_000
+    for rule_set in selected_rule_sets:
+        for key in selected:
+            _, card_ids = CANDIDATES[key]
+            result = evaluate_candidate(
+                key,
+                card_ids,
+                EvalConfig(
+                    games_per_order=args.games_per_order,
+                    seed=seed,
+                    max_turns=args.max_turns,
+                    rule_set=rule_set,
+                ),
+            )
+            results.append(result)
+            seed += args.games_per_order * len(EXISTING_DECKS) * 2 + 10_000
 
     output = {
         "seed": args.seed,
         "games_per_order": args.games_per_order,
         "max_turns": args.max_turns,
         "threshold": args.threshold,
+        "rule_sets": {
+            key: {
+                "label": value.label,
+                "max_power_3_summons": value.max_power_3_summons,
+                "max_high_power_summons": value.max_high_power_summons,
+                "power_3_enters_spent": value.power_3_enters_spent,
+                "power_3_play_cost": value.power_3_play_cost,
+            }
+            for key, value in RULE_SETS.items()
+        },
         "results": results,
     }
     if args.json:
@@ -362,7 +458,7 @@ def main() -> int:
             label = CANDIDATES[result["candidate"]][0]
             status = "RISK" if result["candidate_win_rate"] > args.threshold else "OK"
             print(
-                f"{result['candidate']:>4} {label:<18} "
+                f"{result['rule_set']:<10} {result['candidate']:>4} {label:<24} "
                 f"win_rate={result['candidate_win_rate']:.4f} "
                 f"wins={result['candidate_wins']}/{result['games']} {status}"
             )

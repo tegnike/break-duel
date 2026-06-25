@@ -165,6 +165,10 @@ export function applyPlayEffects(
   excludedRecoverCard?: Card,
 ): string {
   let text = "";
+  if (CONFIG.power3EntersSpent && card.power === 3) {
+    player.spentFieldIndexes.add(fieldIndex);
+    text += " 出たターンは消耗。";
+  }
   if (CONFIG.power4EntersSpent && card.power === 4) {
     player.spentFieldIndexes.add(fieldIndex);
     text += " 出たターンは消耗。";

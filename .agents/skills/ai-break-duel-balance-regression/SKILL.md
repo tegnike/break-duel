@@ -44,9 +44,14 @@ The baseline opponents are the existing six deck archetypes: `break`, `control`,
 Include:
 
 - games per ordered matchup and seed
+- rule set name when using `--rule-set`
 - combined win rate for each candidate
 - per-opponent win rates when a candidate is near or above 50%
 - whether any candidate violates the design goal
 - the exact validation command run
+
+Useful experimental rule sets include `p3_cap_6`, `p3_cap_4`, `p3_cap_2`,
+`p3_cap_1`, `high_cap_6`, `high_cap_4`, `p3_enters_spent`, `p3_cost_3`,
+and combined rule sets such as `p3_cap_1_high_cap_4`.
 
 Do not call a candidate "strong" just because it beats one or two archetypes. Use the combined rate against all six existing decks for the main conclusion.

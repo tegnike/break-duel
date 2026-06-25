@@ -447,6 +447,12 @@ def _accelerator_sacrifice_target(player: PlayerState) -> int | None:
 
 
 def _play_cost(card, state: GameState) -> int:
+    if (
+        card.type == CardType.AI
+        and card.power == 3
+        and state.config.power_3_play_cost is not None
+    ):
+        return state.config.power_3_play_cost
     if card.type == CardType.AI and (card.power or 0) >= 3:
         return state.config.large_ai_play_cost
     return 1

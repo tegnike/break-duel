@@ -203,6 +203,8 @@ def result_summary(state: GameState) -> dict[str, Any]:
             "power_1_draws_on_play": state.config.power_1_draws_on_play,
             "power_2_defense_bonus": state.config.power_2_defense_bonus,
             "large_ai_play_cost": state.config.large_ai_play_cost,
+            "power_3_play_cost": state.config.power_3_play_cost,
+            "power_3_enters_spent": state.config.power_3_enters_spent,
             "power_4_enters_spent": state.config.power_4_enters_spent,
             "power_4_overheats_after_attack": (
                 state.config.power_4_overheats_after_attack
@@ -243,6 +245,8 @@ def _play_ai(state: GameState, action: Action) -> None:
     player.field_ai.append(card)
     field_index = len(player.field_ai) - 1
     drawn = 0
+    if state.config.power_3_enters_spent and card.power == 3:
+        player.spent_field_ai.add(field_index)
     if state.config.power_4_enters_spent and card.power == 4:
         player.spent_field_ai.add(field_index)
     if enters_spent_on_play(card):
@@ -349,6 +353,8 @@ def _upgrade_ai(state: GameState, action: Action) -> None:
     player.spent_field_ai.discard(action.target_index)
     player.charge_guarded_field_ai.discard(action.target_index)
     drawn = 0
+    if state.config.power_3_enters_spent and card.power == 3:
+        player.spent_field_ai.add(action.target_index)
     if state.config.power_4_enters_spent and card.power == 4:
         player.spent_field_ai.add(action.target_index)
     if enters_spent_on_play(card):
@@ -1017,6 +1023,12 @@ def _spend_actions(state: GameState, cost: int, *, attack: bool = False) -> None
 
 
 def _play_cost(state: GameState, card) -> int:
+    if (
+        card.type == CardType.AI
+        and card.power == 3
+        and state.config.power_3_play_cost is not None
+    ):
+        return state.config.power_3_play_cost
     if card.type == CardType.AI and (card.power or 0) >= 3:
         return state.config.large_ai_play_cost
     return 1
