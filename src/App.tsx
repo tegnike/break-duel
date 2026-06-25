@@ -11,9 +11,11 @@ import {
   type PlayerState,
   addLog,
   activePlayer,
+  attackCombatValue,
   bestUpgradeSource,
   canActivePlayerAttack,
   canChargeCard,
+  canDefendWithOptionalFirewall,
   canHumanAct,
   canHumanEndTurn,
   canUseAcceleratorMemory,
@@ -24,7 +26,12 @@ import {
   createGame,
   createGameWithCustomPlayerDeck,
   chooseAiAction,
+  chooseAiDefense,
+  defenseCombatValue,
   finishTurn,
+  legalFieldDefenders,
+  legalHandDefenders,
+  needsFirewallFuel,
   opponentPlayer,
   playCost,
   upgradeCost,
@@ -50,10 +57,20 @@ import {
 } from "./components/DuelPanel";
 import { CardLibraryPage, DeckBuilderPage, loadSavedDecks, validateDeck, type SavedDeck } from "./components/DeckWorkshop";
 import { CardArtPreview, CardView } from "./components/CardView";
+import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
 import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
 import type { DuelEvent, DuelEventPayload } from "./duelEvents";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
+import sfxAttack from "./assets/audio/sfx-attack.ogg";
+import sfxBlock from "./assets/audio/sfx-block.ogg";
+import sfxCardPlay from "./assets/audio/sfx-card-play.ogg";
+import sfxCommand from "./assets/audio/sfx-command.ogg";
+import sfxDamage from "./assets/audio/sfx-damage.ogg";
+import sfxSelect from "./assets/audio/sfx-select.ogg";
+import sfxTrash from "./assets/audio/sfx-trash.ogg";
+import sfxTurnEnd from "./assets/audio/sfx-turn-end.ogg";
+import cardBackImage from "./assets/card-back.webp";
 import brandMark from "./assets/mark.svg";
 
 let eventId = 1;
@@ -69,7 +86,8 @@ const PAGE_PATHS: Record<AppPage, string> = {
 
 type CardFlight = {
   id: number;
-  card: Card;
+  card: Card | null;
+  back?: boolean;
   label: string;
   tone: "human" | "ai";
   from: FlightRect;
@@ -107,6 +125,28 @@ const TRASH_SPARKS = [
   { x: 6, y: 46, delay: 105 },
   { x: 22, y: 34, delay: 170 },
 ];
+
+const SFX_ASSETS: Record<string, { src: string; volume: number }> = {
+  play: { src: sfxCardPlay, volume: 0.5 },
+  attack: { src: sfxAttack, volume: 0.62 },
+  block: { src: sfxBlock, volume: 0.58 },
+  damage: { src: sfxDamage, volume: 0.66 },
+  command: { src: sfxCommand, volume: 0.48 },
+  trash: { src: sfxTrash, volume: 0.52 },
+  end: { src: sfxTurnEnd, volume: 0.46 },
+  select: { src: sfxSelect, volume: 0.34 },
+};
+
+type CombatPreview = {
+  attackerIndex: number;
+  attackValue: number;
+  fieldDefenses: Map<number, {
+    result: "trade" | "hold";
+    label: string;
+  }>;
+  handDefenseCount: number;
+  direct: boolean;
+};
 
 function randomSeed(): number {
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
@@ -152,7 +192,7 @@ export default function App() {
   const [starterDeckChosen, setStarterDeckChosen] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [duelEvent, setDuelEvent] = useState<DuelEvent | null>(null);
-  const [cardFlight, setCardFlight] = useState<CardFlight | null>(null);
+  const [cardFlights, setCardFlights] = useState<CardFlight[]>([]);
   const [trashFlash, setTrashFlash] = useState<TrashFlash | null>(null);
   const [aiAnimating, setAiAnimating] = useState(false);
   const [autoDismissDuelEvents, setAutoDismissDuelEvents] = useState(false);
@@ -166,16 +206,23 @@ export default function App() {
   const audioEnabledRef = useRef(false);
   const audioContext = useRef<AudioContext | null>(null);
   const bgmAudio = useRef<HTMLAudioElement | null>(null);
+  const sfxAudio = useRef<Record<string, HTMLAudioElement[]>>({});
   const duelEventQueue = useRef<DuelEventPayload[]>([]);
   const duelEventPlaying = useRef(false);
   const duelEventScheduler = useRef<number | null>(null);
   const duelEventTimer = useRef<number | null>(null);
-  const cardFlightTimer = useRef<number | null>(null);
+  const cardFlightTimers = useRef<number[]>([]);
   const aiCommitTimer = useRef<number | null>(null);
   const trashFlashTimer = useRef<number | null>(null);
   const previousDiscardCounts = useRef<[number, number]>([
     game.players[0].discard.length,
     game.players[1].discard.length,
+  ]);
+  const previousDrawCounts = useRef<[number, number, number, number]>([
+    game.players[0].deck.length,
+    game.players[0].hand.length,
+    game.players[1].deck.length,
+    game.players[1].hand.length,
   ]);
 
   const human = game.players[0];
@@ -251,15 +298,28 @@ export default function App() {
     duelEventQueue.current = [];
     duelEventPlaying.current = false;
     setDuelEvent(null);
-    if (cardFlightTimer.current !== null) window.clearTimeout(cardFlightTimer.current);
+    cardFlightTimers.current.forEach((timer) => window.clearTimeout(timer));
     if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
-    cardFlightTimer.current = null;
+    cardFlightTimers.current = [];
     aiCommitTimer.current = null;
     if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
     trashFlashTimer.current = null;
     setAiAnimating(false);
-    setCardFlight(null);
+    setCardFlights([]);
     setTrashFlash(null);
+  }
+
+  function resetDrawTracker(nextGame: GameState) {
+    previousDrawCounts.current = [
+      nextGame.players[0].deck.length,
+      nextGame.players[0].hand.length,
+      nextGame.players[1].deck.length,
+      nextGame.players[1].hand.length,
+    ];
+    previousDiscardCounts.current = [
+      nextGame.players[0].discard.length,
+      nextGame.players[1].discard.length,
+    ];
   }
 
   function cardSelector(ownerIndex: number, zone: string, index: number) {
@@ -268,13 +328,15 @@ export default function App() {
 
   function launchCardFlight({
     card,
+    back = false,
     from,
     to,
     label,
     tone = "human",
     durationMs = 760,
   }: {
-    card: Card;
+    card: Card | null;
+    back?: boolean;
     from: { ownerIndex: number; zone: string; index: number };
     to: { ownerIndex: number; zone: string; index: number };
     label: string;
@@ -284,7 +346,6 @@ export default function App() {
     const fromElement = document.querySelector(cardSelector(from.ownerIndex, from.zone, from.index));
     const toElement = document.querySelector(cardSelector(to.ownerIndex, to.zone, to.index));
     if (!fromElement || !toElement) return;
-    if (cardFlightTimer.current !== null) window.clearTimeout(cardFlightTimer.current);
     if (banner?.kind === "turn") setBanner(null);
     const rawFrom = fromElement.getBoundingClientRect();
     const rawTo = toElement.getBoundingClientRect();
@@ -297,19 +358,22 @@ export default function App() {
           height: 124,
         }
       : rectLike(rawFrom);
-    setCardFlight({
+    const flight = {
       id: eventId++,
       card,
+      back,
       label,
       tone,
       from: fromRect,
       to: targetRect,
       durationMs,
-    });
-    cardFlightTimer.current = window.setTimeout(() => {
-      setCardFlight(null);
-      cardFlightTimer.current = null;
+    };
+    setCardFlights((current) => [...current.slice(-5), flight]);
+    const timer = window.setTimeout(() => {
+      setCardFlights((current) => current.filter((item) => item.id !== flight.id));
+      cardFlightTimers.current = cardFlightTimers.current.filter((item) => item !== timer);
     }, durationMs);
+    cardFlightTimers.current.push(timer);
   }
 
   function rectLike(rect: DOMRect): FlightRect {
@@ -322,6 +386,16 @@ export default function App() {
   }
 
   function normalizeFlightTarget(rect: DOMRect, zone: string): FlightRect {
+    if (zone === "discard") {
+      const width = Math.min(92, Math.max(42, rect.width - 10));
+      const height = Math.min(132, Math.max(60, rect.height - 10));
+      return {
+        left: rect.left + (rect.width - width) / 2,
+        top: rect.top + (rect.height - height) / 2,
+        width,
+        height,
+      };
+    }
     if (zone !== "field" && zone !== "memory") return rectLike(rect);
     const width = 110;
     const height = 155;
@@ -331,6 +405,88 @@ export default function App() {
       width,
       height,
     };
+  }
+
+  function trashTargetIndex(player: PlayerState) {
+    return Math.max(0, player.discard.length - 1);
+  }
+
+  function launchDrawFlight(ownerIndex: number, handIndex: number, delayMs: number) {
+    const player = game.players[ownerIndex];
+    if (!player) return;
+    window.setTimeout(() => {
+      launchCardFlight({
+        card: null,
+        back: true,
+        from: { ownerIndex, zone: "deck", index: 0 },
+        to: {
+          ownerIndex,
+          zone: player.isHuman ? "hand" : "hand-source",
+          index: player.isHuman ? handIndex : 0,
+        },
+        label: "ドロー",
+        tone: flightTone(player),
+        durationMs: 680,
+      });
+    }, delayMs);
+  }
+
+  function flightTone(player: PlayerState): "human" | "ai" {
+    return player.isHuman ? "human" : "ai";
+  }
+
+  function flightHandZone(player: PlayerState): "hand" | "hand-source" {
+    return player.isHuman ? "hand" : "hand-source";
+  }
+
+  function launchTrashFlight(
+    card: Card | null | undefined,
+    from: { ownerIndex: number; zone: string; index: number },
+    ownerIndex: number,
+    label = "トラッシュへ",
+    durationMs = 720,
+  ) {
+    const player = game.players[ownerIndex];
+    if (!card || !player) return;
+    launchCardFlight({
+      card,
+      from,
+      to: { ownerIndex, zone: "discard", index: trashTargetIndex(player) },
+      label,
+      tone: flightTone(player),
+      durationMs,
+    });
+  }
+
+  function launchDefenseTrashFlights(attackerIndex: number, fieldIndex: number, choice: DefenseChoice) {
+    const attacker = game.players[attackerIndex];
+    const defenderIndex = 1 - attackerIndex;
+    const defender = game.players[defenderIndex];
+    const attackCard = attacker?.field[fieldIndex];
+    if (!attacker || !defender || !attackCard) return;
+    if (choice.type === "field") {
+      const defenseCard = defender.field[choice.index];
+      if (!defenseCard || !canDefendWithOptionalFirewall(attackCard, defenseCard, defender)) return;
+      if (defender.isHuman && needsFirewallFuel(defender, defenseCard, attackCard) && choice.firewallDiscardIndex === undefined) return;
+      launchTrashFlight(attackCard, { ownerIndex: attackerIndex, zone: "field", index: fieldIndex }, attackerIndex, "攻撃札退場", 760);
+      const firewallPaid = typeof choice.firewallDiscardIndex === "number";
+      const isTrade = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid }) === attackCombatValue(attackCard);
+      if (isTrade) {
+        launchTrashFlight(defenseCard, { ownerIndex: defenderIndex, zone: "field", index: choice.index }, defenderIndex, "相打ち", 760);
+      }
+      return;
+    }
+    if (choice.type === "hand") {
+      const defenseCard = defender.hand[choice.index];
+      if (!defenseCard) return;
+      launchTrashFlight(
+        defenseCard,
+        { ownerIndex: defenderIndex, zone: flightHandZone(defender), index: defender.isHuman ? choice.index : 0 },
+        defenderIndex,
+        "手札防御",
+        720,
+      );
+    }
   }
 
   function prepareAiActionAnimation(action: AiAction) {
@@ -350,6 +506,9 @@ export default function App() {
     if (action.type === "memory") {
       const card = ai.hand[action.index];
       if (!card) return 0;
+      if (ai.memory) {
+        launchTrashFlight(ai.memory, { ownerIndex: 1, zone: "memory", index: 0 }, 1, "旧遺物破棄", 1500);
+      }
       launchCardFlight({
         card,
         from: { ownerIndex: 1, zone: "hand-source", index: 0 },
@@ -362,7 +521,9 @@ export default function App() {
     }
     if (action.type === "upgrade") {
       const card = ai.hand[action.handIndex];
-      if (!card) return 0;
+      const source = ai.field[action.fieldIndex];
+      if (!card || !source) return 0;
+      launchTrashFlight(source, { ownerIndex: 1, zone: "field", index: action.fieldIndex }, 1, "元カード破棄", 1500);
       launchCardFlight({
         card,
         from: { ownerIndex: 1, zone: "hand-source", index: 0 },
@@ -373,6 +534,24 @@ export default function App() {
       });
       return 1400;
     }
+    if (action.type === "memory-effect") {
+      const card = ai.field[action.fieldIndex];
+      if (!card) return 0;
+      launchTrashFlight(card, { ownerIndex: 1, zone: "field", index: action.fieldIndex }, 1, "遺物の代償", 980);
+      return 760;
+    }
+    if (action.type === "command") {
+      const card = ai.hand[action.index];
+      if (!card) return 0;
+      launchTrashFlight(card, { ownerIndex: 1, zone: "hand-source", index: 0 }, 1, "指令使用", 980);
+      return 760;
+    }
+    if (action.type === "charge") {
+      const card = ai.hand[action.index];
+      if (!card) return 0;
+      launchTrashFlight(card, { ownerIndex: 1, zone: "hand-source", index: 0 }, 1, "チャージ", 980);
+      return 760;
+    }
     return action.type === "attack" ? 360 : 180;
   }
 
@@ -381,6 +560,7 @@ export default function App() {
     setSeed(nextSeed);
     setPlayerDeckId(deckId);
     const nextGame = createGame(nextSeed, deckId);
+    resetDrawTracker(nextGame);
     setGame(nextGame);
     resetDuelEvents();
     setRulesOpen(false);
@@ -404,6 +584,7 @@ export default function App() {
       const nextSeed = randomSeed();
       setSeed(nextSeed);
       const nextGame = createGameWithCustomPlayerDeck(nextSeed, deck);
+      resetDrawTracker(nextGame);
       setGame(nextGame);
       resetDuelEvents();
       setRulesOpen(false);
@@ -509,6 +690,38 @@ export default function App() {
   }, [page, game.players[0].discard.length, game.players[1].discard.length]);
 
   useEffect(() => {
+    const current: [number, number, number, number] = [
+      game.players[0].deck.length,
+      game.players[0].hand.length,
+      game.players[1].deck.length,
+      game.players[1].hand.length,
+    ];
+    const previous = previousDrawCounts.current;
+    previousDrawCounts.current = current;
+    if (page !== "duel") return;
+
+    [0, 1].forEach((ownerIndex) => {
+      const deckSlot = ownerIndex === 0 ? 0 : 2;
+      const handSlot = ownerIndex === 0 ? 1 : 3;
+      const deckDelta = previous[deckSlot] - current[deckSlot];
+      const handDelta = current[handSlot] - previous[handSlot];
+      const drawnCount = Math.min(deckDelta, handDelta);
+      if (drawnCount <= 0) return;
+      const firstNewHandIndex = current[handSlot] - drawnCount;
+      for (let offset = 0; offset < drawnCount; offset += 1) {
+        launchDrawFlight(ownerIndex, firstNewHandIndex + offset, offset * 90);
+      }
+      playSfx("select");
+    });
+  }, [
+    page,
+    game.players[0].deck.length,
+    game.players[0].hand.length,
+    game.players[1].deck.length,
+    game.players[1].hand.length,
+  ]);
+
+  useEffect(() => {
     if (page !== "duel") return;
     if (game.winner !== null || game.draw) return;
     showBanner({
@@ -557,7 +770,8 @@ export default function App() {
       stopBgm();
       if (duelEventScheduler.current !== null) window.clearTimeout(duelEventScheduler.current);
       if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
-      if (cardFlightTimer.current !== null) window.clearTimeout(cardFlightTimer.current);
+      cardFlightTimers.current.forEach((timer) => window.clearTimeout(timer));
+      cardFlightTimers.current = [];
       if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
       if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
     };
@@ -571,41 +785,38 @@ export default function App() {
     return audioContext.current;
   }
 
-  function playTone(
-    frequency: number,
-    duration: number,
-    volume: number,
-    type: OscillatorType = "sine",
-    delay = 0,
-  ) {
-    if (!audioEnabledRef.current) return;
-    const ctx = ensureAudioContext();
-    const startAt = ctx.currentTime + delay;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(frequency, startAt);
-    gain.gain.setValueAtTime(0.0001, startAt);
-    gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(startAt);
-    osc.stop(startAt + duration + 0.02);
-  }
-
   function playSfx(kind: string) {
     if (!audioEnabledRef.current) return;
-    if (kind === "play") playTone(523.25, 0.1, 0.05, "square");
-    if (kind === "attack") playTone(164.81, 0.12, 0.08, "sawtooth");
-    if (kind === "block") playTone(196, 0.13, 0.06, "square");
-    if (kind === "damage") playTone(110, 0.16, 0.08, "sawtooth");
-    if (kind === "command") playTone(740, 0.08, 0.045, "square");
-    if (kind === "trash") {
-      playTone(146.83, 0.1, 0.07, "sawtooth");
-      window.setTimeout(() => playTone(92.5, 0.13, 0.055, "triangle"), 70);
+    const config = SFX_ASSETS[kind];
+    if (!config) return;
+    const pool = sfxAudio.current[kind] ?? [];
+    let audio = pool.find((item) => item.paused || item.ended);
+    if (!audio) {
+      audio = new Audio(config.src);
+      audio.preload = "auto";
+      audio.volume = config.volume;
+      if (pool.length < 4) {
+        pool.push(audio);
+        sfxAudio.current[kind] = pool;
+      }
     }
-    if (kind === "end") playTone(392, 0.16, 0.055, "triangle");
+    audio.volume = config.volume;
+    audio.currentTime = 0;
+    void audio.play().catch(() => {
+      audioEnabledRef.current = false;
+      setAudioEnabled(false);
+      showToast("効果音再生失敗", "ブラウザの音声許可を確認してください");
+    });
+  }
+
+  function preloadSfx() {
+    Object.entries(SFX_ASSETS).forEach(([kind, config]) => {
+      if (sfxAudio.current[kind]?.length) return;
+      const audio = new Audio(config.src);
+      audio.preload = "auto";
+      audio.volume = config.volume;
+      sfxAudio.current[kind] = [audio];
+    });
   }
 
   function stopBgm() {
@@ -634,6 +845,7 @@ export default function App() {
     setAudioEnabled(next);
     if (next) {
       void ensureAudioContext().resume();
+      preloadSfx();
       startBgm();
     } else {
       stopBgm();
@@ -641,6 +853,7 @@ export default function App() {
   }
 
   function selectHand(index: number) {
+    playSfx("select");
     mutate((draft) => {
       draft.selected = { zone: "hand", ownerIndex: 0, index };
     });
@@ -654,12 +867,14 @@ export default function App() {
       useCommandAt(pending.sourceIndex, index);
       return;
     }
+    playSfx("select");
     mutate((draft) => {
       draft.selected = { zone: "field", ownerIndex, index };
     });
   }
 
   function selectMemory(ownerIndex: number) {
+    playSfx("select");
     mutate((draft) => {
       if (!draft.players[ownerIndex]?.memory) return;
       draft.selected = { zone: "memory", ownerIndex, index: 0 };
@@ -748,6 +963,9 @@ export default function App() {
     const player = activePlayer(game);
     const memoryCard = player.hand[game.selected.index];
     if (!memoryCard || memoryCard.type !== "memory") return;
+    if (player.memory) {
+      launchTrashFlight(player.memory, { ownerIndex: 0, zone: "memory", index: 0 }, 0, "旧遺物破棄");
+    }
     launchCardFlight({
       card: memoryCard,
       from: { ownerIndex: 0, zone: "hand", index: game.selected.index },
@@ -813,6 +1031,7 @@ export default function App() {
     const target = player.hand[handIndex];
     const source = player.field[sourceIndex];
     if (!target || target.type !== "ai" || !source || !canUpgrade(source, target) || upgradeCost(target) > game.actionsRemaining) return;
+    launchTrashFlight(source, { ownerIndex: 0, zone: "field", index: sourceIndex }, 0, "元カード破棄");
     launchCardFlight({
       card: target,
       from: { ownerIndex: 0, zone: "hand", index: handIndex },
@@ -921,6 +1140,21 @@ export default function App() {
   }
 
   function useCommandAt(sourceIndex: number, targetIndex: number | null, discardIndexes: number[] = []) {
+    const player = activePlayer(game);
+    const command = player.hand[sourceIndex];
+    if (command?.type === "event") {
+      launchTrashFlight(
+        command,
+        { ownerIndex: game.active, zone: flightHandZone(player), index: player.isHuman ? sourceIndex : 0 },
+        game.active,
+        "指令使用",
+      );
+      if (command.effect === "trinity") {
+        player.field.forEach((card, index) => {
+          launchTrashFlight(card, { ownerIndex: game.active, zone: "field", index }, game.active, "場を一掃", 780);
+        });
+      }
+    }
     mutate((draft) => useCommandAtInDraft(draft, sourceIndex, targetIndex, discardIndexes, { playSfx, showDuelEvent: queueDuelEvent }));
     showToast("指令", "カードを使用しました");
     playSfx("command");
@@ -932,12 +1166,21 @@ export default function App() {
   }
 
   function beginAttack(attackerIndex: number, fieldIndex: number) {
+    const attacker = game.players[attackerIndex];
+    const defender = game.players[1 - attackerIndex];
+    const attackCard = attacker.field[fieldIndex];
+    if (attackCard && defender && !defender.isHuman) {
+      launchDefenseTrashFlights(attackerIndex, fieldIndex, chooseAiDefense(defender, attackCard));
+    }
     mutate((draft) => beginAttackInDraft(draft, attackerIndex, fieldIndex, { playSfx, showDuelEvent: queueDuelEvent }));
     showToast("攻撃", "攻撃を宣言しました");
     playSfx("attack");
   }
 
   function resolveDefense(choice: DefenseChoice) {
+    if (game.pendingAttack) {
+      launchDefenseTrashFlights(game.pendingAttack.attackerIndex, game.pendingAttack.fieldIndex, choice);
+    }
     mutate((draft) => resolveDefenseInDraft(draft, choice, { playSfx, showDuelEvent: queueDuelEvent }));
     if (game.pendingAttack && duelEvent) dismissDuelEvent();
   }
@@ -947,6 +1190,7 @@ export default function App() {
     const player = activePlayer(game);
     const card = player.hand[game.selected.index];
     if (!card) return;
+    launchTrashFlight(card, { ownerIndex: 0, zone: "hand", index: game.selected.index }, 0, "チャージ");
     mutate((draft) => {
       if (draft.selected?.zone !== "hand" || draft.selected.ownerIndex !== 0) return;
       chargeHandCardInDraft(draft, 0, draft.selected.index);
@@ -975,6 +1219,17 @@ export default function App() {
     const pending = game.pendingTarget;
     if (!pending || pending.kind !== "hand-discard" || pending.selectedIndexes.length < pending.min) return;
     if (pending.reason === "firewall") {
+      const player = game.players[pending.playerIndex];
+      const fuelIndex = pending.selectedIndexes[0];
+      const fuel = typeof fuelIndex === "number" ? player.hand[fuelIndex] : null;
+      if (fuel) {
+        launchTrashFlight(
+          fuel,
+          { ownerIndex: pending.playerIndex, zone: flightHandZone(player), index: player.isHuman ? fuelIndex : 0 },
+          pending.playerIndex,
+          "結界代償",
+        );
+      }
       resolveDefense({ type: "field", index: pending.fieldIndex!, firewallDiscardIndex: pending.selectedIndexes[0] ?? null });
       return;
     }
@@ -1010,6 +1265,7 @@ export default function App() {
     const pending = game.pendingTarget;
     if (!pending || pending.kind !== "card-select" || pending.selectedIndexes.length < pending.min) return;
     const selectedIndex = pending.selectedIndexes[0];
+    const pendingPlayer = game.players[pending.playerIndex];
     if (pending.reason === "upgrade-source") {
       performUpgradeSelectedAi(pending.sourceIndex!, selectedIndex);
       return;
@@ -1017,6 +1273,18 @@ export default function App() {
     if (pending.reason === "relearn-recover") {
       useCommandAt(pending.sourceIndex!, selectedIndex, pending.discardIndexes ?? []);
       return;
+    }
+    if (pending.reason === "filter-discard" || pending.reason === "block-pressure") {
+      const discarded = pendingPlayer.hand[selectedIndex];
+      launchTrashFlight(
+        discarded,
+        { ownerIndex: pending.playerIndex, zone: flightHandZone(pendingPlayer), index: pendingPlayer.isHuman ? selectedIndex : 0 },
+        pending.playerIndex,
+        "捨て札",
+      );
+    } else if (pending.reason === "accelerator-sacrifice") {
+      const sacrificed = pendingPlayer.field[selectedIndex];
+      launchTrashFlight(sacrificed, { ownerIndex: pending.playerIndex, zone: "field", index: selectedIndex }, pending.playerIndex, "遺物の代償");
     }
     mutate((draft) => {
       const current = draft.pendingTarget;
@@ -1184,6 +1452,7 @@ export default function App() {
   const opponentActionsRemaining = game.active === 1 ? game.actionsRemaining : 0;
   const opponentAttackLockedByCharge = game.active === 1 && ai.chargeUsed;
   const humanAttackLockedByCharge = game.active === 0 && human.chargeUsed;
+  const combatPreview = combatPreviewForSelection(game);
   const endTurnEnabled = canHumanEndTurn(game);
   const showNoActionsEndTurnPrompt = endTurnEnabled
     && game.actionsRemaining <= 0
@@ -1192,7 +1461,7 @@ export default function App() {
     && !starterDeckModalOpen
     && game.discardViewerOwner === null
     && !duelEvent
-    && !cardFlight;
+    && cardFlights.length === 0;
   const matchResult = game.draw
     ? {
         tone: "draw" as const,
@@ -1283,14 +1552,23 @@ export default function App() {
             {opponentAttackLockedByCharge && <span className="charge-lock-badge">チャージ済み・攻撃不可</span>}
           </div>
           <span className="ai-hand-source" data-owner={1} data-zone="hand-source" data-index={0}>手札 {ai.hand.length}</span>
-          <span>山札 {ai.deck.length}</span>
-          <button type="button" className={`text-link discard-link ${ownerHasTrashSurge(1) ? "trash-surge" : ""}`} onClick={() => openDiscardViewer(1)}>トラッシュ {ai.discard.length}</button>
+          <DeckPileCard player={ai} ownerIndex={1} compact />
+          <TrashPileButton player={ai} ownerIndex={1} trashSurge={ownerHasTrashSurge(1)} onOpen={openDiscardViewer} compact />
         </div>
       </header>
 
       <section className="stitch-battlefield" aria-label="対戦盤面">
-        <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent trashSurge={ownerHasTrashSurge(1)} onSelectField={selectField} onSelectMemory={selectMemory} />
-        <div className="clash-line" aria-hidden="true" />
+        <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent trashSurge={ownerHasTrashSurge(1)} combatPreview={combatPreview} onSelectField={selectField} onSelectMemory={selectMemory} />
+        <div className={`clash-line ${combatPreview ? "armed" : ""} ${combatPreview?.direct ? "direct" : ""}`} aria-hidden="true">
+          {combatPreview && (
+            <span>
+              ATK {combatPreview.attackValue}
+              {combatPreview.direct
+                ? combatPreview.handDefenseCount > 0 ? ` / 手札防御 ${combatPreview.handDefenseCount}` : " / DIRECT"
+                : ` / 防御候補 ${combatPreview.fieldDefenses.size}`}
+            </span>
+          )}
+        </div>
         <FieldGrid player={human} ownerIndex={0} game={game} trashSurge={ownerHasTrashSurge(0)} onSelectField={selectField} onSelectMemory={selectMemory} />
       </section>
 
@@ -1300,27 +1578,27 @@ export default function App() {
           <div className="deck-badge magenta">{human.deckName}</div>
           <LifePips life={human.life} tone="magenta" />
         </div>
-        <div className="stitch-counts">
-          <span>山札 {human.deck.length}</span>
-          <button type="button" className={`text-link discard-link ${ownerHasTrashSurge(0) ? "trash-surge" : ""}`} onClick={() => openDiscardViewer(0)}>トラッシュ {human.discard.length}</button>
-        </div>
       </section>
 
-      <section className="stitch-hand" aria-label="手札">
-        {human.hand.map((card, index) => (
-          <CardView
-            key={`${card.id}-${index}`}
-            card={card}
-            ownerIndex={0}
-            zone="hand"
-            index={index}
-            selected={game.selected?.zone === "hand" && game.selected.index === index}
-            selectable
-            actionState={handActionState(game, human, ai, card)}
-            showCost
-            onClick={() => selectHand(index)}
-          />
-        ))}
+      <section className="stitch-hand-zone" aria-label="手札と山札">
+        <DeckPileCard player={human} ownerIndex={0} />
+        <div className="stitch-hand" aria-label="手札">
+          {human.hand.map((card, index) => (
+            <CardView
+              key={`${card.id}-${index}`}
+              card={card}
+              ownerIndex={0}
+              zone="hand"
+              index={index}
+              selected={game.selected?.zone === "hand" && game.selected.index === index}
+              selectable
+              actionState={handActionState(game, human, ai, card)}
+              showCost
+              onClick={() => selectHand(index)}
+            />
+          ))}
+        </div>
+        <TrashPileButton player={human} ownerIndex={0} trashSurge={ownerHasTrashSurge(0)} onOpen={openDiscardViewer} />
       </section>
 
       <section className="stitch-command-dock" aria-live="polite">
@@ -1395,12 +1673,12 @@ export default function App() {
 
       {!showDefenseInDuelEvent && defensePanel}
       <EventToast toast={toast} />
-      <CardFlightLayer flight={cardFlight} />
+      {cardFlights.map((flight) => <CardFlightLayer key={flight.id} flight={flight} />)}
       {trashSurge && <TrashSurgeLayer surge={trashSurge} eventId={duelEvent?.id ?? trashFlash?.id ?? 0} />}
       <DuelActionReel event={duelEvent} autoDismiss={autoDismissDuelEvents} onClose={dismissDuelEvent}>
         {showDefenseInDuelEvent ? defensePanel : null}
       </DuelActionReel>
-      <GameBanner banner={cardFlight ? null : banner} turn={game.turn} />
+      <GameBanner banner={cardFlights.length > 0 ? null : banner} turn={game.turn} />
       {showNoActionsEndTurnPrompt && <NoActionsEndTurnPrompt onConfirm={endTurn} />}
       {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
       {starterDeckModalOpen && (
@@ -1572,12 +1850,123 @@ function LifePips({ life, tone }: { life: number; tone: "cyan" | "magenta" }) {
   );
 }
 
+function DeckPileCard({
+  player,
+  ownerIndex,
+  compact = false,
+}: {
+  player: PlayerState;
+  ownerIndex: number;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`deck-pile-card ${player.deck.length === 0 ? "empty" : ""} ${compact ? "compact" : ""}`}
+      data-owner={ownerIndex}
+      data-zone="deck"
+      data-index={0}
+      aria-label={`${player.name}の山札 ${player.deck.length}枚`}
+      title={`${player.name}の山札 ${player.deck.length}枚`}
+    >
+      <span className="deck-pile-shadow" aria-hidden="true" />
+      <span className="deck-pile-face" aria-hidden="true">
+        <img src={cardBackImage} alt="" draggable={false} />
+      </span>
+      <span className="zone-card-label">山札</span>
+      <span className="zone-card-count">{player.deck.length}</span>
+    </div>
+  );
+}
+
+function TrashPileButton({
+  player,
+  ownerIndex,
+  trashSurge,
+  onOpen,
+  compact = false,
+}: {
+  player: PlayerState;
+  ownerIndex: number;
+  trashSurge: boolean;
+  onOpen: (ownerIndex: number) => void;
+  compact?: boolean;
+}) {
+  const topCard = player.discard[player.discard.length - 1] ?? null;
+  const style = topCard ? { "--card-color": cardColor(topCard) } as CSSProperties : undefined;
+  return (
+    <button
+      type="button"
+      className={`trash-pile-button ${topCard ? "has-card" : "empty"} ${trashSurge ? "trash-surge" : ""} ${compact ? "compact" : ""}`}
+      style={style}
+      data-owner={ownerIndex}
+      data-zone="discard"
+      data-index={Math.max(0, player.discard.length - 1)}
+      aria-label={`${player.name}のトラッシュ ${player.discard.length}枚${topCard ? `、最後は${topCard.name}` : ""}`}
+      title={topCard ? `${topCard.name} / ${cardTypeLabel(topCard)}` : `${player.name}のトラッシュは空です`}
+      onClick={() => onOpen(ownerIndex)}
+    >
+      <span className="trash-pile-stack" aria-hidden="true">
+        <span />
+        <span />
+      </span>
+      <span className="trash-pile-face">
+        {topCard ? (
+          <span className="trash-pile-front-card" aria-hidden="true">
+            <CardView
+              card={topCard}
+              ownerIndex={ownerIndex}
+              zone="discard"
+              index={Math.max(0, player.discard.length - 1)}
+              showCost={false}
+            />
+          </span>
+        ) : (
+          <>
+            <span className="trash-pile-kicker">TRASH</span>
+            <strong>EMPTY</strong>
+          </>
+        )}
+      </span>
+      <span className="trash-pile-count">{player.discard.length}</span>
+    </button>
+  );
+}
+
+function combatPreviewForSelection(game: GameState): CombatPreview | null {
+  const selected = game.selected;
+  if (!selected || selected.zone !== "field" || (selected.ownerIndex ?? 0) !== 0) return null;
+  const attacker = game.players[0].field[selected.index];
+  const human = game.players[0];
+  const defender = game.players[1];
+  if (!attacker || attacker.type !== "ai") return null;
+  if (!canHumanAct(game) || !canActivePlayerAttack(game) || human.spentFieldIndexes.has(selected.index)) return null;
+
+  const attackValue = attackCombatValue(attacker);
+  const fieldDefenses = new Map<number, { result: "trade" | "hold"; label: string }>();
+  legalFieldDefenders(defender, attacker).forEach(({ card, index }) => {
+    const defenseValue = defenseCombatValue(attacker, card, defender, { fieldDefense: true });
+    fieldDefenses.set(index, {
+      result: defenseValue > attackValue ? "hold" : "trade",
+      label: defenseValue > attackValue ? `DEF ${defenseValue} / 残る` : `DEF ${defenseValue} / 相打ち`,
+    });
+  });
+
+  return {
+    attackerIndex: selected.index,
+    attackValue,
+    fieldDefenses,
+    handDefenseCount: legalHandDefenders(defender, attacker).length,
+    direct: fieldDefenses.size === 0,
+  };
+}
+
 function FieldGrid({
   player,
   ownerIndex,
   game,
   isOpponent = false,
   trashSurge = false,
+  combatPreview = null,
   onSelectField,
   onSelectMemory,
 }: {
@@ -1586,6 +1975,7 @@ function FieldGrid({
   game: GameState;
   isOpponent?: boolean;
   trashSurge?: boolean;
+  combatPreview?: CombatPreview | null;
   onSelectField: (ownerIndex: number, index: number) => void;
   onSelectMemory: (ownerIndex: number) => void;
 }) {
@@ -1601,6 +1991,8 @@ function FieldGrid({
         const isSelected = game.selected?.zone === "field"
           && (game.selected.ownerIndex ?? 0) === ownerIndex
           && game.selected.index === index;
+        const defensePreview = ownerIndex === 1 ? combatPreview?.fieldDefenses.get(index) : null;
+        const isAttackerPreview = ownerIndex === 0 && combatPreview?.attackerIndex === index;
         return (
           <CardView
             key={`${card.id}-${index}`}
@@ -1612,7 +2004,8 @@ function FieldGrid({
             selectable
             spent={player.spentFieldIndexes.has(index)}
             actionState={isDisruptTarget ? "usable" : ownerIndex === 0 ? fieldActionState(game, player, index) : "idle"}
-            visualEffect={trashSurge ? "trash-alert" : ""}
+            visualEffect={`${trashSurge ? "trash-alert" : ""} ${defensePreview ? `combat-preview ${defensePreview.result}` : ""} ${isAttackerPreview ? "attack-preview-source" : ""}`}
+            extraBadges={defensePreview ? [defensePreview.label] : isAttackerPreview ? [`ATK ${combatPreview.attackValue}`] : []}
             showCost={false}
             onClick={() => onSelectField(ownerIndex, index)}
           />
@@ -1675,7 +2068,13 @@ function CardFlightLayer({ flight }: { flight: CardFlight | null }) {
   return (
     <div className={`card-flight ${flight.tone}`} style={style} aria-hidden="true">
       <div className="card-flight-label">{flight.label}</div>
-      <CardView card={flight.card} ownerIndex={flight.tone === "ai" ? 1 : 0} zone="hand" index={0} showCost={false} />
+      {flight.back ? (
+        <div className="card-flight-back">
+          <img src={cardBackImage} alt="" draggable={false} />
+        </div>
+      ) : (
+        flight.card && <CardView card={flight.card} ownerIndex={flight.tone === "ai" ? 1 : 0} zone="hand" index={0} showCost={false} />
+      )}
     </div>
   );
 }

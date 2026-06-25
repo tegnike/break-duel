@@ -327,11 +327,28 @@ export function LogList({ entries }: { entries: string[] }) {
   }, [entries.length]);
   return (
     <ol className="log" ref={ref}>
-      {entries.map((entry, index) => (
-        <li key={`${index}-${entry}`} className={index === entries.length - 1 ? "log-latest" : ""}>{entry}</li>
-      ))}
+      {entries.map((entry, index) => {
+        const event = logEventMeta(entry);
+        return (
+          <li key={`${index}-${entry}`} className={`${index === entries.length - 1 ? "log-latest" : ""} log-event-${event.kind}`}>
+            <span className="log-event-icon" aria-hidden="true">{event.icon}</span>
+            <span className="log-event-text">{entry}</span>
+          </li>
+        );
+      })}
     </ol>
   );
+}
+
+function logEventMeta(entry: string): { kind: string; icon: string } {
+  if (entry.includes("攻撃")) return { kind: "attack", icon: "ATK" };
+  if (entry.includes("防御") || entry.includes("相打ち")) return { kind: "block", icon: "DEF" };
+  if (entry.includes("ダメージ") || entry.includes("ライフ")) return { kind: "damage", icon: "DMG" };
+  if (entry.includes("指令") || entry.includes("術") || entry.includes("使用")) return { kind: "command", icon: "CMD" };
+  if (entry.includes("トラッシュ") || entry.includes("捨て")) return { kind: "trash", icon: "TRS" };
+  if (entry.includes("ターン") || entry.includes("手番")) return { kind: "turn", icon: "TRN" };
+  if (entry.includes("勝利") || entry.includes("敗北") || entry.includes("引き分け")) return { kind: "result", icon: "END" };
+  return { kind: "system", icon: "LOG" };
 }
 
 export function actionHintText(game: GameState, card: Card | null, zone: string | null): string {

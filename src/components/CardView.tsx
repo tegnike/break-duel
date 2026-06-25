@@ -22,6 +22,7 @@ export function CardView({
   actionState = "idle",
   visualEffect = "",
   showCost = true,
+  extraBadges = [],
   onClick,
 }: {
   card: Card;
@@ -34,6 +35,7 @@ export function CardView({
   actionState?: string;
   visualEffect?: string;
   showCost?: boolean;
+  extraBadges?: string[];
   onClick?: () => void;
 }) {
   const Element = selectable ? "button" : "div";
@@ -60,8 +62,11 @@ export function CardView({
       <div className="card-foot"><span>{cardTypeLabel(card)}</span><span>{spent ? "消耗" : roleLabel(card)}</span></div>
       <div className="card-badges">
         {showCost && Number.isFinite(cost) && cost < 99 && <span>{cost}A</span>}
+        {actionState === "usable" && <span>実行可</span>}
         {actionState === "upgradeable" && <span>進化可</span>}
         {actionState === "upgrade-source" && <span>元</span>}
+        {spent && <span>消耗</span>}
+        {extraBadges.map((badge) => <span className="wide-badge" key={badge}>{badge}</span>)}
       </div>
     </Element>
   );
