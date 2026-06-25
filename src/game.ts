@@ -272,7 +272,6 @@ export function cardPool(): Card[] {
     ["AI-WIND-2B", "spend_enemy_on_play"],
     ["AI-WIND-3", "spend_enemy_on_play"],
     ["AI-WIND-3B", "ready_ally_on_play_draw"],
-    ["AI-WIND-4", "return_after_overheat"],
     ["AI-WIND-4B", "return_after_overheat_cannot_hand_defend"],
     ["AI-WIND-2C", "charge_ready_ally"],
     ["AI-EARTH-1B", "draw_on_successful_defense"],

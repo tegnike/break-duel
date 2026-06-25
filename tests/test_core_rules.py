@@ -566,13 +566,13 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[0].hand], ["AI-WIND-4B"])
         self.assertEqual(state.players[0].discard, [])
 
-    def test_wind_power_4_returns_to_hand_after_attack(self) -> None:
+    def test_wind_power_4_overheats_to_discard_after_attack(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].field_ai = [card("AI-WIND-4")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
-        self.assertEqual([item.id for item in state.players[0].hand], ["AI-WIND-4"])
-        self.assertEqual(state.players[0].discard, [])
+        self.assertEqual(state.players[0].hand, [])
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-WIND-4"])
 
     def test_defense_plus_1_ai_gets_defense_bonus(self) -> None:
         state = new_game(1, no_opening_hands())
