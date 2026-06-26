@@ -3,6 +3,8 @@
 `Break Duel` is a small original card-game simulator for testing the core
 rules from `/Users/user/WorkSpace/nikechan/docs/ai-break-duel-plan.md`.
 
+![Break Duel battle board](docs/assets/break-duel-board.jpg)
+
 This repository currently implements `Phase 2: Relic & Upgrade`:
 
 See [`docs/game-spec.md`](docs/game-spec.md) for the complete current game
