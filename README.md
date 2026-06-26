@@ -1,190 +1,220 @@
 # Break Duel
 
-`Break Duel` is a small original card-game simulator for testing the core
-rules from `/Users/user/WorkSpace/nikechan/docs/ai-break-duel-plan.md`.
+`Break Duel` は、20 枚デッキで遊ぶ 2 人対戦の小型オリジナルカードゲームです。
+React + TypeScript のブラウザ UI で実際に対戦でき、Python シミュレータで自動対戦とバランス検証を回せます。
 
 ![Break Duel battle board](docs/assets/break-duel-board.jpg)
 
-This repository currently implements `Phase 2: Relic & Upgrade`:
+## 特徴
 
-See [`docs/game-spec.md`](docs/game-spec.md) for the complete current game
-specification.
-See [`docs/architecture.md`](docs/architecture.md) for the implementation
-structure and handoff notes.
-See [`docs/evolution-design.md`](docs/evolution-design.md) for the next-phase
-design plan.
+- 1 試合が短く終わる、軽量な対戦カードゲームです。
+- 召喚獣、指令、遺物の 3 種類のカードを使います。
+- 各ターンは基本 2 アクションで、カードをチャージすると一時的に 3 アクションまで伸ばせます。
+- 火、水、風、土の 4 属性は相性補正ではなく、カード個別効果で特徴を出します。
+- 手札防御、場防御、アップグレード、遺物、トラッシュ回収などを実装しています。
+- ブラウザ UI では固定デッキと保存済みカスタムデッキを、自分側と相手側で個別に選べます。
+- Python CLI で大量の自動対戦、リーグ戦、ルール実験を実行できます。
 
-- Python simulations use two standard 20-card decks by default:
-  - Player 1 uses `紅蓮突破デッキ`, focused on fire/water pressure and disruption.
-  - Player 2 uses `大地守護デッキ`, focused on wind/earth defense and recursion.
-- The browser UI starts from a battle deck picker. The human player chooses one
-  of the seven preset decks, and the rival is selected randomly from the
-  remaining presets.
-- Four mono-attribute 20-card decks are available for browser play and balance
-  leagues:
-  - `fire`: aggro pressure, hand-defense punishment, disruption, finishers.
-  - `water`: draw, filtering, refill finishers, and recursion.
-  - `wind`: tempo, ready/spent control, reusable attackers, returning finishers.
-  - `earth`: defense, firewall, successful-defense draw, and recursion.
-  - `apex`: a strongest-candidate mixed deck tuned to beat the six existing
-    presets by a large margin.
-  - Each preset deck contains at least two summon, command, and relic cards.
-    Each mono-attribute deck keeps summon cards within one attribute and uses
-    every summon from that attribute at least once.
-  - Preset and saved decks are 20 cards. Saved decks may mix card types freely,
-    with same-name cards capped at 2 and power 3+ summons capped at 4 total.
-- Turns normally start with two actions. The first player's first turn starts
-  with one action.
-- Once per turn, the active player may charge a power 1/2 summon, command, or
-  relic from hand to discard to gain +1 action for that turn, up to 3 actions.
-  A player that charges cannot attack for the rest of that turn.
-- The game ends by life judgement after 60 player turns if neither player has
-  lost by life damage.
-- The first player starts with 5 cards.
-- The second player starts with 4 cards.
-- The first player's first turn has 1 action and no turn-start draw.
-- The first player cannot attack on the first turn.
-- Field limit of three summon cards.
-- One relic slot per player. Playing a relic costs one action and replaces the
-  previous relic.
-- `刻火の加速炉` still grants a normal +1 action by sacrificing a field summon,
-  so that action can be used to attack.
-- Same-attribute, lower-power field summons can be trashed to upgrade into a
-  higher-power hand summon for 1 less action than normal play, minimum 1 action.
-- There is no default hand limit. Hand size is controlled through card effects
-  and hand defense instead of automatic end-of-turn cleanup.
-- Summon cards have base power roles plus selected individual effects:
-  - The summon pool has 36 cards: 4 attributes x 4 power values x A/B variants,
-    plus one charge-focused summon for each attribute.
-  - power 1/2: costs 1 action and works well as upgrade material.
-  - power 3: costs 2 actions as a mid-size summon and skips the next
-    turn-start ready step after attacking.
-  - power 4: costs 2 actions and goes to discard after attacking.
-  - selected summon cards have effects such as attack value +1, draw on play,
-    hand-defense punishment, blocked-attack draw, ready/spent control,
-    charge-time effects, return-to-hand after attack, defense value +1, or
-    successful-defense draw.
-    Some stronger effects carry drawbacks such as self-damage, entering spent,
-    letting the opponent draw, or being unusable for hand defense.
-  - attribute themes are intentionally distinct: fire forces damage/resource
-    pressure through defenses, water keeps hand quality high, wind wins tempo
-    through ready/spent manipulation, and earth converts defense into resources.
-- Command cards cost 1 action and go to discard after use:
-  - `陣形リライト`: discard 1 hand card, then draw 2 cards.
-  - `黒蔦の足止め`: spend 1 ready opposing summon.
-  - `幻獣回帰の巻`: discard 1 hand card, then return 1 summon from discard to hand.
-  - `蒼殻バリア`: this turn, prevent the next power-4 post-attack retreat after
-    attacking.
-  - `若葉の息吹` remains in the card pool as an inactive card, but is hidden
-    from browser card lists and excluded from preset decks.
-- Relic cards reinforce strategies while also spending hand resources:
-  - `灯火の旅嚢`: draws only when its controller starts the turn with 2 or
-    fewer cards.
-  - `蓄光の祭壇`: after its controller charges, draws 1 card if that player has
-    2 or fewer cards in hand.
-  - `竜盾の紋章`: discards 1 hand card to add +1 to off-attribute field
-    defense.
-  - In the browser UI, human players choose which hand card to discard for
-    discard-cost effects such as `陣形リライト`, `幻獣回帰の巻`, `竜盾の紋章`,
-    and `星泉の導脈`.
-- Attribute matchup is not used. Any summon can attempt to defend against any
-  attribute, and attribute differences are expressed through individual summon
-  card effects:
-  - attack value = attacker power + attacker individual effect.
-  - defense value = defender power + defender individual effect + defense bonus.
-  - equal defense and attack values trade; higher defense value lets the blocker
-    survive spent.
-- Once per turn, a player may defend from hand with any summon card that
-  satisfies the defense check, regardless of field state. The hand defender
-  goes to discard and prevents damage, so hand size acts as a real defensive
-  resource without becoming unlimited protection.
-- A summon that attacks becomes spent until its controller's next turn. Power 3
-  attackers that remain in the field skip that next turn-start ready step and
-  ready on the following own turn instead. Spent summons cannot attack again and
-  cannot defend.
-- A power 4 summon retreats after attacking and goes to discard. This makes it a
-  finisher instead of a permanent attacker and prevents alternating power-4
-  attacks from dominating the game.
-- Field defense is resolved by numbers: if defense value equals attack value,
-  both summons go to discard; if defense value is higher, only the attacker goes
-  to discard and the defender stays on the field spent. Lower-power summons can
-  still matter through individual effects.
-- Failed or undefended attacks deal 1 life damage. They do not draw a card.
-- If the deck is empty, draw effects simply draw 0 cards. Discard is not
-  automatically reshuffled into the deck.
-- If both players have no deck, no hand, and no field summons, the game ends by
-  life judgement. Higher life wins; equal life is a draw.
-- CLI simulation with JSON and JSONL output.
+## ゲーム概要
 
-The browser UI is implemented with React + TypeScript + Vite. It supports
-starter deck selection, relic placement, upgrade play, manual target selection
-for key effects, charge, manual discard-cost selection, and discard-pile
-inspection.
+各プレイヤーは 20 枚デッキを使い、召喚獣を場に出して攻撃します。相手のライフを 0 にするか、最大手番後のライフ判定で勝利します。
 
-## Assets
+標準ルール:
 
-The browser prototype uses selected PNG icons from Kenney's `Board Game Icons`
-asset pack under Creative Commons CC0.
+- 初期ライフ: 5
+- デッキ枚数: 20
+- 先攻初期手札: 5
+- 後攻初期手札: 4
+- 通常アクション数: 2
+- 先攻 1 ターン目: 1 アクション、開始時ドローなし、攻撃不可
+- 場の召喚獣上限: 3
+- 遺物スロット: 1
+- 手札防御: 1 回 / ターン
+- 最大手番数: 60
+- 属性相性補正: なし
 
-- Source: https://kenney.nl/assets/board-game-icons
-- License: Creative Commons CC0
+カード種別:
 
-## Run
+| 種別 | 役割 |
+| --- | --- |
+| 召喚獣 | 場に出して攻撃、防御、アップグレードに使うカード |
+| 指令 | 1 回使い切りのアクションカード |
+| 遺物 | 1 枚だけ配置できる継続効果カード |
 
-```bash
-python3 -m ai_break_duel.cli simulate --games 1000 --seed 1 --out tmp
-```
+詳しいルールは [docs/game-spec.md](docs/game-spec.md) を参照してください。
 
-Run a mono-attribute round-robin league:
+## デッキ
 
-```bash
-python3 -m ai_break_duel.cli league --games-per-pair 1000 --seed 4701 --out tmp/feature_league_4701
-```
+ブラウザ UI には 7 つの固定デッキがあります。
 
-The legacy `--advantage-bonus`, `--disadvantage-penalty`, and
-`--same-attribute-*` options are retained for CLI compatibility, but current
-rules do not use attribute matchup bonuses.
+| ID | 概要 |
+| --- | --- |
+| `break` | 火と水を中心にした攻撃圧、妨害、リソース補充のデッキ |
+| `control` | 風と土を中心にした防御、再利用、テンポ制御のデッキ |
+| `fire` | 火単色。攻撃圧、手札防御への圧力、フィニッシャー重視 |
+| `water` | 水単色。ドロー、手札調整、継戦力重視 |
+| `wind` | 風単色。消耗操作、テンポ、再攻撃機会重視 |
+| `earth` | 土単色。場防御、遺物、防御成功時のリターン重視 |
+| `apex` | 既存デッキへの勝ち越しを狙った混合の強力サンプルデッキ |
 
-Hand defense is limited to once per turn by default. Use
-`--hand-defense-limit 0` to disable hand defense. Use
-`--hand-defense-empty-field-only` to reproduce the older empty-field-only rule.
+デッキ制作画面では保存デッキを作れます。保存条件は次の通りです。
 
-The command writes:
+- 20 枚ちょうど
+- 同名カード 2 枚まで
+- power 3 以上の召喚獣は合計 4 枚まで
 
-- `tmp/summary.json`
-- `tmp/matches.jsonl`
+保存デッキはブラウザの `localStorage` に保存されます。
 
-The league command writes `league-summary.json` under the selected output
-directory.
+## クイックスタート
 
-The latest balanced-deck check used seed `3320000`: the six-deck ordered league
-with 1000 games per ordered pair landed at 59.4% `break`, 54.7% `control`,
-50.5% `wind`, 46.7% `earth`, 46.2% `water`, and 42.5% `fire`.
+必要なもの:
 
-The strongest preset check used seed `3330000`: the seven-deck ordered league
-with 500 games per ordered pair landed at 74.3% `apex`, 55.3% `break`,
-49.6% `control`, 44.5% `wind`, 44.1% `earth`, 41.7% `water`, and 40.5%
-`fire`.
+- Node.js
+- npm
+- Python 3.9 以上
 
-## Play UI
+インストール:
 
 ```bash
 npm install
-npm run build
-python3 -m http.server 8000 --directory web
 ```
 
-Open `http://localhost:8000/` to play a human-vs-rival match in the browser.
-If port 8000 is already in use, choose another port such as 8017.
-
-For live development:
+開発サーバーで遊ぶ:
 
 ```bash
 npm run dev -- --host 127.0.0.1
 ```
 
-## Test
+表示されたローカル URL をブラウザで開いてください。通常は `http://127.0.0.1:5173/` です。
+
+本番ビルドを静的配信する:
+
+```bash
+npm run build
+python3 -m http.server 8000 --directory web
+```
+
+`http://localhost:8000/` を開くと、ビルド済み UI で遊べます。ポート 8000 が使用中なら、別のポートを指定してください。
+
+## シミュレーション
+
+標準対戦を 1000 戦実行:
+
+```bash
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 1 --out tmp/simulate_1
+```
+
+固定デッキ同士を指定:
+
+```bash
+python3 -m ai_break_duel.cli simulate \
+  --games 1000 \
+  --seed 21001 \
+  --out tmp/break_control_21001 \
+  --first-deck break \
+  --second-deck control
+```
+
+6 デッキの ordered round-robin league:
+
+```bash
+python3 -m ai_break_duel.cli league \
+  --games-per-pair 1000 \
+  --seed 4200000 \
+  --out tmp/six_deck_league_4200000 \
+  --decks break control fire water wind earth
+```
+
+出力:
+
+- `summary.json`: `simulate` の集計
+- `matches.jsonl`: `simulate` の各試合ログ
+- `league-summary.json`: `league` の順位表と各組み合わせ結果
+
+手札防御を無効化して比較したい場合:
+
+```bash
+python3 -m ai_break_duel.cli league \
+  --games-per-pair 1000 \
+  --seed 4200000 \
+  --out tmp/no_hand_defense_league_4200000 \
+  --decks break control fire water wind earth \
+  --hand-defense-limit 0
+```
+
+## バランス回帰チェック
+
+高コスト偏重デッキなどが既存デッキを大きく上回らないかを確認する補助スクリプトがあります。
+
+```bash
+python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py \
+  --games-per-order 1000 \
+  --seed 3000000
+```
+
+実験用ルールセットを比較する例:
+
+```bash
+python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py \
+  --games-per-order 1000 \
+  --seed 4300000 \
+  --rule-set current \
+  --rule-set hand_defense_0
+```
+
+## テスト
+
+標準チェック:
 
 ```bash
 npm run check
 ```
+
+内訳:
+
+- `npm run typecheck`
+- `npm run build`
+- `python3 -m unittest`
+
+## プロジェクト構成
+
+```text
+ai_break_duel/
+  cards.py        Python 側カード定義、デッキ定義
+  models.py       Python 側状態型、設定
+  engine.py       Python 側ルール解決
+  ai.py           Python 側自動判断
+  cli.py          シミュレーション CLI
+
+src/
+  App.tsx         ブラウザアプリ本体
+  game.ts         TypeScript 側カード定義、設定、ルール補助
+  game/actions.ts TypeScript 側ゲーム操作
+  components/     UI コンポーネント
+  styles.css      UI スタイル
+
+tests/
+  test_core_rules.py
+  test_cost_balance.py
+
+docs/
+  game-spec.md
+  architecture.md
+  evolution-design.md
+
+web/
+  Vite のビルド出力
+```
+
+開発者向けの構成メモは [docs/architecture.md](docs/architecture.md) を参照してください。
+
+## アセット
+
+ブラウザ UI の一部アイコンには Kenney の `Board Game Icons` を使用しています。
+
+- Source: https://kenney.nl/assets/board-game-icons
+- License: Creative Commons CC0
+
+## ライセンス
+
+このプロジェクトは MIT License です。詳細は [LICENSE](LICENSE) を参照してください。
