@@ -27,7 +27,7 @@ from ai_break_duel.engine import (
     start_turn,
 )
 from ai_break_duel.models import Action, ActionType, GameConfig, PlayerState
-from ai_break_duel.simulation import run_league, run_simulation
+from ai_break_duel.simulation import run_league, run_match, run_simulation
 
 
 def card(card_id: str):
@@ -235,6 +235,30 @@ class CoreRuleTests(unittest.TestCase):
         start_turn(state)
         state.actions_remaining = 0
         self.assertEqual(choose_action(state).type, ActionType.END_TURN)
+
+    def test_beginner_profile_skips_attacks_and_defense(self) -> None:
+        state = new_game(1, no_opening_hands(ai_profiles=("beginner", "challenger")))
+        state.players[0].field_ai = [card("AI-FIRE-2")]
+        state.players[1].field_ai = [card("AI-FIRE-1")]
+        start_turn(state)
+        self.assertEqual(choose_action(state).type, ActionType.END_TURN)
+
+        state = new_game(1, no_opening_hands(ai_profiles=("challenger", "beginner")))
+        state.players[0].field_ai = [card("AI-FIRE-2")]
+        state.players[1].field_ai = [card("AI-FIRE-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 4)
+
+    def test_challenger_profile_crushes_beginner_same_deck(self) -> None:
+        challenger_wins = 0
+        games = 24
+        config = GameConfig(ai_profiles=("challenger", "beginner"))
+        for offset in range(games):
+            result = run_match(9000 + offset, config, (DeckArchetype.FIRE, DeckArchetype.FIRE))
+            if result.summary["winner"] == "player_1":
+                challenger_wins += 1
+        self.assertGreaterEqual(challenger_wins / games, 0.99)
 
     def test_players_use_different_decks_by_default(self) -> None:
         player_1_deck = [item.id for item in build_player_deck(0)]

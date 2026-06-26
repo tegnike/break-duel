@@ -237,6 +237,7 @@ def result_summary(state: GameState) -> dict[str, Any]:
                 state.config.power_4_overheats_after_attack
             ),
             "hand_limit": state.config.hand_limit,
+            "ai_profiles": list(state.config.ai_profiles),
         },
         "winner": None if state.winner is None else state.players[state.winner].name,
         "draw": state.draw,
@@ -430,17 +431,7 @@ def _attack(state: GameState, action: Action) -> None:
     if action.source_index in attacker.spent_field_ai:
         raise ValueError("This summon has already acted this turn.")
     attack_ai = attacker.field_ai[action.source_index]
-    defense_index = choose_defender(
-        attack_ai,
-        defender,
-        advantage_bonus=state.config.defense_advantage_bonus,
-        disadvantage_penalty=state.config.defense_disadvantage_penalty,
-        same_attribute_strict=state.config.same_attribute_strict_defense,
-        exhausted_ai_can_defend=state.config.exhausted_ai_can_defend,
-        power_2_defense_bonus=state.config.power_2_defense_bonus,
-        power_3_cannot_field_defend=state.config.power_3_cannot_field_defend,
-        power_3_defense_modifier=state.config.power_3_defense_modifier,
-    )
+    defense_index = _choose_field_defender(state, attack_ai, defender, state.non_active_player)
     hand_defense_index = _choose_hand_defender(state, attack_ai, defender)
     if defense_index is not None and hand_defense_index is not None:
         if pierces_hand_defense(attack_ai):
@@ -856,7 +847,30 @@ def _deal_damage(player: PlayerState) -> None:
     player.life -= 1
 
 
+def _choose_field_defender(
+    state: GameState,
+    attack_ai,
+    defender: PlayerState,
+    defender_index: int,
+) -> int | None:
+    if state.config.ai_profiles[defender_index] == "beginner":
+        return None
+    return choose_defender(
+        attack_ai,
+        defender,
+        advantage_bonus=state.config.defense_advantage_bonus,
+        disadvantage_penalty=state.config.defense_disadvantage_penalty,
+        same_attribute_strict=state.config.same_attribute_strict_defense,
+        exhausted_ai_can_defend=state.config.exhausted_ai_can_defend,
+        power_2_defense_bonus=state.config.power_2_defense_bonus,
+        power_3_cannot_field_defend=state.config.power_3_cannot_field_defend,
+        power_3_defense_modifier=state.config.power_3_defense_modifier,
+    )
+
+
 def _choose_hand_defender(state: GameState, attack_ai, defender: PlayerState) -> int | None:
+    if state.config.ai_profiles[state.non_active_player] == "beginner":
+        return None
     if blocks_low_life_hand_defense(attack_ai) and defender.life <= 2:
         return None
     if state.config.hand_defense_requires_empty_field and defender.field_ai:

@@ -25,6 +25,9 @@ ai_break_duel/
   ai.py             Python 側自動判断
   cli.py            シミュレーションCLI
 
+scripts/
+  tune_ai_profiles.py CPU評価重みの自動探索
+
 src/
   main.tsx          React entry
   App.tsx           アプリ状態、通知、音、イベント配線
@@ -89,6 +92,12 @@ npm run dev -- --host 127.0.0.1
 python3 -m ai_break_duel.cli simulate --games 5000 --seed 4101 --out tmp/current_check
 ```
 
+CPU プロファイル探索:
+
+```bash
+python3 scripts/tune_ai_profiles.py --iterations 16 --games-per-seat 10 --seed 730101 --out tmp/ai-profile-tuning.json
+```
+
 ## 状態管理
 
 React 側は外部状態管理ライブラリを使っていません。`App.tsx` が `useState<GameState>` を持ち、更新時は `cloneGame` でコピーした draft を変更してから `setGame` します。
@@ -119,6 +128,8 @@ React 側は外部状態管理ライブラリを使っていません。`App.tsx
 - 使用条件
 - 自動行動選択
 - 勝敗判定
+
+CPU は Python 側 `ai_break_duel/ai.py` と TypeScript 側 `src/game.ts` の二重管理です。`beginner` / `challenger` の行動選択や防御選択を変える場合は、両方と `docs/game-spec.md` を同期してください。Python CLI は `GameConfig.ai_profiles` と `--first-ai` / `--second-ai` でプロファイルを切り替えます。ブラウザ UI は相手プレイヤーの `PlayerState.aiProfile` を使います。
 
 `src/game/actions.ts` は、`GameState` を変更する操作処理を置きます。
 
