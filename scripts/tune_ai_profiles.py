@@ -44,15 +44,16 @@ def main() -> None:
         candidates.append(_mutate_weights(baseline, rng))
 
     results = []
-    for index, weights in enumerate(candidates):
+    try:
+        for index, weights in enumerate(candidates):
+            ai_module.CHALLENGER_WEIGHTS.clear()
+            ai_module.CHALLENGER_WEIGHTS.update(weights)
+            result = evaluate_candidate(weights, args.games_per_seat, args.seed + index * 10000)
+            result["candidate_index"] = index
+            results.append(result)
+    finally:
         ai_module.CHALLENGER_WEIGHTS.clear()
-        ai_module.CHALLENGER_WEIGHTS.update(weights)
-        result = evaluate_candidate(weights, args.games_per_seat, args.seed + index * 10000)
-        result["candidate_index"] = index
-        results.append(result)
-
-    ai_module.CHALLENGER_WEIGHTS.clear()
-    ai_module.CHALLENGER_WEIGHTS.update(baseline)
+        ai_module.CHALLENGER_WEIGHTS.update(baseline)
 
     results.sort(key=lambda item: item["fitness"], reverse=True)
     report = {

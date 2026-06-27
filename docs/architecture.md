@@ -27,6 +27,7 @@ ai_break_duel/
 
 scripts/
   tune_ai_profiles.py CPU評価重みの自動探索
+  tune_apex_deck.py   APEX候補デッキの生成・スクリーニング・リーグ評価
 
 src/
   main.tsx          React entry
@@ -96,6 +97,14 @@ CPU プロファイル探索:
 
 ```bash
 python3 scripts/tune_ai_profiles.py --iterations 16 --games-per-seat 10 --seed 730101 --out tmp/ai-profile-tuning.json
+```
+
+`scripts/tune_ai_profiles.py` で採用する `CHALLENGER_WEIGHTS` は Python 側の `ai_break_duel/ai.py` とブラウザ側の `src/game.ts` の両方に反映します。探索後に片方だけ更新すると、CLI とブラウザで挑戦者CPUの判断がずれます。
+
+APEX 候補探索:
+
+```bash
+python3 scripts/tune_apex_deck.py --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 810101 --out tmp/apex-tuning.json
 ```
 
 ## 状態管理
