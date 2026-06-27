@@ -1,6 +1,7 @@
 export type Attribute = "火" | "水" | "風" | "土";
 export type CardType = "ai" | "event" | "memory";
 export type CardStatus = "active" | "inactive";
+export type AiProfile = "beginner" | "challenger";
 export type AiEffect =
   | "attack_plus_1"
   | "reckless_attack_plus_1"
@@ -62,6 +63,7 @@ type CardSeed = Omit<Card, "status"> & { status?: CardStatus };
 export type PlayerState = {
   name: string;
   deckName: string;
+  aiProfile: AiProfile;
   isHuman: boolean;
   life: number;
   deck: Card[];
@@ -505,27 +507,27 @@ export const DECKS = {
   },
   apex: {
     name: "覇王結束デッキ",
-    description: "各属性の高効率カードを束ねた最強候補。妨害、防御、突破をまとめて押し付けます。",
+    description: "挑戦者CPUリーグで選ばれた最強候補。火力、防御貫通、チャージ補助をまとめて押し付けます。",
     cards: [
-      "AI-FIRE-2B",
-      "AI-FIRE-2B",
-      "AI-FIRE-4B",
       "AI-FIRE-2",
-      "AI-WATER-2",
-      "AI-WATER-2B",
-      "AI-WATER-2B",
-      "AI-WATER-3B",
-      "AI-WIND-2B",
+      "AI-WIND-3",
       "AI-WIND-3B",
       "AI-EARTH-2",
-      "AI-WIND-2C",
+      "AI-WATER-2",
+      "AI-FIRE-4",
+      "AI-FIRE-3",
       "AI-EARTH-2C",
-      "AI-EARTH-4",
-      "CMD-DISRUPT",
+      "AI-WIND-2",
+      "AI-FIRE-2B",
+      "AI-WATER-1",
+      "AI-WATER-2B",
+      "AI-WATER-2B",
+      "AI-FIRE-1C",
       "CMD-SANDBOX",
-      "CMD-FIRE-RITE",
       "CMD-WATER-RITE",
-      "MEM-CACHE",
+      "CMD-WIND-RITE",
+      "CMD-DISRUPT",
+      "MEM-FIREWALL",
       "MEM-RESONATOR",
     ],
   },
@@ -570,12 +572,13 @@ export function randomStarterDeckId(rng: () => number, excludeDeckId?: DeckId): 
   return pool[index];
 }
 
-export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: () => number): PlayerState {
+export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: () => number, aiProfile: AiProfile = "challenger"): PlayerState {
   const deck = makeDeck(deckId);
   shuffle(deck, rng);
   return {
     name,
     deckName: DECKS[deckId].name,
+    aiProfile,
     isHuman,
     life: CONFIG.life,
     deck,
@@ -596,12 +599,13 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
   };
 }
 
-export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: string, cardIds: string[], rng: () => number): PlayerState {
+export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: string, cardIds: string[], rng: () => number, aiProfile: AiProfile = "challenger"): PlayerState {
   const deck = makeCustomDeck(cardIds);
   shuffle(deck, rng);
   return {
     name,
     deckName,
+    aiProfile,
     isHuman,
     life: CONFIG.life,
     deck,
@@ -622,9 +626,9 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
   };
 }
 
-function makePlayerFromDeckSource(name: string, isHuman: boolean, source: DuelDeckSource, rng: () => number): PlayerState {
-  if (source.kind === "preset") return makePlayer(name, isHuman, source.deckId, rng);
-  return makeCustomDeckPlayer(name, isHuman, source.name, source.cardIds, rng);
+function makePlayerFromDeckSource(name: string, isHuman: boolean, source: DuelDeckSource, rng: () => number, aiProfile: AiProfile = "challenger"): PlayerState {
+  if (source.kind === "preset") return makePlayer(name, isHuman, source.deckId, rng, aiProfile);
+  return makeCustomDeckPlayer(name, isHuman, source.name, source.cardIds, rng, aiProfile);
 }
 
 function deckSourceName(source: DuelDeckSource): string {
@@ -659,7 +663,12 @@ export function cloneGame(game: GameState): GameState {
   };
 }
 
-export function createGame(seed: number, playerDeck: DeckId | DuelDeckSource = "fire", opponentDeck?: DeckId | DuelDeckSource): GameState {
+export function createGame(
+  seed: number,
+  playerDeck: DeckId | DuelDeckSource = "fire",
+  opponentDeck?: DeckId | DuelDeckSource,
+  opponentAiProfile: AiProfile = "challenger",
+): GameState {
   const rng = makeRng(seed);
   const playerSource = normalizeDeckSource(playerDeck);
   const opponentSource = opponentDeck
@@ -669,8 +678,8 @@ export function createGame(seed: number, playerDeck: DeckId | DuelDeckSource = "
     rng,
     seed,
     players: [
-      makePlayerFromDeckSource("あなた", true, playerSource, rng),
-      makePlayerFromDeckSource("ライバル", false, opponentSource, rng),
+      makePlayerFromDeckSource("あなた", true, playerSource, rng, "challenger"),
+      makePlayerFromDeckSource("ライバル", false, opponentSource, rng, opponentAiProfile),
     ],
     active: 0,
     turn: 0,
@@ -693,8 +702,8 @@ export function createGame(seed: number, playerDeck: DeckId | DuelDeckSource = "
   return game;
 }
 
-export function createGameWithCustomPlayerDeck(seed: number, playerDeck: { name: string; cardIds: string[] }, opponentDeckId?: DeckId): GameState {
-  return createGame(seed, { kind: "custom", name: playerDeck.name, cardIds: playerDeck.cardIds }, opponentDeckId);
+export function createGameWithCustomPlayerDeck(seed: number, playerDeck: { name: string; cardIds: string[] }, opponentDeckId?: DeckId, opponentAiProfile: AiProfile = "challenger"): GameState {
+  return createGame(seed, { kind: "custom", name: playerDeck.name, cardIds: playerDeck.cardIds }, opponentDeckId, opponentAiProfile);
 }
 
 export function activePlayer(game: GameState): PlayerState {
@@ -1296,7 +1305,8 @@ export function acceleratorSacrificeTarget(player: PlayerState): number | null {
   return options[0].index;
 }
 
-export function chooseAiDefense(defender: PlayerState, attackCard: Card): DefenseChoice {
+export function chooseAiDefense(defender: PlayerState, attackCard: Card, profile: AiProfile = defender.aiProfile): DefenseChoice {
+  if (profile === "beginner") return { type: "none" };
   const fieldOptions = legalFieldDefenders(defender, attackCard);
   const handOptions = legalHandDefenders(defender, attackCard);
   if (piercesHandDefense(attackCard) && fieldOptions.length > 0) {
@@ -1405,7 +1415,12 @@ export type AiAction =
   | { type: "charge"; index: number }
   | { type: "end" };
 
-export function chooseAiAction(game: GameState): AiAction {
+export function chooseAiAction(game: GameState, profile: AiProfile = activePlayer(game).aiProfile): AiAction {
+  if (profile === "beginner") return chooseBeginnerAiAction(game);
+  return chooseChallengerAiAction(game);
+}
+
+function chooseClassicAiAction(game: GameState): AiAction {
   const ai = activePlayer(game);
   const human = opponentPlayer(game);
   const chargeIndex = bestChargeFuel(game, ai);
@@ -1440,6 +1455,281 @@ export function chooseAiAction(game: GameState): AiAction {
   if (commandIndex !== null) return { type: "command", index: commandIndex };
   if (canActivePlayerAttack(game) && attackableField(ai).length > 0) return { type: "attack", index: highestPowerField(ai) };
   return { type: "end" };
+}
+
+function chooseBeginnerAiAction(game: GameState): AiAction {
+  const ai = activePlayer(game);
+  if (game.actionsRemaining <= 0) return { type: "end" };
+  if (ai.field.length === 0) {
+    const options = ai.hand
+      .map((card, index) => ({ card, index }))
+      .filter(({ card }) => card.type === "ai" && playCost(card) <= game.actionsRemaining)
+      .sort((a, b) => (a.card.power ?? 0) - (b.card.power ?? 0) || a.card.id.localeCompare(b.card.id));
+    if (options[0]) return { type: "play", index: options[0].index };
+  }
+  if (!ai.memory) {
+    const memory = ai.hand
+      .map((card, index) => ({ card, index }))
+      .filter(({ card }) => card.type === "memory")
+      .sort((a, b) => aiCardValue(a.card) - aiCardValue(b.card) || a.card.id.localeCompare(b.card.id))[0];
+    if (memory) return { type: "memory", index: memory.index };
+  }
+  return { type: "end" };
+}
+
+function chooseChallengerAiAction(game: GameState): AiAction {
+  const classic = chooseClassicAiAction(game);
+  const options = legalAiActions(game);
+  if (options.length === 0) return { type: "end" };
+  options.sort((a, b) => (
+    scoreAiAction(game, b, classic) - scoreAiAction(game, a, classic)
+    || aiActionTieBreak(b) - aiActionTieBreak(a)
+  ));
+  return options[0];
+}
+
+function legalAiActions(game: GameState): AiAction[] {
+  const ai = activePlayer(game);
+  const human = opponentPlayer(game);
+  const actions: AiAction[] = [];
+  if (canUseCharge(game, ai)) {
+    ai.hand.forEach((card, index) => {
+      if (canChargeCard(card)) actions.push({ type: "charge", index });
+    });
+  }
+  if (game.actionsRemaining > 0) {
+    if (ai.field.length < CONFIG.fieldLimit) {
+      ai.hand.forEach((card, index) => {
+        if (card.type === "ai" && playCost(card) <= game.actionsRemaining) actions.push({ type: "play", index });
+      });
+    }
+    ai.hand.forEach((card, index) => {
+      if (card.type === "memory") actions.push({ type: "memory", index });
+      if (card.type === "event" && commandUsable(game, card, ai, human)) actions.push({ type: "command", index });
+    });
+    if (canUseAcceleratorMemory(game, ai)) {
+      ai.field.forEach((_, fieldIndex) => actions.push({ type: "memory-effect", fieldIndex }));
+    }
+    ai.hand.forEach((target, handIndex) => {
+      if (target.type !== "ai" || upgradeCost(target) > game.actionsRemaining) return;
+      ai.field.forEach((source, fieldIndex) => {
+        if (canUpgrade(source, target)) actions.push({ type: "upgrade", handIndex, fieldIndex });
+      });
+    });
+    if (canActivePlayerAttack(game)) {
+      attackableField(ai).forEach(({ index }) => actions.push({ type: "attack", index }));
+    }
+  }
+  actions.push({ type: "end" });
+  return actions;
+}
+
+const CHALLENGER_WEIGHTS = {
+  damage: 160,
+  lethal: 310,
+  attackPower: 13,
+  badAttack: -73,
+  tradeAttack: 42,
+  handTradeAttack: 40,
+  blockedValue: 25,
+  playAi: 51,
+  emptyFieldPlay: 51,
+  upgrade: 78,
+  memory: 51,
+  command: 76,
+  charge: 38,
+  tempoAction: 16,
+  fieldPresence: 19,
+  handCard: 12,
+  opponentReady: 1,
+  lowLifePressure: 28,
+  classicPrior: 60,
+};
+
+function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): number {
+  const ai = activePlayer(game);
+  const opponent = opponentPlayer(game);
+  let score = boardAiScore(ai, opponent);
+  if (sameAiAction(action, classic)) score += CHALLENGER_WEIGHTS.classicPrior;
+  if (action.type === "end") return score - 40 + (game.actionsRemaining <= 0 ? 15 : -55);
+  score += CHALLENGER_WEIGHTS.tempoAction;
+  if (action.type === "play") {
+    const card = ai.hand[action.index];
+    if (!card) return -9999;
+    return score + CHALLENGER_WEIGHTS.playAi + aiCardValue(card) + (ai.field.length === 0 ? CHALLENGER_WEIGHTS.emptyFieldPlay : 0);
+  }
+  if (action.type === "upgrade") {
+    const target = ai.hand[action.handIndex];
+    const source = ai.field[action.fieldIndex];
+    if (!target || !source) return -9999;
+    return score + CHALLENGER_WEIGHTS.upgrade + aiCardValue(target) - aiCardValue(source) * 0.45;
+  }
+  if (action.type === "memory") {
+    const card = ai.hand[action.index];
+    if (!card) return -9999;
+    return score + CHALLENGER_WEIGHTS.memory + aiCardValue(card) - (ai.memory ? 24 : 0);
+  }
+  if (action.type === "memory-effect") {
+    const sacrificed = ai.field[action.fieldIndex];
+    if (!sacrificed) return -9999;
+    const enables = ai.hand.some((card) => card.type === "ai" && playCost(card) <= Math.min(3, game.actionsRemaining + 1));
+    return score + 58 + (enables ? 42 : 0) - aiCardValue(sacrificed) * 0.55;
+  }
+  if (action.type === "command") {
+    const command = ai.hand[action.index];
+    if (!command) return -9999;
+    return score + CHALLENGER_WEIGHTS.command + commandAiValue(game, command);
+  }
+  if (action.type === "charge") {
+    const fuel = ai.hand[action.index];
+    if (!fuel) return -9999;
+    const before = game.actionsRemaining;
+    const after = Math.min(3, before + 1);
+    const remaining = ai.hand.filter((_, index) => index !== action.index);
+    const enablesPlay = remaining.some((card) => card.type === "ai" && playCost(card) > before && playCost(card) <= after);
+    const enablesTwoStep = before === 2 && remaining.some((card) => card.type === "ai" && playCost(card) === 2);
+    const effectValue = chargeAiValue(game, fuel);
+    if (!enablesPlay && !enablesTwoStep && effectValue <= 0) return score - 130;
+    return score + CHALLENGER_WEIGHTS.charge + (enablesPlay ? 55 : 0) + (enablesTwoStep ? 28 : 0) + effectValue - aiCardValue(fuel) * 0.42;
+  }
+  if (action.type === "attack") {
+    const attacker = ai.field[action.index];
+    if (!attacker) return -9999;
+    return score + attackAiValue(game, attacker);
+  }
+  return score;
+}
+
+function boardAiScore(ai: PlayerState, opponent: PlayerState): number {
+  const ready = ai.field.filter((_, index) => !ai.spentFieldIndexes.has(index)).length;
+  const opponentReady = opponent.field.filter((_, index) => !opponent.spentFieldIndexes.has(index)).length;
+  return (
+    (opponent.life - ai.life) * -CHALLENGER_WEIGHTS.lowLifePressure
+    + ai.field.reduce((sum, card) => sum + aiCardValue(card), 0) * 0.35
+    - opponent.field.reduce((sum, card) => sum + aiCardValue(card), 0) * 0.22
+    + ai.field.length * CHALLENGER_WEIGHTS.fieldPresence
+    + ai.hand.length * CHALLENGER_WEIGHTS.handCard
+    + ready * 18
+    + opponentReady * CHALLENGER_WEIGHTS.opponentReady
+  );
+}
+
+function attackAiValue(game: GameState, attacker: Card): number {
+  const defender = opponentPlayer(game);
+  const defense = chooseAiDefense(defender, attacker, "challenger");
+  let value = CHALLENGER_WEIGHTS.attackPower * attackCombatValue(attacker);
+  if (defense.type === "none") {
+    value += CHALLENGER_WEIGHTS.damage;
+    if (defender.life <= 1) value += CHALLENGER_WEIGHTS.lethal;
+    if (blocksLowLifeHandDefense(attacker, defender) && defender.life <= 2) value += 70;
+    return value;
+  }
+  if (defense.type === "hand") {
+    const card = defender.hand[defense.index];
+    value += CHALLENGER_WEIGHTS.handTradeAttack + (card ? aiCardValue(card) * 0.35 : 0);
+    return value;
+  }
+  const card = defender.field[defense.index];
+  if (!card) return value + CHALLENGER_WEIGHTS.badAttack;
+  const defenseValue = defenseCombatValue(attacker, card, defender, { fieldIndex: defense.index });
+  if (defenseValue === attackCombatValue(attacker)) value += CHALLENGER_WEIGHTS.tradeAttack + aiCardValue(card) * 0.35;
+  else value += CHALLENGER_WEIGHTS.badAttack;
+  if (pressuresOnBlock(attacker)) value += CHALLENGER_WEIGHTS.blockedValue;
+  if (drawsOnBlockedAttack(attacker)) value += 32;
+  if (keepsReadyAfterAttack(attacker)) value += 36;
+  return value;
+}
+
+function aiCardValue(card: Card): number {
+  if (card.type === "memory") {
+    const priority: Record<string, number> = { cache: 48, resonator: 45, pipeline: 38, accelerator: 36, firewall: 30 };
+    return priority[card.effect ?? ""] ?? 12;
+  }
+  if (card.type !== "ai") return 12;
+  const effectBonus: Record<string, number> = {
+    attack_plus_1: 18,
+    reckless_attack_plus_1: 8,
+    draw_after_overheat: 10,
+    draw_two_after_overheat: 18,
+    draw_two_after_overheat_opponent_draw: 8,
+    draw_on_play: 20,
+    draw_on_play_cannot_hand_defend: 15,
+    filter_on_play: 24,
+    no_spend_after_attack: 34,
+    spend_enemy_on_play: 32,
+    spend_enemy_on_play_enters_spent: 18,
+    defense_plus_1: 18,
+    defense_plus_1_enters_spent: 8,
+    recover_ai_on_play: 22,
+    block_pressure: 15,
+    hand_defense_pierce: 24,
+    low_life_no_hand_defense: 26,
+    low_life_no_hand_defense_self_damage: 16,
+    draw_on_blocked_attack: 18,
+    draw_on_blocked_attack_cannot_hand_defend: 10,
+    ready_ally_on_play: 24,
+    ready_ally_on_play_draw: 34,
+    return_after_overheat: 12,
+    return_after_overheat_cannot_hand_defend: 4,
+    draw_on_successful_defense: 14,
+    draw_on_successful_defense_enters_spent: 6,
+    charge_pressure: 16,
+    charge_draw: 18,
+    charge_ready_ally: 18,
+    charge_guard: 16,
+  };
+  return (card.power ?? 0) * 20 + (effectBonus[card.effect ?? ""] ?? 0);
+}
+
+function commandAiValue(game: GameState, command: Card): number {
+  const ai = activePlayer(game);
+  const opponent = opponentPlayer(game);
+  if (command.effect === "trinity") return opponent.life <= 1 ? 165 : 92;
+  if (command.effect === "fire_rite") return opponent.hand.length === 0 ? 110 : 58;
+  if (command.effect === "wind_rite") return 74 + (highestPowerReadyAi(opponent) !== null ? 22 : 0);
+  if (command.effect === "water_rite") return ai.deck.length > 0 ? 68 : 0;
+  if (command.effect === "earth_rite") return 62;
+  if (command.effect === "disrupt") {
+    const ready = opponent.field.filter((_, index) => !opponent.spentFieldIndexes.has(index));
+    return 70 + Math.max(0, ...ready.map((card) => (card.power ?? 0) * 9));
+  }
+  if (command.effect === "sandbox") return 84;
+  if (command.effect === "relearn") return 45;
+  if (command.effect === "optimize") return 36 + Math.max(0, 4 - ai.hand.length) * 4;
+  return 0;
+}
+
+function chargeAiValue(game: GameState, fuel: Card): number {
+  const ai = activePlayer(game);
+  const opponent = opponentPlayer(game);
+  if (fuel.effect === "charge_pressure") return opponent.hand.length >= 3 ? 50 : 8;
+  if (fuel.effect === "charge_draw") return ai.deck.length > 0 ? 42 : 0;
+  if (fuel.effect === "charge_ready_ally") return highestPowerSpentAi(ai) !== null ? 62 : 8;
+  if (fuel.effect === "charge_guard") return ai.field.length > 0 ? 38 : 6;
+  if (ai.memory?.effect === "resonator" && ai.hand.length <= 2) return 24;
+  return 0;
+}
+
+function sameAiAction(left: AiAction, right: AiAction): boolean {
+  if (left.type !== right.type) return false;
+  if ("index" in left || "index" in right) return ("index" in left ? left.index : null) === ("index" in right ? right.index : null);
+  if (left.type === "upgrade" && right.type === "upgrade") return left.handIndex === right.handIndex && left.fieldIndex === right.fieldIndex;
+  if (left.type === "memory-effect" && right.type === "memory-effect") return left.fieldIndex === right.fieldIndex;
+  return true;
+}
+
+function aiActionTieBreak(action: AiAction): number {
+  const priority: Record<AiAction["type"], number> = {
+    attack: 7,
+    command: 6,
+    upgrade: 5,
+    play: 4,
+    charge: 3,
+    "memory-effect": 2,
+    memory: 1,
+    end: 0,
+  };
+  return priority[action.type] * 1000 - ("index" in action ? action.index : "handIndex" in action ? action.handIndex : "fieldIndex" in action ? action.fieldIndex : 0);
 }
 
 export function bestChargeFuel(game: GameState, player: PlayerState): number | null {

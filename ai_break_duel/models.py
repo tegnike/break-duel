@@ -3,9 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from random import Random
-from typing import Any
+from typing import Any, Literal
 
 from .cards import Card
+
+
+AiProfile = Literal["classic", "beginner", "challenger"]
 
 
 class ActionType(str, Enum):
@@ -105,6 +108,7 @@ class GameConfig:
     power_4_enters_spent: bool = False
     power_4_overheats_after_attack: bool = True
     hand_limit: int | None = None
+    ai_profiles: tuple[AiProfile, AiProfile] = ("classic", "classic")
 
 
 @dataclass

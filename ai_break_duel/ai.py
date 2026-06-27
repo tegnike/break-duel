@@ -10,11 +10,53 @@ from .cards import (
     cannot_hand_defend,
     can_defend,
     defense_combat_value,
+    draws_on_blocked_attack,
+    draws_on_play,
+    draws_on_successful_defense,
+    filters_on_play,
+    keeps_ready_after_attack,
+    opponent_draws_on_play,
+    pierces_hand_defense,
+    pressures_on_block,
 )
-from .models import Action, ActionType, GameState, PlayerState
+from .models import Action, ActionType, AiProfile, GameState, PlayerState
 
 
-def choose_action(state: GameState) -> Action:
+CHALLENGER_WEIGHTS = {
+    "damage": 160,
+    "lethal": 310,
+    "attack_power": 13,
+    "bad_attack": -73,
+    "trade_attack": 42,
+    "hand_trade_attack": 40,
+    "blocked_value": 25,
+    "play_ai": 51,
+    "empty_field_play": 51,
+    "upgrade": 78,
+    "memory": 51,
+    "command": 76,
+    "charge": 38,
+    "tempo_action": 16,
+    "field_presence": 19,
+    "hand_card": 12,
+    "opponent_ready": 1,
+    "low_life_pressure": 28,
+    "classic_prior": 60,
+}
+
+
+def choose_action(state: GameState, profile: AiProfile | None = None) -> Action:
+    selected_profile: AiProfile = profile or state.config.ai_profiles[state.active_player]
+    if selected_profile == "beginner":
+        return _choose_beginner_action(state)
+    if selected_profile == "classic":
+        return _choose_classic_action(state)
+    if selected_profile == "challenger":
+        return _choose_challenger_action(state)
+    raise ValueError(f"Unsupported AI profile: {selected_profile}")
+
+
+def _choose_classic_action(state: GameState) -> Action:
     player = state.active()
     opponent = state.opponent()
 
@@ -77,6 +119,38 @@ def choose_action(state: GameState) -> Action:
         return Action(ActionType.ATTACK, _highest_power_field_ai(player))
 
     return Action(ActionType.END_TURN)
+
+
+def _choose_beginner_action(state: GameState) -> Action:
+    player = state.active()
+    if state.actions_remaining <= 0:
+        return Action(ActionType.END_TURN)
+
+    if not player.field_ai:
+        index = _weakest_ai_in_hand(player, state)
+        if index is not None:
+            return Action(ActionType.PLAY_AI, index)
+
+    memory_index = _lowest_memory_in_hand(player)
+    if memory_index is not None and player.memory is None:
+        return Action(ActionType.PLAY_MEMORY, memory_index)
+
+    return Action(ActionType.END_TURN)
+
+
+def _choose_challenger_action(state: GameState) -> Action:
+    candidates = _legal_actions(state)
+    if not candidates:
+        return Action(ActionType.END_TURN)
+    classic_action = _choose_classic_action(state)
+    return max(
+        candidates,
+        key=lambda action: (
+            _score_action(state, action, CHALLENGER_WEIGHTS)
+            + (CHALLENGER_WEIGHTS["classic_prior"] if action == classic_action else 0),
+            _action_tie_break(action),
+        ),
+    )
 
 
 def _can_active_player_attack(state: GameState) -> bool:
@@ -255,6 +329,403 @@ def _best_damaging_attacker(
             is None
         ):
             candidates.append((index, card))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: (item[1].power or 0, item[1].id))[0]
+
+
+def _legal_actions(state: GameState) -> list[Action]:
+    player = state.active()
+    actions: list[Action] = []
+
+    if can_use_charge(state):
+        actions.extend(
+            Action(ActionType.CHARGE, index)
+            for index, card in enumerate(player.hand)
+            if _can_charge_card(card)
+        )
+
+    if state.actions_remaining > 0:
+        if len(player.field_ai) < state.config.field_ai_limit:
+            actions.extend(
+                Action(ActionType.PLAY_AI, index)
+                for index, card in enumerate(player.hand)
+                if card.type == CardType.AI and _play_cost(card, state) <= state.actions_remaining
+            )
+
+        actions.extend(
+            Action(ActionType.PLAY_MEMORY, index)
+            for index, card in enumerate(player.hand)
+            if card.type == CardType.MEMORY
+        )
+
+        if _can_use_accelerator_memory(state):
+            actions.extend(
+                Action(ActionType.USE_MEMORY, target_index=index)
+                for index, _ in enumerate(player.field_ai)
+            )
+
+        for hand_index, target in enumerate(player.hand):
+            if target.type != CardType.AI or _upgrade_cost(target, state) > state.actions_remaining:
+                continue
+            for field_index, source in enumerate(player.field_ai):
+                if _can_upgrade_with_config(state, source, target):
+                    actions.append(Action(ActionType.UPGRADE_AI, hand_index, field_index))
+
+        actions.extend(
+            Action(ActionType.USE_COMMAND, index)
+            for index, card in enumerate(player.hand)
+            if card.type == CardType.EVENT and _command_is_usable(state, index)
+        )
+
+        if _can_active_player_attack(state):
+            actions.extend(
+                Action(ActionType.ATTACK, index)
+                for index, _ in _attackable_field_ai(player)
+            )
+
+    actions.append(Action(ActionType.END_TURN))
+    return actions
+
+
+def _score_action(state: GameState, action: Action, weights: dict[str, int]) -> float:
+    player = state.active()
+    opponent = state.opponent()
+    score = _board_score(player, opponent, weights)
+
+    if action.type == ActionType.END_TURN:
+        return score - 40 + (15 if state.actions_remaining <= 0 else -55)
+
+    score += weights["tempo_action"]
+
+    if action.type == ActionType.PLAY_AI and action.source_index is not None:
+        card = player.hand[action.source_index]
+        score += weights["play_ai"] + _card_value(card)
+        if not player.field_ai:
+            score += weights["empty_field_play"]
+        if len(player.field_ai) >= state.config.field_ai_limit - 1:
+            score -= 12
+        return score
+
+    if action.type == ActionType.UPGRADE_AI and action.source_index is not None and action.target_index is not None:
+        target = player.hand[action.source_index]
+        source = player.field_ai[action.target_index]
+        return score + weights["upgrade"] + _card_value(target) - (_card_value(source) * 0.45)
+
+    if action.type == ActionType.PLAY_MEMORY and action.source_index is not None:
+        card = player.hand[action.source_index]
+        replacement_penalty = 24 if player.memory is not None else 0
+        return score + weights["memory"] + _memory_value(card) - replacement_penalty
+
+    if action.type == ActionType.USE_MEMORY and action.target_index is not None:
+        sacrificed = player.field_ai[action.target_index]
+        enables = any(
+            card.type == CardType.AI and _play_cost(card, state) <= min(3, state.actions_remaining + 1)
+            for card in player.hand
+        )
+        return score + 58 + (42 if enables else 0) - _card_value(sacrificed) * 0.55
+
+    if action.type == ActionType.USE_COMMAND and action.source_index is not None:
+        command = player.hand[action.source_index]
+        return score + weights["command"] + _command_value(state, command)
+
+    if action.type == ActionType.CHARGE and action.source_index is not None:
+        fuel = player.hand[action.source_index]
+        before = state.actions_remaining
+        after = min(3, before + 1)
+        remaining = [card for index, card in enumerate(player.hand) if index != action.source_index]
+        enables_play = any(
+            card.type == CardType.AI and before < _play_cost(card, state) <= after
+            for card in remaining
+        )
+        enables_two_step = before == 2 and any(
+            card.type == CardType.AI and _play_cost(card, state) == 2
+            for card in remaining
+        )
+        effect_value = _charge_effect_value(state, fuel)
+        if not enables_play and not enables_two_step and effect_value <= 0:
+            return score - 130
+        return (
+            score
+            + weights["charge"]
+            + (55 if enables_play else 0)
+            + (28 if enables_two_step else 0)
+            + effect_value
+            - _card_value(fuel) * 0.42
+        )
+
+    if action.type == ActionType.ATTACK and action.source_index is not None:
+        attacker = player.field_ai[action.source_index]
+        return score + _attack_value(state, attacker, weights)
+
+    return score
+
+
+def _board_score(player: PlayerState, opponent: PlayerState, weights: dict[str, int]) -> float:
+    ready = sum(1 for index, _ in enumerate(player.field_ai) if index not in player.spent_field_ai)
+    opponent_ready = sum(1 for index, _ in enumerate(opponent.field_ai) if index not in opponent.spent_field_ai)
+    return (
+        (opponent.life - player.life) * -weights["low_life_pressure"]
+        + sum(_card_value(card) for card in player.field_ai) * 0.35
+        - sum(_card_value(card) for card in opponent.field_ai) * 0.22
+        + len(player.field_ai) * weights["field_presence"]
+        + len(player.hand) * weights["hand_card"]
+        + ready * 18
+        + opponent_ready * weights["opponent_ready"]
+    )
+
+
+def _attack_value(state: GameState, attacker, weights: dict[str, int]) -> float:
+    opponent = state.opponent()
+    field_defense = choose_defender(
+        attacker,
+        opponent,
+        advantage_bonus=state.config.defense_advantage_bonus,
+        disadvantage_penalty=state.config.defense_disadvantage_penalty,
+        same_attribute_strict=state.config.same_attribute_strict_defense,
+        exhausted_ai_can_defend=state.config.exhausted_ai_can_defend,
+        power_2_defense_bonus=state.config.power_2_defense_bonus,
+        power_3_cannot_field_defend=state.config.power_3_cannot_field_defend,
+        power_3_defense_modifier=state.config.power_3_defense_modifier,
+    )
+    hand_defense = _available_hand_defender(state, attacker, opponent)
+    if pierces_hand_defense(attacker):
+        hand_defense = None
+    elif field_defense is not None and hand_defense is not None:
+        field_card = opponent.field_ai[field_defense]
+        hand_card = opponent.hand[hand_defense]
+        if (hand_card.power or 0, hand_card.id) >= (field_card.power or 0, field_card.id):
+            hand_defense = None
+        else:
+            field_defense = None
+
+    value = weights["attack_power"] * (attack_combat_value(attacker) or 0)
+    if field_defense is None and hand_defense is None:
+        value += weights["damage"]
+        if opponent.life <= 1:
+            value += weights["lethal"]
+        if blocks_low_life_hand_defense(attacker) and opponent.life <= 2:
+            value += 70
+        return value
+
+    if hand_defense is not None:
+        defender = opponent.hand[hand_defense]
+        value += weights["hand_trade_attack"] + _card_value(defender) * 0.35
+        if pierces_hand_defense(attacker):
+            value += weights["damage"]
+        return value
+
+    defender = opponent.field_ai[field_defense]
+    defense_value = defense_combat_value(
+        attacker,
+        defender,
+        advantage_bonus=state.config.defense_advantage_bonus,
+        disadvantage_penalty=state.config.defense_disadvantage_penalty,
+        defense_power_bonus=_defense_power_bonus(
+            defender,
+            state.config.power_2_defense_bonus,
+            opponent,
+            attacker,
+            field_index=field_defense,
+            power_3_defense_modifier=state.config.power_3_defense_modifier,
+        ),
+    )
+    if defense_value == attack_combat_value(attacker):
+        value += weights["trade_attack"] + _card_value(defender) * 0.35
+    else:
+        value += weights["bad_attack"]
+    if pressures_on_block(attacker):
+        value += weights["blocked_value"]
+    if draws_on_blocked_attack(attacker):
+        value += 32
+    if keeps_ready_after_attack(attacker):
+        value += 36
+    return value
+
+
+def _available_hand_defender(state: GameState, attacker, defender: PlayerState) -> int | None:
+    if state.config.hand_defense_requires_empty_field and defender.field_ai:
+        return None
+    if state.config.hand_defense_limit_per_turn is not None:
+        if state.config.hand_defense_limit_per_turn <= 0:
+            return None
+        if defender.hand_defenses_used_this_turn >= state.config.hand_defense_limit_per_turn:
+            return None
+    return choose_hand_defender(
+        attacker,
+        defender,
+        advantage_bonus=state.config.defense_advantage_bonus,
+        disadvantage_penalty=state.config.defense_disadvantage_penalty,
+        same_attribute_strict=state.config.same_attribute_strict_defense,
+        power_2_defense_bonus=state.config.power_2_defense_bonus,
+        power_3_cannot_hand_defend=state.config.power_3_cannot_hand_defend,
+        power_3_defense_modifier=state.config.power_3_defense_modifier,
+    )
+
+
+def _card_value(card) -> int:
+    if card.type == CardType.AI:
+        value = (card.power or 0) * 20
+        effect_bonus = {
+            "attack_plus_1": 18,
+            "reckless_attack_plus_1": 8,
+            "draw_after_overheat": 10,
+            "draw_two_after_overheat": 18,
+            "draw_two_after_overheat_opponent_draw": 8,
+            "draw_on_play": 20,
+            "draw_on_play_cannot_hand_defend": 15,
+            "filter_on_play": 24,
+            "no_spend_after_attack": 34,
+            "spend_enemy_on_play": 32,
+            "spend_enemy_on_play_enters_spent": 18,
+            "defense_plus_1": 18,
+            "defense_plus_1_enters_spent": 8,
+            "recover_ai_on_play": 22,
+            "block_pressure": 15,
+            "hand_defense_pierce": 24,
+            "low_life_no_hand_defense": 26,
+            "low_life_no_hand_defense_self_damage": 16,
+            "draw_on_blocked_attack": 18,
+            "draw_on_blocked_attack_cannot_hand_defend": 10,
+            "ready_ally_on_play": 24,
+            "ready_ally_on_play_draw": 34,
+            "return_after_overheat": 12,
+            "return_after_overheat_cannot_hand_defend": 4,
+            "draw_on_successful_defense": 14,
+            "draw_on_successful_defense_enters_spent": 6,
+            "charge_pressure": 16,
+            "charge_draw": 18,
+            "charge_ready_ally": 18,
+            "charge_guard": 16,
+        }
+        value += effect_bonus.get(card.effect, 0)
+        if draws_on_play(card):
+            value += 8
+        if filters_on_play(card):
+            value += 10
+        if opponent_draws_on_play(card):
+            value -= 12
+        if draws_on_successful_defense(card):
+            value += 8
+        return value
+    if card.type == CardType.MEMORY:
+        return _memory_value(card)
+    return 12
+
+
+def _memory_value(card) -> int:
+    priority = {
+        MemoryEffect.CACHE.value: 48,
+        MemoryEffect.RESONATOR.value: 45,
+        MemoryEffect.PIPELINE.value: 38,
+        MemoryEffect.ACCELERATOR.value: 36,
+        MemoryEffect.FIREWALL.value: 30,
+    }
+    return priority.get(card.effect, 12)
+
+
+def _command_value(state: GameState, command) -> int:
+    player = state.active()
+    opponent = state.opponent()
+    if command.effect == CommandEffect.TRINITY.value:
+        return 165 if opponent.life <= 1 else 92
+    if command.effect == CommandEffect.FIRE_RITE.value:
+        return 110 if not opponent.hand else 58
+    if command.effect == CommandEffect.WIND_RITE.value:
+        return 74 + (22 if _highest_power_ready_ai(opponent) is not None else 0)
+    if command.effect == CommandEffect.WATER_RITE.value:
+        return 68 if player.deck else 0
+    if command.effect == CommandEffect.EARTH_RITE.value:
+        return 62
+    if command.effect == CommandEffect.DISRUPT.value:
+        return 70 + max((card.power or 0) * 9 for index, card in enumerate(opponent.field_ai) if index not in opponent.spent_field_ai)
+    if command.effect == CommandEffect.SANDBOX.value:
+        return 84
+    if command.effect == CommandEffect.RELEARN.value:
+        return 45
+    if command.effect == CommandEffect.OPTIMIZE.value:
+        return 36 + max(0, 4 - len(player.hand)) * 4
+    if command.effect == CommandEffect.PATCH.value:
+        return 48
+    return 0
+
+
+def _charge_effect_value(state: GameState, fuel) -> int:
+    player = state.active()
+    opponent = state.opponent()
+    if fuel.effect == "charge_pressure":
+        return 50 if len(opponent.hand) >= 3 else 8
+    if fuel.effect == "charge_draw":
+        return 42 if player.deck else 0
+    if fuel.effect == "charge_ready_ally":
+        return 62 if _highest_power_spent_ai(player) is not None else 8
+    if fuel.effect == "charge_guard":
+        return 38 if player.field_ai else 6
+    if player.memory is not None and player.memory.effect == "resonator" and len(player.hand) <= 2:
+        return 24
+    return 0
+
+
+def _action_tie_break(action: Action) -> tuple[int, int, int]:
+    priority = {
+        ActionType.ATTACK: 7,
+        ActionType.USE_COMMAND: 6,
+        ActionType.UPGRADE_AI: 5,
+        ActionType.PLAY_AI: 4,
+        ActionType.CHARGE: 3,
+        ActionType.USE_MEMORY: 2,
+        ActionType.PLAY_MEMORY: 1,
+        ActionType.END_TURN: 0,
+    }
+    return (
+        priority.get(action.type, 0),
+        -1 if action.source_index is None else -action.source_index,
+        -1 if action.target_index is None else -action.target_index,
+    )
+
+
+def _weakest_ai_in_hand(player: PlayerState, state: GameState) -> int | None:
+    candidates = [
+        (index, card)
+        for index, card in enumerate(player.hand)
+        if card.type == CardType.AI and _play_cost(card, state) <= state.actions_remaining
+    ]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda item: (item[1].power or 0, item[1].id))[0]
+
+
+def _lowest_memory_in_hand(player: PlayerState) -> int | None:
+    candidates = [
+        (index, card)
+        for index, card in enumerate(player.hand)
+        if card.type == CardType.MEMORY
+    ]
+    if not candidates:
+        return None
+    return min(candidates, key=lambda item: (_memory_value(item[1]), item[1].id))[0]
+
+
+def _lowest_power_field_ai(player: PlayerState) -> int | None:
+    candidates = _attackable_field_ai(player)
+    if not candidates:
+        return None
+    return min(candidates, key=lambda item: (item[1].power or 0, item[1].id))[0]
+
+
+def _highest_power_spent_ai(player: PlayerState) -> int | None:
+    candidates = [
+        (index, player.field_ai[index])
+        for index in player.spent_field_ai
+        if 0 <= index < len(player.field_ai)
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: (item[1].power or 0, item[1].id))[0]
+
+
+def _highest_power_ready_ai(player: PlayerState) -> int | None:
+    candidates = _attackable_field_ai(player)
     if not candidates:
         return None
     return max(candidates, key=lambda item: (item[1].power or 0, item[1].id))[0]

@@ -4,6 +4,7 @@ import {
   BATTLE_DECK_IDS,
   DECKS,
   type AiAction,
+  type AiProfile,
   type DefenseChoice,
   type Card,
   type DeckId,
@@ -196,8 +197,9 @@ export default function App() {
   const [seed, setSeed] = useState(INITIAL_SEED);
   const [playerDeckSelection, setPlayerDeckSelection] = useState<DeckSelection>({ kind: "preset", deckId: "fire" });
   const [opponentDeckSelection, setOpponentDeckSelection] = useState<DeckSelection>({ kind: "random" });
+  const [opponentAiProfile, setOpponentAiProfile] = useState<AiProfile>("challenger");
   const [savedDecks, setSavedDecks] = useState<SavedDeck[]>(() => loadSavedDecks());
-  const [game, setGame] = useState<GameState>(() => createGame(INITIAL_SEED, "fire"));
+  const [game, setGame] = useState<GameState>(() => createGame(INITIAL_SEED, "fire", undefined, "challenger"));
   const [rulesOpen, setRulesOpen] = useState(false);
   const [starterDeckModalOpen, setStarterDeckModalOpen] = useState(true);
   const [starterDeckChosen, setStarterDeckChosen] = useState(false);
@@ -603,7 +605,7 @@ export default function App() {
       const selectionRng = makeRng(nextSeed);
       const playerSelection = resolveDeckSelection(playerDeckSelection, selectionRng);
       const opponentSelection = resolveDeckSelection(opponentDeckSelection, selectionRng);
-      const nextGame = createGame(nextSeed, toDuelDeckSource(playerSelection), toDuelDeckSource(opponentSelection));
+      const nextGame = createGame(nextSeed, toDuelDeckSource(playerSelection), toDuelDeckSource(opponentSelection), opponentAiProfile);
       setSeed(nextSeed);
       resetDrawTracker(nextGame);
       setGame(nextGame);
@@ -779,7 +781,7 @@ export default function App() {
     if (aiAnimating) return undefined;
     if (duelEvent || duelEventPlaying.current || duelEventQueue.current.length > 0 || duelEventScheduler.current !== null) return undefined;
     const timer = window.setTimeout(() => {
-      const action = chooseAiAction(game);
+      const action = chooseAiAction(game, active.aiProfile);
       const commitDelay = prepareAiActionAnimation(action);
       setAiAnimating(true);
       aiCommitTimer.current = window.setTimeout(() => {
@@ -1198,7 +1200,7 @@ export default function App() {
     const defender = game.players[1 - attackerIndex];
     const attackCard = attacker.field[fieldIndex];
     if (attackCard && defender && !defender.isHuman) {
-      launchDefenseTrashFlights(attackerIndex, fieldIndex, chooseAiDefense(defender, attackCard));
+      launchDefenseTrashFlights(attackerIndex, fieldIndex, chooseAiDefense(defender, attackCard, defender.aiProfile));
     }
     mutate((draft) => beginAttackInDraft(draft, attackerIndex, fieldIndex, { playSfx, showDuelEvent: queueDuelEvent }));
     showToast("攻撃", "攻撃を宣言しました");
@@ -1757,11 +1759,13 @@ export default function App() {
         <StarterDeckModal
           playerSelection={playerDeckSelection}
           opponentSelection={opponentDeckSelection}
+          opponentAiProfile={opponentAiProfile}
           savedDecks={savedDecks}
           canClose={starterDeckChosen}
           onClose={() => setStarterDeckModalOpen(false)}
           onChangePlayerSelection={setPlayerDeckSelection}
           onChangeOpponentSelection={setOpponentDeckSelection}
+          onChangeOpponentAiProfile={setOpponentAiProfile}
           onStart={startSelectedDeckGame}
         />
       )}
@@ -1793,20 +1797,24 @@ function NoActionsEndTurnPrompt({ onConfirm }: { onConfirm: () => void }) {
 function StarterDeckModal({
   playerSelection,
   opponentSelection,
+  opponentAiProfile,
   savedDecks,
   canClose,
   onClose,
   onChangePlayerSelection,
   onChangeOpponentSelection,
+  onChangeOpponentAiProfile,
   onStart,
 }: {
   playerSelection: DeckSelection;
   opponentSelection: DeckSelection;
+  opponentAiProfile: AiProfile;
   savedDecks: SavedDeck[];
   canClose: boolean;
   onClose: () => void;
   onChangePlayerSelection: (selection: DeckSelection) => void;
   onChangeOpponentSelection: (selection: DeckSelection) => void;
+  onChangeOpponentAiProfile: (profile: AiProfile) => void;
   onStart: () => void;
 }) {
   return (
@@ -1835,6 +1843,27 @@ function StarterDeckModal({
             onChange={onChangeOpponentSelection}
           />
         </div>
+        <section className="starter-ai-profile" aria-label="相手CPU">
+          <h3>相手CPU</h3>
+          <div className="segmented-control">
+            <button
+              type="button"
+              className={opponentAiProfile === "beginner" ? "active" : ""}
+              aria-pressed={opponentAiProfile === "beginner"}
+              onClick={() => onChangeOpponentAiProfile("beginner")}
+            >
+              初心者
+            </button>
+            <button
+              type="button"
+              className={opponentAiProfile === "challenger" ? "active" : ""}
+              aria-pressed={opponentAiProfile === "challenger"}
+              onClick={() => onChangeOpponentAiProfile("challenger")}
+            >
+              挑戦者
+            </button>
+          </div>
+        </section>
         <div className="starter-modal-actions">
           <button type="button" className="primary-action" onClick={onStart}>対戦開始</button>
         </div>

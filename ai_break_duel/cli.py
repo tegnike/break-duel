@@ -3,10 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import get_args
 
 from .cards import DeckArchetype
-from .models import GameConfig
+from .models import AiProfile, GameConfig
 from .simulation import run_league, run_match, run_simulation
+
+AI_PROFILE_CHOICES = list(get_args(AiProfile))
 
 
 def main() -> None:
@@ -19,6 +22,8 @@ def main() -> None:
     simulate.add_argument("--out", type=Path, default=Path("tmp"))
     simulate.add_argument("--first-deck", choices=[item.value for item in DeckArchetype])
     simulate.add_argument("--second-deck", choices=[item.value for item in DeckArchetype])
+    simulate.add_argument("--first-ai", choices=AI_PROFILE_CHOICES, default="challenger")
+    simulate.add_argument("--second-ai", choices=AI_PROFILE_CHOICES, default="challenger")
     simulate.add_argument("--max-turns", type=int, default=60)
     simulate.add_argument("--first-player-initial-hand", type=int, default=5)
     simulate.add_argument("--second-player-initial-hand", type=int, default=4)
@@ -83,6 +88,8 @@ def main() -> None:
     match.add_argument("--seed", type=int, default=1)
     match.add_argument("--first-deck", choices=[item.value for item in DeckArchetype])
     match.add_argument("--second-deck", choices=[item.value for item in DeckArchetype])
+    match.add_argument("--first-ai", choices=AI_PROFILE_CHOICES, default="challenger")
+    match.add_argument("--second-ai", choices=AI_PROFILE_CHOICES, default="challenger")
     match.add_argument("--max-turns", type=int, default=60)
     match.add_argument("--first-player-initial-hand", type=int, default=5)
     match.add_argument("--second-player-initial-hand", type=int, default=4)
@@ -158,6 +165,8 @@ def main() -> None:
             DeckArchetype.EARTH.value,
         ],
     )
+    league.add_argument("--first-ai", choices=AI_PROFILE_CHOICES, default="challenger")
+    league.add_argument("--second-ai", choices=AI_PROFILE_CHOICES, default="challenger")
     league.add_argument("--max-turns", type=int, default=60)
     league.add_argument("--first-player-initial-hand", type=int, default=5)
     league.add_argument("--second-player-initial-hand", type=int, default=4)
@@ -239,6 +248,7 @@ def main() -> None:
         exhaust_after_attack=not args.no_exhaust_after_attack,
         exhausted_ai_can_defend=args.exhausted_ai_can_defend,
         successful_defense_discards_both=not args.no_successful_defense_discard,
+        ai_profiles=(args.first_ai, args.second_ai),
     )
 
     if args.command == "simulate":

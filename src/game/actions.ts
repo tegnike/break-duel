@@ -473,7 +473,7 @@ export function beginAttackInDraft(
   }
   draft.pendingAttack = { attackerIndex, defenderIndex, fieldIndex };
   draft.selected = null;
-  if (!defender.isHuman) resolveDefenseInDraft(draft, chooseAiDefense(defender, attackCard), effects);
+  if (!defender.isHuman) resolveDefenseInDraft(draft, chooseAiDefense(defender, attackCard, defender.aiProfile), effects);
 }
 
 export function resolveDefenseInDraft(
