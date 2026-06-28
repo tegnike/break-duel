@@ -9123,3 +9123,116 @@ body:has(.modal-backdrop) {
 .clash-line::before {
   letter-spacing: 0.04em;
 }
+
+/* Fantasy resource pass: replace plain bars/dots/circles with sigils and mana gems. */
+.stitch-life {
+  gap: 7px;
+  min-height: 22px;
+  margin-top: 4px;
+}
+
+.stitch-life span {
+  position: relative;
+  width: 15px;
+  height: 15px;
+  border: 1px solid rgba(245, 207, 120, 0.62);
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background:
+    radial-gradient(circle at 38% 28%, rgba(255, 255, 255, 0.8), transparent 18%),
+    linear-gradient(135deg, #b6f2ff 0 22%, #32c7ea 45%, #14516a 100%);
+  box-shadow:
+    0 0 12px rgba(125, 220, 255, 0.34),
+    inset 0 0 8px rgba(255, 255, 255, 0.16);
+}
+
+.stitch-life.magenta span {
+  background:
+    radial-gradient(circle at 38% 28%, rgba(255, 255, 255, 0.8), transparent 18%),
+    linear-gradient(135deg, #ffd1ec 0 22%, #ff63bd 48%, #6e1e54 100%);
+  box-shadow:
+    0 0 12px rgba(255, 111, 207, 0.38),
+    inset 0 0 8px rgba(255, 255, 255, 0.16);
+}
+
+.stitch-life span.empty {
+  border-color: rgba(245, 207, 120, 0.24);
+  background:
+    linear-gradient(135deg, rgba(245, 207, 120, 0.1), rgba(7, 7, 17, 0.58));
+  box-shadow:
+    inset 0 0 8px rgba(0, 0, 0, 0.42);
+  opacity: 0.58;
+}
+
+.stitch-life em {
+  margin-left: 7px;
+  color: #f8e9bc;
+  font-family: var(--duel-serif);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 10px rgba(245, 207, 120, 0.18);
+}
+
+.compact-action-meter .meter-value,
+.stitch-command-dock .meter-value {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border: 2px solid rgba(245, 207, 120, 0.7);
+  border-radius: 8px;
+  clip-path: polygon(50% 0, 88% 14%, 100% 50%, 88% 86%, 50% 100%, 12% 86%, 0 50%, 12% 14%);
+  color: #fff2c9;
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.76), transparent 18%),
+    conic-gradient(from 18deg, #2a1d5c, #7a51dd, #f5cf78, #4a2472, #2a1d5c);
+  box-shadow:
+    0 0 0 3px rgba(7, 7, 17, 0.72),
+    0 0 24px rgba(245, 207, 120, 0.28),
+    inset 0 0 16px rgba(0, 0, 0, 0.45);
+  font-family: var(--duel-serif);
+  font-size: 23px;
+  font-weight: 950;
+}
+
+.action-tokens {
+  gap: 8px;
+  align-items: center;
+}
+
+.action-token,
+.stitch-command-dock .action-token {
+  width: 15px;
+  height: 18px;
+  border: 1px solid rgba(245, 207, 120, 0.7);
+  border-radius: 2px;
+  clip-path: polygon(50% 0, 94% 26%, 82% 100%, 18% 100%, 6% 26%);
+  background:
+    radial-gradient(circle at 40% 24%, rgba(255, 255, 255, 0.72), transparent 20%),
+    linear-gradient(180deg, #fff2ba, #d89632 46%, #6a3a16);
+  box-shadow:
+    0 0 12px rgba(245, 207, 120, 0.34),
+    inset 0 0 7px rgba(255, 255, 255, 0.16);
+}
+
+.action-token.spent,
+.stitch-command-dock .action-token.spent {
+  border-color: rgba(245, 207, 120, 0.24);
+  background:
+    linear-gradient(180deg, rgba(245, 207, 120, 0.12), rgba(7, 7, 17, 0.72));
+  box-shadow:
+    inset 0 0 8px rgba(0, 0, 0, 0.5);
+  opacity: 0.66;
+}
+
+.stitch-command-dock .action-meter,
+.compact-action-meter {
+  border-radius: 14px;
+  border-color: rgba(245, 207, 120, 0.3);
+  background:
+    linear-gradient(90deg, rgba(245, 207, 120, 0.1), rgba(7, 7, 17, 0.66) 46%, rgba(91, 58, 138, 0.12)),
+    rgba(7, 7, 17, 0.58);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 0 20px rgba(245, 207, 120, 0.05);
+}

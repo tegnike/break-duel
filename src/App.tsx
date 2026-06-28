@@ -2028,7 +2028,7 @@ function LifePips({ life, tone }: { life: number; tone: "cyan" | "magenta" }) {
       {Array.from({ length: CONFIG.life }).map((_, index) => (
         <span key={index} className={index >= life ? "empty" : ""} />
       ))}
-      <em>life {life}</em>
+      <em>生命 {life}</em>
     </div>
   );
 }
