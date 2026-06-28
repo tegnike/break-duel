@@ -52,7 +52,6 @@ import {
 } from "./game/actions";
 import { selectedCardForDetail, selectedHandCardName } from "./game/selectors";
 import {
-  AffinityGuide,
   DefensePanel,
   LogList,
   SelectedCardDetail,
@@ -1628,7 +1627,7 @@ export default function App() {
         </div>
         <div className="stitch-counts">
           <div className="action-meter compact-action-meter" aria-label={`相手アクション ${opponentActionsRemaining}${opponentAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
-            <span className="meter-label">相手アクション</span>
+            <span className="meter-label">相手AP</span>
             <span className="meter-value">{opponentActionsRemaining}</span>
             <span className="action-tokens" aria-hidden="true">
               {Array.from({ length: 3 }).map((_, index) => (
@@ -1663,6 +1662,12 @@ export default function App() {
           <h2>{human.name}</h2>
           <div className="deck-badge magenta">{human.deckName}</div>
           <LifePips life={human.life} tone="magenta" />
+        </div>
+        <div className="stitch-player-stats" aria-label="自分のカード枚数">
+          <span>手札 {human.hand.length}</span>
+          <span>山札 {human.deck.length}</span>
+          <span>捨札 {human.discard.length}</span>
+          <span>遺物 {human.memory ? "1" : "0"}</span>
         </div>
       </section>
 
@@ -1750,9 +1755,6 @@ export default function App() {
           </div>
         </div>
 
-        <div className="dock-side">
-          <AffinityGuide game={game} selected={selectedCard} />
-        </div>
       </section>
 
       <aside className="stitch-log-sidebar" aria-label="対戦ログ">

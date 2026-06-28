@@ -73,7 +73,7 @@ export function CardView({
 }
 
 export function CardArtPreview({ card }: { card: Card | null }) {
-  if (!card) return <div className="empty-preview">NO SELECT</div>;
+  if (!card) return <div className="empty-preview"><span>カード選択</span></div>;
 
   return (
     <div
