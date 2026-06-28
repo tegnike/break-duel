@@ -141,7 +141,7 @@ export function DefensePanel({
       const excluded = new Set(pending.excludeIndexes);
       const selected = new Set(pending.selectedIndexes);
       return (
-        <div className="defense-panel">
+        <div className={`defense-panel pending-${pending.reason}`}>
           <h3>{pending.title}</h3>
           <p className="choice-prompt">{pending.prompt}</p>
           <div className="pending-card-grid">
@@ -177,7 +177,7 @@ export function DefensePanel({
       const excluded = new Set(pending.excludeIndexes);
       const selected = new Set(pending.selectedIndexes);
       return (
-        <div className="defense-panel">
+        <div className={`defense-panel pending-${pending.reason}`}>
           <h3>{pending.title}</h3>
           <p className="choice-prompt">{pending.prompt}</p>
           <div className="pending-card-grid">

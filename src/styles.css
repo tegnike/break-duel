@@ -6760,6 +6760,20 @@ h1 {
   transform: none;
 }
 
+.stitch-shell.field-targeting:has(> .defense-panel.pending-upgrade-source:not(:empty))::after {
+  pointer-events: auto;
+}
+
+.stitch-shell.field-targeting > .defense-panel.pending-upgrade-source:not(:empty) {
+  left: 50%;
+  right: auto;
+  top: 50%;
+  bottom: auto;
+  width: min(920px, calc(100vw - 32px));
+  max-height: min(76vh, 680px);
+  transform: translate(-50%, -50%);
+}
+
 @media (min-width: 921px) and (max-width: 1100px) {
   .stitch-command-dock {
     grid-template-columns: 360px minmax(0, 1fr) 248px;
@@ -6954,4 +6968,358 @@ h1 {
 
 .stitch-shell > .duel-overlay.turn-banner {
   min-width: min(460px, calc(100vw - 32px));
+}
+
+/* Game modal pass: solid frame, title plate, hardware corners, and no outer scrollbars. */
+.modal-backdrop,
+.starter-deck-backdrop,
+.discard-backdrop {
+  overflow: hidden;
+  background: rgba(2, 5, 8, 0.84);
+  backdrop-filter: blur(5px) saturate(0.82);
+}
+
+html:has(.modal-backdrop),
+body:has(.modal-backdrop) {
+  overflow: hidden;
+}
+
+.rules-modal,
+.discard-modal,
+.starter-deck-modal,
+.stitch-shell > .defense-panel:not(:empty) {
+  --modal-rim: #8a764d;
+  --modal-rim-bright: #d9bd78;
+  --modal-face: #0d1218;
+  --modal-plate: #18212a;
+  position: relative;
+  isolation: isolate;
+  border: 2px solid var(--modal-rim);
+  border-radius: 4px;
+  color: #f4f0e7;
+  background: var(--modal-face);
+  box-shadow:
+    0 26px 70px rgba(0, 0, 0, 0.72),
+    inset 0 0 0 2px #05070a,
+    inset 0 0 0 5px rgba(217, 189, 120, 0.12);
+  outline: 1px solid rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+}
+
+.rules-modal::before,
+.discard-modal::before,
+.starter-deck-modal::before,
+.stitch-shell > .defense-panel:not(:empty)::before {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  z-index: -1;
+  border: 1px solid rgba(217, 189, 120, 0.28);
+  pointer-events: none;
+}
+
+.rules-modal::after,
+.discard-modal::after,
+.starter-deck-modal::after,
+.stitch-shell > .defense-panel:not(:empty)::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  z-index: -1;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.035),
+    14px 14px 0 -12px var(--modal-rim-bright),
+    -14px 14px 0 -12px var(--modal-rim-bright),
+    14px -14px 0 -12px var(--modal-rim-bright),
+    -14px -14px 0 -12px var(--modal-rim-bright);
+}
+
+.modal-head {
+  position: relative;
+  min-height: 54px;
+  border-bottom: 2px solid #05070a;
+  padding: 12px 18px 11px;
+  background: var(--modal-plate);
+  box-shadow: inset 0 -1px 0 rgba(217, 189, 120, 0.42);
+}
+
+.modal-head::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  bottom: -2px;
+  width: 118px;
+  height: 2px;
+  background: var(--modal-rim-bright);
+  pointer-events: none;
+}
+
+.modal-head h2,
+.stitch-shell > .defense-panel:not(:empty) h3 {
+  margin: 0;
+  color: #f9f3df;
+  font-size: 18px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.modal-head p,
+.choice-prompt {
+  color: #c8c0ae;
+}
+
+.modal-head > button,
+.defense-actions button,
+.starter-modal-actions .primary-action,
+.segmented-control button {
+  border: 1px solid #7e6a43;
+  border-radius: 3px;
+  color: #f4ecd1;
+  background: #19232c;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.38),
+    0 6px 0 rgba(0, 0, 0, 0.22);
+}
+
+.modal-head > button:hover,
+.defense-actions button:hover:not(:disabled),
+.starter-modal-actions .primary-action:hover,
+.segmented-control button:hover:not(:disabled) {
+  border-color: #d9bd78;
+  background: #22303a;
+}
+
+.starter-deck-modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+}
+
+.starter-duel-selectors {
+  min-height: 0;
+  gap: 14px;
+  padding: 14px 18px 0;
+  overflow: hidden;
+  background: #091018;
+}
+
+.starter-deck-picker {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  align-content: start;
+  min-height: 0;
+}
+
+.starter-deck-picker h3,
+.starter-saved-decks h3,
+.starter-fixed-decks h3,
+.starter-ai-profile h3,
+.rules-content h3 {
+  color: #f5df9d;
+}
+
+.starter-deck-group {
+  margin-top: 10px;
+}
+
+.starter-deck-group h4 {
+  margin-bottom: 6px;
+  color: #a99a78;
+}
+
+.starter-deck-grid.compact {
+  gap: 8px;
+}
+
+.starter-deck-grid.compact button,
+.starter-deck-grid button {
+  position: relative;
+  min-height: 62px;
+  border: 1px solid #3f4650;
+  border-radius: 3px;
+  padding: 9px 10px 9px 12px;
+  background: #111922;
+  box-shadow:
+    inset 3px 0 0 rgba(217, 189, 120, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.starter-deck-grid.compact button::before,
+.starter-deck-grid button::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: #5f6f7f;
+}
+
+.starter-deck-grid.compact button.selected,
+.starter-deck-grid button.selected {
+  border-color: #d9bd78;
+  background: #18222c;
+  box-shadow:
+    inset 3px 0 0 #d9bd78,
+    inset 0 0 0 1px rgba(217, 189, 120, 0.32),
+    0 0 0 1px rgba(217, 189, 120, 0.2);
+}
+
+.starter-deck-grid.compact button.selected::before,
+.starter-deck-grid button.selected::before {
+  background: #d9bd78;
+}
+
+.starter-deck-grid.compact span,
+.starter-deck-grid span {
+  font-size: 13px;
+  line-height: 1.16;
+}
+
+.starter-deck-grid.compact em,
+.starter-deck-grid em {
+  display: -webkit-box;
+  margin-top: 5px;
+  overflow: hidden;
+  color: #b9c2c8;
+  font-size: 11px;
+  line-height: 1.32;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.starter-ai-profile {
+  margin: 12px 18px 0;
+  padding: 9px 10px;
+  border: 1px solid #3f4650;
+  border-radius: 3px;
+  background: #111922;
+}
+
+.starter-modal-actions {
+  padding: 12px 18px 16px;
+  background: #091018;
+}
+
+.rules-content,
+.discard-view {
+  overflow-x: hidden;
+  background: #091018;
+}
+
+.rules-content section,
+.discard-view-detail,
+.discard-view-list {
+  border-color: #3f4650;
+  border-radius: 3px;
+  background: #111922;
+  box-shadow: inset 3px 0 0 rgba(217, 189, 120, 0.2);
+}
+
+.stitch-shell > .defense-panel:not(:empty) {
+  padding: 16px;
+}
+
+.stitch-shell > .defense-panel:not(:empty) h3 {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #3f4650;
+}
+
+.stitch-shell > .defense-panel.pending-upgrade-source:not(:empty) {
+  --modal-rim: #a47d35;
+  --modal-rim-bright: #f0c462;
+  --modal-face: #130e09;
+  --modal-plate: #22170d;
+}
+
+.pending-card-grid {
+  gap: 10px;
+  padding: 2px;
+}
+
+.pending-card-choice {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--card-color) 38%, #7e6a43 42%);
+  border-radius: 3px;
+  background: #111922;
+  box-shadow:
+    inset 4px 0 0 color-mix(in srgb, var(--card-color) 48%, #d9bd78 24%),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.pending-card-choice::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.045);
+  pointer-events: none;
+}
+
+.pending-card-choice:hover,
+.pending-card-choice.selected {
+  border-color: color-mix(in srgb, var(--card-color) 34%, #f0c462 54%);
+  background: #18222c;
+  box-shadow:
+    inset 4px 0 0 color-mix(in srgb, var(--card-color) 42%, #f0c462 36%),
+    inset 0 0 0 1px rgba(240, 196, 98, 0.2);
+}
+
+.pending-card-effect {
+  color: #e4ddd0;
+}
+
+.modal-backdrop,
+.rules-content,
+.discard-view,
+.starter-deck-modal,
+.starter-duel-selectors {
+  scrollbar-width: none;
+}
+
+.modal-backdrop::-webkit-scrollbar,
+.rules-content::-webkit-scrollbar,
+.discard-view::-webkit-scrollbar,
+.starter-deck-modal::-webkit-scrollbar,
+.starter-duel-selectors::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+@media (max-width: 720px) {
+  .modal-head {
+    min-height: 0;
+    padding: 11px 13px;
+  }
+
+  .modal-head h2,
+  .stitch-shell > .defense-panel:not(:empty) h3 {
+    font-size: 16px;
+  }
+
+  .starter-deck-modal {
+    display: block;
+    overflow-y: auto;
+  }
+
+  .starter-duel-selectors {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .starter-deck-grid.compact button,
+  .starter-deck-grid button {
+    min-height: 58px;
+  }
+
+  .stitch-shell > .defense-panel:not(:empty) {
+    padding: 13px;
+  }
+
+  .pending-card-choice {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
 }
