@@ -73,6 +73,8 @@ import sfxSelect from "./assets/audio/sfx-select.ogg";
 import sfxTrash from "./assets/audio/sfx-trash.ogg";
 import sfxTurnEnd from "./assets/audio/sfx-turn-end.ogg";
 import cardBackImage from "./assets/card-back.webp";
+import leaderHumanImage from "./assets/leader-human-placeholder.webp";
+import leaderRivalImage from "./assets/leader-rival-placeholder.webp";
 import brandMark from "./assets/mark.svg";
 
 let eventId = 1;
@@ -1643,6 +1645,7 @@ export default function App() {
       </header>
 
       <section className="stitch-battlefield" aria-label="対戦盤面">
+        <LeaderPortrait player={ai} tone="rival" image={leaderRivalImage} label="RIVAL" />
         <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent trashSurge={ownerHasTrashSurge(1)} combatPreview={combatPreview} onSelectField={selectField} onSelectMemory={selectMemory} />
         <div className={`clash-line ${combatPreview ? "armed" : ""} ${combatPreview?.direct ? "direct" : ""}`} aria-hidden="true">
           {combatPreview && (
@@ -1654,6 +1657,7 @@ export default function App() {
             </span>
           )}
         </div>
+        <LeaderPortrait player={human} tone="human" image={leaderHumanImage} label="YOU" />
         <FieldGrid player={human} ownerIndex={0} game={game} trashSurge={ownerHasTrashSurge(0)} onSelectField={selectField} onSelectMemory={selectMemory} />
       </section>
 
@@ -2228,6 +2232,30 @@ function MemorySlot({
     );
   }
   return <div className={`field-slot memory-empty ${trashSurge ? "trash-alert" : ""}`} data-owner={ownerIndex} data-zone="memory" data-index={0}>遺物</div>;
+}
+
+function LeaderPortrait({
+  player,
+  tone,
+  image,
+  label,
+}: {
+  player: PlayerState;
+  tone: "human" | "rival";
+  image: string;
+  label: string;
+}) {
+  return (
+    <figure className={`leader-portrait ${tone}`} aria-label={`${player.name}のリーダー`}>
+      <div className="leader-portrait-art">
+        <img src={image} alt="" draggable={false} />
+      </div>
+      <figcaption>
+        <span>{label}</span>
+        <strong>{player.name}</strong>
+      </figcaption>
+    </figure>
+  );
 }
 
 function CardFlightLayer({ flight }: { flight: CardFlight | null }) {
