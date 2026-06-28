@@ -123,6 +123,11 @@ export function chargeHandCardInDraft(draft: GameState, playerIndex: number, han
   return charged;
 }
 
+export function confirmChargeGuardTargetInDraft(draft: GameState, playerIndex: number, handIndex: number, fieldIndex: number): Card | null {
+  draft.pendingTarget = null;
+  return chargeHandCardInDraft(draft, playerIndex, handIndex, fieldIndex);
+}
+
 function applyChargeEffects(draft: GameState, playerIndex: number, charged: Card, chargeGuardTargetIndex?: number | null): string {
   const player = draft.players[playerIndex];
   const opponent = draft.players[1 - playerIndex];

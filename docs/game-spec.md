@@ -724,8 +724,12 @@ npm run check
 このコマンドは次を実行します。
 
 1. TypeScript 型チェック: `tsc --noEmit`
-2. Vite ビルド: `vite build`
-3. Python ルールテスト: `python3 -m unittest`
+2. TypeScript 単体テスト: `vitest run`
+3. Vite ビルド: `vite build`
+4. Python ルールテスト: `python3 -m unittest`
+
+カード効果を追加・変更する場合は、`src/game/cardEffectCoverage.test.ts` に効果ケースを追加します。
+このテストは有効カードプール内の効果 ID と登録済み効果ケースを照合し、未登録の効果や古い登録を検知します。
 
 現在のルールテストには、次の重要ケースが含まれます。
 

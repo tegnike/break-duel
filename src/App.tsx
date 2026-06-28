@@ -43,6 +43,7 @@ import {
   applyPlayEffects,
   beginAttackInDraft,
   chargeHandCardInDraft,
+  confirmChargeGuardTargetInDraft,
   discardHandCards,
   performAiActionInDraft,
   resolveDefenseInDraft,
@@ -881,6 +882,11 @@ export default function App() {
   }
 
   function selectHand(index: number) {
+    const pending = game.pendingTarget;
+    if (pending?.kind === "card-select" && pending.playerIndex === 0 && pending.zone === "hand") {
+      togglePendingCardIndex(index);
+      return;
+    }
     playSfx("select");
     mutate((draft) => {
       draft.selected = { zone: "hand", ownerIndex: 0, index };
@@ -889,6 +895,10 @@ export default function App() {
 
   function selectField(ownerIndex: number, index: number) {
     const pending = game.pendingTarget;
+    if (pending?.kind === "card-select" && pending.playerIndex === ownerIndex && pending.zone === "field") {
+      togglePendingCardIndex(index);
+      return;
+    }
     if (pending?.kind === "disrupt" && ownerIndex === 1 - game.active) {
       const targetPlayer = game.players[ownerIndex];
       if (!targetPlayer.field[index] || targetPlayer.spentFieldIndexes.has(index)) return;
@@ -1414,12 +1424,13 @@ export default function App() {
         }
         return;
       } else if (current.reason === "charge-guard") {
-        const charged = chargeHandCardInDraft(draft, current.playerIndex, current.sourceIndex!, selectedIndex);
+        const targetIndex = current.selectedIndexes[0];
+        const charged = confirmChargeGuardTargetInDraft(draft, current.playerIndex, current.sourceIndex!, targetIndex);
         if (charged) {
           queueDuelEvent({
             kind: "command",
             title: `${player.name}がチャージ`,
-            detail: `${charged.name}をトラッシュへ送り、このターンのアクションを1増やしました。${player.field[selectedIndex]?.name ?? "選んだ召喚獣"}の場防御値を次の自分ターンまで+1します。`,
+            detail: `${charged.name}をトラッシュへ送り、このターンのアクションを1増やしました。${player.field[targetIndex]?.name ?? "選んだ召喚獣"}の場防御値を次の自分ターンまで+1します。`,
             fromLabel: "手札",
             toLabel: "トラッシュ",
             tone: player.isHuman ? "magenta" : "cyan",
@@ -1568,6 +1579,7 @@ export default function App() {
       && game.pendingAttack
       && game.players[game.pendingAttack.defenderIndex]?.isHuman,
   );
+  const allowBoardTargetSelection = game.pendingTarget?.kind === "card-select" && game.pendingTarget.zone === "field";
   const trashSurge = trashSurgeForEvent(duelEvent) ?? trashFlash;
   const ownerHasTrashSurge = (ownerIndex: number) => trashSurge?.owners.includes(ownerIndex) ?? false;
 
@@ -1591,7 +1603,7 @@ export default function App() {
   }
 
   return (
-    <main className="stitch-shell">
+    <main className={`stitch-shell ${allowBoardTargetSelection ? "field-targeting" : ""}`}>
       <header className="stitch-opponent-bar">
         <div className="stitch-status-left">
           <div className="deck-badge">{ai.deckName}</div>
@@ -1657,20 +1669,23 @@ export default function App() {
       <section className="stitch-hand-zone" aria-label="手札と山札">
         <DeckPileCard player={human} ownerIndex={0} />
         <div className="stitch-hand" aria-label="手札">
-          {human.hand.map((card, index) => (
-            <CardView
-              key={`${card.id}-${index}`}
-              card={card}
-              ownerIndex={0}
-              zone="hand"
-              index={index}
-              selected={game.selected?.zone === "hand" && game.selected.index === index}
-              selectable
-              actionState={handActionState(game, human, ai, card)}
-              showCost
-              onClick={() => selectHand(index)}
-            />
-          ))}
+          {human.hand.map((card, index) => {
+            const pendingCardTarget = pendingTargetCardState(game, 0, "hand", index);
+            return (
+              <CardView
+                key={`${card.id}-${index}`}
+                card={card}
+                ownerIndex={0}
+                zone="hand"
+                index={index}
+                selected={pendingCardTarget === "selected" || (game.selected?.zone === "hand" && game.selected.index === index)}
+                selectable
+                actionState={pendingCardTarget === "target" || pendingCardTarget === "selected" ? "usable" : handActionState(game, human, ai, card)}
+                showCost
+                onClick={() => selectHand(index)}
+              />
+            );
+          })}
         </div>
         <TrashPileButton player={human} ownerIndex={0} trashSurge={ownerHasTrashSurge(0)} onOpen={openDiscardViewer} />
       </section>
@@ -2150,6 +2165,7 @@ function FieldGrid({
         const isDisruptTarget = game.pendingTarget?.kind === "disrupt"
           && ownerIndex === 1 - game.active
           && !player.spentFieldIndexes.has(index);
+        const pendingCardTarget = pendingTargetCardState(game, ownerIndex, "field", index);
         const isSelected = game.selected?.zone === "field"
           && (game.selected.ownerIndex ?? 0) === ownerIndex
           && game.selected.index === index;
@@ -2162,10 +2178,10 @@ function FieldGrid({
             ownerIndex={ownerIndex}
             zone="field"
             index={index}
-            selected={isSelected}
+            selected={pendingCardTarget === "selected" || isSelected}
             selectable
             spent={player.spentFieldIndexes.has(index)}
-            actionState={isDisruptTarget ? "usable" : ownerIndex === 0 ? fieldActionState(game, player, index) : "idle"}
+            actionState={pendingCardTarget === "target" || pendingCardTarget === "selected" ? "usable" : isDisruptTarget ? "usable" : ownerIndex === 0 ? fieldActionState(game, player, index) : "idle"}
             visualEffect={`${trashSurge ? "trash-alert" : ""} ${defensePreview ? `combat-preview ${defensePreview.result}` : ""} ${isAttackerPreview ? "attack-preview-source" : ""}`}
             extraBadges={defensePreview ? [defensePreview.label] : isAttackerPreview ? [`ATK ${combatPreview.attackValue}`] : []}
             showCost={false}
@@ -2278,6 +2294,13 @@ function fieldActionState(game: GameState, player: PlayerState, index: number): 
   }
   if (!player.spentFieldIndexes.has(index) && canActivePlayerAttack(game)) return "usable";
   return "blocked";
+}
+
+function pendingTargetCardState(game: GameState, ownerIndex: number, zone: "hand" | "field" | "discard", index: number): "idle" | "target" | "selected" {
+  const pending = game.pendingTarget;
+  if (!pending || pending.kind !== "card-select") return "idle";
+  if (pending.playerIndex !== ownerIndex || pending.zone !== zone || pending.excludeIndexes.includes(index)) return "idle";
+  return pending.selectedIndexes.includes(index) ? "selected" : "target";
 }
 
 function upgradeSourceIndexes(player: PlayerState, target: Card): number[] {

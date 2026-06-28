@@ -209,8 +209,12 @@ npm run check
 内訳:
 
 - `npm run typecheck`
+- `npm run test:unit`
 - `npm run build`
 - `python3 -m unittest`
+
+カード効果を追加・変更した場合は、TypeScript 側の `src/game/cardEffectCoverage.test.ts` に効果ケースを追加してください。
+このテストは有効カードプールに存在する効果 ID とテスト登録表の差分を検知するため、効果を実装してテスト登録を忘れると `npm run test:unit` が失敗します。
 
 ## プロジェクト構成
 
@@ -226,6 +230,7 @@ src/
   App.tsx         ブラウザアプリ本体
   game.ts         TypeScript 側カード定義、設定、ルール補助
   game/actions.ts TypeScript 側ゲーム操作
+  game/cardEffectCoverage.test.ts TypeScript 側カード効果テスト
   components/     UI コンポーネント
   styles.css      UI スタイル
 

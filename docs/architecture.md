@@ -1,6 +1,6 @@
 # Break Duel アーキテクチャ
 
-最終更新: 2026-06-23
+最終更新: 2026-06-28
 
 この文書は、現在の `Break Duel` 実装を引き継ぐための開発者向け構成メモです。ゲームルールの正仕様は `docs/game-spec.md` を参照します。
 
@@ -36,6 +36,7 @@ src/
   game/
     actions.ts      TypeScript 側ゲーム状態を変更する操作処理
     selectors.ts    UI用の状態参照
+    cardEffectCoverage.test.ts TypeScript 側カード効果テスト
   components/
     CardView.tsx    カード表示
     PlayerPanel.tsx プレイヤー盤面
@@ -70,6 +71,7 @@ npm run check
 内訳:
 
 - `npm run typecheck`: TypeScript 型チェック
+- `npm run test:unit`: TypeScript 側カード効果テスト。効果 ID の登録漏れも検知する
 - `npm run build`: Vite 本番ビルド。成果物は `web/` に出力される
 - `python3 -m unittest`: Python 側ルールテスト
 
@@ -159,9 +161,10 @@ CPU は Python 側 `ai_break_duel/ai.py` と TypeScript 側 `src/game.ts` の二
 1. `docs/game-spec.md` を更新する。
 2. Python 側の `ai_break_duel/` を更新する。
 3. TypeScript 側の `src/game.ts` / `src/game/actions.ts` を更新する。
-4. 必要なら `tests/test_core_rules.py` を追加・更新する。
-5. `npm run check` を通す。
-6. ブラウザで主要操作を確認する。
+4. カード効果を追加・変更した場合は `src/game/cardEffectCoverage.test.ts` に効果ケースを追加・更新する。
+5. 必要なら `tests/test_core_rules.py` を追加・更新する。
+6. `npm run check` を通す。
+7. ブラウザで主要操作を確認する。
 
 UIだけを変える場合:
 
