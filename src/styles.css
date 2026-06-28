@@ -8532,12 +8532,12 @@ body:has(.modal-backdrop) {
 }
 
 .leader-portrait.rival {
-  left: clamp(24px, 3.6vw, 58px);
+  right: clamp(24px, 3.6vw, 58px);
   top: clamp(30px, 5vh, 58px);
 }
 
 .leader-portrait.human {
-  right: clamp(24px, 3.6vw, 58px);
+  left: clamp(24px, 3.6vw, 58px);
   bottom: clamp(22px, 4vh, 50px);
 }
 
@@ -9063,4 +9063,63 @@ body:has(.modal-backdrop) {
     min-width: 0;
     font-size: 12px;
   }
+}
+
+/* Fantasy type pass: move the duel surface away from utilitarian mono UI. */
+.stitch-shell {
+  --duel-serif: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Times New Roman", serif;
+  --duel-ui: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Noto Sans", system-ui, sans-serif;
+  font-family: var(--duel-ui);
+}
+
+.stitch-shell h2,
+.stitch-log-title,
+.dock-detail .detail-title,
+.leader-portrait figcaption,
+.stitch-command-dock .action-strip button,
+.deck-badge,
+.field-grid::after,
+.clash-line::before,
+.empty-preview span,
+.match-result-panel strong {
+  font-family: var(--duel-serif);
+  font-weight: 900;
+}
+
+.stitch-player-stats,
+.stitch-player-stats span,
+.ai-hand-source,
+.action-meter,
+.meter-label,
+.meter-value,
+.action-token,
+.stitch-log-sidebar .log,
+.log-event-icon,
+.duel-seed,
+.duel-seed input,
+.page-tabs button,
+.duel-top-controls button,
+.event-mode-toggle,
+.event-mode-toggle button,
+.card-name,
+.card-foot,
+.power,
+.leader-portrait figcaption span {
+  font-family: var(--duel-ui);
+}
+
+.stitch-shell h2,
+.dock-detail .detail-title,
+.stitch-log-title {
+  letter-spacing: 0.03em;
+}
+
+.stitch-command-dock .action-strip button {
+  letter-spacing: 0.02em;
+}
+
+.leader-portrait figcaption span,
+.field-grid::after,
+.clash-line::before {
+  letter-spacing: 0.04em;
 }
