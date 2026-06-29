@@ -7398,24 +7398,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     rgba(24, 8, 21, 0.72);
 }
 
-.stitch-player-stats {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-  color: #d7d3c5;
-  font-family: "Space Mono", ui-monospace, monospace;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.stitch-player-stats span {
-  border: 1px solid rgba(240, 199, 108, 0.26);
-  border-radius: 4px;
-  padding: 4px 7px;
-  background: rgba(5, 8, 14, 0.5);
-}
-
 .duel-top-controls button,
 .page-tabs button,
 .event-mode-toggle button,
@@ -7980,15 +7962,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     font-size: 10px;
   }
 
-  .stitch-player-stats {
-    gap: 6px;
-    font-size: 11px;
-  }
-
-  .stitch-player-stats span {
-    padding: 3px 6px;
-  }
-
   .stitch-hand-zone {
     grid-template-columns: 84px minmax(0, 1fr) 84px;
     gap: 12px;
@@ -8140,10 +8113,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     min-height: 100vh;
     height: auto;
     overflow: auto;
-  }
-
-  .stitch-player-stats {
-    justify-content: flex-start;
   }
 
   .stitch-battlefield {
@@ -8306,12 +8275,9 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
 }
 
-.stitch-opponent-bar .stitch-status-left::before {
-  content: "AI";
-}
-
+.stitch-opponent-bar .stitch-status-left::before,
 .stitch-player-status .stitch-status-left::before {
-  content: "YOU";
+  display: none;
 }
 
 .stitch-status-left h2 {
@@ -8323,8 +8289,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .deck-badge,
-.ai-hand-source,
-.stitch-player-stats span {
+.ai-hand-source {
   border-color: rgba(245, 207, 120, 0.4);
   border-radius: 999px;
   color: #f8e9bc;
@@ -8528,8 +8493,8 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   z-index: 3;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  width: clamp(142px, 13vw, 190px);
-  height: clamp(174px, 17vw, 242px);
+  width: clamp(166px, 15vw, 222px);
+  height: clamp(202px, 19vw, 282px);
   margin: 0;
   pointer-events: none;
 }
@@ -8909,8 +8874,8 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   }
 
   .leader-portrait {
-    width: 118px;
-    height: 142px;
+    width: 138px;
+    height: 166px;
   }
 
   .field-grid {
@@ -8990,9 +8955,9 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     top: auto;
     bottom: auto;
     align-self: center;
-    width: min(310px, 86vw);
-    height: 132px;
-    grid-template-columns: 104px minmax(0, 1fr);
+    width: min(344px, 90vw);
+    height: 150px;
+    grid-template-columns: 120px minmax(0, 1fr);
     grid-template-rows: 1fr;
     align-items: stretch;
     margin-block: 0 42px;
@@ -9100,8 +9065,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   font-weight: 900;
 }
 
-.stitch-player-stats,
-.stitch-player-stats span,
 .ai-hand-source,
 .action-meter,
 .meter-label,

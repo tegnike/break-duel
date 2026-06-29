@@ -246,6 +246,7 @@ export default function App() {
   const [opponentAiProfile, setOpponentAiProfile] = useState<AiProfile>("challenger");
   const [savedDecks, setSavedDecks] = useState<SavedDeck[]>(() => loadSavedDecks());
   const [game, setGame] = useState<GameState>(() => createGame(INITIAL_SEED, "fire", undefined, "challenger"));
+  const [lastHumanActionsRemaining, setLastHumanActionsRemaining] = useState(() => game.actionsRemaining);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [starterDeckModalOpen, setStarterDeckModalOpen] = useState(true);
   const [starterDeckChosen, setStarterDeckChosen] = useState(false);
@@ -742,6 +743,7 @@ export default function App() {
       setSeed(nextSeed);
       resetDrawTracker(nextGame);
       setGame(nextGame);
+      setLastHumanActionsRemaining(nextGame.actionsRemaining);
       resetDuelEvents();
       setRulesOpen(false);
       setStarterDeckModalOpen(false);
@@ -794,6 +796,10 @@ export default function App() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  useEffect(() => {
+    if (game.active === 0) setLastHumanActionsRemaining(game.actionsRemaining);
+  }, [game.active, game.actionsRemaining]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -1806,7 +1812,8 @@ export default function App() {
   const opponentActionsRemaining = game.active === 1 ? game.actionsRemaining : 0;
   const opponentAttackLockedByCharge = game.active === 1 && ai.chargeUsed;
   const humanAttackLockedByCharge = game.active === 0 && human.chargeUsed;
-  const actionMeterLabel = game.active === 1 ? "相手の残りアクション" : "自分の残りアクション";
+  const humanActionsRemaining = game.active === 0 ? game.actionsRemaining : lastHumanActionsRemaining;
+  const actionMeterLabel = "自分の残りアクション";
   const combatPreview = combatPreviewForSelection(game);
   const endTurnEnabled = canHumanEndTurn(game);
   const showNoActionsEndTurnPrompt = endTurnEnabled
@@ -1881,7 +1888,6 @@ export default function App() {
     <main className={shellClassName}>
       <header className="stitch-opponent-bar">
         <div className="stitch-status-left">
-          <div className="deck-badge">{ai.deckName}</div>
           <div>
             <h2>{ai.name}</h2>
             <LifePips life={ai.life} tone="cyan" impact={lifeImpact?.targetIndex === 1 ? lifeImpact : null} />
@@ -1944,14 +1950,7 @@ export default function App() {
       <section className="stitch-player-status">
         <div className="stitch-status-left">
           <h2>{human.name}</h2>
-          <div className="deck-badge magenta">{human.deckName}</div>
           <LifePips life={human.life} tone="magenta" impact={lifeImpact?.targetIndex === 0 ? lifeImpact : null} />
-        </div>
-        <div className="stitch-player-stats" aria-label="自分のカード枚数">
-          <span>手札 {human.hand.length}</span>
-          <span>山札 {human.deck.length}</span>
-          <span>捨札 {human.discard.length}</span>
-          <span>遺物 {human.memory ? "1" : "0"}</span>
         </div>
       </section>
 
@@ -1999,12 +1998,12 @@ export default function App() {
               <button type="button" onClick={openStarterDeckModal}>再戦</button>
             </div>
           )}
-          <div className="action-meter" aria-label={`${actionMeterLabel} ${game.actionsRemaining}${humanAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
+          <div className="action-meter" aria-label={`${actionMeterLabel} ${humanActionsRemaining}${humanAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
             <span className="meter-label">{actionMeterLabel}</span>
-            <span className="meter-value">{game.actionsRemaining}</span>
+            <span className="meter-value">{humanActionsRemaining}</span>
             <span className="action-tokens" aria-hidden="true">
               {Array.from({ length: 3 }).map((_, index) => (
-                <span key={index} className={actionTokenClass(index, game.actionsRemaining)} />
+                <span key={index} className={actionTokenClass(index, humanActionsRemaining)} />
               ))}
             </span>
             {humanAttackLockedByCharge && <span className="charge-lock-badge">チャージ済み・攻撃不可</span>}
@@ -2310,7 +2309,7 @@ function LifePips({ life, tone, impact }: { life: number; tone: "cyan" | "magent
       {Array.from({ length: CONFIG.life }).map((_, index) => (
         <span key={index} className={index >= life ? "empty" : ""} />
       ))}
-      <em>生命 {life}</em>
+      <em>ライフ {life}</em>
     </div>
   );
 }
