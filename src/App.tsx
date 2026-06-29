@@ -1302,6 +1302,7 @@ export default function App() {
       if (rivalSpeechTimer.current !== null) window.clearTimeout(rivalSpeechTimer.current);
       rivalSpeechTimer.current = null;
       setRivalSpeech(null);
+      lastRivalLine.current = null;
       pendingRivalVoiceLine.current = null;
       stopRivalVoiceLine();
     }
@@ -2741,7 +2742,7 @@ function LeaderPortrait({
   return (
     <figure className={`leader-portrait ${tone} ${reaction ? `reaction-${reaction.mood} reaction-${reaction.id}` : ""}`} aria-label={`${player.name}のリーダー`}>
       {speech && (
-        <div className="leader-speech" key={speech.id}>
+        <div className="leader-speech" key={speech.id} role="status" aria-live="polite" aria-atomic="true">
           <span>ニケ</span>
           <p>{speech.text}</p>
         </div>
