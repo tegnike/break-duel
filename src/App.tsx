@@ -442,6 +442,11 @@ export default function App() {
     stopRivalVoiceLine();
     const audio = new Audio(line.src);
     audio.volume = 0.88;
+    audio.addEventListener("ended", () => {
+      if (rivalVoiceAudio.current !== audio) return;
+      rivalVoiceAudio.current = null;
+      flushPendingRivalVoiceLine();
+    }, { once: true });
     rivalVoiceAudio.current = audio;
     void audio.play().catch((error) => {
       console.warn("Rival voice playback failed", lineId, error);
@@ -1294,6 +1299,10 @@ export default function App() {
       startBgm();
     } else {
       stopBgm();
+      if (rivalSpeechTimer.current !== null) window.clearTimeout(rivalSpeechTimer.current);
+      rivalSpeechTimer.current = null;
+      setRivalSpeech(null);
+      pendingRivalVoiceLine.current = null;
       stopRivalVoiceLine();
     }
   }
