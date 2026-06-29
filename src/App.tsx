@@ -169,7 +169,6 @@ type RivalSpeech = {
 type PendingRivalVoiceLine = {
   lineId: RivalVoiceLineId;
   text: string;
-  turnKey: string;
   force: boolean;
 };
 
@@ -203,6 +202,7 @@ const SFX_ASSETS: Record<string, { src: string; volume: number }> = {
 };
 
 const TRASH_SFX_PRIMARY_GRACE_MS = 450;
+const RIVAL_LINE_REPEAT_COOLDOWN_MS = 6000;
 const PRIMARY_SFX_KINDS = new Set(["play", "block", "damage", "charge"]);
 const SFX_PRIORITY: Record<string, number> = {
   hover: 0,
@@ -340,8 +340,7 @@ export default function App() {
   const leaderReactionTimers = useRef<Partial<Record<PlayerIndex, number>>>({});
   const rivalSpeechTimer = useRef<number | null>(null);
   const rivalVoiceAudio = useRef<HTMLAudioElement | null>(null);
-  const spokenRivalLineTexts = useRef<Set<string>>(new Set());
-  const spokenRivalTurnKeys = useRef<Set<string>>(new Set());
+  const lastRivalLine = useRef<{ text: string; at: number } | null>(null);
   const pendingRivalVoiceLine = useRef<PendingRivalVoiceLine | null>(null);
   const recentLifeDamageImpact = useRef<DuelEventPayload["impact"] | null>(null);
   const suppressedTrashSfxOwners = useRef<Partial<Record<number, number>>>({});
@@ -387,22 +386,19 @@ export default function App() {
   function showRivalVoiceLine(lineId: RivalVoiceLineId, options: { force?: boolean } = {}) {
     const line = RIVAL_VOICE_LINES[lineId];
     if (!line) return;
-    if (spokenRivalLineTexts.current.has(line.text)) return;
-    const turnKey = `${game.turn}:${game.active}`;
-    if (!options.force && spokenRivalTurnKeys.current.has(turnKey)) return;
+    if (!options.force && recentlySpokeRivalLine(line.text)) return;
     if (rivalVoiceLineBusy()) {
-      const pending = { lineId, text: line.text, turnKey, force: Boolean(options.force) };
+      const pending = { lineId, text: line.text, force: Boolean(options.force) };
       if (!pendingRivalVoiceLine.current || pending.force) pendingRivalVoiceLine.current = pending;
       return;
     }
-    displayRivalVoiceLine(lineId, line.text, turnKey);
+    displayRivalVoiceLine(lineId, line.text);
   }
 
-  function displayRivalVoiceLine(lineId: RivalVoiceLineId, text: string, turnKey: string) {
+  function displayRivalVoiceLine(lineId: RivalVoiceLineId, text: string) {
     const line = RIVAL_VOICE_LINES[lineId];
     if (!line) return;
-    spokenRivalLineTexts.current.add(line.text);
-    spokenRivalTurnKeys.current.add(turnKey);
+    lastRivalLine.current = { text, at: Date.now() };
     setRivalSpeech({ id: eventId++, lineId, text });
     rivalSpeechTimer.current = window.setTimeout(() => {
       setRivalSpeech(null);
@@ -416,19 +412,23 @@ export default function App() {
     const pending = pendingRivalVoiceLine.current;
     pendingRivalVoiceLine.current = null;
     if (!pending) return;
-    if (spokenRivalLineTexts.current.has(pending.text)) return;
-    if (!pending.force && spokenRivalTurnKeys.current.has(pending.turnKey)) return;
+    if (!pending.force && recentlySpokeRivalLine(pending.text)) return;
     if (rivalVoiceLineBusy()) {
       pendingRivalVoiceLine.current = pending;
       return;
     }
-    displayRivalVoiceLine(pending.lineId, pending.text, pending.turnKey);
+    displayRivalVoiceLine(pending.lineId, pending.text);
   }
 
   function rivalVoiceLineBusy() {
     if (rivalSpeechTimer.current !== null) return true;
     const currentVoice = rivalVoiceAudio.current;
     return Boolean(currentVoice && !currentVoice.ended && !currentVoice.paused);
+  }
+
+  function recentlySpokeRivalLine(text: string) {
+    const last = lastRivalLine.current;
+    return Boolean(last && last.text === text && Date.now() - last.at < RIVAL_LINE_REPEAT_COOLDOWN_MS);
   }
 
   function playRivalVoiceLine(lineId: RivalVoiceLineId) {
@@ -519,8 +519,7 @@ export default function App() {
     if (rivalSpeechTimer.current !== null) window.clearTimeout(rivalSpeechTimer.current);
     rivalSpeechTimer.current = null;
     setRivalSpeech(null);
-    spokenRivalLineTexts.current.clear();
-    spokenRivalTurnKeys.current.clear();
+    lastRivalLine.current = null;
     pendingRivalVoiceLine.current = null;
     stopRivalVoiceLine();
     cardFlightTimers.current.forEach((timer) => window.clearTimeout(timer));
