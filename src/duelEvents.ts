@@ -1,4 +1,5 @@
 import type { Card } from "./game";
+import type { RivalVoiceLineId } from "./rivalVoiceLines";
 
 export type DuelEventCardState = "neutral" | "winner" | "loser" | "trash";
 
@@ -21,6 +22,7 @@ export type DuelEventPayload = {
     targetPlayerIndex: number;
     amount: number;
   };
+  rivalVoiceLine?: RivalVoiceLineId;
   durationMs?: number;
 };
 
