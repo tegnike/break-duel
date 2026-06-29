@@ -6979,8 +6979,8 @@ h1 {
   backdrop-filter: blur(5px) saturate(0.82);
 }
 
-html:has(.modal-backdrop),
-body:has(.modal-backdrop) {
+html:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop),
+body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   overflow: hidden;
 }
 
@@ -6992,6 +6992,7 @@ body:has(.modal-backdrop) {
   --modal-rim-bright: #d9bd78;
   --modal-face: #0d1218;
   --modal-plate: #18212a;
+
   position: relative;
   isolation: isolate;
   border: 2px solid var(--modal-rim);
@@ -7332,6 +7333,7 @@ body:has(.modal-backdrop) {
   --arena-gold: #f0c76c;
   --arena-ruby: #d94b64;
   --arena-violet: #8f6cff;
+
   grid-template-rows: 78px minmax(320px, 1fr) 48px 190px 210px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 11%, transparent 72%, rgba(255, 255, 255, 0.025)),
@@ -8217,6 +8219,7 @@ body:has(.modal-backdrop) {
   --arena-amber: #d99b43;
   --arena-ruby: #d84f66;
   --arena-ink: #070711;
+
   grid-template-rows: 76px minmax(330px, 1fr) 46px 178px 206px;
   background:
     radial-gradient(ellipse at 50% 46%, rgba(245, 207, 120, 0.22), transparent 38%),
@@ -9073,6 +9076,7 @@ body:has(.modal-backdrop) {
 .stitch-shell {
   --duel-serif: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Times New Roman", serif;
   --duel-ui: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Noto Sans", system-ui, sans-serif;
+
   font-family: var(--duel-ui);
 }
 

@@ -744,7 +744,9 @@ export default function App() {
       owners,
       tone: owners.length > 1 ? "danger" : owners[0] === 0 ? "magenta" : "cyan",
     });
-    const trashWouldBeAudible = owners.some((ownerIndex) => shouldPlayTrashSfx(ownerIndex));
+    const trashWouldBeAudible = owners
+      .map((ownerIndex) => shouldPlayTrashSfx(ownerIndex))
+      .some(Boolean);
     const primarySfxIsFresh = performance.now() - lastPrimarySfxPlayedAt.current < TRASH_SFX_PRIMARY_GRACE_MS;
     if (trashWouldBeAudible && !primarySfxIsFresh) {
       playSfx("trash");
@@ -944,7 +946,7 @@ export default function App() {
   function stopLowerPrioritySfx(priority: number) {
     const remaining: typeof activeSfxSources.current = [];
     activeSfxSources.current.forEach((item) => {
-      if (item.priority <= priority) {
+      if (item.priority < priority) {
         try {
           item.source.stop();
         } catch {
@@ -1493,6 +1495,11 @@ export default function App() {
       const sacrificed = pendingPlayer.field[selectedIndex];
       launchTrashFlight(sacrificed, { ownerIndex: pending.playerIndex, zone: "field", index: selectedIndex }, pending.playerIndex, "遺物の代償");
     }
+    const readyAllyCommandSelected = pending.reason === "ready-ally" && typeof pending.sourceIndex === "number";
+    if (readyAllyCommandSelected) {
+      suppressNextTrashSfx(pending.playerIndex);
+      playSfx("play");
+    }
     mutate((draft) => {
       const current = draft.pendingTarget;
       if (!current || current.kind !== "card-select") return;
@@ -1529,8 +1536,6 @@ export default function App() {
         }
       } else if (current.reason === "ready-ally") {
         if (typeof current.sourceIndex === "number") {
-          suppressNextTrashSfx(current.playerIndex);
-          playSfx("play");
           useCommandAtInDraft(draft, current.sourceIndex, selectedIndex, [], { playSfx, showDuelEvent: queueDuelEvent });
           return;
         }

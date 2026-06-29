@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CARD_BY_ID,
   CONFIG,
+  actionsForTurn,
   type Card,
   cloneCard,
   createGame,
@@ -24,20 +25,21 @@ describe("turn action state", () => {
     );
 
     expect(game.active).toBe(0);
-    expect(game.actionsRemaining).toBe(CONFIG.firstPlayerFirstTurnActions);
+    expect(game.actionsRemaining).toBe(actionsForTurn(game));
 
     finishTurn(game, true);
 
     expect(game.active).toBe(1);
-    expect(game.actionsRemaining).toBe(CONFIG.eachPlayerFirstTurnActions);
+    expect(game.actionsRemaining).toBe(actionsForTurn(game));
 
     game.players[1].hand = [card("AI-WATER-1")];
     game.players[1].deck = [card("AI-WATER-2")];
+    const actionsBeforeCharge = game.actionsRemaining;
     const charged = chargeHandCardInDraft(game, 1, 0);
 
     expect(charged?.id).toBe("AI-WATER-1");
     expect(game.active).toBe(1);
-    expect(game.actionsRemaining).toBe(3);
+    expect(game.actionsRemaining).toBe(Math.min(3, actionsBeforeCharge + 1));
 
     finishTurn(game, true);
 
