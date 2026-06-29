@@ -5026,10 +5026,6 @@ h1 {
   backdrop-filter: blur(2px);
 }
 
-.stitch-shell.field-targeting:has(> .defense-panel:not(:empty))::after {
-  pointer-events: none;
-}
-
 .stitch-shell > :not(.event-toast):not(.duel-overlay):not(.duel-action-reel):not(.card-flight):not(.modal-backdrop):not(.match-result-spotlight) {
   position: relative;
   z-index: 1;
@@ -7010,30 +7006,6 @@ h1 {
     linear-gradient(135deg, rgba(0, 240, 255, 0.12), transparent 46%),
     rgba(10, 13, 16, 0.97);
   box-shadow: 0 28px 84px rgba(0, 0, 0, 0.62), 0 0 36px rgba(0, 240, 255, 0.15);
-  transform: translate(-50%, -50%);
-}
-
-.stitch-shell.field-targeting > .defense-panel:not(:empty) {
-  left: auto;
-  right: 16px;
-  top: auto;
-  bottom: 16px;
-  width: min(420px, calc(100vw - 32px));
-  max-height: min(46vh, 360px);
-  transform: none;
-}
-
-.stitch-shell.field-targeting:has(> .defense-panel.pending-upgrade-source:not(:empty))::after {
-  pointer-events: auto;
-}
-
-.stitch-shell.field-targeting > .defense-panel.pending-upgrade-source:not(:empty) {
-  left: 50%;
-  right: auto;
-  top: 50%;
-  bottom: auto;
-  width: min(920px, calc(100vw - 32px));
-  max-height: min(76vh, 680px);
   transform: translate(-50%, -50%);
 }
 
