@@ -350,6 +350,9 @@ export function useCommandAtInDraft(
   const used = player.hand.splice(commandIndex, 1)[0];
   player.discard.push(used);
   let text = `${player.name}は${used.name}を使用。`;
+  const playerIndex = draft.players.indexOf(player);
+  const opponentIndex = draft.players.indexOf(opponent);
+  let impact: { kind: "life-damage"; sourcePlayerIndex: number | null; targetPlayerIndex: number; amount: number } | undefined;
   if (used.effect === "optimize") {
     const discarded = selectedDiscardCards.length > 0
       ? selectedDiscardCards
@@ -389,6 +392,7 @@ export function useCommandAtInDraft(
     }
     player.discard.push(...trashed);
     opponent.life -= 1;
+    impact = { kind: "life-damage", sourcePlayerIndex: playerIndex >= 0 ? playerIndex : null, targetPlayerIndex: opponentIndex, amount: 1 };
     text += ` ${cardNameList(trashed)}をすべてトラッシュし、${opponent.name}のライフを1減らした。`;
   } else if (used.effect === "fire_rite") {
     if (!hasAttributeAi(player, "火")) return;
@@ -397,6 +401,7 @@ export function useCommandAtInDraft(
       text += ` ${opponent.name}の手札を1枚トラッシュ。`;
     } else {
       opponent.life -= 1;
+      impact = { kind: "life-damage", sourcePlayerIndex: playerIndex >= 0 ? playerIndex : null, targetPlayerIndex: opponentIndex, amount: 1 };
       text += ` ${opponent.name}の手札がないため、ライフを1減らした。`;
     }
   } else if (used.effect === "water_rite") {
@@ -433,6 +438,7 @@ export function useCommandAtInDraft(
     fromLabel: "手札",
     toLabel: used.effect === "trinity" ? "場 / トラッシュ / ライフ" : "トラッシュ",
     tone: player.isHuman ? "magenta" : "cyan",
+    impact,
     cards: [
       { card: used, label: "使用", state: "trash" },
       ...(used.effect === "trinity"
@@ -610,6 +616,12 @@ export function resolveDefenseInDraft(
       toLabel: "トラッシュ",
       resultLabel: "攻撃を防御",
       tone: defender.isHuman ? "magenta" : "cyan",
+      impact: pierced ? {
+        kind: "life-damage",
+        sourcePlayerIndex: attackerIndex,
+        targetPlayerIndex: defenderIndex,
+        amount: 1,
+      } : undefined,
       cards: [
         { card: attackCard, label: "攻撃", state: "neutral" },
         { card: defenseCard, label: "防御", state: "trash" },
@@ -646,6 +658,12 @@ export function resolveDefenseInDraft(
       toLabel: `${defender.name}のライフ`,
       resultLabel: "ダメージ",
       tone: "danger",
+      impact: {
+        kind: "life-damage",
+        sourcePlayerIndex: attackerIndex,
+        targetPlayerIndex: defenderIndex,
+        amount: 1,
+      },
       cards: [{ card: attackCard, label: "攻撃", state: "winner" }],
     });
     effects.playSfx?.("damage");

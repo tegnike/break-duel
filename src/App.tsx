@@ -77,6 +77,8 @@ import sfxTrash from "./assets/audio/sfx-trash.ogg";
 import sfxTurnEnd from "./assets/audio/sfx-turn-end.ogg";
 import cardBackImage from "./assets/card-back.webp";
 import leaderHumanImage from "./assets/leader-human-placeholder.webp";
+import leaderRivalDelightImage from "./assets/leader-rival-delight.webp";
+import leaderRivalHurtImage from "./assets/leader-rival-hurt.webp";
 import leaderRivalImage from "./assets/leader-rival-placeholder.webp";
 import brandMark from "./assets/mark.svg";
 
@@ -125,6 +127,25 @@ type TrashSurge = {
 
 type TrashFlash = TrashSurge & {
   id: number;
+};
+
+type PlayerIndex = 0 | 1;
+
+type LifeImpact = {
+  id: number;
+  targetIndex: PlayerIndex;
+  sourceIndex: PlayerIndex | null;
+  amount: number;
+};
+
+type LeaderReaction = {
+  id: number;
+  mood: "hurt" | "delight";
+};
+
+type LeaderReactionState = {
+  0: LeaderReaction | null;
+  1: LeaderReaction | null;
 };
 
 const TRASH_SPARKS = [
@@ -232,6 +253,8 @@ export default function App() {
   const [duelEvent, setDuelEvent] = useState<DuelEvent | null>(null);
   const [cardFlights, setCardFlights] = useState<CardFlight[]>([]);
   const [trashFlash, setTrashFlash] = useState<TrashFlash | null>(null);
+  const [lifeImpact, setLifeImpact] = useState<LifeImpact | null>(null);
+  const [leaderReactions, setLeaderReactions] = useState<LeaderReactionState>({ 0: null, 1: null });
   const [aiAnimating, setAiAnimating] = useState(false);
   const [autoDismissDuelEvents, setAutoDismissDuelEvents] = useState(false);
   const [banner, setBanner] = useState<Banner>(() => ({
@@ -256,6 +279,9 @@ export default function App() {
   const cardFlightTimers = useRef<number[]>([]);
   const aiCommitTimer = useRef<number | null>(null);
   const trashFlashTimer = useRef<number | null>(null);
+  const lifeImpactTimer = useRef<number | null>(null);
+  const leaderReactionTimers = useRef<Partial<Record<PlayerIndex, number>>>({});
+  const recentLifeDamageImpact = useRef<DuelEventPayload["impact"] | null>(null);
   const suppressedTrashSfxOwners = useRef<Partial<Record<number, number>>>({});
   const previousDiscardCounts = useRef<[number, number]>([
     game.players[0].discard.length,
@@ -268,6 +294,10 @@ export default function App() {
     game.players[1].deck.length,
     game.players[1].hand.length,
     game.players[1].cardsDrawn,
+  ]);
+  const previousLifeCounts = useRef<[number, number]>([
+    game.players[0].life,
+    game.players[1].life,
   ]);
 
   const human = game.players[0];
@@ -298,7 +328,11 @@ export default function App() {
 
   function queueDuelEvent(event: DuelEventPayload) {
     const hasTrashSurge = trashSurgeForEvent(event) !== null;
-    if ((event.kind === "play" || event.kind === "memory" || event.kind === "upgrade" || event.kind === "command") && !hasTrashSurge) return;
+    if (event.impact?.kind === "life-damage") {
+      recentLifeDamageImpact.current = event.impact;
+      scheduleLifeDamageImpact(event.impact);
+    }
+    if ((event.kind === "play" || event.kind === "memory" || event.kind === "upgrade" || event.kind === "command") && !hasTrashSurge && !event.impact) return;
     duelEventQueue.current.push(event);
     if (duelEventScheduler.current !== null) return;
     duelEventScheduler.current = window.setTimeout(() => {
@@ -349,9 +383,18 @@ export default function App() {
     aiCommitTimer.current = null;
     if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
     trashFlashTimer.current = null;
+    if (lifeImpactTimer.current !== null) window.clearTimeout(lifeImpactTimer.current);
+    lifeImpactTimer.current = null;
+    Object.values(leaderReactionTimers.current).forEach((timer) => {
+      if (typeof timer === "number") window.clearTimeout(timer);
+    });
+    leaderReactionTimers.current = {};
+    recentLifeDamageImpact.current = null;
     setAiAnimating(false);
     setCardFlights([]);
     setTrashFlash(null);
+    setLifeImpact(null);
+    setLeaderReactions({ 0: null, 1: null });
   }
 
   function resetDrawTracker(nextGame: GameState) {
@@ -367,6 +410,57 @@ export default function App() {
       nextGame.players[0].discard.length,
       nextGame.players[1].discard.length,
     ];
+    previousLifeCounts.current = [
+      nextGame.players[0].life,
+      nextGame.players[1].life,
+    ];
+  }
+
+  function normalizePlayerIndex(index: number | null | undefined): PlayerIndex | null {
+    return index === 0 || index === 1 ? index : null;
+  }
+
+  function showLifeImpact(targetIndex: PlayerIndex, amount: number, sourceIndex: PlayerIndex | null) {
+    if (lifeImpactTimer.current !== null) window.clearTimeout(lifeImpactTimer.current);
+    setLifeImpact({
+      id: eventId++,
+      targetIndex,
+      sourceIndex,
+      amount,
+    });
+    lifeImpactTimer.current = window.setTimeout(() => {
+      setLifeImpact(null);
+      lifeImpactTimer.current = null;
+    }, 1350);
+  }
+
+  function showLeaderReaction(ownerIndex: PlayerIndex, mood: LeaderReaction["mood"]) {
+    const existingTimer = leaderReactionTimers.current[ownerIndex];
+    if (typeof existingTimer === "number") window.clearTimeout(existingTimer);
+    setLeaderReactions((current) => ({
+      ...current,
+      [ownerIndex]: { id: eventId++, mood },
+    }));
+    leaderReactionTimers.current[ownerIndex] = window.setTimeout(() => {
+      setLeaderReactions((current) => ({
+        ...current,
+        [ownerIndex]: null,
+      }));
+      delete leaderReactionTimers.current[ownerIndex];
+    }, mood === "delight" ? 1400 : 1500);
+  }
+
+  function scheduleLifeDamageImpact(impact: NonNullable<DuelEventPayload["impact"]>) {
+    window.setTimeout(() => {
+      const targetIndex = normalizePlayerIndex(impact.targetPlayerIndex);
+      if (targetIndex === null) return;
+      const sourceIndex = normalizePlayerIndex(impact.sourcePlayerIndex);
+      showLifeImpact(targetIndex, impact.amount, sourceIndex);
+      showLeaderReaction(targetIndex, "hurt");
+      if (targetIndex === 0 && sourceIndex === 1) {
+        showLeaderReaction(1, "delight");
+      }
+    }, 0);
   }
 
   function cardSelector(ownerIndex: number, zone: string, index: number) {
@@ -758,6 +852,32 @@ export default function App() {
   }, [page, game.players[0].discard.length, game.players[1].discard.length]);
 
   useEffect(() => {
+    const current: [number, number] = [game.players[0].life, game.players[1].life];
+    const previous = previousLifeCounts.current;
+    previousLifeCounts.current = current;
+    if (page !== "duel") {
+      recentLifeDamageImpact.current = null;
+      return;
+    }
+
+    const eventImpact = recentLifeDamageImpact.current;
+    ([0, 1] as PlayerIndex[]).forEach((targetIndex) => {
+      const amount = previous[targetIndex] - current[targetIndex];
+      if (amount <= 0) return;
+      if (eventImpact?.targetPlayerIndex === targetIndex) return;
+      const sourceIndex = eventImpact?.targetPlayerIndex === targetIndex
+        ? normalizePlayerIndex(eventImpact.sourcePlayerIndex)
+        : null;
+      showLifeImpact(targetIndex, amount, sourceIndex);
+      showLeaderReaction(targetIndex, "hurt");
+      if (targetIndex === 0 && sourceIndex === 1) {
+        showLeaderReaction(1, "delight");
+      }
+    });
+    recentLifeDamageImpact.current = null;
+  }, [page, game.players[0].life, game.players[1].life]);
+
+  useEffect(() => {
     const current: [number, number, number, number, number, number] = [
       game.players[0].deck.length,
       game.players[0].hand.length,
@@ -847,6 +967,10 @@ export default function App() {
       cardFlightTimers.current = [];
       if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
       if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
+      if (lifeImpactTimer.current !== null) window.clearTimeout(lifeImpactTimer.current);
+      Object.values(leaderReactionTimers.current).forEach((timer) => {
+        if (typeof timer === "number") window.clearTimeout(timer);
+      });
     };
   }, []);
 
@@ -1728,6 +1852,11 @@ export default function App() {
   const allowBoardTargetSelection = game.pendingTarget?.kind === "card-select" && game.pendingTarget.zone === "field";
   const trashSurge = trashSurgeForEvent(duelEvent) ?? trashFlash;
   const ownerHasTrashSurge = (ownerIndex: number) => trashSurge?.owners.includes(ownerIndex) ?? false;
+  const shellClassName = [
+    "stitch-shell",
+    allowBoardTargetSelection ? "field-targeting" : "",
+    lifeImpact ? `life-impact life-impact-target-${lifeImpact.targetIndex}` : "",
+  ].filter(Boolean).join(" ");
 
   if (page !== "duel") {
     return (
@@ -1749,13 +1878,13 @@ export default function App() {
   }
 
   return (
-    <main className={`stitch-shell ${allowBoardTargetSelection ? "field-targeting" : ""}`}>
+    <main className={shellClassName}>
       <header className="stitch-opponent-bar">
         <div className="stitch-status-left">
           <div className="deck-badge">{ai.deckName}</div>
           <div>
             <h2>{ai.name}</h2>
-            <LifePips life={ai.life} tone="cyan" />
+            <LifePips life={ai.life} tone="cyan" impact={lifeImpact?.targetIndex === 1 ? lifeImpact : null} />
           </div>
         </div>
         <div className="brand-mini">
@@ -1790,7 +1919,14 @@ export default function App() {
       </header>
 
       <section className="stitch-battlefield" aria-label="対戦盤面">
-        <LeaderPortrait player={ai} tone="rival" image={leaderRivalImage} label="RIVAL" />
+        <LeaderPortrait
+          player={ai}
+          tone="rival"
+          image={leaderRivalImage}
+          reactionImages={{ hurt: leaderRivalHurtImage, delight: leaderRivalDelightImage }}
+          label="RIVAL"
+          reaction={leaderReactions[1]}
+        />
         <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent trashSurge={ownerHasTrashSurge(1)} combatPreview={combatPreview} onSelectField={selectField} onSelectMemory={selectMemory} />
         <div className={`clash-line ${combatPreview ? "armed" : ""} ${combatPreview?.direct ? "direct" : ""}`} aria-hidden="true">
           {combatPreview && (
@@ -1802,7 +1938,7 @@ export default function App() {
             </span>
           )}
         </div>
-        <LeaderPortrait player={human} tone="human" image={leaderHumanImage} label="YOU" />
+        <LeaderPortrait player={human} tone="human" image={leaderHumanImage} label="YOU" reaction={leaderReactions[0]} />
         <FieldGrid player={human} ownerIndex={0} game={game} trashSurge={ownerHasTrashSurge(0)} onSelectField={selectField} onSelectMemory={selectMemory} />
       </section>
 
@@ -1810,7 +1946,7 @@ export default function App() {
         <div className="stitch-status-left">
           <h2>{human.name}</h2>
           <div className="deck-badge magenta">{human.deckName}</div>
-          <LifePips life={human.life} tone="magenta" />
+          <LifePips life={human.life} tone="magenta" impact={lifeImpact?.targetIndex === 0 ? lifeImpact : null} />
         </div>
         <div className="stitch-player-stats" aria-label="自分のカード枚数">
           <span>手札 {human.hand.length}</span>
@@ -1915,6 +2051,7 @@ export default function App() {
       {!showDefenseInDuelEvent && defensePanel}
       <EventToast toast={toast} />
       {cardFlights.map((flight) => <CardFlightLayer key={flight.id} flight={flight} />)}
+      {lifeImpact && <DamageImpactLayer impact={lifeImpact} />}
       {trashSurge && <TrashSurgeLayer surge={trashSurge} eventId={duelEvent?.id ?? trashFlash?.id ?? 0} />}
       <DuelActionReel event={duelEvent} autoDismiss={autoDismissDuelEvents} onClose={dismissDuelEvent}>
         {showDefenseInDuelEvent ? defensePanel : null}
@@ -2168,9 +2305,9 @@ function PageTabs({ page, onChange }: { page: AppPage; onChange: (page: AppPage)
   );
 }
 
-function LifePips({ life, tone }: { life: number; tone: "cyan" | "magenta" }) {
+function LifePips({ life, tone, impact }: { life: number; tone: "cyan" | "magenta"; impact?: LifeImpact | null }) {
   return (
-    <div className={`stitch-life ${tone}`}>
+    <div className={`stitch-life ${tone} ${impact ? `life-hit impact-${impact.id}` : ""}`}>
       {Array.from({ length: CONFIG.life }).map((_, index) => (
         <span key={index} className={index >= life ? "empty" : ""} />
       ))}
@@ -2384,23 +2521,42 @@ function LeaderPortrait({
   player,
   tone,
   image,
+  reactionImages,
   label,
+  reaction = null,
 }: {
   player: PlayerState;
   tone: "human" | "rival";
   image: string;
+  reactionImages?: Partial<Record<LeaderReaction["mood"], string>>;
   label: string;
+  reaction?: LeaderReaction | null;
 }) {
+  const currentImage = reaction ? reactionImages?.[reaction.mood] ?? image : image;
   return (
-    <figure className={`leader-portrait ${tone}`} aria-label={`${player.name}のリーダー`}>
+    <figure className={`leader-portrait ${tone} ${reaction ? `reaction-${reaction.mood} reaction-${reaction.id}` : ""}`} aria-label={`${player.name}のリーダー`}>
       <div className="leader-portrait-art">
-        <img src={image} alt="" draggable={false} />
+        <img src={currentImage} alt="" draggable={false} />
       </div>
       <figcaption>
         <span>{label}</span>
         <strong>{player.name}</strong>
       </figcaption>
     </figure>
+  );
+}
+
+function DamageImpactLayer({ impact }: { impact: LifeImpact }) {
+  const sourceClass = impact.sourceIndex === null ? "source-unknown" : `source-${impact.sourceIndex}`;
+  return (
+    <div className={`damage-impact-layer target-${impact.targetIndex} ${sourceClass}`} key={impact.id} aria-hidden="true">
+      <div className="damage-impact-core">
+        <span>-{impact.amount}</span>
+      </div>
+      {Array.from({ length: 14 }).map((_, index) => (
+        <i key={`${impact.id}-${index}`} style={{ "--spark-index": index } as CSSProperties} />
+      ))}
+    </div>
   );
 }
 

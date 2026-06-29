@@ -15,6 +15,12 @@ export type DuelEventPayload = {
     label: string;
     state?: DuelEventCardState;
   }[];
+  impact?: {
+    kind: "life-damage";
+    sourcePlayerIndex: number | null;
+    targetPlayerIndex: number;
+    amount: number;
+  };
   durationMs?: number;
 };
 
