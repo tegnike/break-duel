@@ -52,7 +52,6 @@ import {
 } from "./game/actions";
 import { selectedCardForDetail, selectedHandCardName } from "./game/selectors";
 import {
-  AffinityGuide,
   DefensePanel,
   LogList,
   SelectedCardDetail,
@@ -67,13 +66,18 @@ import type { DuelEvent, DuelEventPayload } from "./duelEvents";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
 import sfxAttack from "./assets/audio/sfx-attack.ogg";
 import sfxBlock from "./assets/audio/sfx-block.ogg";
+import sfxCardHover from "./assets/audio/sfx-card-hover.ogg";
 import sfxCardPlay from "./assets/audio/sfx-card-play.ogg";
+import sfxCharge from "./assets/audio/sfx-charge.ogg";
 import sfxCommand from "./assets/audio/sfx-command.ogg";
 import sfxDamage from "./assets/audio/sfx-damage.ogg";
+import sfxDraw from "./assets/audio/sfx-card-draw.ogg";
 import sfxSelect from "./assets/audio/sfx-select.ogg";
 import sfxTrash from "./assets/audio/sfx-trash.ogg";
 import sfxTurnEnd from "./assets/audio/sfx-turn-end.ogg";
 import cardBackImage from "./assets/card-back.webp";
+import leaderHumanImage from "./assets/leader-human-placeholder.webp";
+import leaderRivalImage from "./assets/leader-rival-placeholder.webp";
 import brandMark from "./assets/mark.svg";
 
 let eventId = 1;
@@ -139,15 +143,35 @@ const TRASH_SPARKS = [
 ];
 
 const SFX_ASSETS: Record<string, { src: string; volume: number }> = {
-  play: { src: sfxCardPlay, volume: 0.5 },
+  play: { src: sfxCardPlay, volume: 1 },
   attack: { src: sfxAttack, volume: 0.62 },
   block: { src: sfxBlock, volume: 0.58 },
   damage: { src: sfxDamage, volume: 0.66 },
   command: { src: sfxCommand, volume: 0.48 },
   trash: { src: sfxTrash, volume: 0.52 },
   end: { src: sfxTurnEnd, volume: 0.46 },
-  select: { src: sfxSelect, volume: 0.34 },
+  select: { src: sfxSelect, volume: 1 },
+  hover: { src: sfxCardHover, volume: 1 },
+  draw: { src: sfxDraw, volume: 0.72 },
+  charge: { src: sfxCharge, volume: 0.82 },
 };
+
+const TRASH_SFX_PRIMARY_GRACE_MS = 450;
+const PRIMARY_SFX_KINDS = new Set(["play", "block", "damage", "charge"]);
+const SFX_PRIORITY: Record<string, number> = {
+  hover: 0,
+  select: 1,
+  trash: 1,
+  draw: 1,
+  end: 2,
+  attack: 3,
+  command: 3,
+  play: 4,
+  charge: 4,
+  block: 4,
+  damage: 4,
+};
+const LOW_PRIORITY_SFX_KINDS = new Set(["hover", "select", "trash", "draw"]);
 
 type CombatPreview = {
   attackerIndex: number;
@@ -220,7 +244,11 @@ export default function App() {
   const audioEnabledRef = useRef(false);
   const audioContext = useRef<AudioContext | null>(null);
   const bgmAudio = useRef<HTMLAudioElement | null>(null);
-  const sfxAudio = useRef<Record<string, HTMLAudioElement[]>>({});
+  const sfxBuffers = useRef<Partial<Record<string, AudioBuffer>>>({});
+  const pendingSfxBuffers = useRef<Partial<Record<string, Promise<void>>>>({});
+  const lastSfxPlayedAt = useRef<Record<string, number>>({});
+  const lastPrimarySfxPlayedAt = useRef(0);
+  const activeSfxSources = useRef<{ kind: string; priority: number; source: AudioBufferSourceNode }[]>([]);
   const duelEventQueue = useRef<DuelEventPayload[]>([]);
   const duelEventPlaying = useRef(false);
   const duelEventScheduler = useRef<number | null>(null);
@@ -228,6 +256,7 @@ export default function App() {
   const cardFlightTimers = useRef<number[]>([]);
   const aiCommitTimer = useRef<number | null>(null);
   const trashFlashTimer = useRef<number | null>(null);
+  const suppressedTrashSfxOwners = useRef<Partial<Record<number, number>>>({});
   const previousDiscardCounts = useRef<[number, number]>([
     game.players[0].discard.length,
     game.players[1].discard.length,
@@ -511,6 +540,7 @@ export default function App() {
     if (action.type === "play") {
       const card = ai.hand[action.index];
       if (!card) return 0;
+      playSfx("play");
       launchCardFlight({
         card,
         from: { ownerIndex: 1, zone: "hand-source", index: 0 },
@@ -524,6 +554,8 @@ export default function App() {
     if (action.type === "memory") {
       const card = ai.hand[action.index];
       if (!card) return 0;
+      playSfx("play");
+      if (ai.memory) suppressNextTrashSfx(1);
       if (ai.memory) {
         launchTrashFlight(ai.memory, { ownerIndex: 1, zone: "memory", index: 0 }, 1, "旧遺物破棄", 1500);
       }
@@ -541,6 +573,8 @@ export default function App() {
       const card = ai.hand[action.handIndex];
       const source = ai.field[action.fieldIndex];
       if (!card || !source) return 0;
+      playSfx("play");
+      suppressNextTrashSfx(1);
       launchTrashFlight(source, { ownerIndex: 1, zone: "field", index: action.fieldIndex }, 1, "元カード破棄", 1500);
       launchCardFlight({
         card,
@@ -561,12 +595,16 @@ export default function App() {
     if (action.type === "command") {
       const card = ai.hand[action.index];
       if (!card) return 0;
+      playSfx("play");
+      suppressNextTrashSfx(1);
       launchTrashFlight(card, { ownerIndex: 1, zone: "hand-source", index: 0 }, 1, "指令使用", 980);
       return 760;
     }
     if (action.type === "charge") {
       const card = ai.hand[action.index];
       if (!card) return 0;
+      playSfx("charge");
+      suppressNextTrashSfx(1);
       launchTrashFlight(card, { ownerIndex: 1, zone: "hand-source", index: 0 }, 1, "チャージ", 980);
       return 760;
     }
@@ -706,7 +744,13 @@ export default function App() {
       owners,
       tone: owners.length > 1 ? "danger" : owners[0] === 0 ? "magenta" : "cyan",
     });
-    playSfx("trash");
+    const trashWouldBeAudible = owners
+      .map((ownerIndex) => shouldPlayTrashSfx(ownerIndex))
+      .some(Boolean);
+    const primarySfxIsFresh = performance.now() - lastPrimarySfxPlayedAt.current < TRASH_SFX_PRIMARY_GRACE_MS;
+    if (trashWouldBeAudible && !primarySfxIsFresh) {
+      playSfx("trash");
+    }
     trashFlashTimer.current = window.setTimeout(() => {
       setTrashFlash(null);
       trashFlashTimer.current = null;
@@ -738,7 +782,7 @@ export default function App() {
       for (let offset = 0; offset < drawnCount; offset += 1) {
         launchDrawFlight(ownerIndex, firstNewHandIndex + offset, offset * 90);
       }
-      playSfx("select");
+      playSfx("draw");
     });
   }, [
     page,
@@ -818,34 +862,116 @@ export default function App() {
     if (!audioEnabledRef.current) return;
     const config = SFX_ASSETS[kind];
     if (!config) return;
-    const pool = sfxAudio.current[kind] ?? [];
-    let audio = pool.find((item) => item.paused || item.ended);
-    if (!audio) {
-      audio = new Audio(config.src);
-      audio.preload = "auto";
-      audio.volume = config.volume;
-      if (pool.length < 4) {
-        pool.push(audio);
-        sfxAudio.current[kind] = pool;
-      }
+    const priority = SFX_PRIORITY[kind] ?? 1;
+    const now = performance.now();
+    if (LOW_PRIORITY_SFX_KINDS.has(kind) && now - lastPrimarySfxPlayedAt.current < TRASH_SFX_PRIMARY_GRACE_MS) return;
+    if (kind === "hover") {
+      if (now - (lastSfxPlayedAt.current[kind] ?? 0) < 80) return;
     }
-    audio.volume = config.volume;
-    audio.currentTime = 0;
-    void audio.play().catch(() => {
-      audioEnabledRef.current = false;
-      setAudioEnabled(false);
-      showToast("効果音再生失敗", "ブラウザの音声許可を確認してください");
+    if (kind !== "hover" && now - (lastSfxPlayedAt.current[kind] ?? 0) < 60) return;
+    lastSfxPlayedAt.current[kind] = now;
+    if (PRIMARY_SFX_KINDS.has(kind)) {
+      lastPrimarySfxPlayedAt.current = now;
+    }
+    const buffer = sfxBuffers.current[kind];
+    if (buffer) {
+      playSfxBuffer(kind, config, buffer, priority);
+      return;
+    }
+    void loadSfxBuffer(kind, config).then(() => {
+      const loaded = sfxBuffers.current[kind];
+      if (!audioEnabledRef.current || !loaded) return;
+      playSfxBuffer(kind, config, loaded, priority);
     });
   }
 
   function preloadSfx() {
     Object.entries(SFX_ASSETS).forEach(([kind, config]) => {
-      if (sfxAudio.current[kind]?.length) return;
-      const audio = new Audio(config.src);
-      audio.preload = "auto";
-      audio.volume = config.volume;
-      sfxAudio.current[kind] = [audio];
+      void loadSfxBuffer(kind, config);
     });
+  }
+
+  function loadSfxBuffer(kind: string, config: { src: string; volume: number }) {
+    if (sfxBuffers.current[kind]) return Promise.resolve();
+    if (pendingSfxBuffers.current[kind]) return pendingSfxBuffers.current[kind];
+    const context = ensureAudioContext();
+    const pending = fetch(config.src)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Failed to load SFX ${kind}: ${response.status}`);
+        return response.arrayBuffer();
+      })
+      .then((data) => context.decodeAudioData(data))
+      .then((buffer) => {
+        sfxBuffers.current[kind] = buffer;
+      })
+      .catch((error) => {
+        console.warn("SFX preload failed", kind, error);
+      })
+      .finally(() => {
+        delete pendingSfxBuffers.current[kind];
+      });
+    pendingSfxBuffers.current[kind] = pending;
+    return pending;
+  }
+
+  function playSfxBuffer(kind: string, config: { src: string; volume: number }, buffer: AudioBuffer, priority: number) {
+    const context = ensureAudioContext();
+    const start = () => {
+      if (LOW_PRIORITY_SFX_KINDS.has(kind) && performance.now() - lastPrimarySfxPlayedAt.current < TRASH_SFX_PRIMARY_GRACE_MS) return;
+      stopLowerPrioritySfx(priority);
+      const source = context.createBufferSource();
+      const gain = context.createGain();
+      source.buffer = buffer;
+      gain.gain.value = config.volume;
+      source.connect(gain).connect(context.destination);
+      activeSfxSources.current.push({ kind, priority, source });
+      source.onended = () => {
+        activeSfxSources.current = activeSfxSources.current.filter((item) => item.source !== source);
+      };
+      source.start();
+    };
+    if (context.state === "suspended") {
+      void context.resume().then(start).catch((error) => {
+        console.warn("SFX playback failed", kind, error);
+      });
+      return;
+    }
+    try {
+      start();
+    } catch (error) {
+      console.warn("SFX playback failed", kind, error);
+    }
+  }
+
+  function stopLowerPrioritySfx(priority: number) {
+    const remaining: typeof activeSfxSources.current = [];
+    activeSfxSources.current.forEach((item) => {
+      if (item.priority < priority) {
+        try {
+          item.source.stop();
+        } catch {
+          // Already ended sources can be ignored.
+        }
+        return;
+      }
+      remaining.push(item);
+    });
+    activeSfxSources.current = remaining;
+  }
+
+  function suppressNextTrashSfx(ownerIndex: number) {
+    suppressedTrashSfxOwners.current[ownerIndex] = (suppressedTrashSfxOwners.current[ownerIndex] ?? 0) + 1;
+  }
+
+  function shouldPlayTrashSfx(ownerIndex: number) {
+    const suppressed = suppressedTrashSfxOwners.current[ownerIndex] ?? 0;
+    if (suppressed <= 0) return true;
+    if (suppressed === 1) {
+      delete suppressedTrashSfxOwners.current[ownerIndex];
+    } else {
+      suppressedTrashSfxOwners.current[ownerIndex] = suppressed - 1;
+    }
+    return false;
   }
 
   function stopBgm() {
@@ -887,7 +1013,7 @@ export default function App() {
       togglePendingCardIndex(index);
       return;
     }
-    playSfx("select");
+    if (!isCurrentSelection("hand", 0, index)) playSfx("select");
     mutate((draft) => {
       draft.selected = { zone: "hand", ownerIndex: 0, index };
     });
@@ -905,18 +1031,25 @@ export default function App() {
       useCommandAt(pending.sourceIndex, index);
       return;
     }
-    playSfx("select");
+    if (!isCurrentSelection("field", ownerIndex, index)) playSfx("select");
     mutate((draft) => {
       draft.selected = { zone: "field", ownerIndex, index };
     });
   }
 
   function selectMemory(ownerIndex: number) {
-    playSfx("select");
+    if (!game.players[ownerIndex]?.memory) return;
+    if (!isCurrentSelection("memory", ownerIndex, 0)) playSfx("select");
     mutate((draft) => {
       if (!draft.players[ownerIndex]?.memory) return;
       draft.selected = { zone: "memory", ownerIndex, index: 0 };
     });
+  }
+
+  function isCurrentSelection(zone: "hand" | "field" | "memory", ownerIndex: number, index: number) {
+    return game.selected?.zone === zone
+      && (game.selected.ownerIndex ?? 0) === ownerIndex
+      && game.selected.index === index;
   }
 
   function playSelected() {
@@ -1001,6 +1134,7 @@ export default function App() {
     const player = activePlayer(game);
     const memoryCard = player.hand[game.selected.index];
     if (!memoryCard || memoryCard.type !== "memory") return;
+    if (player.memory) suppressNextTrashSfx(0);
     if (player.memory) {
       launchTrashFlight(player.memory, { ownerIndex: 0, zone: "memory", index: 0 }, 0, "旧遺物破棄");
     }
@@ -1024,7 +1158,7 @@ export default function App() {
       afterAction(draft);
     });
     showToast("遺物配置", selectedHandCardName(game));
-    playSfx("command");
+    playSfx("play");
   }
 
   function upgradeSelectedAi() {
@@ -1069,6 +1203,7 @@ export default function App() {
     const target = player.hand[handIndex];
     const source = player.field[sourceIndex];
     if (!target || target.type !== "ai" || !source || !canUpgrade(source, target) || upgradeCost(target) > game.actionsRemaining) return;
+    suppressNextTrashSfx(0);
     launchTrashFlight(source, { ownerIndex: 0, zone: "field", index: sourceIndex }, 0, "元カード破棄");
     launchCardFlight({
       card: target,
@@ -1183,6 +1318,7 @@ export default function App() {
     const player = activePlayer(game);
     const command = player.hand[sourceIndex];
     if (command?.type === "event") {
+      suppressNextTrashSfx(game.active);
       launchTrashFlight(
         command,
         { ownerIndex: game.active, zone: flightHandZone(player), index: player.isHuman ? sourceIndex : 0 },
@@ -1197,7 +1333,7 @@ export default function App() {
     }
     mutate((draft) => useCommandAtInDraft(draft, sourceIndex, targetIndex, discardIndexes, { playSfx, showDuelEvent: queueDuelEvent }));
     showToast("指令", "カードを使用しました");
-    playSfx("command");
+    playSfx("play");
   }
 
   function attackWithSelectedAi() {
@@ -1209,12 +1345,13 @@ export default function App() {
     const attacker = game.players[attackerIndex];
     const defender = game.players[1 - attackerIndex];
     const attackCard = attacker.field[fieldIndex];
+    const resolvesImmediately = Boolean(attackCard && defender && !defender.isHuman);
     if (attackCard && defender && !defender.isHuman) {
       launchDefenseTrashFlights(attackerIndex, fieldIndex, chooseAiDefense(defender, attackCard, defender.aiProfile));
     }
     mutate((draft) => beginAttackInDraft(draft, attackerIndex, fieldIndex, { playSfx, showDuelEvent: queueDuelEvent }));
     showToast("攻撃", "攻撃を宣言しました");
-    playSfx("attack");
+    if (!resolvesImmediately) playSfx("attack");
   }
 
   function resolveDefense(choice: DefenseChoice) {
@@ -1253,6 +1390,8 @@ export default function App() {
       });
       return;
     }
+    playSfx("charge");
+    suppressNextTrashSfx(0);
     launchTrashFlight(card, { ownerIndex: 0, zone: "hand", index: game.selected.index }, 0, "チャージ");
     mutate((draft) => {
       if (draft.selected?.zone !== "hand" || draft.selected.ownerIndex !== 0) return;
@@ -1268,7 +1407,6 @@ export default function App() {
       cards: [{ card, label: "チャージ", state: "trash" }],
     });
     showToast("チャージ", "手札をアクションに変換しました");
-    playSfx("command");
   }
 
   function endTurn() {
@@ -1340,6 +1478,8 @@ export default function App() {
     if (pending.reason === "charge-guard") {
       const charged = pendingPlayer.hand[pending.sourceIndex!];
       if (charged) {
+        playSfx("charge");
+        suppressNextTrashSfx(pending.playerIndex);
         launchTrashFlight(charged, { ownerIndex: pending.playerIndex, zone: flightHandZone(pendingPlayer), index: pendingPlayer.isHuman ? pending.sourceIndex! : 0 }, pending.playerIndex, "チャージ");
       }
     }
@@ -1354,6 +1494,11 @@ export default function App() {
     } else if (pending.reason === "accelerator-sacrifice") {
       const sacrificed = pendingPlayer.field[selectedIndex];
       launchTrashFlight(sacrificed, { ownerIndex: pending.playerIndex, zone: "field", index: selectedIndex }, pending.playerIndex, "遺物の代償");
+    }
+    const readyAllyCommandSelected = pending.reason === "ready-ally" && typeof pending.sourceIndex === "number";
+    if (readyAllyCommandSelected) {
+      suppressNextTrashSfx(pending.playerIndex);
+      playSfx("play");
     }
     mutate((draft) => {
       const current = draft.pendingTarget;
@@ -1537,6 +1682,7 @@ export default function App() {
   const opponentActionsRemaining = game.active === 1 ? game.actionsRemaining : 0;
   const opponentAttackLockedByCharge = game.active === 1 && ai.chargeUsed;
   const humanAttackLockedByCharge = game.active === 0 && human.chargeUsed;
+  const actionMeterLabel = game.active === 1 ? "相手の残りアクション" : "自分の残りアクション";
   const combatPreview = combatPreviewForSelection(game);
   const endTurnEnabled = canHumanEndTurn(game);
   const showNoActionsEndTurnPrompt = endTurnEnabled
@@ -1628,7 +1774,7 @@ export default function App() {
         </div>
         <div className="stitch-counts">
           <div className="action-meter compact-action-meter" aria-label={`相手アクション ${opponentActionsRemaining}${opponentAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
-            <span className="meter-label">相手アクション</span>
+            <span className="meter-label">相手AP</span>
             <span className="meter-value">{opponentActionsRemaining}</span>
             <span className="action-tokens" aria-hidden="true">
               {Array.from({ length: 3 }).map((_, index) => (
@@ -1644,6 +1790,7 @@ export default function App() {
       </header>
 
       <section className="stitch-battlefield" aria-label="対戦盤面">
+        <LeaderPortrait player={ai} tone="rival" image={leaderRivalImage} label="RIVAL" />
         <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent trashSurge={ownerHasTrashSurge(1)} combatPreview={combatPreview} onSelectField={selectField} onSelectMemory={selectMemory} />
         <div className={`clash-line ${combatPreview ? "armed" : ""} ${combatPreview?.direct ? "direct" : ""}`} aria-hidden="true">
           {combatPreview && (
@@ -1655,6 +1802,7 @@ export default function App() {
             </span>
           )}
         </div>
+        <LeaderPortrait player={human} tone="human" image={leaderHumanImage} label="YOU" />
         <FieldGrid player={human} ownerIndex={0} game={game} trashSurge={ownerHasTrashSurge(0)} onSelectField={selectField} onSelectMemory={selectMemory} />
       </section>
 
@@ -1663,6 +1811,12 @@ export default function App() {
           <h2>{human.name}</h2>
           <div className="deck-badge magenta">{human.deckName}</div>
           <LifePips life={human.life} tone="magenta" />
+        </div>
+        <div className="stitch-player-stats" aria-label="自分のカード枚数">
+          <span>手札 {human.hand.length}</span>
+          <span>山札 {human.deck.length}</span>
+          <span>捨札 {human.discard.length}</span>
+          <span>遺物 {human.memory ? "1" : "0"}</span>
         </div>
       </section>
 
@@ -1683,6 +1837,7 @@ export default function App() {
                 actionState={pendingCardTarget === "target" || pendingCardTarget === "selected" ? "usable" : handActionState(game, human, ai, card)}
                 showCost
                 onClick={() => selectHand(index)}
+                onMouseEnter={() => playSfx("hover")}
               />
             );
           })}
@@ -1709,8 +1864,8 @@ export default function App() {
               <button type="button" onClick={openStarterDeckModal}>再戦</button>
             </div>
           )}
-          <div className="action-meter" aria-label={`残りアクション ${game.actionsRemaining}${humanAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
-            <span className="meter-label">残りアクション</span>
+          <div className="action-meter" aria-label={`${actionMeterLabel} ${game.actionsRemaining}${humanAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
+            <span className="meter-label">{actionMeterLabel}</span>
             <span className="meter-value">{game.actionsRemaining}</span>
             <span className="action-tokens" aria-hidden="true">
               {Array.from({ length: 3 }).map((_, index) => (
@@ -1750,9 +1905,6 @@ export default function App() {
           </div>
         </div>
 
-        <div className="dock-side">
-          <AffinityGuide game={game} selected={selectedCard} />
-        </div>
       </section>
 
       <aside className="stitch-log-sidebar" aria-label="対戦ログ">
@@ -2022,7 +2174,7 @@ function LifePips({ life, tone }: { life: number; tone: "cyan" | "magenta" }) {
       {Array.from({ length: CONFIG.life }).map((_, index) => (
         <span key={index} className={index >= life ? "empty" : ""} />
       ))}
-      <em>life {life}</em>
+      <em>生命 {life}</em>
     </div>
   );
 }
@@ -2226,6 +2378,30 @@ function MemorySlot({
     );
   }
   return <div className={`field-slot memory-empty ${trashSurge ? "trash-alert" : ""}`} data-owner={ownerIndex} data-zone="memory" data-index={0}>遺物</div>;
+}
+
+function LeaderPortrait({
+  player,
+  tone,
+  image,
+  label,
+}: {
+  player: PlayerState;
+  tone: "human" | "rival";
+  image: string;
+  label: string;
+}) {
+  return (
+    <figure className={`leader-portrait ${tone}`} aria-label={`${player.name}のリーダー`}>
+      <div className="leader-portrait-art">
+        <img src={image} alt="" draggable={false} />
+      </div>
+      <figcaption>
+        <span>{label}</span>
+        <strong>{player.name}</strong>
+      </figcaption>
+    </figure>
+  );
 }
 
 function CardFlightLayer({ flight }: { flight: CardFlight | null }) {

@@ -6760,6 +6760,20 @@ h1 {
   transform: none;
 }
 
+.stitch-shell.field-targeting:has(> .defense-panel.pending-upgrade-source:not(:empty))::after {
+  pointer-events: auto;
+}
+
+.stitch-shell.field-targeting > .defense-panel.pending-upgrade-source:not(:empty) {
+  left: 50%;
+  right: auto;
+  top: 50%;
+  bottom: auto;
+  width: min(920px, calc(100vw - 32px));
+  max-height: min(76vh, 680px);
+  transform: translate(-50%, -50%);
+}
+
 @media (min-width: 921px) and (max-width: 1100px) {
   .stitch-command-dock {
     grid-template-columns: 360px minmax(0, 1fr) 248px;
@@ -6954,4 +6968,2279 @@ h1 {
 
 .stitch-shell > .duel-overlay.turn-banner {
   min-width: min(460px, calc(100vw - 32px));
+}
+
+/* Game modal pass: solid frame, title plate, hardware corners, and no outer scrollbars. */
+.modal-backdrop,
+.starter-deck-backdrop,
+.discard-backdrop {
+  overflow: hidden;
+  background: rgba(2, 5, 8, 0.84);
+  backdrop-filter: blur(5px) saturate(0.82);
+}
+
+html:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop),
+body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
+  overflow: hidden;
+}
+
+.rules-modal,
+.discard-modal,
+.starter-deck-modal,
+.stitch-shell > .defense-panel:not(:empty) {
+  --modal-rim: #8a764d;
+  --modal-rim-bright: #d9bd78;
+  --modal-face: #0d1218;
+  --modal-plate: #18212a;
+
+  position: relative;
+  isolation: isolate;
+  border: 2px solid var(--modal-rim);
+  border-radius: 4px;
+  color: #f4f0e7;
+  background: var(--modal-face);
+  box-shadow:
+    0 26px 70px rgba(0, 0, 0, 0.72),
+    inset 0 0 0 2px #05070a,
+    inset 0 0 0 5px rgba(217, 189, 120, 0.12);
+  outline: 1px solid rgba(0, 0, 0, 0.8);
+  overflow: hidden;
+}
+
+.rules-modal::before,
+.discard-modal::before,
+.starter-deck-modal::before,
+.stitch-shell > .defense-panel:not(:empty)::before {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  z-index: -1;
+  border: 1px solid rgba(217, 189, 120, 0.28);
+  pointer-events: none;
+}
+
+.rules-modal::after,
+.discard-modal::after,
+.starter-deck-modal::after,
+.stitch-shell > .defense-panel:not(:empty)::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  z-index: -1;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.035),
+    14px 14px 0 -12px var(--modal-rim-bright),
+    -14px 14px 0 -12px var(--modal-rim-bright),
+    14px -14px 0 -12px var(--modal-rim-bright),
+    -14px -14px 0 -12px var(--modal-rim-bright);
+}
+
+.modal-head {
+  position: relative;
+  min-height: 54px;
+  border-bottom: 2px solid #05070a;
+  padding: 12px 18px 11px;
+  background: var(--modal-plate);
+  box-shadow: inset 0 -1px 0 rgba(217, 189, 120, 0.42);
+}
+
+.modal-head::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  bottom: -2px;
+  width: 118px;
+  height: 2px;
+  background: var(--modal-rim-bright);
+  pointer-events: none;
+}
+
+.modal-head h2,
+.stitch-shell > .defense-panel:not(:empty) h3 {
+  margin: 0;
+  color: #f9f3df;
+  font-size: 18px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.modal-head p,
+.choice-prompt {
+  color: #c8c0ae;
+}
+
+.modal-head > button,
+.defense-actions button,
+.starter-modal-actions .primary-action,
+.segmented-control button {
+  border: 1px solid #7e6a43;
+  border-radius: 3px;
+  color: #f4ecd1;
+  background: #19232c;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.38),
+    0 6px 0 rgba(0, 0, 0, 0.22);
+}
+
+.modal-head > button:hover,
+.defense-actions button:hover:not(:disabled),
+.starter-modal-actions .primary-action:hover,
+.segmented-control button:hover:not(:disabled) {
+  border-color: #d9bd78;
+  background: #22303a;
+}
+
+.starter-deck-modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+}
+
+.starter-duel-selectors {
+  min-height: 0;
+  gap: 14px;
+  padding: 14px 18px 0;
+  overflow: hidden;
+  background: #091018;
+}
+
+.starter-deck-picker {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  align-content: start;
+  min-height: 0;
+}
+
+.starter-deck-picker h3,
+.starter-saved-decks h3,
+.starter-fixed-decks h3,
+.starter-ai-profile h3,
+.rules-content h3 {
+  color: #f5df9d;
+}
+
+.starter-deck-group {
+  margin-top: 10px;
+}
+
+.starter-deck-group h4 {
+  margin-bottom: 6px;
+  color: #a99a78;
+}
+
+.starter-deck-grid.compact {
+  gap: 8px;
+}
+
+.starter-deck-grid.compact button,
+.starter-deck-grid button {
+  position: relative;
+  min-height: 62px;
+  border: 1px solid #3f4650;
+  border-radius: 3px;
+  padding: 9px 10px 9px 12px;
+  background: #111922;
+  box-shadow:
+    inset 3px 0 0 rgba(217, 189, 120, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.starter-deck-grid.compact button::before,
+.starter-deck-grid button::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: #5f6f7f;
+}
+
+.starter-deck-grid.compact button.selected,
+.starter-deck-grid button.selected {
+  border-color: #d9bd78;
+  background: #18222c;
+  box-shadow:
+    inset 3px 0 0 #d9bd78,
+    inset 0 0 0 1px rgba(217, 189, 120, 0.32),
+    0 0 0 1px rgba(217, 189, 120, 0.2);
+}
+
+.starter-deck-grid.compact button.selected::before,
+.starter-deck-grid button.selected::before {
+  background: #d9bd78;
+}
+
+.starter-deck-grid.compact span,
+.starter-deck-grid span {
+  font-size: 13px;
+  line-height: 1.16;
+}
+
+.starter-deck-grid.compact em,
+.starter-deck-grid em {
+  display: -webkit-box;
+  margin-top: 5px;
+  overflow: hidden;
+  color: #b9c2c8;
+  font-size: 11px;
+  line-height: 1.32;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.starter-ai-profile {
+  margin: 12px 18px 0;
+  padding: 9px 10px;
+  border: 1px solid #3f4650;
+  border-radius: 3px;
+  background: #111922;
+}
+
+.starter-modal-actions {
+  padding: 12px 18px 16px;
+  background: #091018;
+}
+
+.rules-content,
+.discard-view {
+  overflow-x: hidden;
+  background: #091018;
+}
+
+.rules-content section,
+.discard-view-detail,
+.discard-view-list {
+  border-color: #3f4650;
+  border-radius: 3px;
+  background: #111922;
+  box-shadow: inset 3px 0 0 rgba(217, 189, 120, 0.2);
+}
+
+.stitch-shell > .defense-panel:not(:empty) {
+  padding: 16px;
+}
+
+.stitch-shell > .defense-panel:not(:empty) h3 {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #3f4650;
+}
+
+.stitch-shell > .defense-panel.pending-upgrade-source:not(:empty) {
+  --modal-rim: #a47d35;
+  --modal-rim-bright: #f0c462;
+  --modal-face: #130e09;
+  --modal-plate: #22170d;
+}
+
+.pending-card-grid {
+  gap: 10px;
+  padding: 2px;
+}
+
+.pending-card-choice {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--card-color) 38%, #7e6a43 42%);
+  border-radius: 3px;
+  background: #111922;
+  box-shadow:
+    inset 4px 0 0 color-mix(in srgb, var(--card-color) 48%, #d9bd78 24%),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.pending-card-choice::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.045);
+  pointer-events: none;
+}
+
+.pending-card-choice:hover,
+.pending-card-choice.selected {
+  border-color: color-mix(in srgb, var(--card-color) 34%, #f0c462 54%);
+  background: #18222c;
+  box-shadow:
+    inset 4px 0 0 color-mix(in srgb, var(--card-color) 42%, #f0c462 36%),
+    inset 0 0 0 1px rgba(240, 196, 98, 0.2);
+}
+
+.pending-card-effect {
+  color: #e4ddd0;
+}
+
+.modal-backdrop,
+.rules-content,
+.discard-view,
+.starter-deck-modal,
+.starter-duel-selectors {
+  scrollbar-width: none;
+}
+
+.modal-backdrop::-webkit-scrollbar,
+.rules-content::-webkit-scrollbar,
+.discard-view::-webkit-scrollbar,
+.starter-deck-modal::-webkit-scrollbar,
+.starter-duel-selectors::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+@media (max-width: 720px) {
+  .modal-head {
+    min-height: 0;
+    padding: 11px 13px;
+  }
+
+  .modal-head h2,
+  .stitch-shell > .defense-panel:not(:empty) h3 {
+    font-size: 16px;
+  }
+
+  .starter-deck-modal {
+    display: block;
+    overflow-y: auto;
+  }
+
+  .starter-duel-selectors {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .starter-deck-grid.compact button,
+  .starter-deck-grid button {
+    min-height: 58px;
+  }
+
+  .stitch-shell > .defense-panel:not(:empty) {
+    padding: 13px;
+  }
+
+  .pending-card-choice {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+}
+
+/* Rich battlefield pass: darker fantasy frame, stronger card presence, no attribute-guide dock. */
+.stitch-shell {
+  --stitch-log-width: clamp(280px, 21vw, 372px);
+  --arena-cyan: #52e4ff;
+  --arena-magenta: #ff4ac4;
+  --arena-gold: #f0c76c;
+  --arena-ruby: #d94b64;
+  --arena-violet: #8f6cff;
+
+  grid-template-rows: 78px minmax(320px, 1fr) 48px 190px 210px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 11%, transparent 72%, rgba(255, 255, 255, 0.025)),
+    radial-gradient(ellipse at 50% 42%, rgba(82, 228, 255, 0.16), transparent 36%),
+    radial-gradient(ellipse at 50% 74%, rgba(255, 74, 196, 0.13), transparent 38%),
+    linear-gradient(135deg, rgba(12, 18, 29, 0.96), #09070f 52%, #130b16);
+}
+
+.stitch-shell::before {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(240, 199, 108, 0.07), transparent 24%, transparent 68%, rgba(255, 74, 196, 0.055)),
+    radial-gradient(ellipse at 50% 50%, transparent 46%, rgba(2, 4, 9, 0.56) 86%);
+  background-size: 42px 42px, 42px 42px, 100% 100%, 100% 100%;
+  animation: scanline 12s linear infinite;
+}
+
+.stitch-opponent-bar,
+.stitch-player-status,
+.stitch-command-dock,
+.stitch-log-sidebar {
+  border-color: rgba(240, 199, 108, 0.34);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015)),
+    linear-gradient(90deg, rgba(82, 228, 255, 0.1), rgba(9, 11, 18, 0.88) 32%, rgba(255, 74, 196, 0.08)),
+    rgba(7, 8, 14, 0.92);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.38),
+    inset 0 -1px 0 rgba(240, 199, 108, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.stitch-opponent-bar {
+  border-bottom-width: 2px;
+}
+
+.stitch-player-status {
+  border-top-width: 2px;
+  border-bottom-color: rgba(255, 74, 196, 0.24);
+}
+
+.stitch-status-left h2 {
+  color: #fff7df;
+  text-shadow: 0 0 16px rgba(240, 199, 108, 0.16);
+}
+
+.deck-badge {
+  border-color: rgba(82, 228, 255, 0.54);
+  border-radius: 4px;
+  color: #dffaff;
+  background:
+    linear-gradient(180deg, rgba(82, 228, 255, 0.24), rgba(82, 228, 255, 0.055)),
+    rgba(5, 12, 20, 0.72);
+}
+
+.deck-badge.magenta {
+  border-color: rgba(255, 74, 196, 0.48);
+  color: #ffe3f5;
+  background:
+    linear-gradient(180deg, rgba(255, 74, 196, 0.2), rgba(255, 74, 196, 0.05)),
+    rgba(24, 8, 21, 0.72);
+}
+
+.stitch-player-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  color: #d7d3c5;
+  font-family: "Space Mono", ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.stitch-player-stats span {
+  border: 1px solid rgba(240, 199, 108, 0.26);
+  border-radius: 4px;
+  padding: 4px 7px;
+  background: rgba(5, 8, 14, 0.5);
+}
+
+.duel-top-controls button,
+.page-tabs button,
+.event-mode-toggle button,
+.stitch-command-dock .action-strip button {
+  border-radius: 4px;
+}
+
+.duel-top-controls button,
+.page-tabs button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  min-width: 54px;
+  background:
+    linear-gradient(180deg, rgba(240, 199, 108, 0.14), rgba(255, 255, 255, 0.025)),
+    rgba(16, 20, 29, 0.78);
+  white-space: nowrap;
+}
+
+.duel-top-controls .duel-seed,
+.duel-top-controls .page-tabs {
+  flex: 0 0 auto;
+}
+
+.duel-top-controls .duel-seed input {
+  width: 78px;
+}
+
+.page-tabs button.active,
+.event-mode-toggle button.active {
+  border-color: rgba(240, 199, 108, 0.68);
+  color: #1a1007;
+  background: var(--arena-gold);
+  box-shadow: 0 0 22px rgba(240, 199, 108, 0.22);
+}
+
+.stitch-counts {
+  gap: 14px;
+}
+
+.ai-hand-source {
+  min-height: 34px;
+  border: 1px solid rgba(82, 228, 255, 0.28);
+  border-radius: 4px;
+  padding: 0 9px;
+  background: rgba(3, 8, 14, 0.5);
+}
+
+.stitch-battlefield {
+  gap: 18px;
+  padding: 18px 42px;
+}
+
+.stitch-battlefield::before {
+  inset: 14px 42px;
+  border: 2px solid rgba(240, 199, 108, 0.18);
+  border-radius: 22px;
+  background:
+    linear-gradient(90deg, rgba(82, 228, 255, 0.1), transparent 24%, transparent 76%, rgba(255, 74, 196, 0.095)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 34%, rgba(240, 199, 108, 0.055) 50%, transparent 66%),
+    rgba(5, 7, 12, 0.28);
+  box-shadow:
+    inset 0 0 70px rgba(82, 228, 255, 0.1),
+    inset 0 0 90px rgba(255, 74, 196, 0.07),
+    0 24px 70px rgba(0, 0, 0, 0.34);
+}
+
+.stitch-battlefield::after {
+  border-color: rgba(240, 199, 108, 0.2);
+  opacity: 0.46;
+}
+
+.field-grid {
+  grid-template-columns: repeat(4, minmax(96px, 112px));
+  gap: clamp(12px, 1.7vw, 22px);
+  border: 1px solid rgba(240, 199, 108, 0.22);
+  border-radius: 16px;
+  padding: 8px clamp(14px, 2vw, 24px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), transparent 24%),
+    linear-gradient(90deg, rgba(82, 228, 255, 0.08), rgba(7, 10, 17, 0.66), rgba(255, 74, 196, 0.075));
+  box-shadow:
+    0 22px 44px rgba(0, 0, 0, 0.34),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.045),
+    inset 0 0 42px rgba(0, 0, 0, 0.22);
+}
+
+.field-grid::after {
+  top: 8px;
+  border-color: rgba(240, 199, 108, 0.38);
+  color: #f8e2a1;
+  background: rgba(9, 8, 12, 0.96);
+}
+
+.field-grid.opponent::after {
+  color: #dffaff;
+}
+
+.field-grid.human::after {
+  color: #ffe3f5;
+}
+
+.field-grid .card,
+.field-slot {
+  width: clamp(96px, 7vw, 112px);
+  height: clamp(126px, 9vw, 140px);
+  min-height: clamp(126px, 9vw, 140px);
+}
+
+.field-grid .card {
+  grid-template-rows: 30px 38px 30px 16px;
+  border-radius: 8px;
+  padding: 6px;
+  transform: translateZ(0);
+}
+
+.field-grid .card-art {
+  height: 38px;
+  min-height: 38px;
+}
+
+.field-grid .power {
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+}
+
+.field-grid .card-foot {
+  min-height: 16px;
+  font-size: 10px;
+}
+
+.clash-line {
+  width: min(860px, 76vw);
+  height: 34px;
+}
+
+.clash-line::before {
+  border-color: rgba(240, 199, 108, 0.54);
+  color: #fff0bc;
+  background:
+    linear-gradient(180deg, rgba(240, 199, 108, 0.18), rgba(240, 199, 108, 0.055)),
+    rgba(12, 9, 13, 0.9);
+}
+
+.stitch-hand-zone {
+  grid-template-columns: 106px minmax(0, 1fr) 106px;
+  gap: 18px;
+  border-top: 2px solid rgba(240, 199, 108, 0.22);
+  padding: 9px 28px 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 18%),
+    linear-gradient(90deg, rgba(255, 74, 196, 0.12), rgba(8, 9, 15, 0.92) 28%, rgba(82, 228, 255, 0.08)),
+    rgba(5, 7, 12, 0.98);
+}
+
+.stitch-hand {
+  min-height: 174px;
+  padding: 24px 14px 8px;
+}
+
+.stitch-hand .card {
+  flex-basis: 104px;
+  width: 104px;
+  height: 146px;
+  min-height: 146px;
+  grid-template-rows: 37px 48px 40px 17px;
+  margin-inline: -4px;
+  border-radius: 8px;
+}
+
+.stitch-hand .card:hover,
+.stitch-hand .card.selected {
+  transform: translateY(-18px) scale(1.075);
+}
+
+.stitch-hand .card-art {
+  height: 48px;
+  min-height: 48px;
+}
+
+.deck-pile-card,
+.trash-pile-button {
+  width: 96px;
+  height: 136px;
+  flex-basis: 96px;
+}
+
+.deck-pile-face,
+.trash-pile-face {
+  width: 88px;
+  height: 126px;
+  border-color: rgba(240, 199, 108, 0.32);
+}
+
+.deck-pile-card.compact,
+.trash-pile-button.compact {
+  width: 56px;
+  height: 78px;
+  flex-basis: 56px;
+}
+
+.deck-pile-card.compact .deck-pile-face,
+.trash-pile-button.compact .trash-pile-face {
+  width: 50px;
+  height: 70px;
+}
+
+.stitch-command-dock {
+  grid-template-columns: minmax(390px, 500px) minmax(420px, 1fr);
+  gap: 18px;
+  min-height: 210px;
+  border-top: 2px solid rgba(240, 199, 108, 0.4);
+  padding: 14px 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 18%),
+    linear-gradient(90deg, rgba(82, 228, 255, 0.1), rgba(9, 9, 15, 0.96) 36%, rgba(255, 74, 196, 0.085)),
+    #08090f;
+}
+
+.dock-detail {
+  grid-template-columns: minmax(178px, 220px) minmax(0, 1fr);
+  gap: 16px;
+  border-right: 1px solid rgba(240, 199, 108, 0.24);
+}
+
+.dock-preview {
+  align-self: stretch;
+}
+
+.selected-art-preview,
+.empty-preview {
+  min-height: 142px;
+  border-radius: 6px;
+}
+
+.empty-preview {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-color: rgba(240, 199, 108, 0.3);
+  color: #e9dcae;
+  background:
+    radial-gradient(circle at 50% 36%, rgba(240, 199, 108, 0.18), transparent 30%),
+    linear-gradient(135deg, rgba(82, 228, 255, 0.08), rgba(9, 11, 18, 0.96) 48%, rgba(255, 74, 196, 0.08));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 0 38px rgba(240, 199, 108, 0.055),
+    0 16px 28px rgba(0, 0, 0, 0.28);
+}
+
+.empty-preview::before {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  z-index: -1;
+  border: 1px solid rgba(240, 199, 108, 0.2);
+  border-radius: 4px;
+  background:
+    linear-gradient(90deg, transparent 48%, rgba(240, 199, 108, 0.12) 49% 51%, transparent 52%),
+    linear-gradient(0deg, transparent 48%, rgba(240, 199, 108, 0.12) 49% 51%, transparent 52%);
+  transform: rotate(-4deg);
+}
+
+.empty-preview::after {
+  content: "";
+  position: absolute;
+  width: 92px;
+  height: 92px;
+  border: 1px solid rgba(82, 228, 255, 0.18);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(82, 228, 255, 0.12), transparent 62%);
+  transform: rotateX(64deg);
+}
+
+.empty-preview span {
+  position: relative;
+  z-index: 1;
+  border: 1px solid rgba(240, 199, 108, 0.28);
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: rgba(5, 8, 14, 0.58);
+  color: #f8e7b4;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.dock-detail .detail-title {
+  color: #fff0bc;
+  font-size: 18px;
+}
+
+.dock-detail .detail-meta {
+  color: #d7d3c5;
+}
+
+.dock-detail .detail-effect {
+  color: #dce7ee;
+}
+
+.dock-detail .detail-affinity {
+  color: #ffd38f;
+}
+
+.dock-actions {
+  gap: 10px;
+}
+
+.stitch-command-dock .action-meter {
+  min-height: 34px;
+}
+
+.stitch-command-dock .meter-label {
+  color: #d7d3c5;
+}
+
+.stitch-command-dock .meter-value {
+  color: #fff0bc;
+  font-size: 32px;
+  text-shadow: 0 0 18px rgba(240, 199, 108, 0.2);
+}
+
+.stitch-command-dock .action-token {
+  border-color: rgba(240, 199, 108, 0.74);
+  background: var(--arena-gold);
+  box-shadow: 0 0 14px rgba(240, 199, 108, 0.42);
+}
+
+.stitch-command-dock .action-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(92px, 1fr));
+  gap: 8px;
+  min-height: 72px;
+}
+
+.stitch-command-dock .action-strip button {
+  min-height: 72px;
+  border-color: rgba(240, 199, 108, 0.3);
+  color: #f4efe3;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), transparent 40%),
+    linear-gradient(135deg, rgba(82, 228, 255, 0.08), rgba(18, 20, 28, 0.96) 58%, rgba(255, 74, 196, 0.06));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035),
+    0 10px 22px rgba(0, 0, 0, 0.22);
+  white-space: normal;
+}
+
+.stitch-command-dock .action-strip button span {
+  color: #f0c76c;
+  font-size: 19px;
+  line-height: 1;
+}
+
+.stitch-command-dock .action-strip button.action-ready {
+  border-color: rgba(240, 199, 108, 0.78);
+  color: #211306;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.08)),
+    var(--arena-gold);
+  box-shadow: 0 0 26px rgba(240, 199, 108, 0.24), 0 12px 24px rgba(0, 0, 0, 0.24);
+}
+
+.stitch-command-dock .action-strip button.action-ready span {
+  color: #211306;
+}
+
+.stitch-command-dock .action-strip .end-turn {
+  color: #ffd6dc;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent),
+    rgba(67, 11, 23, 0.58);
+}
+
+.stitch-command-dock .action-strip .end-turn.action-ready {
+  color: #26070f;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08)),
+    #f08aa0;
+}
+
+.stitch-command-dock .action-hint {
+  border-color: rgba(240, 199, 108, 0.22);
+  color: #ecf4f7;
+  background: rgba(5, 8, 14, 0.58);
+}
+
+.event-mode-toggle {
+  border-color: rgba(240, 199, 108, 0.22);
+  background: rgba(5, 8, 14, 0.58);
+}
+
+.stitch-log-sidebar {
+  border-left-color: rgba(240, 199, 108, 0.28);
+}
+
+.stitch-log-title {
+  border-bottom-color: rgba(240, 199, 108, 0.22);
+  color: #fff0bc;
+}
+
+.stitch-log-sidebar .log li {
+  border-color: rgba(240, 199, 108, 0.16);
+  background: rgba(7, 9, 15, 0.58);
+}
+
+.stitch-log-sidebar .log li.log-latest {
+  border-color: rgba(240, 199, 108, 0.48);
+  background: rgba(240, 199, 108, 0.11);
+}
+
+.card {
+  border-color: color-mix(in srgb, var(--card-color) 54%, #f0c76c 18%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13), transparent 18%),
+    linear-gradient(150deg, color-mix(in srgb, var(--card-color) 26%, #0b0d14), #0a0c12 68%);
+  box-shadow:
+    0 18px 34px rgba(0, 0, 0, 0.38),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.055),
+    inset 0 -18px 28px rgba(0, 0, 0, 0.18);
+}
+
+.card::before {
+  border-color: rgba(240, 199, 108, 0.16);
+}
+
+.card.selected,
+.card.selectable:hover {
+  border-color: color-mix(in srgb, var(--card-color) 38%, #f0c76c 50%);
+}
+
+.card-art {
+  border-color: rgba(240, 199, 108, 0.2);
+  background:
+    radial-gradient(circle at 50% 25%, rgba(255, 255, 255, 0.16), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--card-color) 32%, #10131b), #090b12);
+}
+
+@media (min-width: 1180px) {
+  .stitch-shell {
+    padding-right: calc(var(--stitch-log-width) + 60px);
+  }
+
+  .stitch-shell > .stitch-opponent-bar,
+  .stitch-shell > .stitch-battlefield,
+  .stitch-shell > .stitch-player-status,
+  .stitch-shell > .stitch-hand-zone,
+  .stitch-shell > .stitch-command-dock {
+    width: calc(100vw - var(--stitch-log-width));
+    max-width: calc(100vw - var(--stitch-log-width));
+    margin-right: 60px;
+  }
+}
+
+@media (min-width: 921px) and (max-width: 1179px) {
+  .stitch-shell {
+    grid-template-rows: 74px minmax(380px, 1fr) 48px 186px 224px 280px;
+  }
+
+  .stitch-command-dock {
+    grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
+  }
+
+  .dock-detail {
+    grid-template-columns: minmax(140px, 170px) minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 921px) and (max-height: 760px) {
+  .stitch-shell {
+    grid-template-rows: 78px minmax(300px, 1fr) 44px 150px 148px;
+  }
+
+  .stitch-opponent-bar,
+  .stitch-player-status {
+    padding-inline: 18px;
+  }
+
+  .stitch-status-left {
+    gap: 10px;
+  }
+
+  .stitch-status-left h2 {
+    font-size: 15px;
+  }
+
+  .deck-badge {
+    max-width: 118px;
+    overflow: hidden;
+    padding: 5px 7px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .stitch-counts {
+    align-items: center;
+    gap: 8px;
+  }
+
+  .duel-top-controls {
+    gap: 5px;
+  }
+
+  .duel-top-controls button,
+  .page-tabs button {
+    min-width: 48px;
+    min-height: 32px;
+    padding-inline: 8px;
+    font-size: 12px;
+  }
+
+  .duel-top-controls .duel-seed input {
+    width: 70px;
+    min-height: 32px;
+  }
+
+  .stitch-battlefield {
+    gap: 10px;
+    padding-block: 10px;
+  }
+
+  .field-grid {
+    grid-template-columns: repeat(4, 92px);
+    gap: 12px;
+    padding: 7px 12px;
+  }
+
+  .field-grid .card,
+  .field-slot {
+    width: 92px;
+    height: 116px;
+    min-height: 116px;
+  }
+
+  .field-grid .card {
+    grid-template-rows: 26px 32px 26px 14px;
+    padding: 5px;
+  }
+
+  .field-grid .card-art {
+    height: 32px;
+    min-height: 32px;
+  }
+
+  .field-grid .power {
+    width: 26px;
+    height: 26px;
+    font-size: 14px;
+  }
+
+  .field-grid .card-foot {
+    min-height: 14px;
+    font-size: 9px;
+  }
+
+  .clash-line {
+    height: 26px;
+  }
+
+  .clash-line::before {
+    min-height: 24px;
+    padding: 3px 12px;
+    font-size: 10px;
+  }
+
+  .stitch-player-stats {
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .stitch-player-stats span {
+    padding: 3px 6px;
+  }
+
+  .stitch-hand-zone {
+    grid-template-columns: 84px minmax(0, 1fr) 84px;
+    gap: 12px;
+    padding: 6px 22px 8px;
+  }
+
+  .deck-pile-card,
+  .trash-pile-button {
+    width: 78px;
+    height: 112px;
+    flex-basis: 78px;
+  }
+
+  .deck-pile-face,
+  .trash-pile-face {
+    width: 70px;
+    height: 102px;
+  }
+
+  .deck-pile-card.compact,
+  .trash-pile-button.compact {
+    width: 44px;
+    height: 58px;
+    flex-basis: 44px;
+  }
+
+  .deck-pile-card.compact .deck-pile-face,
+  .trash-pile-button.compact .trash-pile-face {
+    width: 38px;
+    height: 52px;
+  }
+
+  .deck-pile-card.compact .zone-card-label,
+  .trash-pile-button.compact .trash-pile-kicker {
+    left: 5px;
+    top: 5px;
+    font-size: 6px;
+  }
+
+  .deck-pile-card.compact .zone-card-count,
+  .trash-pile-button.compact .trash-pile-count {
+    right: -6px;
+    bottom: -6px;
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+  }
+
+  .stitch-hand {
+    min-height: 134px;
+    padding: 14px 10px 6px;
+  }
+
+  .stitch-hand .card {
+    flex-basis: 92px;
+    width: 92px;
+    height: 128px;
+    min-height: 128px;
+    grid-template-rows: 32px 42px 36px 16px;
+  }
+
+  .stitch-hand .card-art {
+    height: 42px;
+    min-height: 42px;
+  }
+
+  .stitch-hand .power {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+  }
+
+  .stitch-command-dock {
+    grid-template-columns: minmax(320px, 500px) minmax(420px, 1fr);
+    min-height: 148px;
+    gap: 12px;
+    padding: 8px 14px;
+  }
+
+  .dock-detail {
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: 12px;
+    padding-right: 12px;
+  }
+
+  .selected-art-preview,
+  .empty-preview {
+    min-height: 88px;
+  }
+
+  .dock-detail .detail-title {
+    font-size: 16px;
+  }
+
+  .dock-detail .detail-meta,
+  .dock-detail .detail-effect,
+  .dock-detail .detail-affinity {
+    font-size: 11px;
+    line-height: 1.28;
+  }
+
+  .dock-actions {
+    gap: 6px;
+  }
+
+  .stitch-command-dock .action-meter {
+    min-height: 24px;
+  }
+
+  .stitch-command-dock .meter-value {
+    font-size: 26px;
+  }
+
+  .stitch-command-dock .action-token {
+    width: 13px;
+    height: 13px;
+  }
+
+  .stitch-command-dock .action-strip {
+    grid-template-columns: repeat(5, minmax(82px, 1fr));
+    min-height: 50px;
+  }
+
+  .stitch-command-dock .action-strip button {
+    min-height: 50px;
+    font-size: 12px;
+  }
+
+  .stitch-command-dock .action-strip button span {
+    font-size: 16px;
+  }
+
+  .dock-action-footer {
+    gap: 6px;
+  }
+
+  .stitch-command-dock .action-hint {
+    font-size: 11px;
+  }
+
+  .event-mode-toggle {
+    min-height: 26px;
+  }
+}
+
+@media (max-width: 920px) {
+  .stitch-shell {
+    grid-template-rows: auto auto auto auto auto auto;
+    min-height: 100vh;
+    height: auto;
+    overflow: auto;
+  }
+
+  .stitch-player-stats {
+    justify-content: flex-start;
+  }
+
+  .stitch-battlefield {
+    padding: 20px 14px;
+  }
+
+  .field-grid {
+    grid-template-columns: repeat(2, minmax(112px, 126px));
+  }
+
+  .stitch-hand-zone {
+    grid-template-columns: 74px minmax(0, 1fr) 74px;
+    gap: 10px;
+  }
+
+  .stitch-hand-zone > .deck-pile-card,
+  .stitch-hand-zone > .trash-pile-button {
+    width: 66px;
+    height: 94px;
+    flex-basis: 66px;
+  }
+
+  .stitch-hand-zone > .deck-pile-card .deck-pile-face,
+  .stitch-hand-zone > .trash-pile-button .trash-pile-face {
+    width: 58px;
+    height: 84px;
+  }
+
+  .stitch-command-dock {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    height: auto;
+    overflow: visible;
+  }
+
+  .dock-detail {
+    grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+    border-right: 0;
+    border-bottom: 1px solid rgba(240, 199, 108, 0.2);
+    padding: 0 0 12px;
+  }
+
+  .dock-actions {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .stitch-command-dock .action-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stitch-command-dock .action-strip button {
+    min-height: 58px;
+  }
+
+  .dock-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .selected-art-preview,
+  .empty-preview {
+    min-height: 104px;
+  }
+}
+
+/* Fantasy card-battler correction pass: illustrated arena, ornate HUD, card-first composition. */
+.stitch-shell {
+  --stitch-log-width: clamp(270px, 20vw, 340px);
+  --arena-cyan: #7ddcff;
+  --arena-magenta: #ff6fcf;
+  --arena-gold: #f5cf78;
+  --arena-amber: #d99b43;
+  --arena-ruby: #d84f66;
+  --arena-ink: #070711;
+
+  grid-template-rows: 76px minmax(330px, 1fr) 46px 178px 206px;
+  background:
+    radial-gradient(ellipse at 50% 46%, rgba(245, 207, 120, 0.22), transparent 38%),
+    radial-gradient(ellipse at 18% 18%, rgba(125, 220, 255, 0.18), transparent 34%),
+    radial-gradient(ellipse at 82% 18%, rgba(255, 111, 207, 0.15), transparent 32%),
+    #070711;
+}
+
+.stitch-shell::before {
+  background:
+    linear-gradient(180deg, rgba(7, 7, 17, 0.26), transparent 18%, transparent 72%, rgba(7, 7, 17, 0.72)),
+    radial-gradient(ellipse at 50% 45%, transparent 40%, rgba(0, 0, 0, 0.52) 92%);
+  animation: none;
+}
+
+.stitch-shell::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    linear-gradient(90deg, rgba(245, 207, 120, 0.18), transparent 14%, transparent 86%, rgba(245, 207, 120, 0.16)),
+    radial-gradient(circle at 50% 47%, rgba(255, 255, 255, 0.12), transparent 16%);
+  opacity: 0.45;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.stitch-opponent-bar,
+.stitch-player-status,
+.stitch-command-dock,
+.stitch-log-sidebar {
+  border-color: rgba(245, 207, 120, 0.42);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 24%),
+    linear-gradient(90deg, rgba(38, 20, 54, 0.95), rgba(8, 8, 19, 0.92) 42%, rgba(33, 15, 40, 0.94)),
+    rgba(7, 7, 17, 0.94);
+  box-shadow:
+    0 18px 46px rgba(0, 0, 0, 0.42),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 rgba(245, 207, 120, 0.24);
+}
+
+.stitch-opponent-bar,
+.stitch-player-status {
+  padding-inline: 22px;
+}
+
+.stitch-opponent-bar {
+  border-bottom-width: 2px;
+}
+
+.stitch-player-status {
+  border-top-width: 2px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 24%),
+    linear-gradient(90deg, rgba(52, 16, 47, 0.96), rgba(8, 8, 19, 0.9) 42%, rgba(19, 34, 51, 0.92)),
+    rgba(7, 7, 17, 0.94);
+}
+
+.stitch-status-left {
+  position: relative;
+}
+
+.stitch-status-left::before {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  border: 2px solid rgba(245, 207, 120, 0.68);
+  border-radius: 50%;
+  color: #fff2c9;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.34), transparent 24%),
+    conic-gradient(from 24deg, #8c5b28, #f5cf78, #6142a2, #d84f66, #8c5b28);
+  box-shadow:
+    0 0 0 3px rgba(7, 7, 17, 0.9),
+    0 0 26px rgba(245, 207, 120, 0.24),
+    inset 0 0 18px rgba(0, 0, 0, 0.46);
+  font-family: "Space Mono", ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 950;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.stitch-opponent-bar .stitch-status-left::before {
+  content: "AI";
+}
+
+.stitch-player-status .stitch-status-left::before {
+  content: "YOU";
+}
+
+.stitch-status-left h2 {
+  color: #fff5d2;
+  font-size: 18px;
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.8),
+    0 0 18px rgba(245, 207, 120, 0.24);
+}
+
+.deck-badge,
+.ai-hand-source,
+.stitch-player-stats span {
+  border-color: rgba(245, 207, 120, 0.4);
+  border-radius: 999px;
+  color: #f8e9bc;
+  background:
+    linear-gradient(180deg, rgba(245, 207, 120, 0.17), rgba(255, 255, 255, 0.04)),
+    rgba(11, 10, 23, 0.72);
+}
+
+.deck-badge.magenta {
+  border-color: rgba(255, 111, 207, 0.42);
+  color: #ffe0f4;
+}
+
+.brand-mini {
+  border: 1px solid rgba(245, 207, 120, 0.32);
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: rgba(7, 7, 17, 0.54);
+  box-shadow: inset 0 0 16px rgba(245, 207, 120, 0.06);
+}
+
+.duel-top-controls button,
+.page-tabs button,
+.event-mode-toggle button {
+  border-color: rgba(245, 207, 120, 0.32);
+  border-radius: 999px;
+  color: #f5ead0;
+  background:
+    linear-gradient(180deg, rgba(245, 207, 120, 0.14), rgba(255, 255, 255, 0.03)),
+    rgba(7, 7, 17, 0.62);
+}
+
+.page-tabs button.active,
+.event-mode-toggle button.active {
+  color: #261506;
+  background:
+    linear-gradient(180deg, #fff3bf, #dca34b);
+  box-shadow:
+    0 0 18px rgba(245, 207, 120, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.action-meter {
+  border-color: rgba(245, 207, 120, 0.3);
+  background:
+    radial-gradient(circle at 26px 50%, rgba(245, 207, 120, 0.2), transparent 30px),
+    rgba(7, 7, 17, 0.58);
+}
+
+.compact-action-meter {
+  border-radius: 999px;
+  padding-left: 10px;
+}
+
+.compact-action-meter .meter-value,
+.stitch-command-dock .meter-value {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 2px solid rgba(245, 207, 120, 0.72);
+  border-radius: 50%;
+  color: #fff4cc;
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.42), transparent 22%),
+    radial-gradient(circle, #6e47c8 0 38%, #1b1738 70%);
+  box-shadow:
+    0 0 18px rgba(125, 220, 255, 0.24),
+    inset 0 0 16px rgba(0, 0, 0, 0.42);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.stitch-battlefield {
+  gap: 12px;
+  padding: 18px 52px 14px;
+}
+
+.stitch-battlefield::before {
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  background:
+    linear-gradient(180deg, rgba(7, 7, 17, 0.52), rgba(7, 7, 17, 0.08) 28%, rgba(7, 7, 17, 0.1) 66%, rgba(7, 7, 17, 0.66)),
+    linear-gradient(90deg, rgba(7, 7, 17, 0.7), transparent 22%, transparent 78%, rgba(7, 7, 17, 0.72)),
+    url("./assets/battlefield-fantasy-arena.webp") center 56% / cover no-repeat;
+  box-shadow:
+    inset 0 28px 44px rgba(0, 0, 0, 0.42),
+    inset 0 -34px 54px rgba(0, 0, 0, 0.52);
+  filter: saturate(1.08) contrast(1.04);
+}
+
+.stitch-battlefield::after {
+  top: 52%;
+  width: min(760px, 70vw);
+  height: min(300px, 29vw);
+  border: 2px solid rgba(245, 207, 120, 0.26);
+  background:
+    repeating-conic-gradient(from 20deg, rgba(245, 207, 120, 0.1) 0 7deg, transparent 7deg 18deg),
+    radial-gradient(ellipse, rgba(245, 207, 120, 0.2), rgba(125, 220, 255, 0.08) 42%, transparent 68%);
+  opacity: 0.74;
+  transform: translate(-50%, -50%) perspective(520px) rotateX(62deg);
+  box-shadow: 0 0 42px rgba(245, 207, 120, 0.18);
+}
+
+.field-grid {
+  z-index: 2;
+  grid-template-columns: repeat(4, minmax(100px, 118px));
+  gap: clamp(12px, 1.5vw, 20px);
+  border: 1px solid rgba(245, 207, 120, 0.36);
+  border-radius: 20px;
+  padding: 12px clamp(18px, 2vw, 28px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)),
+    linear-gradient(90deg, rgba(15, 12, 27, 0.62), rgba(7, 7, 17, 0.38), rgba(18, 10, 29, 0.62));
+  backdrop-filter: blur(4px) saturate(1.15);
+  box-shadow:
+    0 20px 38px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 0 36px rgba(245, 207, 120, 0.06);
+}
+
+.field-grid::before {
+  inset: 10px 14px;
+  border: 1px solid rgba(245, 207, 120, 0.2);
+  border-radius: 16px;
+  background:
+    linear-gradient(90deg, transparent 24%, rgba(245, 207, 120, 0.1) 25%, transparent 26% 49%, rgba(245, 207, 120, 0.1) 50%, transparent 51% 74%, rgba(245, 207, 120, 0.1) 75%, transparent 76%),
+    radial-gradient(ellipse, rgba(125, 220, 255, 0.08), transparent 64%);
+}
+
+.field-grid::after {
+  right: 18px;
+  top: -13px;
+  border-color: rgba(245, 207, 120, 0.58);
+  border-radius: 999px;
+  color: #fff0bc;
+  background:
+    linear-gradient(180deg, rgba(245, 207, 120, 0.18), rgba(7, 7, 17, 0.96)),
+    rgba(7, 7, 17, 0.96);
+  box-shadow: 0 0 16px rgba(245, 207, 120, 0.16);
+}
+
+.field-grid.opponent::after {
+  content: "ENEMY LEADER";
+  color: #daf5ff;
+}
+
+.field-grid.human::after {
+  content: "YOUR LEADER";
+  color: #ffe1f3;
+}
+
+.field-grid .card,
+.field-slot {
+  width: clamp(100px, 7.2vw, 118px);
+  height: clamp(132px, 9.4vw, 148px);
+  min-height: clamp(132px, 9.4vw, 148px);
+}
+
+.field-grid .card {
+  grid-template-rows: 30px 44px 32px 17px;
+  border-width: 2px;
+  border-radius: 10px;
+  padding: 6px;
+}
+
+.field-grid .card-art {
+  height: 44px;
+  min-height: 44px;
+}
+
+.field-slot.empty {
+  border: 1px dashed rgba(245, 207, 120, 0.28);
+  border-radius: 14px;
+  color: rgba(245, 207, 120, 0.6);
+  background:
+    radial-gradient(circle, rgba(245, 207, 120, 0.18), transparent 38%),
+    rgba(8, 8, 19, 0.28);
+}
+
+.clash-line {
+  z-index: 3;
+  width: min(900px, 72vw);
+  height: 30px;
+}
+
+.clash-line::before {
+  content: "決戦ライン";
+  border-color: rgba(245, 207, 120, 0.66);
+  border-radius: 999px;
+  color: #fff6cf;
+  background:
+    linear-gradient(90deg, transparent, rgba(245, 207, 120, 0.22), transparent),
+    rgba(7, 7, 17, 0.72);
+  box-shadow: 0 0 22px rgba(245, 207, 120, 0.18);
+}
+
+.leader-portrait {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  width: clamp(142px, 13vw, 190px);
+  height: clamp(162px, 16vw, 230px);
+  margin: 0;
+  pointer-events: none;
+}
+
+.leader-portrait.rival {
+  right: clamp(24px, 3.6vw, 58px);
+  top: clamp(30px, 5vh, 58px);
+}
+
+.leader-portrait.human {
+  left: clamp(24px, 3.6vw, 58px);
+  bottom: clamp(22px, 4vh, 50px);
+}
+
+.leader-portrait-art {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border: 2px solid rgba(245, 207, 120, 0.54);
+  border-radius: 26px 26px 10px 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 26%),
+    rgba(7, 7, 17, 0.72);
+  box-shadow:
+    0 24px 50px rgba(0, 0, 0, 0.38),
+    0 0 26px rgba(245, 207, 120, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.leader-portrait-art::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  z-index: 2;
+  border: 1px solid rgba(245, 207, 120, 0.22);
+  border-radius: 20px 20px 8px 8px;
+  pointer-events: none;
+}
+
+.leader-portrait-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, transparent 54%, rgba(7, 7, 17, 0.72)),
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.18), transparent 28%);
+  pointer-events: none;
+}
+
+.leader-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 22%;
+  transform: scale(1.08);
+}
+
+.leader-portrait.rival img {
+  transform: translate(10px, 14px) scale(1.08);
+}
+
+.leader-portrait.human img {
+  object-position: 50% 20%;
+}
+
+.leader-portrait figcaption {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  margin-top: -8px;
+  border: 1px solid rgba(245, 207, 120, 0.46);
+  border-radius: 999px;
+  padding: 5px 10px;
+  color: #fff3c8;
+  background:
+    linear-gradient(180deg, rgba(245, 207, 120, 0.18), rgba(255, 255, 255, 0.04)),
+    rgba(7, 7, 17, 0.88);
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.leader-portrait figcaption span {
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #211306;
+  background: linear-gradient(180deg, #fff3bf, #dca34b);
+  font-family: "Space Mono", ui-monospace, monospace;
+  font-size: 9px;
+}
+
+.leader-portrait figcaption strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leader-portrait.rival .leader-portrait-art {
+  border-color: rgba(125, 220, 255, 0.48);
+  box-shadow:
+    0 24px 50px rgba(0, 0, 0, 0.38),
+    0 0 26px rgba(125, 220, 255, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.leader-portrait.human .leader-portrait-art {
+  border-color: rgba(255, 111, 207, 0.5);
+  box-shadow:
+    0 24px 50px rgba(0, 0, 0, 0.38),
+    0 0 28px rgba(255, 111, 207, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.stitch-hand-zone {
+  grid-template-columns: 104px minmax(0, 1fr) 104px;
+  gap: 12px;
+  border-top: 2px solid rgba(245, 207, 120, 0.34);
+  padding: 8px 32px 10px;
+  background:
+    linear-gradient(180deg, rgba(245, 207, 120, 0.12), rgba(255, 255, 255, 0.02) 22%, rgba(0, 0, 0, 0.22)),
+    linear-gradient(90deg, rgba(49, 15, 47, 0.96), rgba(7, 7, 17, 0.94) 34%, rgba(14, 30, 48, 0.92)),
+    rgba(7, 7, 17, 0.98);
+}
+
+.stitch-hand {
+  justify-content: center;
+  align-items: flex-end;
+  min-height: 164px;
+  padding: 18px 10px 4px;
+  overflow-y: visible;
+}
+
+.stitch-hand .card {
+  flex-basis: 108px;
+  width: 108px;
+  height: 152px;
+  min-height: 152px;
+  margin-inline: -10px;
+  transform-origin: 50% 112%;
+  transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+}
+
+.stitch-hand .card:nth-child(1) { transform: translateY(10px) rotate(-8deg); }
+.stitch-hand .card:nth-child(2) { transform: translateY(4px) rotate(-4deg); }
+.stitch-hand .card:nth-child(3) { transform: translateY(0) rotate(-1deg); }
+.stitch-hand .card:nth-child(4) { transform: translateY(0) rotate(1deg); }
+.stitch-hand .card:nth-child(5) { transform: translateY(4px) rotate(4deg); }
+.stitch-hand .card:nth-child(6) { transform: translateY(10px) rotate(8deg); }
+.stitch-hand .card:nth-child(n + 7) { transform: translateY(12px) rotate(10deg); }
+
+.stitch-hand .card:hover,
+.stitch-hand .card.selected {
+  z-index: 12;
+  transform: translateY(-24px) scale(1.08) rotate(0deg);
+  filter: saturate(1.12);
+}
+
+.deck-pile-face,
+.trash-pile-face {
+  border-width: 2px;
+  border-color: rgba(245, 207, 120, 0.44);
+  border-radius: 10px;
+  background:
+    linear-gradient(145deg, rgba(245, 207, 120, 0.16), transparent 32%),
+    linear-gradient(180deg, rgba(34, 23, 62, 0.95), rgba(8, 8, 19, 0.98));
+}
+
+.stitch-command-dock {
+  grid-template-columns: minmax(390px, 510px) minmax(440px, 1fr);
+  gap: 18px;
+  min-height: 206px;
+  border-top: 2px solid rgba(245, 207, 120, 0.48);
+  padding: 13px 18px;
+}
+
+.dock-detail {
+  grid-template-columns: minmax(176px, 220px) minmax(0, 1fr);
+  border-right-color: rgba(245, 207, 120, 0.28);
+}
+
+.selected-art-preview,
+.empty-preview {
+  min-height: 136px;
+  border: 2px solid rgba(245, 207, 120, 0.42);
+  border-radius: 10px;
+}
+
+.empty-preview {
+  background:
+    radial-gradient(circle at 50% 38%, rgba(245, 207, 120, 0.24), transparent 30%),
+    linear-gradient(145deg, rgba(56, 33, 84, 0.82), rgba(7, 7, 17, 0.95) 54%, rgba(38, 15, 48, 0.84));
+}
+
+.empty-preview::before {
+  border-color: rgba(245, 207, 120, 0.25);
+}
+
+.empty-preview::after {
+  border-color: rgba(245, 207, 120, 0.22);
+  background: radial-gradient(circle, rgba(245, 207, 120, 0.14), transparent 62%);
+}
+
+.dock-detail .detail-title {
+  color: #fff4cc;
+  font-family: "Noto Serif JP", "Noto Sans", system-ui, sans-serif;
+  font-size: 19px;
+}
+
+.dock-detail .detail-meta,
+.dock-detail .detail-effect,
+.dock-detail .detail-affinity {
+  color: #efe3cb;
+}
+
+.stitch-command-dock .action-meter {
+  justify-content: flex-start;
+  min-height: 46px;
+  border-radius: 999px;
+  padding-left: 12px;
+}
+
+.stitch-command-dock .action-strip {
+  grid-template-columns: repeat(5, minmax(90px, 1fr));
+  gap: 8px;
+  min-height: 68px;
+}
+
+.stitch-command-dock .action-strip button {
+  min-height: 68px;
+  border: 1px solid rgba(245, 207, 120, 0.34);
+  border-radius: 12px;
+  color: #f7ebd5;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 34%),
+    linear-gradient(145deg, rgba(59, 32, 86, 0.82), rgba(7, 7, 17, 0.94) 60%, rgba(36, 16, 47, 0.82));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 10px 22px rgba(0, 0, 0, 0.24);
+  font-size: 13px;
+  line-break: strict;
+  word-break: keep-all;
+}
+
+.stitch-command-dock .action-strip button span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #fff1c2;
+  background:
+    radial-gradient(circle, rgba(245, 207, 120, 0.28), rgba(92, 55, 137, 0.32) 66%, transparent 68%);
+}
+
+.stitch-command-dock .action-strip button.action-ready {
+  border-color: rgba(245, 207, 120, 0.82);
+  color: #251707;
+  background:
+    linear-gradient(180deg, #fff4c8, #d99b43);
+  box-shadow:
+    0 0 28px rgba(245, 207, 120, 0.3),
+    0 12px 24px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.stitch-command-dock .action-strip button.action-ready span {
+  color: #251707;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.stitch-command-dock .action-strip .end-turn.action-ready {
+  color: #310811;
+  background:
+    linear-gradient(180deg, #ffd4da, #d84f66);
+}
+
+.stitch-command-dock .action-hint,
+.event-mode-toggle {
+  border-color: rgba(245, 207, 120, 0.24);
+  border-radius: 999px;
+  color: #efe7d7;
+  background: rgba(7, 7, 17, 0.56);
+}
+
+.stitch-log-sidebar {
+  border-left: 2px solid rgba(245, 207, 120, 0.3);
+  background:
+    linear-gradient(180deg, rgba(245, 207, 120, 0.14), transparent 18%),
+    linear-gradient(90deg, rgba(7, 7, 17, 0.96), rgba(24, 15, 31, 0.96));
+}
+
+.stitch-log-title {
+  color: #fff2c9;
+  font-family: "Noto Serif JP", "Noto Sans", system-ui, sans-serif;
+}
+
+.stitch-log-sidebar .log li {
+  border-color: rgba(245, 207, 120, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
+    rgba(7, 7, 17, 0.54);
+}
+
+.stitch-log-sidebar .log li.log-latest {
+  border-color: rgba(245, 207, 120, 0.58);
+  background:
+    linear-gradient(180deg, rgba(245, 207, 120, 0.15), rgba(245, 207, 120, 0.04)),
+    rgba(7, 7, 17, 0.74);
+  box-shadow: 0 0 18px rgba(245, 207, 120, 0.14);
+}
+
+.card {
+  border-width: 2px;
+  border-color: color-mix(in srgb, var(--card-color) 46%, #f5cf78 34%);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 18%),
+    linear-gradient(150deg, color-mix(in srgb, var(--card-color) 30%, #221638), #090912 68%);
+  box-shadow:
+    0 18px 34px rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 -18px 28px rgba(0, 0, 0, 0.2);
+}
+
+.card::before {
+  inset: 4px;
+  border-color: rgba(245, 207, 120, 0.18);
+  border-radius: 7px;
+}
+
+.card.selected,
+.card.selectable:hover {
+  border-color: color-mix(in srgb, var(--card-color) 34%, #fff0bc 58%);
+  box-shadow:
+    0 0 0 1px rgba(255, 240, 188, 0.52),
+    0 0 30px color-mix(in srgb, var(--card-color) 32%, #f5cf78 38%),
+    0 22px 40px rgba(0, 0, 0, 0.44);
+}
+
+.card-art {
+  border-color: rgba(245, 207, 120, 0.28);
+}
+
+@media (min-width: 1180px) {
+  .stitch-shell {
+    padding-right: calc(var(--stitch-log-width) + 60px);
+  }
+}
+
+@media (min-width: 921px) and (max-height: 760px) {
+  .stitch-shell {
+    grid-template-rows: 70px minmax(292px, 1fr) 42px 142px 148px;
+  }
+
+  .stitch-status-left::before {
+    width: 46px;
+    height: 46px;
+    flex-basis: 46px;
+  }
+
+  .stitch-battlefield {
+    gap: 7px;
+    padding: 9px 34px;
+  }
+
+  .leader-portrait {
+    width: 118px;
+    height: 142px;
+  }
+
+  .field-grid {
+    grid-template-columns: repeat(4, 92px);
+    gap: 10px;
+    padding: 8px 14px;
+  }
+
+  .field-grid .card,
+  .field-slot {
+    width: 92px;
+    height: 116px;
+    min-height: 116px;
+  }
+
+  .field-grid .card {
+    grid-template-rows: 26px 32px 26px 14px;
+    padding: 5px;
+  }
+
+  .field-grid .card-art {
+    height: 32px;
+    min-height: 32px;
+  }
+
+  .stitch-hand {
+    min-height: 128px;
+    padding-top: 12px;
+  }
+
+  .stitch-hand .card {
+    flex-basis: 92px;
+    width: 92px;
+    height: 128px;
+    min-height: 128px;
+    margin-inline: -9px;
+  }
+
+  .stitch-command-dock {
+    min-height: 148px;
+    padding-block: 8px;
+  }
+
+  .selected-art-preview,
+  .empty-preview {
+    min-height: 86px;
+  }
+}
+
+@media (max-width: 920px) {
+  .stitch-shell {
+    grid-template-rows: auto auto auto auto auto auto;
+    background:
+      radial-gradient(ellipse at 50% 26%, rgba(245, 207, 120, 0.18), transparent 38%),
+      #070711;
+  }
+
+  .stitch-opponent-bar,
+  .stitch-player-status {
+    padding: 10px 14px;
+  }
+
+  .stitch-status-left::before {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
+  }
+
+  .stitch-battlefield {
+    padding: 26px 12px;
+  }
+
+  .leader-portrait {
+    position: relative;
+    left: auto;
+    right: auto;
+    top: auto;
+    bottom: auto;
+    align-self: center;
+    width: min(310px, 86vw);
+    height: 126px;
+    grid-template-columns: 104px minmax(0, 1fr);
+    grid-template-rows: 1fr;
+    align-items: stretch;
+    margin-block: 0 42px;
+  }
+
+  .leader-portrait.human {
+    margin-block: 42px 0;
+  }
+
+  .leader-portrait-art {
+    border-radius: 18px 8px 8px 18px;
+  }
+
+  .leader-portrait-art::before {
+    border-radius: 12px 6px 6px 12px;
+  }
+
+  .leader-portrait figcaption {
+    align-self: center;
+    grid-template-columns: 1fr;
+    gap: 4px;
+    margin: 0 0 0 -8px;
+    border-radius: 0 999px 999px 0;
+    padding-left: 18px;
+  }
+
+  .leader-portrait figcaption span {
+    width: max-content;
+  }
+
+  .field-grid {
+    grid-template-columns: repeat(2, minmax(110px, 126px));
+    padding: 14px;
+  }
+
+  .field-grid .card,
+  .field-slot {
+    width: min(126px, 38vw);
+    height: min(158px, 49vw);
+    min-height: min(158px, 49vw);
+  }
+
+  .stitch-hand {
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-inline: 18px;
+  }
+
+  .stitch-hand .card {
+    margin-inline: -5px;
+    transform: none !important;
+  }
+
+  .stitch-hand .card:hover,
+  .stitch-hand .card.selected {
+    transform: translateY(-14px) scale(1.04) !important;
+  }
+
+  .stitch-command-dock {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .stitch-command-dock .action-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stitch-command-dock .action-strip button {
+    min-height: 58px;
+  }
+}
+
+@media (min-width: 921px) and (max-height: 760px) {
+  .stitch-command-dock .action-strip {
+    grid-template-columns: repeat(5, minmax(78px, 1fr));
+  }
+
+  .stitch-command-dock .action-strip button {
+    min-width: 0;
+    font-size: 12px;
+  }
+}
+
+/* Fantasy type pass: move the duel surface away from utilitarian mono UI. */
+.stitch-shell {
+  --duel-serif: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Times New Roman", serif;
+  --duel-ui: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Noto Sans", system-ui, sans-serif;
+
+  font-family: var(--duel-ui);
+}
+
+.stitch-shell h2,
+.stitch-log-title,
+.dock-detail .detail-title,
+.leader-portrait figcaption,
+.stitch-command-dock .action-strip button,
+.deck-badge,
+.field-grid::after,
+.clash-line::before,
+.empty-preview span,
+.match-result-panel strong {
+  font-family: var(--duel-serif);
+  font-weight: 900;
+}
+
+.stitch-player-stats,
+.stitch-player-stats span,
+.ai-hand-source,
+.action-meter,
+.meter-label,
+.meter-value,
+.action-token,
+.stitch-log-sidebar .log,
+.log-event-icon,
+.duel-seed,
+.duel-seed input,
+.page-tabs button,
+.duel-top-controls button,
+.event-mode-toggle,
+.event-mode-toggle button,
+.card-name,
+.card-foot,
+.power,
+.leader-portrait figcaption span {
+  font-family: var(--duel-ui);
+}
+
+.stitch-shell h2,
+.dock-detail .detail-title,
+.stitch-log-title {
+  letter-spacing: 0.03em;
+}
+
+.stitch-command-dock .action-strip button {
+  letter-spacing: 0.02em;
+}
+
+.leader-portrait figcaption span,
+.field-grid::after,
+.clash-line::before {
+  letter-spacing: 0.04em;
+}
+
+/* Fantasy resource pass: replace plain bars/dots/circles with sigils and mana gems. */
+.stitch-life {
+  gap: 7px;
+  min-height: 22px;
+  margin-top: 4px;
+}
+
+.stitch-life span {
+  position: relative;
+  width: 15px;
+  height: 15px;
+  border: 1px solid rgba(245, 207, 120, 0.62);
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background:
+    radial-gradient(circle at 38% 28%, rgba(255, 255, 255, 0.8), transparent 18%),
+    linear-gradient(135deg, #b6f2ff 0 22%, #32c7ea 45%, #14516a 100%);
+  box-shadow:
+    0 0 12px rgba(125, 220, 255, 0.34),
+    inset 0 0 8px rgba(255, 255, 255, 0.16);
+}
+
+.stitch-life.magenta span {
+  background:
+    radial-gradient(circle at 38% 28%, rgba(255, 255, 255, 0.8), transparent 18%),
+    linear-gradient(135deg, #ffd1ec 0 22%, #ff63bd 48%, #6e1e54 100%);
+  box-shadow:
+    0 0 12px rgba(255, 111, 207, 0.38),
+    inset 0 0 8px rgba(255, 255, 255, 0.16);
+}
+
+.stitch-life span.empty {
+  border-color: rgba(245, 207, 120, 0.24);
+  background:
+    linear-gradient(135deg, rgba(245, 207, 120, 0.1), rgba(7, 7, 17, 0.58));
+  box-shadow:
+    inset 0 0 8px rgba(0, 0, 0, 0.42);
+  opacity: 0.58;
+}
+
+.stitch-life em {
+  margin-left: 7px;
+  color: #f8e9bc;
+  font-family: var(--duel-serif);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 10px rgba(245, 207, 120, 0.18);
+}
+
+.compact-action-meter .meter-value,
+.stitch-command-dock .meter-value {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border: 2px solid rgba(245, 207, 120, 0.7);
+  border-radius: 8px;
+  clip-path: polygon(50% 0, 88% 14%, 100% 50%, 88% 86%, 50% 100%, 12% 86%, 0 50%, 12% 14%);
+  color: #fff2c9;
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.76), transparent 18%),
+    conic-gradient(from 18deg, #2a1d5c, #7a51dd, #f5cf78, #4a2472, #2a1d5c);
+  box-shadow:
+    0 0 0 3px rgba(7, 7, 17, 0.72),
+    0 0 24px rgba(245, 207, 120, 0.28),
+    inset 0 0 16px rgba(0, 0, 0, 0.45);
+  font-family: var(--duel-serif);
+  font-size: 23px;
+  font-weight: 950;
+}
+
+.action-tokens {
+  gap: 8px;
+  align-items: center;
+}
+
+.action-token,
+.stitch-command-dock .action-token {
+  width: 15px;
+  height: 18px;
+  border: 1px solid rgba(245, 207, 120, 0.7);
+  border-radius: 2px;
+  clip-path: polygon(50% 0, 94% 26%, 82% 100%, 18% 100%, 6% 26%);
+  background:
+    radial-gradient(circle at 40% 24%, rgba(255, 255, 255, 0.72), transparent 20%),
+    linear-gradient(180deg, #fff2ba, #d89632 46%, #6a3a16);
+  box-shadow:
+    0 0 12px rgba(245, 207, 120, 0.34),
+    inset 0 0 7px rgba(255, 255, 255, 0.16);
+}
+
+.action-token.spent,
+.stitch-command-dock .action-token.spent {
+  border-color: rgba(245, 207, 120, 0.24);
+  background:
+    linear-gradient(180deg, rgba(245, 207, 120, 0.12), rgba(7, 7, 17, 0.72));
+  box-shadow:
+    inset 0 0 8px rgba(0, 0, 0, 0.5);
+  opacity: 0.66;
+}
+
+.stitch-command-dock .action-meter,
+.compact-action-meter {
+  border-radius: 14px;
+  border-color: rgba(245, 207, 120, 0.3);
+  background:
+    linear-gradient(90deg, rgba(245, 207, 120, 0.1), rgba(7, 7, 17, 0.66) 46%, rgba(91, 58, 138, 0.12)),
+    rgba(7, 7, 17, 0.58);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 0 20px rgba(245, 207, 120, 0.05);
 }

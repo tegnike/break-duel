@@ -3,7 +3,7 @@
 `Break Duel` は、20 枚デッキで遊ぶ 2 人対戦の小型オリジナルカードゲームです。
 React + TypeScript のブラウザ UI で実際に対戦でき、Python シミュレータで自動対戦とバランス検証を回せます。
 
-![Break Duel battle board](docs/assets/break-duel-board.jpg)
+![Break Duel battle board](docs/assets/break-duel-board.png)
 
 ## 特徴
 
@@ -255,6 +255,14 @@ web/
 
 - Source: https://kenney.nl/assets/board-game-icons
 - License: Creative Commons CC0
+
+ブラウザ UI の効果音には、以下の CC0 素材を編集して使用しています。詳細は [src/assets/audio/README.md](src/assets/audio/README.md) を参照してください。
+
+- Kenney Casino Audio
+- Kenney Impact Sounds
+- Kenney Interface Sounds
+- Card Game Sounds
+- Level Up, Power Up, Coin Get (13 Sounds)
 
 ## ライセンス
 
