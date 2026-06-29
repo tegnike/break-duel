@@ -24,6 +24,7 @@ export function CardView({
   showCost = true,
   extraBadges = [],
   onClick,
+  onMouseEnter,
 }: {
   card: Card;
   ownerIndex: number;
@@ -37,6 +38,7 @@ export function CardView({
   showCost?: boolean;
   extraBadges?: string[];
   onClick?: () => void;
+  onMouseEnter?: () => void;
 }) {
   const Element = selectable ? "button" : "div";
   const cost = displayCost(card, actionState);
@@ -49,6 +51,7 @@ export function CardView({
       data-zone={zone}
       data-index={index}
       onClick={onClick}
+      onMouseEnter={onMouseEnter}
     >
       <div className="card-header">
         <div className="card-name">{card.name}</div>
