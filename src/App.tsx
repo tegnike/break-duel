@@ -148,6 +148,17 @@ type LeaderReactionState = {
   1: LeaderReaction | null;
 };
 
+type MatchResultTone = "win" | "lose" | "draw";
+
+type MatchResultView = {
+  tone: MatchResultTone;
+  kicker: string;
+  title: string;
+  lead: string;
+  detail: string;
+  reason: string;
+};
+
 const TRASH_SPARKS = [
   { x: 12, y: 18, delay: 0 },
   { x: 28, y: 12, delay: 70 },
@@ -212,6 +223,35 @@ function randomSeed(): number {
     return values[0] || 1;
   }
   return Math.floor(Date.now() % 4294967295) || 1;
+}
+
+function readResultPreviewTone(): MatchResultTone | null {
+  if (!import.meta.env.DEV || typeof window === "undefined") return null;
+  const searchTone = new URLSearchParams(window.location.search).get("resultPreview");
+  const hashTone = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("resultPreview");
+  const tone = searchTone ?? hashTone;
+  return tone === "win" || tone === "lose" || tone === "draw" ? tone : null;
+}
+
+function previewMatchResult(tone: MatchResultTone): MatchResultView {
+  if (tone === "draw") {
+    return {
+      tone,
+      kicker: "DRAW",
+      title: "引き分け",
+      lead: "決着なし",
+      detail: "あなた 2 - 2 ライバル",
+      reason: "プレビュー表示です。実戦では最終ログに決着理由が入ります。",
+    };
+  }
+  return {
+    tone,
+    kicker: tone === "win" ? "VICTORY" : "DEFEAT",
+    title: tone === "win" ? "あなたの勝利" : "ライバルの勝利",
+    lead: tone === "win" ? "勝利しました" : "敗北しました",
+    detail: tone === "win" ? "あなた 3 - 0 ライバル" : "あなた 0 - 3 ライバル",
+    reason: "プレビュー表示です。実戦では最終ログに決着理由が入ります。",
+  };
 }
 
 function pageFromPath(pathname: string): AppPage {
@@ -1824,19 +1864,27 @@ export default function App() {
     && game.discardViewerOwner === null
     && !duelEvent
     && cardFlights.length === 0;
-  const matchResult = game.draw
+  const finalLog = game.log[game.log.length - 1] ?? "";
+  const resultPreviewTone = readResultPreviewTone();
+  const matchResult: MatchResultView | null = resultPreviewTone
+    ? previewMatchResult(resultPreviewTone)
+    : game.draw
     ? {
         tone: "draw" as const,
         kicker: "DRAW",
         title: "引き分け",
+        lead: "決着なし",
         detail: `あなた ${human.life} - ${ai.life} ライバル`,
+        reason: finalLog,
       }
     : game.winner !== null
       ? {
           tone: game.winner === 0 ? "win" as const : "lose" as const,
           kicker: game.winner === 0 ? "VICTORY" : "DEFEAT",
-          title: `${game.players[game.winner].name}の勝利`,
+          title: game.winner === 0 ? "あなたの勝利" : "ライバルの勝利",
+          lead: game.winner === 0 ? "勝利しました" : "敗北しました",
           detail: `あなた ${human.life} - ${ai.life} ライバル`,
+          reason: finalLog,
         }
       : null;
   const defensePanel = (
@@ -1947,6 +1995,8 @@ export default function App() {
         <FieldGrid player={human} ownerIndex={0} game={game} trashSurge={ownerHasTrashSurge(0)} onSelectField={selectField} onSelectMemory={selectMemory} />
       </section>
 
+      {matchResult && <MatchResultSpotlight result={matchResult} onRestart={openStarterDeckModal} />}
+
       <section className="stitch-player-status">
         <div className="stitch-status-left">
           <h2>{human.name}</h2>
@@ -2054,7 +2104,7 @@ export default function App() {
       <DuelActionReel event={duelEvent} autoDismiss={autoDismissDuelEvents} onClose={dismissDuelEvent}>
         {showDefenseInDuelEvent ? defensePanel : null}
       </DuelActionReel>
-      <GameBanner banner={cardFlights.length > 0 ? null : banner} turn={game.turn} />
+      <GameBanner banner={matchResult || cardFlights.length > 0 ? null : banner} turn={game.turn} />
       {showNoActionsEndTurnPrompt && <NoActionsEndTurnPrompt onConfirm={endTurn} />}
       {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
       {starterDeckModalOpen && (
@@ -2290,6 +2340,30 @@ function WorkspaceHeader({
         <button type="button" className={audioEnabled ? "audio-on" : ""} onClick={onToggleAudio}>{audioEnabled ? "音ON" : "音OFF"}</button>
       </div>
     </header>
+  );
+}
+
+function MatchResultSpotlight({
+  result,
+  onRestart,
+}: {
+  result: MatchResultView;
+  onRestart: () => void;
+}) {
+  return (
+    <section className={`match-result-spotlight ${result.tone}`} aria-live="assertive">
+      <div className="match-result-aura" aria-hidden="true">
+        {Array.from({ length: 10 }).map((_, index) => <span key={index} />)}
+      </div>
+      <div className="match-result-plate">
+        <span className="match-result-kicker">{result.kicker}</span>
+        <strong>{result.title}</strong>
+        <em>{result.lead}</em>
+        <p>{result.detail}</p>
+        {result.reason && <small>{result.reason}</small>}
+        <button type="button" onClick={onRestart}>再戦</button>
+      </div>
+    </section>
   );
 }
 
