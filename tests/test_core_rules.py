@@ -193,10 +193,10 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.log[-1]["event"], "max_turns_reached")
         self.assertEqual(state.log[-1]["result"], "draw")
 
-    def test_opening_hands_are_asymmetric_by_default(self) -> None:
+    def test_opening_hands_are_five_each_by_default(self) -> None:
         state = new_game(1)
         self.assertEqual(len(state.players[0].hand), 5)
-        self.assertEqual(len(state.players[1].hand), 4)
+        self.assertEqual(len(state.players[1].hand), 5)
 
     def test_first_player_first_turn_skips_draw_by_default(self) -> None:
         state = new_game(1, GameConfig(initial_hand=0, first_player_initial_hand=0, second_player_initial_hand=0))
@@ -1451,11 +1451,8 @@ class CoreRuleTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             apply_action(state, Action(ActionType.ATTACK, 0))
 
-    def test_second_player_first_turn_draw_can_be_disabled(self) -> None:
-        state = new_game(
-            1,
-            no_opening_hands(second_player_first_turn_draw=False),
-        )
+    def test_second_player_first_turn_draw_is_disabled_by_default(self) -> None:
+        state = new_game(1, no_opening_hands())
         start_turn(state)
         state.actions_remaining = 0
         from ai_break_duel.engine import end_turn
@@ -1463,6 +1460,16 @@ class CoreRuleTests(unittest.TestCase):
         end_turn(state)
         start_turn(state)
         self.assertEqual(state.players[1].cards_drawn, 0)
+
+    def test_second_player_first_turn_draw_can_be_enabled_for_variants(self) -> None:
+        state = new_game(1, no_opening_hands(second_player_first_turn_draw=True))
+        start_turn(state)
+        state.actions_remaining = 0
+        from ai_break_duel.engine import end_turn
+
+        end_turn(state)
+        start_turn(state)
+        self.assertEqual(state.players[1].cards_drawn, 1)
 
     def test_simulation_returns_expected_summary_shape(self) -> None:
         summary = run_simulation(10, 1, None, GameConfig(max_turns=50))

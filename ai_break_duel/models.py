@@ -73,7 +73,7 @@ class GameConfig:
     life: int = 5
     initial_hand: int = 5
     first_player_initial_hand: int | None = 5
-    second_player_initial_hand: int | None = 4
+    second_player_initial_hand: int | None = 5
     actions_per_turn: int = 2
     field_ai_limit: int = 3
     max_turns: int = 60
@@ -84,7 +84,7 @@ class GameConfig:
     each_player_first_turn_actions: int | None = 2
     first_player_first_turn_can_attack: bool = False
     first_player_first_turn_draw: bool = False
-    second_player_first_turn_draw: bool = True
+    second_player_first_turn_draw: bool = False
     each_player_first_turn_can_attack: bool = True
     hand_defense_limit_per_turn: int | None = 1
     hand_defense_requires_empty_field: bool = False

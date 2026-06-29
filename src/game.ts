@@ -179,7 +179,7 @@ export const CONFIG = {
   life: 5,
   initialHand: 5,
   firstPlayerInitialHand: 5,
-  secondPlayerInitialHand: 4,
+  secondPlayerInitialHand: 5,
   actionsPerTurn: 2,
   fieldLimit: 3,
   maxTurns: 60,
@@ -194,6 +194,7 @@ export const CONFIG = {
   exhaustedCanDefend: false,
   exactUpgradeStep: false,
   firstPlayerFirstTurnDraw: false,
+  secondPlayerFirstTurnDraw: false,
   power1DrawsOnPlay: true,
   power2DefenseBonus: 1,
   largeAiPlayCost: 2,
@@ -770,6 +771,7 @@ export function startTurn(game: GameState): void {
 }
 
 export function shouldDrawForTurn(game: GameState): boolean {
+  if (game.turn === 2 && game.active === 1 && !CONFIG.secondPlayerFirstTurnDraw) return false;
   return !(game.turn === 1 && game.active === 0 && !CONFIG.firstPlayerFirstTurnDraw);
 }
 

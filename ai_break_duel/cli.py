@@ -26,7 +26,7 @@ def main() -> None:
     simulate.add_argument("--second-ai", choices=AI_PROFILE_CHOICES, default="challenger")
     simulate.add_argument("--max-turns", type=int, default=60)
     simulate.add_argument("--first-player-initial-hand", type=int, default=5)
-    simulate.add_argument("--second-player-initial-hand", type=int, default=4)
+    simulate.add_argument("--second-player-initial-hand", type=int, default=5)
     simulate.add_argument("--field-limit", type=int, default=3)
     simulate.add_argument("--advantage-bonus", type=int, default=1)
     simulate.add_argument("--disadvantage-penalty", type=int, default=1)
@@ -54,7 +54,17 @@ def main() -> None:
         dest="first_turn_draw",
         action="store_false",
     )
-    simulate.add_argument("--second-turn-no-draw", action="store_true")
+    simulate.add_argument(
+        "--second-turn-draw",
+        dest="second_turn_draw",
+        action="store_true",
+        default=False,
+    )
+    simulate.add_argument(
+        "--second-turn-no-draw",
+        dest="second_turn_draw",
+        action="store_false",
+    )
     simulate.add_argument("--each-player-first-turn-no-attack", action="store_true")
     simulate.add_argument("--hand-defense-limit", type=int, default=1)
     simulate.add_argument("--hand-limit", type=int, default=None)
@@ -92,7 +102,7 @@ def main() -> None:
     match.add_argument("--second-ai", choices=AI_PROFILE_CHOICES, default="challenger")
     match.add_argument("--max-turns", type=int, default=60)
     match.add_argument("--first-player-initial-hand", type=int, default=5)
-    match.add_argument("--second-player-initial-hand", type=int, default=4)
+    match.add_argument("--second-player-initial-hand", type=int, default=5)
     match.add_argument("--field-limit", type=int, default=3)
     match.add_argument("--advantage-bonus", type=int, default=1)
     match.add_argument("--disadvantage-penalty", type=int, default=1)
@@ -120,7 +130,17 @@ def main() -> None:
         dest="first_turn_draw",
         action="store_false",
     )
-    match.add_argument("--second-turn-no-draw", action="store_true")
+    match.add_argument(
+        "--second-turn-draw",
+        dest="second_turn_draw",
+        action="store_true",
+        default=False,
+    )
+    match.add_argument(
+        "--second-turn-no-draw",
+        dest="second_turn_draw",
+        action="store_false",
+    )
     match.add_argument("--each-player-first-turn-no-attack", action="store_true")
     match.add_argument("--hand-defense-limit", type=int, default=1)
     match.add_argument("--hand-limit", type=int, default=None)
@@ -169,7 +189,7 @@ def main() -> None:
     league.add_argument("--second-ai", choices=AI_PROFILE_CHOICES, default="challenger")
     league.add_argument("--max-turns", type=int, default=60)
     league.add_argument("--first-player-initial-hand", type=int, default=5)
-    league.add_argument("--second-player-initial-hand", type=int, default=4)
+    league.add_argument("--second-player-initial-hand", type=int, default=5)
     league.add_argument("--field-limit", type=int, default=3)
     league.add_argument("--advantage-bonus", type=int, default=1)
     league.add_argument("--disadvantage-penalty", type=int, default=1)
@@ -197,7 +217,17 @@ def main() -> None:
         dest="first_turn_draw",
         action="store_false",
     )
-    league.add_argument("--second-turn-no-draw", action="store_true")
+    league.add_argument(
+        "--second-turn-draw",
+        dest="second_turn_draw",
+        action="store_true",
+        default=False,
+    )
+    league.add_argument(
+        "--second-turn-no-draw",
+        dest="second_turn_draw",
+        action="store_false",
+    )
     league.add_argument("--each-player-first-turn-no-attack", action="store_true")
     league.add_argument("--hand-defense-limit", type=int, default=1)
     league.add_argument("--hand-limit", type=int, default=None)
@@ -240,7 +270,7 @@ def main() -> None:
         each_player_first_turn_actions=args.each_player_first_turn_actions,
         first_player_first_turn_can_attack=args.first_turn_can_attack,
         first_player_first_turn_draw=args.first_turn_draw,
-        second_player_first_turn_draw=not args.second_turn_no_draw,
+        second_player_first_turn_draw=args.second_turn_draw,
         each_player_first_turn_can_attack=not args.each_player_first_turn_no_attack,
         hand_defense_limit_per_turn=args.hand_defense_limit,
         hand_limit=args.hand_limit,
