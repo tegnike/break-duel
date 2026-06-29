@@ -166,6 +166,13 @@ type RivalSpeech = {
   text: string;
 };
 
+type PendingRivalVoiceLine = {
+  lineId: RivalVoiceLineId;
+  text: string;
+  turnKey: string;
+  force: boolean;
+};
+
 const TRASH_SPARKS = [
   { x: 12, y: 18, delay: 0 },
   { x: 28, y: 12, delay: 70 },
@@ -335,6 +342,7 @@ export default function App() {
   const rivalVoiceAudio = useRef<HTMLAudioElement | null>(null);
   const spokenRivalLineTexts = useRef<Set<string>>(new Set());
   const spokenRivalTurnKeys = useRef<Set<string>>(new Set());
+  const pendingRivalVoiceLine = useRef<PendingRivalVoiceLine | null>(null);
   const recentLifeDamageImpact = useRef<DuelEventPayload["impact"] | null>(null);
   const suppressedTrashSfxOwners = useRef<Partial<Record<number, number>>>({});
   const previousDiscardCounts = useRef<[number, number]>([
@@ -379,20 +387,48 @@ export default function App() {
   function showRivalVoiceLine(lineId: RivalVoiceLineId, options: { force?: boolean } = {}) {
     const line = RIVAL_VOICE_LINES[lineId];
     if (!line) return;
-    if (rivalSpeechTimer.current !== null) return;
-    const currentVoice = rivalVoiceAudio.current;
-    if (currentVoice && !currentVoice.ended && !currentVoice.paused) return;
     if (spokenRivalLineTexts.current.has(line.text)) return;
     const turnKey = `${game.turn}:${game.active}`;
     if (!options.force && spokenRivalTurnKeys.current.has(turnKey)) return;
+    if (rivalVoiceLineBusy()) {
+      const pending = { lineId, text: line.text, turnKey, force: Boolean(options.force) };
+      if (!pendingRivalVoiceLine.current || pending.force) pendingRivalVoiceLine.current = pending;
+      return;
+    }
+    displayRivalVoiceLine(lineId, line.text, turnKey);
+  }
+
+  function displayRivalVoiceLine(lineId: RivalVoiceLineId, text: string, turnKey: string) {
+    const line = RIVAL_VOICE_LINES[lineId];
+    if (!line) return;
     spokenRivalLineTexts.current.add(line.text);
     spokenRivalTurnKeys.current.add(turnKey);
-    setRivalSpeech({ id: eventId++, lineId, text: line.text });
+    setRivalSpeech({ id: eventId++, lineId, text });
     rivalSpeechTimer.current = window.setTimeout(() => {
       setRivalSpeech(null);
       rivalSpeechTimer.current = null;
-    }, Math.max(2800, line.text.length * 95));
+      flushPendingRivalVoiceLine();
+    }, Math.max(2800, text.length * 95));
     playRivalVoiceLine(lineId);
+  }
+
+  function flushPendingRivalVoiceLine() {
+    const pending = pendingRivalVoiceLine.current;
+    pendingRivalVoiceLine.current = null;
+    if (!pending) return;
+    if (spokenRivalLineTexts.current.has(pending.text)) return;
+    if (!pending.force && spokenRivalTurnKeys.current.has(pending.turnKey)) return;
+    if (rivalVoiceLineBusy()) {
+      pendingRivalVoiceLine.current = pending;
+      return;
+    }
+    displayRivalVoiceLine(pending.lineId, pending.text, pending.turnKey);
+  }
+
+  function rivalVoiceLineBusy() {
+    if (rivalSpeechTimer.current !== null) return true;
+    const currentVoice = rivalVoiceAudio.current;
+    return Boolean(currentVoice && !currentVoice.ended && !currentVoice.paused);
   }
 
   function playRivalVoiceLine(lineId: RivalVoiceLineId) {
@@ -485,6 +521,7 @@ export default function App() {
     setRivalSpeech(null);
     spokenRivalLineTexts.current.clear();
     spokenRivalTurnKeys.current.clear();
+    pendingRivalVoiceLine.current = null;
     stopRivalVoiceLine();
     cardFlightTimers.current.forEach((timer) => window.clearTimeout(timer));
     if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
