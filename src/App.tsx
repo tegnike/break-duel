@@ -1677,6 +1677,7 @@ export default function App() {
   const opponentActionsRemaining = game.active === 1 ? game.actionsRemaining : 0;
   const opponentAttackLockedByCharge = game.active === 1 && ai.chargeUsed;
   const humanAttackLockedByCharge = game.active === 0 && human.chargeUsed;
+  const actionMeterLabel = game.active === 1 ? "相手の残りアクション" : "自分の残りアクション";
   const combatPreview = combatPreviewForSelection(game);
   const endTurnEnabled = canHumanEndTurn(game);
   const showNoActionsEndTurnPrompt = endTurnEnabled
@@ -1858,8 +1859,8 @@ export default function App() {
               <button type="button" onClick={openStarterDeckModal}>再戦</button>
             </div>
           )}
-          <div className="action-meter" aria-label={`残りアクション ${game.actionsRemaining}${humanAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
-            <span className="meter-label">残りアクション</span>
+          <div className="action-meter" aria-label={`${actionMeterLabel} ${game.actionsRemaining}${humanAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
+            <span className="meter-label">{actionMeterLabel}</span>
             <span className="meter-value">{game.actionsRemaining}</span>
             <span className="action-tokens" aria-hidden="true">
               {Array.from({ length: 3 }).map((_, index) => (
