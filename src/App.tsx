@@ -321,6 +321,7 @@ export default function App() {
   const aiCommitTimer = useRef<number | null>(null);
   const trashFlashTimer = useRef<number | null>(null);
   const lifeImpactTimer = useRef<number | null>(null);
+  const lifeImpactScheduleTimers = useRef<number[]>([]);
   const leaderReactionTimers = useRef<Partial<Record<PlayerIndex, number>>>({});
   const recentLifeDamageImpact = useRef<DuelEventPayload["impact"] | null>(null);
   const suppressedTrashSfxOwners = useRef<Partial<Record<number, number>>>({});
@@ -410,6 +411,11 @@ export default function App() {
     return 2400;
   }
 
+  function clearLifeImpactScheduleTimers() {
+    lifeImpactScheduleTimers.current.forEach((timer) => window.clearTimeout(timer));
+    lifeImpactScheduleTimers.current = [];
+  }
+
   function resetDuelEvents() {
     if (duelEventScheduler.current !== null) window.clearTimeout(duelEventScheduler.current);
     if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
@@ -424,6 +430,7 @@ export default function App() {
     aiCommitTimer.current = null;
     if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
     trashFlashTimer.current = null;
+    clearLifeImpactScheduleTimers();
     if (lifeImpactTimer.current !== null) window.clearTimeout(lifeImpactTimer.current);
     lifeImpactTimer.current = null;
     Object.values(leaderReactionTimers.current).forEach((timer) => {
@@ -492,7 +499,8 @@ export default function App() {
   }
 
   function scheduleLifeDamageImpact(impact: NonNullable<DuelEventPayload["impact"]>) {
-    window.setTimeout(() => {
+    const timer = window.setTimeout(() => {
+      lifeImpactScheduleTimers.current = lifeImpactScheduleTimers.current.filter((item) => item !== timer);
       const targetIndex = normalizePlayerIndex(impact.targetPlayerIndex);
       if (targetIndex === null) return;
       const sourceIndex = normalizePlayerIndex(impact.sourcePlayerIndex);
@@ -502,6 +510,7 @@ export default function App() {
         showLeaderReaction(1, "delight");
       }
     }, 0);
+    lifeImpactScheduleTimers.current.push(timer);
   }
 
   function cardSelector(ownerIndex: number, zone: string, index: number) {
@@ -1013,6 +1022,7 @@ export default function App() {
       cardFlightTimers.current = [];
       if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
       if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
+      clearLifeImpactScheduleTimers();
       if (lifeImpactTimer.current !== null) window.clearTimeout(lifeImpactTimer.current);
       Object.values(leaderReactionTimers.current).forEach((timer) => {
         if (typeof timer === "number") window.clearTimeout(timer);

@@ -6401,6 +6401,9 @@ h1 {
   z-index: 34;
   display: grid;
   place-items: center;
+  box-sizing: border-box;
+  overflow-y: auto;
+  padding-inline: 12px;
   pointer-events: none;
 }
 
@@ -6463,6 +6466,9 @@ h1 {
   display: grid;
   justify-items: center;
   width: min(520px, calc(100% - 32px));
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 2px solid color-mix(in srgb, var(--result-main) 72%, white);
   border-radius: 8px;
   padding: 22px 26px 24px;
@@ -6579,6 +6585,31 @@ h1 {
 
   .match-result-plate small {
     font-size: 11px;
+  }
+}
+
+@media (max-height: 560px) {
+  .match-result-spotlight {
+    inset: 52px 0 84px;
+    align-items: start;
+    padding-block: 8px;
+  }
+
+  .match-result-plate {
+    padding-block: 14px 16px;
+  }
+
+  .match-result-plate strong {
+    font-size: 30px;
+  }
+
+  .match-result-plate small {
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+
+  .match-result-plate button {
+    margin-top: 12px;
   }
 }
 
