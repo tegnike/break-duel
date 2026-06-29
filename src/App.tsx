@@ -170,6 +170,7 @@ type PendingRivalVoiceLine = {
   lineId: RivalVoiceLineId;
   text: string;
   force: boolean;
+  stateKey: string;
 };
 
 const TRASH_SPARKS = [
@@ -342,6 +343,7 @@ export default function App() {
   const rivalVoiceAudio = useRef<HTMLAudioElement | null>(null);
   const lastRivalLine = useRef<{ text: string; at: number } | null>(null);
   const pendingRivalVoiceLine = useRef<PendingRivalVoiceLine | null>(null);
+  const currentRivalVoiceStateKey = useRef("");
   const recentLifeDamageImpact = useRef<DuelEventPayload["impact"] | null>(null);
   const suppressedTrashSfxOwners = useRef<Partial<Record<number, number>>>({});
   const previousDiscardCounts = useRef<[number, number]>([
@@ -366,6 +368,7 @@ export default function App() {
   const active = activePlayer(game);
   const opponent = opponentPlayer(game);
   const selectedCard = selectedCardForDetail(game);
+  currentRivalVoiceStateKey.current = `${game.turn}:${game.active}:${game.winner ?? "playing"}:${game.draw ? "draw" : "active"}`;
 
   function mutate(mutator: (draft: GameState) => void) {
     setGame((current) => {
@@ -388,7 +391,7 @@ export default function App() {
     if (!line) return;
     if (!options.force && recentlySpokeRivalLine(line.text)) return;
     if (rivalVoiceLineBusy()) {
-      const pending = { lineId, text: line.text, force: Boolean(options.force) };
+      const pending = { lineId, text: line.text, force: Boolean(options.force), stateKey: currentRivalVoiceStateKey.current };
       if (!pendingRivalVoiceLine.current || pending.force) pendingRivalVoiceLine.current = pending;
       return;
     }
@@ -412,6 +415,7 @@ export default function App() {
     const pending = pendingRivalVoiceLine.current;
     pendingRivalVoiceLine.current = null;
     if (!pending) return;
+    if (pending.stateKey !== currentRivalVoiceStateKey.current) return;
     if (!pending.force && recentlySpokeRivalLine(pending.text)) return;
     if (rivalVoiceLineBusy()) {
       pendingRivalVoiceLine.current = pending;
