@@ -439,6 +439,7 @@ export function useCommandAtInDraft(
     toLabel: used.effect === "trinity" ? "場 / トラッシュ / ライフ" : "トラッシュ",
     tone: player.isHuman ? "magenta" : "cyan",
     impact,
+    rivalVoiceLine: player.isHuman ? undefined : "command",
     cards: [
       { card: used, label: "使用", state: "trash" },
       ...(used.effect === "trinity"
@@ -473,6 +474,7 @@ export function beginAttackInDraft(
       toLabel: "防御選択",
       resultLabel: "攻撃宣言",
       tone: "warning",
+      rivalVoiceLine: attacker.isHuman ? undefined : "attack",
       cards: [{ card: attackCard, label: "攻撃", state: "neutral" }],
     });
   }
@@ -558,6 +560,7 @@ export function resolveDefenseInDraft(
       toLabel: isTrade ? "両方トラッシュ" : `${attackCard.name}はトラッシュ`,
       resultLabel: isTrade ? "相打ち" : "防御側が残る",
       tone: isTrade ? "warning" : defender.isHuman ? "magenta" : "cyan",
+      rivalVoiceLine: defender.isHuman ? undefined : "field_defense",
       cards: [
         { card: attackCard, label: "攻撃", state: "trash" },
         { card: defenseCard, label: "防御", state: isTrade ? "trash" : "winner" },
@@ -622,6 +625,7 @@ export function resolveDefenseInDraft(
         targetPlayerIndex: defenderIndex,
         amount: 1,
       } : undefined,
+      rivalVoiceLine: defender.isHuman ? undefined : "hand_defense",
       cards: [
         { card: attackCard, label: "攻撃", state: "neutral" },
         { card: defenseCard, label: "防御", state: "trash" },
@@ -747,6 +751,7 @@ export function performAiActionInDraft(
       fromLabel: "手札",
       toLabel: "場",
       tone: player.isHuman ? "magenta" : "cyan",
+      rivalVoiceLine: player.isHuman ? undefined : "play_summon",
       cards: [{ card, label: "登場", state: "neutral" }],
     });
     if (!draft.pendingTarget) afterAction(draft, playCost(card));
@@ -770,6 +775,7 @@ export function performAiActionInDraft(
       fromLabel: "手札 + 場",
       toLabel: "場 / トラッシュ",
       tone: player.isHuman ? "magenta" : "cyan",
+      rivalVoiceLine: player.isHuman ? undefined : "upgrade",
       cards: [
         { card: source, label: "元", state: "trash" },
         { card, label: "新", state: "winner" },
@@ -791,6 +797,7 @@ export function performAiActionInDraft(
       fromLabel: "手札",
       toLabel: "遺物",
       tone: player.isHuman ? "magenta" : "cyan",
+      rivalVoiceLine: player.isHuman ? undefined : "memory",
       cards: [
         { card: memory, label: "遺物", state: "neutral" },
         ...(replaced ? [{ card: replaced, label: "旧遺物", state: "trash" as const }] : []),
@@ -817,6 +824,7 @@ export function performAiActionInDraft(
       fromLabel: "手札",
       toLabel: "トラッシュ",
       tone: player.isHuman ? "magenta" : "cyan",
+      rivalVoiceLine: player.isHuman ? undefined : "charge",
       cards: [{ card: charged, label: "チャージ", state: "trash" }],
     });
   }

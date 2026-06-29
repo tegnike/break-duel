@@ -63,6 +63,7 @@ import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
 import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
 import type { DuelEvent, DuelEventPayload } from "./duelEvents";
+import { RIVAL_VOICE_LINES, type RivalVoiceLineId } from "./rivalVoiceLines";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
 import sfxAttack from "./assets/audio/sfx-attack.ogg";
 import sfxBlock from "./assets/audio/sfx-block.ogg";
@@ -157,6 +158,12 @@ type MatchResultView = {
   lead: string;
   detail: string;
   reason: string;
+};
+
+type RivalSpeech = {
+  id: number;
+  lineId: RivalVoiceLineId;
+  text: string;
 };
 
 const TRASH_SPARKS = [
@@ -296,6 +303,7 @@ export default function App() {
   const [trashFlash, setTrashFlash] = useState<TrashFlash | null>(null);
   const [lifeImpact, setLifeImpact] = useState<LifeImpact | null>(null);
   const [leaderReactions, setLeaderReactions] = useState<LeaderReactionState>({ 0: null, 1: null });
+  const [rivalSpeech, setRivalSpeech] = useState<RivalSpeech | null>(null);
   const [aiAnimating, setAiAnimating] = useState(false);
   const [autoDismissDuelEvents, setAutoDismissDuelEvents] = useState(false);
   const [banner, setBanner] = useState<Banner>(() => ({
@@ -323,6 +331,10 @@ export default function App() {
   const lifeImpactTimer = useRef<number | null>(null);
   const lifeImpactScheduleTimers = useRef<number[]>([]);
   const leaderReactionTimers = useRef<Partial<Record<PlayerIndex, number>>>({});
+  const rivalSpeechTimer = useRef<number | null>(null);
+  const rivalVoiceAudio = useRef<HTMLAudioElement | null>(null);
+  const spokenRivalLineTexts = useRef<Set<string>>(new Set());
+  const spokenRivalTurnKeys = useRef<Set<string>>(new Set());
   const recentLifeDamageImpact = useRef<DuelEventPayload["impact"] | null>(null);
   const suppressedTrashSfxOwners = useRef<Partial<Record<number, number>>>({});
   const previousDiscardCounts = useRef<[number, number]>([
@@ -364,6 +376,46 @@ export default function App() {
     setBanner({ ...next, id: eventId++ });
   }
 
+  function showRivalVoiceLine(lineId: RivalVoiceLineId, options: { force?: boolean } = {}) {
+    const line = RIVAL_VOICE_LINES[lineId];
+    if (!line) return;
+    if (rivalSpeechTimer.current !== null) return;
+    const currentVoice = rivalVoiceAudio.current;
+    if (currentVoice && !currentVoice.ended && !currentVoice.paused) return;
+    if (spokenRivalLineTexts.current.has(line.text)) return;
+    const turnKey = `${game.turn}:${game.active}`;
+    if (!options.force && spokenRivalTurnKeys.current.has(turnKey)) return;
+    spokenRivalLineTexts.current.add(line.text);
+    spokenRivalTurnKeys.current.add(turnKey);
+    setRivalSpeech({ id: eventId++, lineId, text: line.text });
+    rivalSpeechTimer.current = window.setTimeout(() => {
+      setRivalSpeech(null);
+      rivalSpeechTimer.current = null;
+    }, Math.max(2800, line.text.length * 95));
+    playRivalVoiceLine(lineId);
+  }
+
+  function playRivalVoiceLine(lineId: RivalVoiceLineId) {
+    if (!audioEnabledRef.current) return;
+    const line = RIVAL_VOICE_LINES[lineId];
+    if (!line) return;
+    stopRivalVoiceLine();
+    const audio = new Audio(line.src);
+    audio.volume = 0.88;
+    rivalVoiceAudio.current = audio;
+    void audio.play().catch((error) => {
+      console.warn("Rival voice playback failed", lineId, error);
+    });
+  }
+
+  function stopRivalVoiceLine() {
+    const audio = rivalVoiceAudio.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    rivalVoiceAudio.current = null;
+  }
+
   function refreshSavedDecks() {
     setSavedDecks(loadSavedDecks());
   }
@@ -374,7 +426,10 @@ export default function App() {
       recentLifeDamageImpact.current = event.impact;
       scheduleLifeDamageImpact(event.impact);
     }
-    if ((event.kind === "play" || event.kind === "memory" || event.kind === "upgrade" || event.kind === "command") && !hasTrashSurge && !event.impact) return;
+    if ((event.kind === "play" || event.kind === "memory" || event.kind === "upgrade" || event.kind === "command") && !hasTrashSurge && !event.impact) {
+      if (event.rivalVoiceLine) showRivalVoiceLine(event.rivalVoiceLine);
+      return;
+    }
     duelEventQueue.current.push(event);
     if (duelEventScheduler.current !== null) return;
     duelEventScheduler.current = window.setTimeout(() => {
@@ -390,6 +445,7 @@ export default function App() {
     duelEventPlaying.current = true;
     const event = { ...next, id: eventId++ };
     setDuelEvent(event);
+    if (event.rivalVoiceLine) showRivalVoiceLine(event.rivalVoiceLine);
     if (!autoDismissDuelEvents) return;
     duelEventTimer.current = window.setTimeout(() => {
       dismissDuelEvent();
@@ -424,6 +480,12 @@ export default function App() {
     duelEventQueue.current = [];
     duelEventPlaying.current = false;
     setDuelEvent(null);
+    if (rivalSpeechTimer.current !== null) window.clearTimeout(rivalSpeechTimer.current);
+    rivalSpeechTimer.current = null;
+    setRivalSpeech(null);
+    spokenRivalLineTexts.current.clear();
+    spokenRivalTurnKeys.current.clear();
+    stopRivalVoiceLine();
     cardFlightTimers.current.forEach((timer) => window.clearTimeout(timer));
     if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
     cardFlightTimers.current = [];
@@ -506,6 +568,7 @@ export default function App() {
       const sourceIndex = normalizePlayerIndex(impact.sourcePlayerIndex);
       showLifeImpact(targetIndex, impact.amount, sourceIndex);
       showLeaderReaction(targetIndex, "hurt");
+      if (targetIndex === 1) showRivalVoiceLine("damage_taken");
       if (targetIndex === 0 && sourceIndex === 1) {
         showLeaderReaction(1, "delight");
       }
@@ -803,6 +866,7 @@ export default function App() {
         title: "BREAK DUEL",
         detail: `Seed ${nextSeed} / あなた: ${nextGame.players[0].deckName} / 相手: ${nextGame.players[1].deckName}`,
       });
+      showRivalVoiceLine("match_start");
     } catch (error) {
       showToast("使用できません", error instanceof Error ? error.message : "デッキを読み込めませんでした");
     }
@@ -978,6 +1042,7 @@ export default function App() {
       detail: `TURN ${game.turn} / 残りアクション ${game.actionsRemaining}`,
       tone: active.isHuman ? "human" : "ai",
     });
+    if (!active.isHuman) showRivalVoiceLine("rival_turn_start");
   }, [page, game.turn, game.active]);
 
   useEffect(() => {
@@ -992,6 +1057,9 @@ export default function App() {
       tone: game.draw ? "draw" : game.winner === 0 ? "win" : "lose",
     });
     playSfx("end");
+    if (!game.draw) {
+      showRivalVoiceLine(game.winner === 1 ? "victory" : "defeat", { force: true });
+    }
   }, [page, game.winner, game.draw]);
 
   useEffect(() => {
@@ -1024,6 +1092,8 @@ export default function App() {
       if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
       clearLifeImpactScheduleTimers();
       if (lifeImpactTimer.current !== null) window.clearTimeout(lifeImpactTimer.current);
+      if (rivalSpeechTimer.current !== null) window.clearTimeout(rivalSpeechTimer.current);
+      stopRivalVoiceLine();
       Object.values(leaderReactionTimers.current).forEach((timer) => {
         if (typeof timer === "number") window.clearTimeout(timer);
       });
@@ -1184,6 +1254,7 @@ export default function App() {
       startBgm();
     } else {
       stopBgm();
+      stopRivalVoiceLine();
     }
   }
 
@@ -1989,6 +2060,7 @@ export default function App() {
           image={leaderRivalImage}
           reactionImages={{ hurt: leaderRivalHurtImage, delight: leaderRivalDelightImage }}
           reaction={leaderReactions[1]}
+          speech={rivalSpeech}
         />
         <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent trashSurge={ownerHasTrashSurge(1)} combatPreview={combatPreview} onSelectField={selectField} onSelectMemory={selectMemory} />
         <div className={`clash-line ${combatPreview ? "armed" : ""} ${combatPreview?.direct ? "direct" : ""}`} aria-hidden="true">
@@ -2606,6 +2678,7 @@ function LeaderPortrait({
   reactionImages,
   label,
   reaction = null,
+  speech = null,
 }: {
   player: PlayerState;
   tone: "human" | "rival";
@@ -2613,10 +2686,17 @@ function LeaderPortrait({
   reactionImages?: Partial<Record<LeaderReaction["mood"], string>>;
   label?: string;
   reaction?: LeaderReaction | null;
+  speech?: RivalSpeech | null;
 }) {
   const currentImage = reaction ? reactionImages?.[reaction.mood] ?? image : image;
   return (
     <figure className={`leader-portrait ${tone} ${reaction ? `reaction-${reaction.mood} reaction-${reaction.id}` : ""}`} aria-label={`${player.name}のリーダー`}>
+      {speech && (
+        <div className="leader-speech" key={speech.id}>
+          <span>ニケ</span>
+          <p>{speech.text}</p>
+        </div>
+      )}
       <div className="leader-portrait-art">
         <img src={currentImage} alt="" draggable={false} />
       </div>
