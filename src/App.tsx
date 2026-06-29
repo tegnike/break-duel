@@ -1924,7 +1924,6 @@ export default function App() {
           tone="rival"
           image={leaderRivalImage}
           reactionImages={{ hurt: leaderRivalHurtImage, delight: leaderRivalDelightImage }}
-          label="RIVAL"
           reaction={leaderReactions[1]}
         />
         <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent trashSurge={ownerHasTrashSurge(1)} combatPreview={combatPreview} onSelectField={selectField} onSelectMemory={selectMemory} />
@@ -2529,7 +2528,7 @@ function LeaderPortrait({
   tone: "human" | "rival";
   image: string;
   reactionImages?: Partial<Record<LeaderReaction["mood"], string>>;
-  label: string;
+  label?: string;
   reaction?: LeaderReaction | null;
 }) {
   const currentImage = reaction ? reactionImages?.[reaction.mood] ?? image : image;
@@ -2538,8 +2537,8 @@ function LeaderPortrait({
       <div className="leader-portrait-art">
         <img src={currentImage} alt="" draggable={false} />
       </div>
-      <figcaption>
-        <span>{label}</span>
+      <figcaption className={`leader-portrait-caption${label ? "" : " solo"}`}>
+        {label && <span>{label}</span>}
         <strong>{player.name}</strong>
       </figcaption>
     </figure>

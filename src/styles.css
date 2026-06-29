@@ -8529,7 +8529,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
   width: clamp(142px, 13vw, 190px);
-  height: clamp(162px, 16vw, 230px);
+  height: clamp(174px, 17vw, 242px);
   margin: 0;
   pointer-events: none;
 }
@@ -8589,7 +8589,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .leader-portrait.rival img {
-  --leader-img-transform: translate(10px, 14px) scale(1.08);
+  --leader-img-transform: translate(8px, 4px) scale(1.05);
 }
 
 .leader-portrait.human img {
@@ -8603,7 +8603,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   align-items: center;
   gap: 7px;
   min-width: 0;
-  margin-top: -8px;
+  margin-top: 6px;
   border: 1px solid rgba(245, 207, 120, 0.46);
   border-radius: 999px;
   padding: 5px 10px;
@@ -8616,6 +8616,11 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   font-size: 12px;
   font-weight: 950;
+}
+
+.leader-portrait-caption.solo {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
 }
 
 .leader-portrait figcaption span {
@@ -8986,7 +8991,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     bottom: auto;
     align-self: center;
     width: min(310px, 86vw);
-    height: 126px;
+    height: 132px;
     grid-template-columns: 104px minmax(0, 1fr);
     grid-template-rows: 1fr;
     align-items: stretch;
@@ -9009,9 +9014,9 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     align-self: center;
     grid-template-columns: 1fr;
     gap: 4px;
-    margin: 0 0 0 -8px;
-    border-radius: 0 999px 999px 0;
-    padding-left: 18px;
+    margin: 0 0 0 8px;
+    border-radius: 999px;
+    padding-left: 12px;
   }
 
   .leader-portrait figcaption span {
