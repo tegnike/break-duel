@@ -256,6 +256,14 @@ web/
 - Source: https://kenney.nl/assets/board-game-icons
 - License: Creative Commons CC0
 
+ブラウザ UI の効果音には、以下の CC0 素材を編集して使用しています。詳細は [src/assets/audio/README.md](src/assets/audio/README.md) を参照してください。
+
+- Kenney Casino Audio
+- Kenney Impact Sounds
+- Kenney Interface Sounds
+- Card Game Sounds
+- Level Up, Power Up, Coin Get (13 Sounds)
+
 ## ライセンス
 
 このプロジェクトは MIT License です。詳細は [LICENSE](LICENSE) を参照してください。
