@@ -8585,6 +8585,10 @@ body:has(.modal-backdrop) {
   transform: scale(1.08);
 }
 
+.leader-portrait.rival img {
+  transform: translate(10px, 14px) scale(1.08);
+}
+
 .leader-portrait.human img {
   object-position: 50% 20%;
 }
