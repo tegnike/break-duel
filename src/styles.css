@@ -164,6 +164,26 @@ select {
   align-items: center;
   gap: 12px;
   min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  font: inherit;
+  appearance: none;
+  text-align: left;
+}
+
+.workspace-brand:hover:not(:disabled),
+.workspace-brand:focus-visible,
+.workspace-brand:active {
+  border-color: transparent;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
 }
 
 .workspace-brand img {
@@ -5193,6 +5213,11 @@ h1 {
   overflow: hidden;
 }
 
+.starter-setup-panel {
+  width: auto;
+  margin: 12px 18px 0;
+}
+
 .starter-deck-modal .modal-head {
   align-items: flex-start;
 }
@@ -5202,6 +5227,50 @@ h1 {
   color: #b9cacb;
   font-size: 14px;
   line-height: 1.35;
+}
+
+.starter-deck-modal .modal-kicker {
+  display: block;
+  margin-bottom: 3px;
+  color: #67e8f9;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.starter-setup-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 18px 0;
+  background: #091018;
+}
+
+.starter-setup-summary div {
+  min-width: 0;
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: rgba(17, 25, 34, 0.78);
+}
+
+.starter-setup-summary span {
+  display: block;
+  color: #96a8ae;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.starter-setup-summary strong {
+  display: block;
+  min-width: 0;
+  margin-top: 4px;
+  overflow: hidden;
+  color: #f7fbfb;
+  font-size: 14px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .starter-saved-decks,
@@ -5231,6 +5300,32 @@ h1 {
   font-size: 15px;
   font-weight: 950;
   letter-spacing: 0;
+}
+
+.starter-picker-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0 0 12px;
+}
+
+.starter-picker-title span {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  border-radius: 999px;
+  color: #061016;
+  background: #67e8f9;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.starter-picker-title h3 {
+  min-width: 0;
+  margin: 0;
 }
 
 .starter-deck-group {
@@ -5277,6 +5372,10 @@ h1 {
   font-size: 14px;
   font-weight: 950;
   letter-spacing: 0;
+}
+
+.starter-ai-profile .starter-picker-title {
+  margin: 0;
 }
 
 .segmented-control {
@@ -7329,9 +7428,33 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 .starter-deck-modal {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   max-height: calc(100vh - 32px);
   overflow: hidden;
+}
+
+.starter-deck-modal .modal-kicker {
+  color: #f0c462;
+}
+
+.starter-setup-summary {
+  padding: 12px 18px 0;
+  background: #091018;
+}
+
+.starter-setup-summary div {
+  border-color: #3f4650;
+  border-radius: 3px;
+  background: #111922;
+  box-shadow: inset 3px 0 0 rgba(217, 189, 120, 0.2);
+}
+
+.starter-setup-summary span {
+  color: #a99a78;
+}
+
+.starter-setup-summary strong {
+  color: #f5df9d;
 }
 
 .starter-duel-selectors {
@@ -7355,6 +7478,18 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 .starter-ai-profile h3,
 .rules-content h3 {
   color: #f5df9d;
+}
+
+.starter-picker-title {
+  margin-bottom: 10px;
+}
+
+.starter-picker-title span {
+  border: 1px solid #7e6a43;
+  border-radius: 3px;
+  color: #f5df9d;
+  background: #18212a;
+  box-shadow: inset 0 0 0 1px rgba(217, 189, 120, 0.18);
 }
 
 .starter-deck-group {
@@ -7539,6 +7674,10 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   .starter-deck-modal {
     display: block;
     overflow-y: auto;
+  }
+
+  .starter-setup-summary {
+    grid-template-columns: 1fr;
   }
 
   .starter-duel-selectors {
@@ -9856,4 +9995,292 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.04),
     inset 0 0 20px rgba(245, 207, 120, 0.05);
+}
+
+.duel-setup-shell {
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(ellipse at 18% 18%, rgba(82, 228, 255, 0.18), transparent 34%),
+    radial-gradient(ellipse at 82% 24%, rgba(245, 207, 120, 0.13), transparent 30%),
+    radial-gradient(ellipse at 50% 82%, rgba(255, 74, 196, 0.11), transparent 36%),
+    linear-gradient(135deg, #0b0d14, #14091a 54%, #09131b);
+}
+
+.duel-setup-shell .workspace-header {
+  border-bottom-color: rgba(245, 207, 120, 0.28);
+  background:
+    linear-gradient(90deg, rgba(82, 228, 255, 0.08), rgba(10, 11, 18, 0.92) 34%, rgba(245, 207, 120, 0.08)),
+    rgba(8, 9, 15, 0.92);
+}
+
+.duel-setup-shell .starter-setup-panel {
+  --setup-line: rgba(245, 207, 120, 0.32);
+  --setup-panel: rgba(12, 17, 26, 0.9);
+
+  display: grid;
+  grid-template-columns: minmax(286px, 350px) minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-areas:
+    "head selectors"
+    "summary selectors"
+    "ai selectors"
+    "actions selectors";
+  gap: 16px;
+  width: min(1180px, calc(100% - 48px));
+  max-height: none;
+  margin: 24px auto 34px;
+  border: 1px solid var(--setup-line);
+  border-radius: 8px;
+  padding: 18px;
+  color: #f4f0e7;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), transparent 18%),
+    linear-gradient(135deg, rgba(82, 228, 255, 0.12), transparent 26%, rgba(245, 207, 120, 0.08) 58%, transparent),
+    rgba(6, 9, 15, 0.94);
+  box-shadow:
+    0 28px 90px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  outline: 1px solid rgba(0, 0, 0, 0.5);
+  overflow: visible;
+}
+
+.duel-setup-shell .starter-setup-panel::before,
+.duel-setup-shell .starter-setup-panel::after {
+  content: none;
+}
+
+.duel-setup-shell .starter-setup-panel .modal-head {
+  grid-area: head;
+  min-height: 0;
+  border: 0;
+  border-radius: 6px;
+  padding: 18px;
+  background:
+    radial-gradient(ellipse at 18% 18%, rgba(82, 228, 255, 0.18), transparent 48%),
+    rgba(10, 15, 24, 0.84);
+  box-shadow: inset 3px 0 0 rgba(245, 207, 120, 0.48);
+}
+
+.duel-setup-shell .starter-setup-panel .modal-head::before {
+  content: none;
+}
+
+.duel-setup-shell .starter-setup-panel .modal-head > button {
+  align-self: start;
+  min-width: 76px;
+  white-space: nowrap;
+}
+
+.duel-setup-shell .starter-setup-panel .modal-head h2 {
+  font-size: 26px;
+}
+
+.duel-setup-shell .starter-setup-panel .modal-head p {
+  max-width: 42em;
+  margin-top: 8px;
+  color: #d7d0c1;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.duel-setup-shell .starter-setup-summary {
+  grid-area: summary;
+  align-self: stretch;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding: 0;
+  background: transparent;
+}
+
+.duel-setup-shell .starter-setup-summary div {
+  display: grid;
+  align-content: center;
+  min-height: 74px;
+  border-color: rgba(82, 228, 255, 0.18);
+  border-radius: 6px;
+  padding: 14px 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.015)),
+    rgba(12, 18, 28, 0.78);
+  box-shadow:
+    inset 3px 0 0 rgba(82, 228, 255, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.duel-setup-shell .starter-setup-summary span {
+  color: #9fb2b8;
+}
+
+.duel-setup-shell .starter-setup-summary strong {
+  color: #f8df99;
+  font-size: 16px;
+}
+
+.duel-setup-shell .starter-duel-selectors {
+  grid-area: selectors;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+}
+
+.duel-setup-shell .starter-deck-picker {
+  border: 1px solid rgba(245, 207, 120, 0.18);
+  border-radius: 7px;
+  padding: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 22%),
+    var(--setup-panel);
+}
+
+.duel-setup-shell .starter-picker-title {
+  margin-bottom: 12px;
+}
+
+.duel-setup-shell .starter-picker-title span {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: #10131b;
+  background: linear-gradient(180deg, #fff0b7, #d9a84c);
+}
+
+.duel-setup-shell .starter-picker-title h3 {
+  color: #f7e8b7;
+  font-size: 16px;
+}
+
+.duel-setup-shell .starter-deck-group {
+  margin-top: 12px;
+}
+
+.duel-setup-shell .starter-deck-group h4 {
+  margin-bottom: 8px;
+  color: #9fb2b8;
+}
+
+.duel-setup-shell .starter-deck-modal .starter-deck-grid,
+.duel-setup-shell .starter-deck-grid.compact,
+.duel-setup-shell .starter-deck-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.duel-setup-shell .starter-deck-grid.compact button,
+.duel-setup-shell .starter-deck-grid button {
+  min-height: 68px;
+  border-color: rgba(159, 178, 184, 0.24);
+  border-radius: 6px;
+  padding: 11px 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    rgba(11, 16, 24, 0.88);
+}
+
+.duel-setup-shell .starter-deck-grid.compact button:hover:not(:disabled),
+.duel-setup-shell .starter-deck-grid button:hover:not(:disabled) {
+  border-color: rgba(245, 207, 120, 0.5);
+  background: rgba(21, 27, 38, 0.92);
+}
+
+.duel-setup-shell .starter-deck-grid.compact button.selected,
+.duel-setup-shell .starter-deck-grid button.selected {
+  border-color: #f5cf78;
+  background:
+    linear-gradient(180deg, rgba(245, 207, 120, 0.16), rgba(245, 207, 120, 0.04)),
+    rgba(19, 24, 34, 0.94);
+  box-shadow:
+    inset 3px 0 0 #f5cf78,
+    0 0 0 1px rgba(245, 207, 120, 0.22),
+    0 10px 28px rgba(0, 0, 0, 0.22);
+}
+
+.duel-setup-shell .starter-deck-grid.compact span,
+.duel-setup-shell .starter-deck-grid span {
+  color: #fbf5df;
+  font-size: 13px;
+}
+
+.duel-setup-shell .starter-deck-grid.compact em,
+.duel-setup-shell .starter-deck-grid em {
+  color: #b9c4c9;
+  font-size: 11px;
+  -webkit-line-clamp: 2;
+}
+
+.duel-setup-shell .starter-ai-profile {
+  grid-area: ai;
+  margin: 0;
+  align-self: stretch;
+  border-color: rgba(245, 207, 120, 0.18);
+  border-radius: 7px;
+  padding: 14px;
+  background: var(--setup-panel);
+}
+
+.duel-setup-shell .starter-ai-profile .starter-picker-title {
+  margin: 0;
+}
+
+.duel-setup-shell .starter-modal-actions {
+  grid-area: actions;
+  align-self: stretch;
+  align-items: end;
+  justify-content: flex-end;
+  border: 1px solid rgba(245, 207, 120, 0.18);
+  border-radius: 7px;
+  padding: 14px;
+  background: var(--setup-panel);
+}
+
+.duel-setup-shell .starter-modal-actions .primary-action {
+  min-width: 230px;
+  min-height: 46px;
+  border-color: rgba(245, 207, 120, 0.62);
+  color: #10131b;
+  background: linear-gradient(180deg, #fff3ba, #e5ad43);
+  font-size: 14px;
+  box-shadow:
+    0 9px 0 rgba(0, 0, 0, 0.24),
+    0 18px 34px rgba(245, 207, 120, 0.16);
+}
+
+@media (max-width: 920px) {
+  .duel-setup-shell .starter-setup-panel {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto auto auto;
+    grid-template-areas:
+      "head"
+      "summary"
+      "selectors"
+      "ai"
+      "actions";
+    width: min(100% - 24px, 680px);
+    margin: 14px auto 24px;
+    padding: 12px;
+  }
+
+  .duel-setup-shell .starter-setup-panel .modal-head {
+    padding: 14px;
+  }
+
+  .duel-setup-shell .starter-setup-panel .modal-head h2 {
+    font-size: 21px;
+  }
+
+  .duel-setup-shell .starter-setup-summary,
+  .duel-setup-shell .starter-duel-selectors {
+    grid-template-columns: 1fr;
+  }
+
+  .duel-setup-shell .starter-modal-actions {
+    justify-content: stretch;
+  }
+
+  .duel-setup-shell .starter-modal-actions .primary-action {
+    width: 100%;
+    min-width: 0;
+  }
 }

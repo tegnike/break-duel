@@ -358,8 +358,7 @@ export default function App() {
   const [game, setGame] = useState<GameState>(() => createGame(INITIAL_SEED, "fire", undefined, "challenger"));
   const [lastHumanActionsRemaining, setLastHumanActionsRemaining] = useState(() => game.actionsRemaining);
   const [rulesOpen, setRulesOpen] = useState(false);
-  const [starterDeckModalOpen, setStarterDeckModalOpen] = useState(true);
-  const [starterDeckChosen, setStarterDeckChosen] = useState(false);
+  const [starterDeckSetupOpen, setStarterDeckSetupOpen] = useState(true);
   const [toast, setToast] = useState<Toast>(null);
   const [duelEvent, setDuelEvent] = useState<DuelEvent | null>(null);
   const [cardFlights, setCardFlights] = useState<CardFlight[]>([]);
@@ -980,8 +979,7 @@ export default function App() {
       setLastHumanActionsRemaining(nextGame.actionsRemaining);
       resetDuelEvents();
       setRulesOpen(false);
-      setStarterDeckModalOpen(false);
-      setStarterDeckChosen(true);
+      setStarterDeckSetupOpen(false);
       showToast("対戦開始", `${nextGame.players[0].deckName} / 相手: ${nextGame.players[1].deckName}`);
       showBanner({
         kind: "start",
@@ -994,12 +992,12 @@ export default function App() {
     }
   }
 
-  function openStarterDeckModal() {
+  function openStarterDeckSetup() {
     refreshSavedDecks();
     resetDuelEvents();
     setRulesOpen(false);
     changePage("duel");
-    setStarterDeckModalOpen(true);
+    setStarterDeckSetupOpen(true);
   }
 
   function changePage(nextPage: AppPage) {
@@ -1012,7 +1010,7 @@ export default function App() {
     }
     if (nextPage === "duel") {
       refreshSavedDecks();
-      setStarterDeckModalOpen(true);
+      setStarterDeckSetupOpen(true);
     }
   }
 
@@ -1025,7 +1023,7 @@ export default function App() {
       if (nextPage !== "duel") resetDuelEvents();
       if (nextPage === "duel") refreshSavedDecks();
       setRulesOpen(false);
-      setStarterDeckModalOpen(nextPage === "duel");
+      setStarterDeckSetupOpen(nextPage === "duel");
       setPage(nextPage);
     };
     window.addEventListener("popstate", onPopState);
@@ -2068,7 +2066,7 @@ export default function App() {
     && game.actionsRemaining <= 0
     && !canUseCharge(game, human)
     && !rulesOpen
-    && !starterDeckModalOpen
+    && !starterDeckSetupOpen
     && game.discardViewerOwner === null
     && !duelEvent
     && cardFlights.length === 0;
@@ -2128,12 +2126,41 @@ export default function App() {
           page={page}
           onChangePage={changePage}
           seed={seed}
-          onStartNewGame={openStarterDeckModal}
+          onStartNewGame={openStarterDeckSetup}
           onOpenRules={() => setRulesOpen(true)}
           audioEnabled={audioEnabled}
           onToggleAudio={toggleAudio}
         />
         {page === "cards" ? <CardLibraryPage /> : <DeckBuilderPage />}
+        <EventToast toast={toast} />
+        {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
+      </main>
+    );
+  }
+
+  if (starterDeckSetupOpen) {
+    return (
+      <main className="workspace-shell duel-setup-shell">
+        <WorkspaceHeader
+          page={page}
+          onChangePage={changePage}
+          seed={seed}
+          onStartNewGame={openStarterDeckSetup}
+          onOpenRules={() => setRulesOpen(true)}
+          audioEnabled={audioEnabled}
+          onToggleAudio={toggleAudio}
+        />
+        <StarterDeckSetupPanel
+          playerSelection={playerDeckSelection}
+          opponentSelection={opponentDeckSelection}
+          opponentAiProfile={opponentAiProfile}
+          savedDecks={savedDecks}
+          onClose={() => setStarterDeckSetupOpen(false)}
+          onChangePlayerSelection={setPlayerDeckSelection}
+          onChangeOpponentSelection={setOpponentDeckSelection}
+          onChangeOpponentAiProfile={setOpponentAiProfile}
+          onStart={startSelectedDeckGame}
+        />
         <EventToast toast={toast} />
         {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
       </main>
@@ -2159,7 +2186,7 @@ export default function App() {
             <span>Seed</span>
             <input type="number" value={seed} readOnly aria-label="現在のSeed" />
           </label>
-          <button type="button" onClick={openStarterDeckModal}>再戦</button>
+          <button type="button" onClick={openStarterDeckSetup}>再戦</button>
           <button type="button" onClick={() => setRulesOpen(true)}>ルール</button>
           <button type="button" className={audioEnabled ? "audio-on" : ""} onClick={toggleAudio}>{audioEnabled ? "音ON" : "音OFF"}</button>
         </div>
@@ -2204,7 +2231,7 @@ export default function App() {
         <FieldGrid player={human} ownerIndex={0} game={game} trashSurge={ownerHasTrashSurge(0)} onSelectField={selectField} onSelectMemory={selectMemory} />
       </section>
 
-      {matchResult && <MatchResultSpotlight result={matchResult} onRestart={openStarterDeckModal} />}
+      {matchResult && <MatchResultSpotlight result={matchResult} onRestart={openStarterDeckSetup} />}
 
       <section className="stitch-player-status">
         <div className="stitch-status-left">
@@ -2254,7 +2281,7 @@ export default function App() {
                 <strong>{matchResult.title}</strong>
                 <em>{matchResult.detail}</em>
               </div>
-              <button type="button" onClick={openStarterDeckModal}>再戦</button>
+              <button type="button" onClick={openStarterDeckSetup}>再戦</button>
             </div>
           )}
           <div className="action-meter" aria-label={`${actionMeterLabel} ${humanActionsRemaining}${humanAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
@@ -2316,20 +2343,6 @@ export default function App() {
       <GameBanner banner={matchResult || cardFlights.length > 0 ? null : banner} turn={game.turn} />
       {showNoActionsEndTurnPrompt && <NoActionsEndTurnPrompt onConfirm={endTurn} />}
       {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
-      {starterDeckModalOpen && (
-        <StarterDeckModal
-          playerSelection={playerDeckSelection}
-          opponentSelection={opponentDeckSelection}
-          opponentAiProfile={opponentAiProfile}
-          savedDecks={savedDecks}
-          canClose={starterDeckChosen}
-          onClose={() => setStarterDeckModalOpen(false)}
-          onChangePlayerSelection={setPlayerDeckSelection}
-          onChangeOpponentSelection={setOpponentDeckSelection}
-          onChangeOpponentAiProfile={setOpponentAiProfile}
-          onStart={startSelectedDeckGame}
-        />
-      )}
       {game.discardViewerOwner !== null && (
         <DiscardModal game={game} onClose={closeDiscardViewer} onSelect={selectDiscardCard} />
       )}
@@ -2355,12 +2368,11 @@ function NoActionsEndTurnPrompt({ onConfirm }: { onConfirm: () => void }) {
   );
 }
 
-function StarterDeckModal({
+function StarterDeckSetupPanel({
   playerSelection,
   opponentSelection,
   opponentAiProfile,
   savedDecks,
-  canClose,
   onClose,
   onChangePlayerSelection,
   onChangeOpponentSelection,
@@ -2371,82 +2383,106 @@ function StarterDeckModal({
   opponentSelection: DeckSelection;
   opponentAiProfile: AiProfile;
   savedDecks: SavedDeck[];
-  canClose: boolean;
   onClose: () => void;
   onChangePlayerSelection: (selection: DeckSelection) => void;
   onChangeOpponentSelection: (selection: DeckSelection) => void;
   onChangeOpponentAiProfile: (profile: AiProfile) => void;
   onStart: () => void;
 }) {
+  const playerDeckLabel = deckSelectionLabel(playerSelection, savedDecks);
+  const opponentDeckLabel = deckSelectionLabel(opponentSelection, savedDecks);
+  const opponentAiLabel = opponentAiProfile === "beginner" ? "初心者" : "挑戦者";
+
   return (
-    <div className="modal-backdrop starter-deck-backdrop" role="dialog" aria-modal="true" aria-labelledby="starter-deck-title" onClick={(event) => {
-      if (canClose && event.currentTarget === event.target) onClose();
-    }}>
-      <section className="starter-deck-modal">
-        <div className="modal-head">
-          <div>
-            <h2 id="starter-deck-title">対戦デッキを選択</h2>
-            <p>自分と相手のデッキを選べます。ランダムは固定デッキと使用可能な保存済みデッキから選びます。</p>
-          </div>
-          {canClose && <button type="button" onClick={onClose}>閉じる</button>}
+    <section className="starter-deck-modal starter-setup-panel" aria-labelledby="starter-deck-title">
+      <div className="modal-head">
+        <div>
+          <span className="modal-kicker">DUEL SETUP</span>
+          <h2 id="starter-deck-title">対戦準備</h2>
+          <p>自分のデッキ、相手のデッキ、相手CPUを決めてから対戦を開始します。カード一覧や音声設定は上部メニューからそのまま操作できます。</p>
         </div>
-        <div className="starter-duel-selectors">
-          <DeckSelectionPicker
-            title="自分のデッキ"
-            selection={playerSelection}
-            savedDecks={savedDecks}
-            onChange={onChangePlayerSelection}
-          />
-          <DeckSelectionPicker
-            title="相手のデッキ"
-            selection={opponentSelection}
-            savedDecks={savedDecks}
-            onChange={onChangeOpponentSelection}
-          />
+        <button type="button" onClick={onClose}>閉じる</button>
+      </div>
+      <div className="starter-setup-summary" aria-label="現在の対戦設定">
+        <div>
+          <span>あなた</span>
+          <strong>{playerDeckLabel}</strong>
         </div>
-        <section className="starter-ai-profile" aria-label="相手CPU">
+        <div>
+          <span>相手</span>
+          <strong>{opponentDeckLabel}</strong>
+        </div>
+        <div>
+          <span>CPU</span>
+          <strong>{opponentAiLabel}</strong>
+        </div>
+      </div>
+      <div className="starter-duel-selectors">
+        <DeckSelectionPicker
+          title="自分のデッキ"
+          step="1"
+          selection={playerSelection}
+          savedDecks={savedDecks}
+          onChange={onChangePlayerSelection}
+        />
+        <DeckSelectionPicker
+          title="相手のデッキ"
+          step="2"
+          selection={opponentSelection}
+          savedDecks={savedDecks}
+          onChange={onChangeOpponentSelection}
+        />
+      </div>
+      <section className="starter-ai-profile" aria-label="相手CPU">
+        <div className="starter-picker-title">
+          <span>3</span>
           <h3>相手CPU</h3>
-          <div className="segmented-control">
-            <button
-              type="button"
-              className={opponentAiProfile === "beginner" ? "active" : ""}
-              aria-pressed={opponentAiProfile === "beginner"}
-              onClick={() => onChangeOpponentAiProfile("beginner")}
-            >
-              初心者
-            </button>
-            <button
-              type="button"
-              className={opponentAiProfile === "challenger" ? "active" : ""}
-              aria-pressed={opponentAiProfile === "challenger"}
-              onClick={() => onChangeOpponentAiProfile("challenger")}
-            >
-              挑戦者
-            </button>
-          </div>
-        </section>
-        <div className="starter-modal-actions">
-          <button type="button" className="primary-action" onClick={onStart}>対戦開始</button>
+        </div>
+        <div className="segmented-control">
+          <button
+            type="button"
+            className={opponentAiProfile === "beginner" ? "active" : ""}
+            aria-pressed={opponentAiProfile === "beginner"}
+            onClick={() => onChangeOpponentAiProfile("beginner")}
+          >
+            初心者
+          </button>
+          <button
+            type="button"
+            className={opponentAiProfile === "challenger" ? "active" : ""}
+            aria-pressed={opponentAiProfile === "challenger"}
+            onClick={() => onChangeOpponentAiProfile("challenger")}
+          >
+            挑戦者
+          </button>
         </div>
       </section>
-    </div>
+      <div className="starter-modal-actions">
+        <button type="button" className="primary-action" onClick={onStart}>この設定で対戦開始</button>
+      </div>
+    </section>
   );
 }
 
 function DeckSelectionPicker({
   title,
+  step,
   selection,
   savedDecks,
   onChange,
 }: {
   title: string;
+  step: string;
   selection: DeckSelection;
   savedDecks: SavedDeck[];
   onChange: (selection: DeckSelection) => void;
 }) {
   return (
     <section className="starter-deck-picker" aria-label={title}>
-      <h3>{title}</h3>
+      <div className="starter-picker-title">
+        <span>{step}</span>
+        <h3>{title}</h3>
+      </div>
       <div className="starter-deck-grid compact">
         <button
           type="button"
@@ -2505,6 +2541,12 @@ function DeckSelectionPicker({
   );
 }
 
+function deckSelectionLabel(selection: DeckSelection, savedDecks: SavedDeck[]): string {
+  if (selection.kind === "random") return "ランダム";
+  if (selection.kind === "preset") return DECKS[selection.deckId].name;
+  return savedDecks.find((deck) => deck.id === selection.deckId)?.name ?? "保存済みデッキ";
+}
+
 function isDeckSelectionEqual(left: DeckSelection, right: DeckSelection): boolean {
   if (left.kind !== right.kind) return false;
   if (left.kind === "preset" && right.kind === "preset") return left.deckId === right.deckId;
@@ -2531,20 +2573,20 @@ function WorkspaceHeader({
 }) {
   return (
     <header className="workspace-header">
-      <div className="workspace-brand">
+      <button type="button" className="workspace-brand" onClick={() => onChangePage("duel")} aria-label="対戦画面へ戻る">
         <img src={brandMark} alt="" />
         <div>
           <h1>BREAK DUEL</h1>
-          <p>カード管理とデッキ制作</p>
+          <p>{page === "duel" ? "対戦準備とカード管理" : "カード管理とデッキ制作"}</p>
         </div>
-      </div>
+      </button>
       <PageTabs page={page} onChange={onChangePage} />
       <div className="workspace-tools">
         <label className="duel-seed">
           <span>Seed</span>
           <input type="number" value={seed} readOnly aria-label="現在のSeed" />
         </label>
-        <button type="button" onClick={onStartNewGame}>再戦</button>
+        <button type="button" onClick={onStartNewGame}>{page === "duel" ? "対戦準備" : "再戦"}</button>
         <button type="button" onClick={onOpenRules}>ルール</button>
         <button type="button" className={audioEnabled ? "audio-on" : ""} onClick={onToggleAudio}>{audioEnabled ? "音ON" : "音OFF"}</button>
       </div>
