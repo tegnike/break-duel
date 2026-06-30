@@ -56,11 +56,11 @@ export type TutorialFocus =
   | { kind: "defense" };
 
 const PLAYER_TUTORIAL_HAND = [
-  "AI-FIRE-1",
+  "AI-FIRE-2",
   "MEM-CACHE",
   "AI-FIRE-1C",
   "CMD-FIRE-RITE",
-  "AI-FIRE-2",
+  "AI-FIRE-2B",
 ];
 
 const PLAYER_TUTORIAL_DECK = [
@@ -84,7 +84,7 @@ const PLAYER_TUTORIAL_DECK = [
 
 const RIVAL_TUTORIAL_HAND = [
   "AI-EARTH-1",
-  "MEM-CACHE",
+  "AI-EARTH-2",
   "AI-WIND-1",
   "AI-EARTH-2C",
   "CMD-EARTH-RITE",
@@ -129,7 +129,7 @@ export function createTutorialGame(): GameState {
     {
       kind: "custom",
       name: "チュートリアルライバル",
-      cardIds: ["AI-EARTH-2", ...RIVAL_TUTORIAL_HAND, ...RIVAL_TUTORIAL_DECK],
+      cardIds: [...RIVAL_TUTORIAL_HAND, ...RIVAL_TUTORIAL_DECK],
     },
     "beginner",
   );
@@ -143,7 +143,7 @@ export function createTutorialGame(): GameState {
   player.cardsDrawn = player.hand.length;
   rival.hand = cloneCards(RIVAL_TUTORIAL_HAND);
   rival.deck = cloneCards(RIVAL_TUTORIAL_DECK);
-  rival.field = cloneCards(["AI-EARTH-2"]);
+  rival.field = [];
   rival.cardsDrawn = rival.hand.length;
   rival.spentFieldIndexes = new Set();
   game.selected = null;
@@ -159,20 +159,20 @@ export function currentTutorialStep(game: GameState): TutorialStep {
   if (tutorialPracticeComplete(game)) return completeStep();
 
   if (game.pendingAttack?.defenderIndex === 0) {
-    if (player.field.some((card) => card.id === "AI-FIRE-4")) {
+    if (game.turn <= 2) {
       return {
         id: "field-defend",
-        kicker: "STEP 14",
+        kicker: "STEP 3",
         title: "場で防御",
-        detail: "手札だけでなく、未消耗の場の召喚獣でも防御できます。『終火の影ヴァルガ』で攻撃を受け止めます。",
+        detail: "場に未消耗の召喚獣がいれば、防御に使えます。『炉殻バサルトン』でライバルの攻撃を受け止めます。",
         focus: { kind: "defense" },
       };
     }
     return {
       id: "defend",
-      kicker: "STEP 3",
+      kicker: "STEP 14",
       title: "手札で防御",
-      detail: "ライバルの攻撃に対して、手札の power 2 召喚獣を防御に使います。防御に使ったカードはトラッシュへ行きます。",
+      detail: "場の召喚獣で受けない場面では、手札の召喚獣でも防御できます。手札防御に使ったカードはトラッシュへ行きます。",
       focus: { kind: "defense" },
     };
   }
@@ -196,8 +196,8 @@ export function currentTutorialStep(game: GameState): TutorialStep {
       id: "select-summon",
       kicker: "STEP 1",
       title: "召喚獣を選択",
-      detail: "手札の召喚獣を選んでください。ここでは『熾き尾のサラ』を選んで場に出す流れを確認します。",
-      focus: { kind: "hand-card", ownerIndex: 0, cardId: "AI-FIRE-1" },
+      detail: "手札の召喚獣を選んでください。ここでは『炉殻バサルトン』を選んで場に出す流れを確認します。",
+      focus: { kind: "hand-card", ownerIndex: 0, cardId: "AI-FIRE-2" },
     };
   }
 
@@ -368,8 +368,8 @@ export function currentTutorialStep(game: GameState): TutorialStep {
     return {
       id: "end-after-upgrade",
       kicker: "STEP 14",
-      title: "場防御を待つ",
-      detail: "大型召喚獣を場に出し、浮いたアクションも使えました。ターンを渡し、次は場の召喚獣で防御する流れを確認します。",
+      title: "手札防御を待つ",
+      detail: "大型召喚獣を場に出し、浮いたアクションも使えました。ターンを渡し、次は手札の召喚獣で防御する流れを確認します。",
       focus: { kind: "action", action: "end" },
     };
   }
@@ -396,8 +396,26 @@ export function currentTutorialStep(game: GameState): TutorialStep {
 
 export function tutorialForcedAiAction(game: GameState): AiAction | null {
   if (game.active !== 1 || game.pendingAttack || game.pendingTarget || game.winner !== null || game.draw) return null;
+  if (game.turn === 2 && game.actionsRemaining > 0) {
+    const firstAttackerIndex = game.players[1].field.findIndex((card) => card.id === "AI-EARTH-1");
+    if (firstAttackerIndex >= 0 && canActivePlayerAttack(game) && !game.players[1].spentFieldIndexes.has(firstAttackerIndex)) {
+      return { type: "attack", index: firstAttackerIndex };
+    }
+    const firstAttackerInHand = game.players[1].hand.findIndex((card) => card.id === "AI-EARTH-1");
+    if (firstAttackerInHand >= 0 && !game.players[1].discard.some((card) => card.id === "AI-EARTH-1")) {
+      return { type: "play", index: firstAttackerInHand };
+    }
+    const nextAttackerInHand = game.players[1].hand.findIndex((card) => card.id === "AI-EARTH-2");
+    if (nextAttackerInHand >= 0 && !game.players[1].field.some((card) => card.id === "AI-EARTH-2")) {
+      return { type: "play", index: nextAttackerInHand };
+    }
+  }
+  if (game.turn === 4 && game.actionsRemaining > 0 && !game.players[1].field.some((card) => card.id === "AI-EARTH-2")) {
+    const nextAttackerInHand = game.players[1].hand.findIndex((card) => card.id === "AI-EARTH-2");
+    if (nextAttackerInHand >= 0) return { type: "play", index: nextAttackerInHand };
+  }
   if (
-    (game.turn === 2 || game.turn === 8)
+    game.turn === 8
     && game.players[1].field[0]
     && canActivePlayerAttack(game)
     && game.actionsRemaining > 0
@@ -455,22 +473,46 @@ function completeStep(): TutorialStep {
 function rivalTurnStep(game: GameState): TutorialStep {
   const turn = game.turn;
   if (turn <= 2) {
-    if (game.players[0].discard.some((card) => card.id === "AI-FIRE-2")) {
+    if (!game.players[1].field.some((card) => card.id === "AI-EARTH-1") && !game.players[1].discard.some((card) => card.id === "AI-EARTH-1")) {
+      return {
+        id: "watch-rival",
+        kicker: "STEP 2",
+        title: "ライバルの召喚を見る",
+        detail: "ライバルも最初は場が空です。まず召喚獣を場に出し、その後の攻撃を場で防御します。",
+      };
+    }
+    if (game.players[1].discard.some((card) => card.id === "AI-EARTH-1")) {
+      if (!game.players[1].field.some((card) => card.id === "AI-EARTH-2")) {
+        return {
+          id: "watch-rival",
+          kicker: "STEP 3",
+          title: "防御後の処理を見る",
+          detail: "場防御が終わりました。ライバルの残り行動で次の攻撃役を場に出し、ターン終了を待ちます。",
+        };
+      }
       return {
         id: "watch-rival",
         kicker: "STEP 3",
         title: "防御後の処理を見る",
-        detail: "手札防御が終わりました。防御に使った『炉殻バサルトン』はトラッシュへ行き、ライバルのターン終了を待ちます。",
+        detail: "場防御が終わりました。攻撃した召喚獣はトラッシュへ行き、防御した『炉殻バサルトン』は場に残って消耗します。",
       };
     }
     return {
       id: "watch-rival",
       kicker: "STEP 2",
-      title: "ライバルの行動を見る",
-      detail: "ターンを渡すとライバルが行動します。最初の攻撃を受けて、防御の流れを確認しましょう。",
+      title: "ライバルの攻撃を見る",
+      detail: "ライバルが場に出した召喚獣で攻撃します。最初の攻撃を受けて、防御の流れを確認しましょう。",
     };
   }
   if (turn <= 4) {
+    if (!game.players[1].field.some((card) => card.id === "AI-EARTH-2") && game.players[1].hand.some((card) => card.id === "AI-EARTH-2")) {
+      return {
+        id: "watch-rival",
+        kicker: "STEP 8",
+        title: "次の攻撃役を見る",
+        detail: "ライバルが次の攻撃役を場に出します。ターン終了後に『灯火の旅嚢』の継続効果を確認します。",
+      };
+    }
     return {
       id: "watch-rival",
       kicker: "STEP 8",
@@ -489,7 +531,7 @@ function rivalTurnStep(game: GameState): TutorialStep {
   return {
     id: "watch-rival",
     kicker: "STEP 14",
-    title: "場防御を待つ",
-    detail: "大型召喚獣を場に出し、浮いた行動も使いました。ライバルの攻撃を場の召喚獣で受け止めます。",
+    title: "手札防御を待つ",
+    detail: "大型召喚獣を場に出し、浮いた行動も使いました。今度はライバルの攻撃を手札の召喚獣で受け止めます。",
   };
 }

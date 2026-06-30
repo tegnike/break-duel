@@ -368,7 +368,7 @@ function tutorialAllowsAction(
 ): boolean {
   const handCard = typeof options.handIndex === "number" ? game.players[0].hand[options.handIndex] : null;
   if (action === "select-hand") {
-    if (step.id === "select-summon" || step.id === "play-summon") return handCard?.id === "AI-FIRE-1";
+    if (step.id === "select-summon" || step.id === "play-summon") return handCard?.id === "AI-FIRE-2";
     if (step.id === "command") return handCard?.id === "CMD-FIRE-RITE";
     if (step.id === "select-charge" || step.id === "charge") return handCard?.id === "AI-FIRE-1C";
     if (step.id === "select-post-charge-memory" || step.id === "play-post-charge-memory") return handCard?.id === "MEM-CACHE";
@@ -396,7 +396,7 @@ function tutorialAllowsAction(
 }
 
 function tutorialActionHint(step: TutorialStep): string {
-  if (step.id === "select-summon") return "『熾き尾のサラ』を選んでください";
+  if (step.id === "select-summon") return "『炉殻バサルトン』を選んでください";
   if (step.id === "play-summon") return "場に出すボタンを押してください";
   if (step.id === "end-first-turn") return "ターン終了を押してください";
   if (step.id === "watch-rival") return "ライバルの行動を確認してください";
@@ -416,7 +416,7 @@ function tutorialActionHint(step: TutorialStep): string {
   if (step.id === "select-power4-upgrade") return "『終火の影ヴァルガ』を選んでください";
   if (step.id === "upgrade-power4") return "アップグレードボタンを押してください";
   if (step.id === "saved-action-attack") return "『噴角イグナロス』で攻撃してください";
-  if (step.id === "end-after-upgrade") return "ターン終了で場防御へ進みます";
+  if (step.id === "end-after-upgrade") return "ターン終了で手札防御へ進みます";
   if (step.id === "field-defend") return "場の防御候補を選んでください";
   if (step.id === "power4-attack") return "『終火の影ヴァルガ』で攻撃してください";
   return "チュートリアルは完了しています";
@@ -465,12 +465,12 @@ function tutorialForcedDefenseChoice(step: TutorialStep | null, game: GameState)
   if (!game.pendingAttack) return null;
   if (step?.id === "field-defend") {
     const defender = game.players[game.pendingAttack.defenderIndex];
-    const fieldIndex = defender.field.findIndex((card, index) => card.id === "AI-FIRE-4" && !defender.spentFieldIndexes.has(index));
+    const fieldIndex = defender.field.findIndex((card, index) => card.id === "AI-FIRE-2" && !defender.spentFieldIndexes.has(index));
     return fieldIndex >= 0 ? { type: "field", index: fieldIndex } : null;
   }
   if (step?.id !== "defend") return null;
   const defender = game.players[game.pendingAttack.defenderIndex];
-  const handIndex = defender.hand.findIndex((card) => card.id === "AI-FIRE-2");
+  const handIndex = defender.hand.findIndex((card) => card.id === "AI-FIRE-2B");
   return handIndex >= 0 ? { type: "hand", index: handIndex } : null;
 }
 

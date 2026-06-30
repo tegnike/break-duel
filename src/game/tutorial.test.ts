@@ -10,13 +10,13 @@ describe("tutorial duel setup", () => {
     expect(game.turn).toBe(1);
     expect(game.actionsRemaining).toBe(1);
     expect(game.players[0].hand.map((card) => card.id)).toEqual([
-      "AI-FIRE-1",
+      "AI-FIRE-2",
       "MEM-CACHE",
       "AI-FIRE-1C",
       "CMD-FIRE-RITE",
-      "AI-FIRE-2",
+      "AI-FIRE-2B",
     ]);
-    expect(game.players[1].field.map((card) => card.id)).toEqual(["AI-EARTH-2"]);
+    expect(game.players[1].field).toEqual([]);
     expect(game.selected).toBeNull();
     expect(currentTutorialStep(game).id).toBe("select-summon");
   });
@@ -37,16 +37,40 @@ describe("tutorial duel setup", () => {
     game.turn = 2;
     game.actionsRemaining = 2;
     expect(currentTutorialStep(game).id).toBe("watch-rival");
+    expect(currentTutorialStep(game).title).toBe("ライバルの召喚を見る");
+    expect(tutorialForcedAiAction(game)).toEqual({ type: "play", index: 0 });
+
+    const [rivalSummon] = game.players[1].hand.splice(0, 1);
+    game.players[1].field.push(rivalSummon);
+    game.actionsRemaining = 1;
+    expect(currentTutorialStep(game).title).toBe("ライバルの攻撃を見る");
     expect(tutorialForcedAiAction(game)).toEqual({ type: "attack", index: 0 });
 
-    game.players[0].discard.push(game.players[0].hand.find((card) => card.id === "AI-FIRE-2")!);
-    game.players[0].hand = game.players[0].hand.filter((card) => card.id !== "AI-FIRE-2");
+    game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
+    expect(currentTutorialStep(game).id).toBe("field-defend");
+    game.pendingAttack = null;
+    game.players[1].discard.push(game.players[1].field.shift()!);
+    game.players[0].spentFieldIndexes.add(0);
+    game.actionsRemaining = 0;
     expect(currentTutorialStep(game).kicker).toBe("STEP 3");
+    expect(tutorialForcedAiAction(game)).toEqual({ type: "end" });
+
+    game.turn = 4;
+    game.active = 1;
+    game.actionsRemaining = 2;
+    expect(currentTutorialStep(game).title).toBe("次の攻撃役を見る");
+    expect(tutorialForcedAiAction(game)).toEqual({ type: "play", index: 0 });
+
+    const [nextRivalSummon] = game.players[1].hand.splice(0, 1);
+    game.players[1].field.push(nextRivalSummon);
+    game.actionsRemaining = 1;
+    expect(game.players[1].field.map((card) => card.id)).toEqual(["AI-EARTH-2"]);
+    expect(tutorialForcedAiAction(game)).toEqual({ type: "end" });
   });
 
   it("continues after the charged extra action and completes after power 4 overheat", () => {
     const game = createTutorialGame();
-    const summonIndex = game.players[0].hand.findIndex((card) => card.id === "AI-FIRE-1");
+    const summonIndex = game.players[0].hand.findIndex((card) => card.id === "AI-FIRE-2");
     const [summon] = game.players[0].hand.splice(summonIndex, 1);
     game.players[0].field.push(summon);
     game.players[0].discard.push(game.players[0].hand.find((card) => card.id === "CMD-FIRE-RITE")!);
@@ -108,6 +132,11 @@ describe("tutorial duel setup", () => {
     game.turn = 7;
     game.active = 1;
     game.actionsRemaining = 2;
+    if (game.players[1].field.length === 0) {
+      const lateAttackerIndex = game.players[1].hand.findIndex((card) => card.id === "AI-EARTH-2");
+      const [lateAttacker] = game.players[1].hand.splice(lateAttackerIndex, 1);
+      game.players[1].field.push(lateAttacker);
+    }
     expect(currentTutorialStep(game).kicker).toBe("STEP 14");
     expect(tutorialForcedAiAction(game)).toEqual({ type: "end" });
 
@@ -116,7 +145,7 @@ describe("tutorial duel setup", () => {
     expect(tutorialForcedAiAction(game)).toEqual({ type: "attack", index: 0 });
 
     game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
-    expect(currentTutorialStep(game).id).toBe("field-defend");
+    expect(currentTutorialStep(game).id).toBe("defend");
     game.pendingAttack = null;
 
     game.turn = 9;
