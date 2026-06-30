@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { type Card } from "../game";
 import { currentTutorialStep, createTutorialGame, tutorialForcedAiAction } from "../tutorial";
+
+function takeCardById(cards: Card[], cardId: string): Card {
+  const index = cards.findIndex((card) => card.id === cardId);
+  expect(index).toBeGreaterThanOrEqual(0);
+  const card = cards[index];
+  expect(card).toBeDefined();
+  cards.splice(index, 1);
+  return card!;
+}
 
 describe("tutorial duel setup", () => {
   it("starts from a fixed summon lesson state", () => {
@@ -71,16 +81,14 @@ describe("tutorial duel setup", () => {
 
   it("continues after the charged extra action and completes after power 4 overheat", () => {
     const game = createTutorialGame();
-    const summonIndex = game.players[0].hand.findIndex((card) => card.id === "AI-FIRE-2");
-    const [summon] = game.players[0].hand.splice(summonIndex, 1);
+    const summon = takeCardById(game.players[0].hand, "AI-FIRE-2");
     game.players[0].field.push(summon);
     game.players[0].discard.push(game.players[0].hand.find((card) => card.id === "CMD-FIRE-RITE")!);
     game.players[0].discard.push(game.players[0].hand.find((card) => card.id === "AI-FIRE-1C")!);
     game.players[0].hand = game.players[0].hand.filter((card) => card.id !== "CMD-FIRE-RITE" && card.id !== "AI-FIRE-1C" && card.id !== "AI-FIRE-2");
     game.players[0].chargeUsed = true;
     game.players[1].life = 4;
-    const memoryIndex = game.players[0].hand.findIndex((card) => card.id === "MEM-CACHE");
-    const [memory] = game.players[0].hand.splice(memoryIndex, 1);
+    const memory = takeCardById(game.players[0].hand, "MEM-CACHE");
     game.players[0].memory = memory;
     game.turn = 3;
     game.active = 0;
@@ -126,8 +134,7 @@ describe("tutorial duel setup", () => {
     game.active = 1;
     game.actionsRemaining = 2;
     if (game.players[1].field.length === 0) {
-      const lateAttackerIndex = game.players[1].hand.findIndex((card) => card.id === "AI-EARTH-2");
-      const [lateAttacker] = game.players[1].hand.splice(lateAttackerIndex, 1);
+      const lateAttacker = takeCardById(game.players[1].hand, "AI-EARTH-2");
       game.players[1].field.push(lateAttacker);
     }
     expect(currentTutorialStep(game).kicker).toBe("STEP 14");

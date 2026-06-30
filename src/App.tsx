@@ -378,13 +378,22 @@ function tutorialAllowsAction(
   }
   if (action === "select-field") {
     if (options.fieldOwnerIndex !== 0 || typeof options.fieldIndex !== "number" || game.players[0].spentFieldIndexes.has(options.fieldIndex)) return false;
-    if (step.id === "saved-action-attack") return game.players[0].field[options.fieldIndex]?.id === "AI-FIRE-2";
-    return step.id === "attack" || step.id === "power4-attack";
+    const fieldCard = game.players[0].field[options.fieldIndex];
+    if (step.id === "saved-action-attack") return fieldCard?.id === "AI-FIRE-2";
+    if (step.id === "power4-attack") return fieldCard?.id === "AI-FIRE-4";
+    return step.id === "attack";
   }
   if (action === "play") return step.id === "play-summon" || step.id === "command" || step.id === "upgrade" || step.id === "play-post-charge-memory";
   if (action === "command") return step.id === "command";
   if (action === "upgrade") return step.id === "upgrade-power4";
-  if (action === "attack") return step.id === "attack" || step.id === "saved-action-attack" || step.id === "power4-attack";
+  if (action === "attack") {
+    const selected = game.selected?.zone === "field" && (game.selected.ownerIndex ?? 0) === 0
+      ? game.players[0].field[game.selected.index]
+      : null;
+    if (step.id === "saved-action-attack") return selected?.id === "AI-FIRE-2";
+    if (step.id === "power4-attack") return selected?.id === "AI-FIRE-4";
+    return step.id === "attack";
+  }
   if (action === "charge") return step.id === "charge";
   if (action === "end") return step.id === "end-first-turn" || step.id === "end-after-memory" || step.id === "end-after-power3-upgrade" || step.id === "end-after-upgrade";
   if (action === "defend") {
@@ -1154,6 +1163,13 @@ export default function App() {
   }
 
   function startTutorialGame() {
+    if (page !== "duel") {
+      setPage("duel");
+      const duelPath = routeForPage("duel");
+      if (window.location.pathname !== duelPath) {
+        window.history.pushState(null, "", duelPath);
+      }
+    }
     const nextGame = createTutorialGame();
     rivalActionVoiceTurnGroups.current = createRivalActionVoiceTurnGroups(TUTORIAL_SEED);
     setSeed(TUTORIAL_SEED);
@@ -1408,7 +1424,7 @@ export default function App() {
     const tutorialManualAdvance = tutorialActive && tutorialStep?.id === "watch-rival";
     const timer = window.setTimeout(() => {
       const action = tutorialActive ? tutorialForcedAiAction(game) ?? chooseAiAction(game, active.aiProfile) : chooseAiAction(game, active.aiProfile);
-      const commitDelay = tutorialManualAdvance ? Math.min(prepareAiActionAnimation(action), 120) : prepareAiActionAnimation(action);
+      const commitDelay = prepareAiActionAnimation(action);
       setAiAnimating(true);
       aiCommitTimer.current = window.setTimeout(() => {
         mutate((draft) => performAiActionInDraft(draft, action, { playSfx, showDuelEvent: queueDuelEvent }));

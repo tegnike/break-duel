@@ -108,12 +108,20 @@ const RIVAL_TUTORIAL_DECK = [
 
 export function readTutorialCompleted(): boolean {
   if (typeof localStorage === "undefined") return false;
-  return localStorage.getItem(TUTORIAL_COMPLETED_STORAGE_KEY) === "true";
+  try {
+    return localStorage.getItem(TUTORIAL_COMPLETED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
 }
 
 export function writeTutorialCompleted(completed: boolean): void {
   if (typeof localStorage === "undefined") return;
-  localStorage.setItem(TUTORIAL_COMPLETED_STORAGE_KEY, completed ? "true" : "false");
+  try {
+    localStorage.setItem(TUTORIAL_COMPLETED_STORAGE_KEY, completed ? "true" : "false");
+  } catch {
+    // Persisting tutorial completion is best-effort; blocked storage should not break play.
+  }
 }
 
 export function createTutorialGame(): GameState {

@@ -161,7 +161,7 @@ CPU は Python 側 `ai_break_duel/ai.py` と TypeScript 側 `src/game.ts` の二
 - 初回表示の完了状態は `localStorage` の `break-duel:tutorial-completed` に保存します。
 - チュートリアル中の進行判定と操作ガードは `src/tutorial.ts` の `currentTutorialStep` と `App.tsx` 側の UI ガードで扱います。
 - ルール処理は通常対戦と同じ `src/game.ts` / `src/game/actions.ts` を使います。チュートリアル専用のルール分岐は増やさないでください。
-- ライバルの最初の召喚と攻撃だけは、防御説明を安定させるため `tutorialForcedAiAction` で固定します。
+- ライバルの序盤召喚と攻撃、turn 4 の `AI-EARTH-2` 展開、turn 8 の攻撃は、説明順を安定させるため `tutorialForcedAiAction` で固定します。
 
 ## 変更時の注意
 

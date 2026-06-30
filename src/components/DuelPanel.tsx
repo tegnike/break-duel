@@ -238,12 +238,15 @@ export function DefensePanel({
   const defender = game.players[pending.defenderIndex];
   const fieldOptions = legalFieldDefenders(defender, attackCard);
   const handOptions = legalHandDefenders(defender, attackCard);
-  const visibleFieldOptions = forcedDefenseChoice?.type === "field"
+  const forcedFieldOptions = forcedDefenseChoice?.type === "field"
     ? fieldOptions.filter(({ index }) => index === forcedDefenseChoice.index)
-    : forcedDefenseChoice ? [] : fieldOptions;
-  const visibleHandOptions = forcedDefenseChoice?.type === "hand"
+    : [];
+  const forcedHandOptions = forcedDefenseChoice?.type === "hand"
     ? handOptions.filter(({ index }) => index === forcedDefenseChoice.index)
-    : forcedDefenseChoice ? [] : handOptions;
+    : [];
+  const effectiveForcedDefenseChoice = forcedDefenseChoice && (forcedFieldOptions.length > 0 || forcedHandOptions.length > 0) ? forcedDefenseChoice : null;
+  const visibleFieldOptions = effectiveForcedDefenseChoice?.type === "field" ? forcedFieldOptions : fieldOptions;
+  const visibleHandOptions = effectiveForcedDefenseChoice?.type === "hand" ? forcedHandOptions : handOptions;
   const hasVisibleOptions = visibleFieldOptions.length > 0 || visibleHandOptions.length > 0;
   return (
     <div className="defense-panel">
@@ -253,7 +256,7 @@ export function DefensePanel({
         {visibleFieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} cardIndex={index} attackCard={attackCard} defender={defender} fieldIndex={index} onClick={() => onResolve({ type: "field", index })} />)}
         {visibleHandOptions.map(({ card, index }) => <DefenseChoiceButton key={`hand-${index}`} source="手札" card={card} cardIndex={index} attackCard={attackCard} defender={defender} hand onClick={() => onResolve({ type: "hand", index })} />)}
         {!hasVisibleOptions && <div className="defense-context">防御できるカードはありません。</div>}
-        {!forcedDefenseChoice && <button type="button" className="defense-pass" onClick={() => onResolve({ type: "none" })}>防御しない</button>}
+        {!effectiveForcedDefenseChoice && <button type="button" className="defense-pass" onClick={() => onResolve({ type: "none" })}>防御しない</button>}
       </div>
     </div>
   );
