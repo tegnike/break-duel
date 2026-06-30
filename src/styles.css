@@ -10030,10 +10030,9 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
   display: grid;
   grid-template-columns: minmax(286px, 350px) minmax(0, 1fr);
-  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   grid-template-areas:
     "head selectors"
-    "tutorial selectors"
     "summary selectors"
     "ai selectors"
     "actions selectors";
@@ -10095,24 +10094,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   line-height: 1.65;
 }
 
-.duel-setup-shell .tutorial-start-card {
-  grid-area: tutorial;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-  margin: 0;
-  border: 1px solid rgba(245, 207, 120, 0.34);
-  border-radius: 7px;
-  padding: 14px;
-  background:
-    linear-gradient(135deg, rgba(245, 207, 120, 0.15), transparent 48%),
-    var(--setup-panel);
-  box-shadow:
-    inset 3px 0 0 rgba(245, 207, 120, 0.54),
-    0 18px 34px rgba(0, 0, 0, 0.2);
-}
-
-.duel-setup-shell .tutorial-start-card span,
 .tutorial-guide-panel span {
   display: block;
   color: #f0c462;
@@ -10121,7 +10102,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   letter-spacing: 0;
 }
 
-.duel-setup-shell .tutorial-start-card strong,
 .tutorial-guide-panel strong {
   display: block;
   margin-top: 3px;
@@ -10129,20 +10109,12 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   font-size: 17px;
 }
 
-.duel-setup-shell .tutorial-start-card p,
 .tutorial-guide-panel p {
   margin: 5px 0 0;
   color: #d7d0c1;
   line-height: 1.55;
 }
 
-.duel-setup-shell .tutorial-start-card > div:last-child {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.duel-setup-shell .tutorial-start-card button,
 .tutorial-guide-panel button,
 .duel-setup-shell .starter-modal-actions > button:not(.primary-action) {
   min-height: 42px;
@@ -10158,7 +10130,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     0 7px 0 rgba(0, 0, 0, 0.2);
 }
 
-.duel-setup-shell .tutorial-start-card button:hover,
 .tutorial-guide-panel button:hover,
 .duel-setup-shell .starter-modal-actions > button:not(.primary-action):hover {
   border-color: #f0c462;
@@ -10418,10 +10389,9 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 @media (max-width: 920px) {
   .duel-setup-shell .starter-setup-panel {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto auto auto auto;
+    grid-template-rows: auto auto auto auto auto;
     grid-template-areas:
       "head"
-      "tutorial"
       "summary"
       "selectors"
       "ai"
