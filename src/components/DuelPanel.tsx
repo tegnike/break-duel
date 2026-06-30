@@ -124,6 +124,7 @@ export function DefensePanel({
   onTogglePendingCard,
   onConfirmPending,
   onConfirmCardSelection,
+  forcedDefenseChoice,
 }: {
   game: GameState;
   onResolve: (choice: DefenseChoice) => void;
@@ -133,6 +134,7 @@ export function DefensePanel({
   onTogglePendingCard: (index: number) => void;
   onConfirmPending: () => void;
   onConfirmCardSelection: () => void;
+  forcedDefenseChoice?: DefenseChoice | null;
 }) {
   if (game.pendingTarget) {
     if (game.pendingTarget.kind === "hand-discard") {
@@ -236,15 +238,22 @@ export function DefensePanel({
   const defender = game.players[pending.defenderIndex];
   const fieldOptions = legalFieldDefenders(defender, attackCard);
   const handOptions = legalHandDefenders(defender, attackCard);
+  const visibleFieldOptions = forcedDefenseChoice?.type === "field"
+    ? fieldOptions.filter(({ index }) => index === forcedDefenseChoice.index)
+    : forcedDefenseChoice ? [] : fieldOptions;
+  const visibleHandOptions = forcedDefenseChoice?.type === "hand"
+    ? handOptions.filter(({ index }) => index === forcedDefenseChoice.index)
+    : forcedDefenseChoice ? [] : handOptions;
+  const hasVisibleOptions = visibleFieldOptions.length > 0 || visibleHandOptions.length > 0;
   return (
     <div className="defense-panel">
       <h3>{attackCard.name}への防御を選択</h3>
       <div className="defense-context">攻撃値 {attackCombatValue(attackCard)} / 場ブロックは同値なら相打ち、上回れば防御側が残ります。手札ブロックは使い切りです。</div>
       <div className="defense-choice-grid">
-        {fieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} attackCard={attackCard} defender={defender} fieldIndex={index} onClick={() => onResolve({ type: "field", index })} />)}
-        {handOptions.map(({ card, index }) => <DefenseChoiceButton key={`hand-${index}`} source="手札" card={card} attackCard={attackCard} defender={defender} hand onClick={() => onResolve({ type: "hand", index })} />)}
-        {fieldOptions.length === 0 && handOptions.length === 0 && <div className="defense-context">防御できるカードはありません。</div>}
-        <button type="button" className="defense-pass" onClick={() => onResolve({ type: "none" })}>防御しない</button>
+        {visibleFieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} attackCard={attackCard} defender={defender} fieldIndex={index} onClick={() => onResolve({ type: "field", index })} />)}
+        {visibleHandOptions.map(({ card, index }) => <DefenseChoiceButton key={`hand-${index}`} source="手札" card={card} attackCard={attackCard} defender={defender} hand onClick={() => onResolve({ type: "hand", index })} />)}
+        {!hasVisibleOptions && <div className="defense-context">防御できるカードはありません。</div>}
+        {!forcedDefenseChoice && <button type="button" className="defense-pass" onClick={() => onResolve({ type: "none" })}>防御しない</button>}
       </div>
     </div>
   );

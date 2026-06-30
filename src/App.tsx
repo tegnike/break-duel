@@ -52,6 +52,16 @@ import {
 } from "./game/actions";
 import { selectedCardForDetail, selectedHandCardName } from "./game/selectors";
 import {
+  TUTORIAL_SEED,
+  createTutorialGame,
+  currentTutorialStep,
+  readTutorialCompleted,
+  tutorialForcedAiAction,
+  writeTutorialCompleted,
+  type TutorialFocus,
+  type TutorialStep,
+} from "./tutorial";
+import {
   DefensePanel,
   LogList,
   SelectedCardDetail,
@@ -244,6 +254,9 @@ type CombatPreview = {
   direct: boolean;
 };
 
+type TutorialAction = "select-hand" | "select-field" | "play" | "upgrade" | "attack" | "charge" | "end" | "defend" | "command" | "memory";
+type TutorialFixedSelection = { zone: "hand" | "field"; ownerIndex: number; index: number } | null;
+
 function randomSeed(): number {
   if (typeof crypto !== "undefined" && "getRandomValues" in crypto) {
     const values = new Uint32Array(1);
@@ -348,6 +361,125 @@ function trashSurgeForEvent(event: DuelEventPayload | DuelEvent | null): TrashSu
   return { owners: [0, 1], tone: "danger" };
 }
 
+function tutorialAllowsAction(
+  step: TutorialStep,
+  action: TutorialAction,
+  game: GameState,
+  options: { handIndex?: number; fieldOwnerIndex?: number; fieldIndex?: number; defenseChoice?: DefenseChoice } = {},
+): boolean {
+  const handCard = typeof options.handIndex === "number" ? game.players[0].hand[options.handIndex] : null;
+  if (action === "select-hand") {
+    if (step.id === "select-summon" || step.id === "play-summon") return handCard?.id === "AI-FIRE-1";
+    if (step.id === "command") return handCard?.id === "CMD-FIRE-RITE";
+    if (step.id === "select-charge" || step.id === "charge") return handCard?.id === "AI-FIRE-1C";
+    if (step.id === "select-post-charge-memory" || step.id === "play-post-charge-memory") return handCard?.id === "MEM-CACHE";
+    if (step.id === "select-upgrade" || step.id === "upgrade") return handCard?.id === "AI-FIRE-3B";
+    if (step.id === "select-power4-base" || step.id === "play-power4-base") return handCard?.id === "AI-FIRE-1B";
+    if (step.id === "select-power4-upgrade" || step.id === "upgrade-power4") return handCard?.id === "AI-FIRE-4";
+    return false;
+  }
+  if (action === "select-field") {
+    if (options.fieldOwnerIndex !== 0 || typeof options.fieldIndex !== "number" || game.players[0].spentFieldIndexes.has(options.fieldIndex)) return false;
+    if (step.id === "saved-action-attack") return game.players[0].field[options.fieldIndex]?.id === "AI-FIRE-3B";
+    return step.id === "attack" || step.id === "power4-attack";
+  }
+  if (action === "play") return step.id === "play-summon" || step.id === "command" || step.id === "play-post-charge-memory" || step.id === "play-power4-base";
+  if (action === "command") return step.id === "command";
+  if (action === "upgrade") return step.id === "upgrade" || step.id === "upgrade-power4";
+  if (action === "attack") return step.id === "attack" || step.id === "saved-action-attack" || step.id === "power4-attack";
+  if (action === "charge") return step.id === "charge";
+  if (action === "end") return step.id === "end-first-turn" || step.id === "end-after-memory" || step.id === "end-after-power3-upgrade" || step.id === "end-after-upgrade";
+  if (action === "defend") {
+    if (step.id === "defend") return options.defenseChoice?.type === "hand";
+    if (step.id === "field-defend") return options.defenseChoice?.type === "field";
+  }
+  return false;
+}
+
+function tutorialActionHint(step: TutorialStep): string {
+  if (step.id === "select-summon") return "『熾き尾のサラ』を選んでください";
+  if (step.id === "play-summon") return "場に出すボタンを押してください";
+  if (step.id === "end-first-turn") return "ターン終了を押してください";
+  if (step.id === "watch-rival") return "ライバルの行動を確認してください";
+  if (step.id === "defend") return "手札の防御候補を選んでください";
+  if (step.id === "attack") return "場の召喚獣を選んで攻撃してください";
+  if (step.id === "command") return "『紅蓮圧壊術』を選んで使ってください";
+  if (step.id === "select-charge") return "チャージできるカードを選んでください";
+  if (step.id === "charge") return "チャージボタンを押してください";
+  if (step.id === "select-post-charge-memory") return "『灯火の旅嚢』を選んでください";
+  if (step.id === "play-post-charge-memory") return "場に出すボタンを押してください";
+  if (step.id === "end-after-memory") return "ターン終了で遺物の継続効果を確認します";
+  if (step.id === "select-upgrade") return "『噴角イグナロス』を選んでください";
+  if (step.id === "upgrade") return "アップグレードボタンを押してください";
+  if (step.id === "end-after-power3-upgrade") return "ターン終了で別素材を待ちます";
+  if (step.id === "select-power4-base") return "『火花一番ピリカ』を選んでください";
+  if (step.id === "play-power4-base") return "場に出すボタンを押してください";
+  if (step.id === "select-power4-upgrade") return "『終火の影ヴァルガ』を選んでください";
+  if (step.id === "upgrade-power4") return "アップグレードボタンを押してください";
+  if (step.id === "saved-action-attack") return "『噴角イグナロス』で攻撃してください";
+  if (step.id === "end-after-upgrade") return "ターン終了で場防御へ進みます";
+  if (step.id === "field-defend") return "場の防御候補を選んでください";
+  if (step.id === "power4-attack") return "『終火の影ヴァルガ』で攻撃してください";
+  return "チュートリアルは完了しています";
+}
+
+function tutorialFocusMatchesCard(focus: TutorialFocus | undefined, ownerIndex: number, zone: "hand" | "field" | "memory", card: Card | null, index: number): boolean {
+  if (!focus || !card) return false;
+  if (focus.kind === "hand-card") return zone === "hand" && focus.ownerIndex === ownerIndex && focus.cardId === card.id;
+  if (focus.kind === "field-card") return zone === "field" && focus.ownerIndex === ownerIndex && focus.index === index;
+  return false;
+}
+
+function tutorialFocusMatchesAction(focus: TutorialFocus | undefined, action: "play" | "upgrade" | "attack" | "command" | "charge" | "end"): boolean {
+  if (!focus || focus.kind !== "action") return false;
+  if (focus.action === "command" && action === "play") return true;
+  return focus.action === action;
+}
+
+function tutorialFixedSelection(step: TutorialStep | null, game: GameState): TutorialFixedSelection {
+  const focus = step?.focus;
+  if (!focus) return null;
+  if (focus.kind === "hand-card") {
+    if (
+      step?.id === "select-summon"
+      || step?.id === "play-summon"
+      || step?.id === "select-post-charge-memory"
+      || step?.id === "play-post-charge-memory"
+      || step?.id === "select-upgrade"
+      || step?.id === "upgrade"
+      || step?.id === "select-power4-base"
+      || step?.id === "play-power4-base"
+      || step?.id === "select-power4-upgrade"
+      || step?.id === "upgrade-power4"
+    ) return null;
+    const index = game.players[focus.ownerIndex].hand.findIndex((card) => card.id === focus.cardId);
+    return index >= 0 ? { zone: "hand", ownerIndex: focus.ownerIndex, index } : null;
+  }
+  if (focus.kind === "field-card") {
+    if (step?.id === "attack" || step?.id === "saved-action-attack" || step?.id === "power4-attack") return null;
+    return { zone: "field", ownerIndex: focus.ownerIndex, index: focus.index };
+  }
+  return null;
+}
+
+function tutorialForcedDefenseChoice(step: TutorialStep | null, game: GameState): DefenseChoice | null {
+  if (!game.pendingAttack) return null;
+  if (step?.id === "field-defend") {
+    const defender = game.players[game.pendingAttack.defenderIndex];
+    const fieldIndex = defender.field.findIndex((card, index) => card.id === "AI-FIRE-4" && !defender.spentFieldIndexes.has(index));
+    return fieldIndex >= 0 ? { type: "field", index: fieldIndex } : null;
+  }
+  if (step?.id !== "defend") return null;
+  const defender = game.players[game.pendingAttack.defenderIndex];
+  const handIndex = defender.hand.findIndex((card) => card.id === "AI-FIRE-2");
+  return handIndex >= 0 ? { type: "hand", index: handIndex } : null;
+}
+
+function tutorialUpgradeSourceIndexes(step: TutorialStep | null, player: PlayerState, target: Card, sourceIndexes: number[]): number[] {
+  if (step?.id !== "upgrade-power4" || target.id !== "AI-FIRE-4") return sourceIndexes;
+  return sourceIndexes.filter((index) => player.field[index]?.id === "AI-FIRE-1B");
+}
+
 export default function App() {
   const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [seed, setSeed] = useState(INITIAL_SEED);
@@ -359,6 +491,8 @@ export default function App() {
   const [lastHumanActionsRemaining, setLastHumanActionsRemaining] = useState(() => game.actionsRemaining);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [starterDeckSetupOpen, setStarterDeckSetupOpen] = useState(true);
+  const [tutorialActive, setTutorialActive] = useState(false);
+  const [tutorialCompleted, setTutorialCompleted] = useState(() => readTutorialCompleted());
   const [toast, setToast] = useState<Toast>(null);
   const [duelEvent, setDuelEvent] = useState<DuelEvent | null>(null);
   const [cardFlights, setCardFlights] = useState<CardFlight[]>([]);
@@ -423,6 +557,7 @@ export default function App() {
   const active = activePlayer(game);
   const opponent = opponentPlayer(game);
   const selectedCard = selectedCardForDetail(game);
+  const tutorialStep = tutorialActive ? currentTutorialStep(game) : null;
   currentRivalVoiceStateKey.current = `${game.turn}:${game.active}:${game.winner ?? "playing"}:${game.draw ? "draw" : "active"}`;
 
   function mutate(mutator: (draft: GameState) => void) {
@@ -435,6 +570,33 @@ export default function App() {
 
   function showToast(title: string, detail = "") {
     setToast({ title, detail, id: eventId++ });
+  }
+
+  function markTutorialCompleted() {
+    writeTutorialCompleted(true);
+    setTutorialCompleted(true);
+  }
+
+  function finishTutorial() {
+    markTutorialCompleted();
+    setTutorialActive(false);
+    setStarterDeckSetupOpen(true);
+    resetDuelEvents();
+    showToast("チュートリアル完了", "通常対戦を始められます");
+  }
+
+  function skipTutorialPrompt() {
+    markTutorialCompleted();
+    showToast("通常対戦へ", "チュートリアルは対戦準備からいつでも開始できます");
+  }
+
+  function tutorialBlocks(action: TutorialAction, options: { handIndex?: number; fieldOwnerIndex?: number; fieldIndex?: number; defenseChoice?: DefenseChoice } = {}) {
+    if (!tutorialStep) return false;
+    if (tutorialStep.id === "complete") return false;
+    const allowed = tutorialAllowsAction(tutorialStep, action, game, options);
+    if (allowed) return false;
+    showToast("チュートリアル進行中", tutorialActionHint(tutorialStep));
+    return true;
   }
 
   function showBanner(next: Omit<NonNullable<Banner>, "id">) {
@@ -980,6 +1142,7 @@ export default function App() {
       resetDuelEvents();
       setRulesOpen(false);
       setStarterDeckSetupOpen(false);
+      setTutorialActive(false);
       showToast("対戦開始", `${nextGame.players[0].deckName} / 相手: ${nextGame.players[1].deckName}`);
       showBanner({
         kind: "start",
@@ -992,16 +1155,39 @@ export default function App() {
     }
   }
 
+  function startTutorialGame() {
+    const nextGame = createTutorialGame();
+    rivalActionVoiceTurnGroups.current = createRivalActionVoiceTurnGroups(TUTORIAL_SEED);
+    setSeed(TUTORIAL_SEED);
+    resetDrawTracker(nextGame);
+    setGame(nextGame);
+    setLastHumanActionsRemaining(nextGame.actionsRemaining);
+    resetDuelEvents();
+    setRulesOpen(false);
+    setStarterDeckSetupOpen(false);
+    setTutorialActive(true);
+    setAutoDismissDuelEvents(false);
+    showToast("チュートリアル開始", "基本操作を順番に確認します");
+    showBanner({
+      kind: "start",
+      title: "TUTORIAL DUEL",
+      detail: "召喚、攻撃、防御、指令、チャージ、遺物、アップグレード、大型召喚獣を確認します",
+    });
+    showRivalVoiceLine("match_start");
+  }
+
   function openStarterDeckSetup() {
     refreshSavedDecks();
     resetDuelEvents();
     setRulesOpen(false);
+    setTutorialActive(false);
     changePage("duel");
     setStarterDeckSetupOpen(true);
   }
 
   function changePage(nextPage: AppPage) {
     if (nextPage !== "duel") resetDuelEvents();
+    if (nextPage !== "duel") setTutorialActive(false);
     setRulesOpen(false);
     setPage(nextPage);
     const nextPath = routeForPage(nextPage);
@@ -1011,6 +1197,7 @@ export default function App() {
     if (nextPage === "duel") {
       refreshSavedDecks();
       setStarterDeckSetupOpen(true);
+      setTutorialActive(false);
     }
   }
 
@@ -1024,6 +1211,7 @@ export default function App() {
       if (nextPage === "duel") refreshSavedDecks();
       setRulesOpen(false);
       setStarterDeckSetupOpen(nextPage === "duel");
+      setTutorialActive(false);
       setPage(nextPage);
     };
     window.addEventListener("popstate", onPopState);
@@ -1033,6 +1221,20 @@ export default function App() {
   useEffect(() => {
     if (game.active === 0) setLastHumanActionsRemaining(game.actionsRemaining);
   }, [game.active, game.actionsRemaining]);
+
+  useEffect(() => {
+    if (!tutorialActive) return;
+    const fixedSelection = tutorialFixedSelection(tutorialStep, game);
+    if (!fixedSelection) return;
+    if (
+      game.selected?.zone === fixedSelection.zone
+      && (game.selected.ownerIndex ?? 0) === fixedSelection.ownerIndex
+      && game.selected.index === fixedSelection.index
+    ) return;
+    mutate((draft) => {
+      draft.selected = fixedSelection;
+    });
+  }, [tutorialActive, tutorialStep?.id, tutorialStep?.focus, game.turn, game.active, game.players[0].hand.length, game.players[0].field.length]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -1184,12 +1386,14 @@ export default function App() {
 
   useEffect(() => {
     if (page !== "duel") return undefined;
+    if (starterDeckSetupOpen) return undefined;
     if (game.winner !== null || game.draw || game.pendingAttack || game.pendingTarget) return undefined;
+    if (tutorialStep?.id === "complete") return undefined;
     if (active.isHuman || (game.actionsRemaining <= 0 && !canUseCharge(game, active))) return undefined;
     if (aiAnimating) return undefined;
     if (duelEvent || duelEventPlaying.current || duelEventQueue.current.length > 0 || duelEventScheduler.current !== null) return undefined;
     const timer = window.setTimeout(() => {
-      const action = chooseAiAction(game, active.aiProfile);
+      const action = tutorialActive ? tutorialForcedAiAction(game) ?? chooseAiAction(game, active.aiProfile) : chooseAiAction(game, active.aiProfile);
       const commitDelay = prepareAiActionAnimation(action);
       setAiAnimating(true);
       aiCommitTimer.current = window.setTimeout(() => {
@@ -1199,7 +1403,7 @@ export default function App() {
       }, commitDelay);
     }, 720);
     return () => window.clearTimeout(timer);
-  }, [page, game, duelEvent, aiAnimating]);
+  }, [page, game, duelEvent, aiAnimating, tutorialActive, tutorialStep?.id, starterDeckSetupOpen]);
 
   useEffect(() => {
     return () => {
@@ -1389,6 +1593,7 @@ export default function App() {
       togglePendingCardIndex(index);
       return;
     }
+    if (tutorialBlocks("select-hand", { handIndex: index })) return;
     if (!isCurrentSelection("hand", 0, index)) playSfx("select");
     mutate((draft) => {
       draft.selected = { zone: "hand", ownerIndex: 0, index };
@@ -1407,6 +1612,7 @@ export default function App() {
       useCommandAt(pending.sourceIndex, index);
       return;
     }
+    if (tutorialBlocks("select-field", { fieldOwnerIndex: ownerIndex, fieldIndex: index })) return;
     if (!isCurrentSelection("field", ownerIndex, index)) playSfx("select");
     mutate((draft) => {
       draft.selected = { zone: "field", ownerIndex, index };
@@ -1430,6 +1636,7 @@ export default function App() {
 
   function playSelected() {
     if (!canHumanAct(game)) return;
+    if (tutorialBlocks("play")) return;
     if (game.selected?.zone === "memory" && (game.selected.ownerIndex ?? 0) === 0) {
       useSelectedMemoryEffect();
       return;
@@ -1539,10 +1746,11 @@ export default function App() {
 
   function upgradeSelectedAi() {
     if (!canHumanAct(game) || game.selected?.zone !== "hand") return;
+    if (tutorialBlocks("upgrade")) return;
     const player = activePlayer(game);
     const target = player.hand[game.selected.index];
     if (!target || target.type !== "ai" || upgradeCost(target) > game.actionsRemaining) return;
-    const sourceIndexes = upgradeSourceIndexes(player, target);
+    const sourceIndexes = tutorialUpgradeSourceIndexes(tutorialStep, player, target, upgradeSourceIndexes(player, target));
     if (sourceIndexes.length === 0) return;
     if (sourceIndexes.length > 1) {
       const handIndex = game.selected.index;
@@ -1550,7 +1758,7 @@ export default function App() {
         const player = activePlayer(draft);
         const target = player.hand[handIndex];
         if (!target || target.type !== "ai") return;
-        const sourceIndexes = upgradeSourceIndexes(player, target);
+        const sourceIndexes = tutorialUpgradeSourceIndexes(tutorialStep, player, target, upgradeSourceIndexes(player, target));
         if (sourceIndexes.length <= 1) return;
         draft.pendingTarget = {
           kind: "card-select",
@@ -1714,6 +1922,7 @@ export default function App() {
 
   function attackWithSelectedAi() {
     if (!canHumanAct(game) || game.selected?.zone !== "field") return;
+    if (tutorialBlocks("attack")) return;
     beginAttack(0, game.selected.index);
   }
 
@@ -1731,6 +1940,7 @@ export default function App() {
   }
 
   function resolveDefense(choice: DefenseChoice) {
+    if (tutorialBlocks("defend", { defenseChoice: choice })) return;
     if (game.pendingAttack) {
       launchDefenseTrashFlights(game.pendingAttack.attackerIndex, game.pendingAttack.fieldIndex, choice);
     }
@@ -1740,6 +1950,7 @@ export default function App() {
 
   function chargeSelectedCard() {
     if (game.selected?.zone !== "hand" || game.selected.ownerIndex !== 0 || !canUseCharge(game, human)) return;
+    if (tutorialBlocks("charge")) return;
     const player = activePlayer(game);
     const card = player.hand[game.selected.index];
     if (!card) return;
@@ -1787,6 +1998,7 @@ export default function App() {
 
   function endTurn() {
     if (!canHumanEndTurn(game)) return;
+    if (tutorialBlocks("end")) return;
     mutate((draft) => {
       finishTurn(draft, true);
     });
@@ -2062,6 +2274,11 @@ export default function App() {
   const actionMeterLabel = "自分の残りアクション";
   const combatPreview = combatPreviewForSelection(game);
   const endTurnEnabled = canHumanEndTurn(game);
+  const playTutorialBlocked = tutorialStep ? !tutorialAllowsAction(tutorialStep, "play", game) : false;
+  const upgradeTutorialBlocked = tutorialStep ? !tutorialAllowsAction(tutorialStep, "upgrade", game) : false;
+  const attackTutorialBlocked = tutorialStep ? !tutorialAllowsAction(tutorialStep, "attack", game) : false;
+  const chargeTutorialBlocked = tutorialStep ? !tutorialAllowsAction(tutorialStep, "charge", game) : false;
+  const endTurnTutorialBlocked = tutorialStep ? !tutorialAllowsAction(tutorialStep, "end", game) : false;
   const showNoActionsEndTurnPrompt = endTurnEnabled
     && game.actionsRemaining <= 0
     && !canUseCharge(game, human)
@@ -2103,6 +2320,7 @@ export default function App() {
       onTogglePendingCard={togglePendingCardIndex}
       onConfirmPending={confirmPendingTarget}
       onConfirmCardSelection={confirmCardSelectionTarget}
+      forcedDefenseChoice={tutorialForcedDefenseChoice(tutorialStep, game)}
     />
   );
   const showDefenseInDuelEvent = Boolean(
@@ -2127,6 +2345,7 @@ export default function App() {
           onChangePage={changePage}
           seed={seed}
           onStartNewGame={openStarterDeckSetup}
+          onStartTutorial={startTutorialGame}
           onOpenRules={() => setRulesOpen(true)}
           audioEnabled={audioEnabled}
           onToggleAudio={toggleAudio}
@@ -2146,6 +2365,7 @@ export default function App() {
           onChangePage={changePage}
           seed={seed}
           onStartNewGame={openStarterDeckSetup}
+          onStartTutorial={startTutorialGame}
           onOpenRules={() => setRulesOpen(true)}
           audioEnabled={audioEnabled}
           onToggleAudio={toggleAudio}
@@ -2155,7 +2375,10 @@ export default function App() {
           opponentSelection={opponentDeckSelection}
           opponentAiProfile={opponentAiProfile}
           savedDecks={savedDecks}
+          tutorialCompleted={tutorialCompleted}
           onClose={() => setStarterDeckSetupOpen(false)}
+          onStartTutorial={startTutorialGame}
+          onSkipTutorial={skipTutorialPrompt}
           onChangePlayerSelection={setPlayerDeckSelection}
           onChangeOpponentSelection={setOpponentDeckSelection}
           onChangeOpponentAiProfile={setOpponentAiProfile}
@@ -2187,6 +2410,7 @@ export default function App() {
             <input type="number" value={seed} readOnly aria-label="現在のSeed" />
           </label>
           <button type="button" onClick={openStarterDeckSetup}>再戦</button>
+          <button type="button" onClick={startTutorialGame}>チュートリアル</button>
           <button type="button" onClick={() => setRulesOpen(true)}>ルール</button>
           <button type="button" className={audioEnabled ? "audio-on" : ""} onClick={toggleAudio}>{audioEnabled ? "音ON" : "音OFF"}</button>
         </div>
@@ -2216,7 +2440,7 @@ export default function App() {
           reaction={leaderReactions[1]}
           speech={rivalSpeech}
         />
-        <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent trashSurge={ownerHasTrashSurge(1)} combatPreview={combatPreview} onSelectField={selectField} onSelectMemory={selectMemory} />
+        <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent trashSurge={ownerHasTrashSurge(1)} combatPreview={combatPreview} tutorialStep={tutorialStep} tutorialFocus={tutorialStep?.focus} tutorialLocked={tutorialActive} onSelectField={selectField} onSelectMemory={selectMemory} />
         <div className={`clash-line ${combatPreview ? "armed" : ""} ${combatPreview?.direct ? "direct" : ""}`} aria-hidden="true">
           {combatPreview && (
             <span>
@@ -2228,7 +2452,7 @@ export default function App() {
           )}
         </div>
         <LeaderPortrait player={human} tone="human" image={leaderHumanImage} label="YOU" reaction={leaderReactions[0]} />
-        <FieldGrid player={human} ownerIndex={0} game={game} trashSurge={ownerHasTrashSurge(0)} onSelectField={selectField} onSelectMemory={selectMemory} />
+        <FieldGrid player={human} ownerIndex={0} game={game} trashSurge={ownerHasTrashSurge(0)} tutorialStep={tutorialStep} tutorialFocus={tutorialStep?.focus} tutorialLocked={tutorialActive} onSelectField={selectField} onSelectMemory={selectMemory} />
       </section>
 
       {matchResult && <MatchResultSpotlight result={matchResult} onRestart={openStarterDeckSetup} />}
@@ -2245,6 +2469,13 @@ export default function App() {
         <div className="stitch-hand" aria-label="手札">
           {human.hand.map((card, index) => {
             const pendingCardTarget = pendingTargetCardState(game, 0, "hand", index);
+            const tutorialCanSelectHand = Boolean(
+              tutorialActive
+                && tutorialStep
+                && tutorialAllowsAction(tutorialStep, "select-hand", game, { handIndex: index }),
+            );
+            const handSelectable = !tutorialActive || tutorialCanSelectHand;
+            const baseActionState = pendingCardTarget === "target" || pendingCardTarget === "selected" ? "usable" : handActionState(game, human, ai, card);
             return (
               <CardView
                 key={`${card.id}-${index}`}
@@ -2253,10 +2484,11 @@ export default function App() {
                 zone="hand"
                 index={index}
                 selected={pendingCardTarget === "selected" || (game.selected?.zone === "hand" && game.selected.index === index)}
-                selectable
-                actionState={pendingCardTarget === "target" || pendingCardTarget === "selected" ? "usable" : handActionState(game, human, ai, card)}
+                selectable={handSelectable}
+                actionState={tutorialActive && !handSelectable ? "idle" : baseActionState}
+                visualEffect={tutorialFocusMatchesCard(tutorialStep?.focus, 0, "hand", card, index) ? "tutorial-focus" : ""}
                 showCost
-                onClick={() => selectHand(index)}
+                onClick={handSelectable ? () => selectHand(index) : undefined}
                 onMouseEnter={() => playSfx("hover")}
               />
             );
@@ -2295,11 +2527,11 @@ export default function App() {
             {humanAttackLockedByCharge && <span className="charge-lock-badge">チャージ済み・攻撃不可</span>}
           </div>
           <div className="action-strip">
-            <button type="button" className={!playDisabled ? "action-ready" : ""} disabled={playDisabled} onClick={playSelected}><span>⇧</span>{playButtonLabel}</button>
-            <button type="button" className={!upgradeDisabled ? "action-ready" : ""} disabled={upgradeDisabled} onClick={upgradeSelectedAi}><span>↑</span>アップグレード</button>
-            <button type="button" className={!attackDisabled ? "action-ready" : ""} disabled={attackDisabled} onClick={attackWithSelectedAi}><span>⚔</span>攻撃</button>
-            <button type="button" className={!chargeDisabled ? "action-ready charge-action" : "charge-action"} disabled={chargeDisabled} onClick={chargeSelectedCard}><span>◆</span>チャージ</button>
-            <button type="button" className={endTurnEnabled ? "action-ready end-turn" : "end-turn"} disabled={!endTurnEnabled} onClick={endTurn}><span>●</span>ターン終了</button>
+            <button type="button" className={`${!playDisabled && !playTutorialBlocked ? "action-ready" : ""} ${tutorialFocusMatchesAction(tutorialStep?.focus, "play") ? "tutorial-focus" : ""}`} disabled={playDisabled || playTutorialBlocked} onClick={playSelected}><span>⇧</span>{playButtonLabel}</button>
+            <button type="button" className={`${!upgradeDisabled && !upgradeTutorialBlocked ? "action-ready" : ""} ${tutorialFocusMatchesAction(tutorialStep?.focus, "upgrade") ? "tutorial-focus" : ""}`} disabled={upgradeDisabled || upgradeTutorialBlocked} onClick={upgradeSelectedAi}><span>↑</span>アップグレード</button>
+            <button type="button" className={`${!attackDisabled && !attackTutorialBlocked ? "action-ready" : ""} ${tutorialFocusMatchesAction(tutorialStep?.focus, "attack") ? "tutorial-focus" : ""}`} disabled={attackDisabled || attackTutorialBlocked} onClick={attackWithSelectedAi}><span>⚔</span>攻撃</button>
+            <button type="button" className={`${!chargeDisabled && !chargeTutorialBlocked ? "action-ready charge-action" : "charge-action"} ${tutorialFocusMatchesAction(tutorialStep?.focus, "charge") ? "tutorial-focus" : ""}`} disabled={chargeDisabled || chargeTutorialBlocked} onClick={chargeSelectedCard}><span>◆</span>チャージ</button>
+            <button type="button" className={`${endTurnEnabled && !endTurnTutorialBlocked ? "action-ready end-turn" : "end-turn"} ${tutorialFocusMatchesAction(tutorialStep?.focus, "end") ? "tutorial-focus" : ""}`} disabled={!endTurnEnabled || endTurnTutorialBlocked} onClick={endTurn}><span>●</span>ターン終了</button>
           </div>
           <div className="dock-action-footer">
             <div className="action-hint">{actionHintText(game, selectedCard, game.selected?.zone ?? null)}</div>
@@ -2327,8 +2559,18 @@ export default function App() {
 
       </section>
 
-      <aside className="stitch-log-sidebar" aria-label="対戦ログ">
-        <div className="stitch-log-title">対戦ログ</div>
+      <aside className={`stitch-log-sidebar ${tutorialStep ? "tutorial-mode" : ""}`} aria-label={tutorialStep ? "チュートリアル" : "対戦ログ"}>
+        <div className="stitch-log-title">{tutorialStep ? "チュートリアル" : "対戦ログ"}</div>
+        {tutorialStep && (
+          <TutorialGuidePanel
+            step={tutorialStep}
+            onExit={() => {
+              setTutorialActive(false);
+              showToast("チュートリアル中断", "通常の対戦として続行できます");
+            }}
+            onComplete={finishTutorial}
+          />
+        )}
         <LogList entries={game.log} />
       </aside>
 
@@ -2368,12 +2610,31 @@ function NoActionsEndTurnPrompt({ onConfirm }: { onConfirm: () => void }) {
   );
 }
 
+function TutorialGuidePanel({ step, onExit, onComplete }: { step: TutorialStep; onExit: () => void; onComplete: () => void }) {
+  const complete = step.id === "complete";
+  return (
+    <section className={`tutorial-guide-panel step-${step.id}`} aria-live="polite" aria-label="チュートリアル">
+      <div>
+        <span>{step.kicker}</span>
+        <strong>{step.title}</strong>
+        <p>{step.detail}</p>
+      </div>
+      <button type="button" className={complete ? "primary-action" : ""} onClick={complete ? onComplete : onExit}>
+        {complete ? "チュートリアルを完了" : "チュートリアルを中断"}
+      </button>
+    </section>
+  );
+}
+
 function StarterDeckSetupPanel({
   playerSelection,
   opponentSelection,
   opponentAiProfile,
   savedDecks,
+  tutorialCompleted,
   onClose,
+  onStartTutorial,
+  onSkipTutorial,
   onChangePlayerSelection,
   onChangeOpponentSelection,
   onChangeOpponentAiProfile,
@@ -2383,7 +2644,10 @@ function StarterDeckSetupPanel({
   opponentSelection: DeckSelection;
   opponentAiProfile: AiProfile;
   savedDecks: SavedDeck[];
+  tutorialCompleted: boolean;
   onClose: () => void;
+  onStartTutorial: () => void;
+  onSkipTutorial: () => void;
   onChangePlayerSelection: (selection: DeckSelection) => void;
   onChangeOpponentSelection: (selection: DeckSelection) => void;
   onChangeOpponentAiProfile: (profile: AiProfile) => void;
@@ -2403,6 +2667,19 @@ function StarterDeckSetupPanel({
         </div>
         <button type="button" onClick={onClose}>閉じる</button>
       </div>
+      {!tutorialCompleted && (
+        <section className="tutorial-start-card" aria-label="初回チュートリアル">
+          <div>
+            <span>FIRST DUEL</span>
+            <strong>初回チュートリアル対戦</strong>
+            <p>召喚、ターン終了、防御、攻撃、指令、チャージ、遺物、アップグレード、大型召喚獣を短い固定対戦で確認します。</p>
+          </div>
+          <div>
+            <button type="button" className="primary-action" onClick={onStartTutorial}>チュートリアル開始</button>
+            <button type="button" onClick={onSkipTutorial}>通常対戦へ進む</button>
+          </div>
+        </section>
+      )}
       <div className="starter-setup-summary" aria-label="現在の対戦設定">
         <div>
           <span>あなた</span>
@@ -2458,6 +2735,7 @@ function StarterDeckSetupPanel({
         </div>
       </section>
       <div className="starter-modal-actions">
+        {tutorialCompleted && <button type="button" onClick={onStartTutorial}>まずはチュートリアル</button>}
         <button type="button" className="primary-action" onClick={onStart}>この設定で対戦開始</button>
       </div>
     </section>
@@ -2559,6 +2837,7 @@ function WorkspaceHeader({
   onChangePage,
   seed,
   onStartNewGame,
+  onStartTutorial,
   onOpenRules,
   audioEnabled,
   onToggleAudio,
@@ -2567,6 +2846,7 @@ function WorkspaceHeader({
   onChangePage: (page: AppPage) => void;
   seed: number;
   onStartNewGame: () => void;
+  onStartTutorial: () => void;
   onOpenRules: () => void;
   audioEnabled: boolean;
   onToggleAudio: () => void;
@@ -2587,6 +2867,7 @@ function WorkspaceHeader({
           <input type="number" value={seed} readOnly aria-label="現在のSeed" />
         </label>
         <button type="button" onClick={onStartNewGame}>{page === "duel" ? "対戦準備" : "再戦"}</button>
+        <button type="button" onClick={onStartTutorial}>チュートリアル</button>
         <button type="button" onClick={onOpenRules}>ルール</button>
         <button type="button" className={audioEnabled ? "audio-on" : ""} onClick={onToggleAudio}>{audioEnabled ? "音ON" : "音OFF"}</button>
       </div>
@@ -2756,6 +3037,9 @@ function FieldGrid({
   isOpponent = false,
   trashSurge = false,
   combatPreview = null,
+  tutorialStep,
+  tutorialFocus,
+  tutorialLocked = false,
   onSelectField,
   onSelectMemory,
 }: {
@@ -2765,12 +3049,15 @@ function FieldGrid({
   isOpponent?: boolean;
   trashSurge?: boolean;
   combatPreview?: CombatPreview | null;
+  tutorialStep?: TutorialStep | null;
+  tutorialFocus?: TutorialFocus;
+  tutorialLocked?: boolean;
   onSelectField: (ownerIndex: number, index: number) => void;
   onSelectMemory: (ownerIndex: number) => void;
 }) {
   return (
     <div className={`field-grid ${isOpponent ? "opponent" : "human"} ${trashSurge ? "trash-surge" : ""}`}>
-      <MemorySlot player={player} ownerIndex={ownerIndex} isOpponent={isOpponent} game={game} trashSurge={trashSurge} onSelectMemory={onSelectMemory} />
+      <MemorySlot player={player} ownerIndex={ownerIndex} isOpponent={isOpponent} game={game} trashSurge={trashSurge} tutorialLocked={tutorialLocked} onSelectMemory={onSelectMemory} />
       {Array.from({ length: CONFIG.fieldLimit }).map((_, index) => {
         const card = player.field[index];
         if (!card) return <div className={`field-slot empty ${trashSurge ? "trash-alert" : ""}`} key={`empty-${ownerIndex}-${index}`} data-owner={ownerIndex} data-zone="field" data-index={index}>+</div>;
@@ -2783,6 +3070,13 @@ function FieldGrid({
           && game.selected.index === index;
         const defensePreview = ownerIndex === 1 ? combatPreview?.fieldDefenses.get(index) : null;
         const isAttackerPreview = ownerIndex === 0 && combatPreview?.attackerIndex === index;
+        const tutorialCanSelectField = Boolean(
+          tutorialLocked
+            && tutorialStep
+            && tutorialAllowsAction(tutorialStep, "select-field", game, { fieldOwnerIndex: ownerIndex, fieldIndex: index }),
+        );
+        const fieldSelectable = !tutorialLocked || tutorialCanSelectField;
+        const baseActionState = pendingCardTarget === "target" || pendingCardTarget === "selected" ? "usable" : isDisruptTarget ? "usable" : ownerIndex === 0 ? fieldActionState(game, player, index) : "idle";
         return (
           <CardView
             key={`${card.id}-${index}`}
@@ -2791,13 +3085,13 @@ function FieldGrid({
             zone="field"
             index={index}
             selected={pendingCardTarget === "selected" || isSelected}
-            selectable
+            selectable={fieldSelectable}
             spent={player.spentFieldIndexes.has(index)}
-            actionState={pendingCardTarget === "target" || pendingCardTarget === "selected" ? "usable" : isDisruptTarget ? "usable" : ownerIndex === 0 ? fieldActionState(game, player, index) : "idle"}
-            visualEffect={`${trashSurge ? "trash-alert" : ""} ${defensePreview ? `combat-preview ${defensePreview.result}` : ""} ${isAttackerPreview ? "attack-preview-source" : ""}`}
+            actionState={tutorialLocked && !fieldSelectable ? "idle" : baseActionState}
+            visualEffect={`${trashSurge ? "trash-alert" : ""} ${defensePreview ? `combat-preview ${defensePreview.result}` : ""} ${isAttackerPreview ? "attack-preview-source" : ""} ${tutorialFocusMatchesCard(tutorialFocus, ownerIndex, "field", card, index) ? "tutorial-focus" : ""}`}
             extraBadges={defensePreview ? [defensePreview.label] : isAttackerPreview ? [`ATK ${combatPreview.attackValue}`] : []}
             showCost={false}
-            onClick={() => onSelectField(ownerIndex, index)}
+            onClick={fieldSelectable ? () => onSelectField(ownerIndex, index) : undefined}
           />
         );
       })}
@@ -2811,6 +3105,7 @@ function MemorySlot({
   isOpponent,
   game,
   trashSurge,
+  tutorialLocked,
   onSelectMemory,
 }: {
   player: PlayerState;
@@ -2818,6 +3113,7 @@ function MemorySlot({
   isOpponent: boolean;
   game: GameState;
   trashSurge: boolean;
+  tutorialLocked: boolean;
   onSelectMemory: (ownerIndex: number) => void;
 }) {
   if (player.memory) {
@@ -2829,11 +3125,11 @@ function MemorySlot({
         zone="memory"
         index={0}
         selected={isSelected}
-        selectable
+        selectable={!tutorialLocked}
         actionState={ownerIndex === 0 && canUseAcceleratorMemory(game, player) ? "usable" : "idle"}
         visualEffect={trashSurge ? "trash-alert" : ""}
         showCost={false}
-        onClick={() => onSelectMemory(ownerIndex)}
+        onClick={tutorialLocked ? undefined : () => onSelectMemory(ownerIndex)}
       />
     );
   }
