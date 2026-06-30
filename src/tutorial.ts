@@ -31,8 +31,6 @@ export type TutorialStepId =
   | "select-upgrade"
   | "upgrade"
   | "end-after-power3-upgrade"
-  | "select-power4-base"
-  | "play-power4-base"
   | "select-power4-upgrade"
   | "upgrade-power4"
   | "saved-action-attack"
@@ -287,58 +285,38 @@ export function currentTutorialStep(game: GameState): TutorialStep {
       return {
         id: "upgrade",
         kicker: "STEP 9",
-        title: "アップグレード",
-        detail: "攻撃後に消耗した召喚獣は次の自分ターンに回復しています。『熾き尾のサラ』を元に『噴角イグナロス』へアップグレードします。",
-        focus: { kind: "action", action: "upgrade" },
+        title: "2Aで直接召喚",
+        detail: "まずは『噴角イグナロス』を通常どおり2アクションで場に出します。次のターンに大型へアップグレードした時との差を確認します。",
+        focus: { kind: "action", action: "play" },
       };
     }
     return {
       id: "select-upgrade",
       kicker: "STEP 9",
-      title: "遺物効果とアップグレード",
-      detail: "ターン開始時に『灯火の旅嚢』が手札を補充しました。次は『噴角イグナロス』を選び、場の召喚獣を強化します。",
+      title: "中型を直接出す",
+      detail: "ターン開始時に『灯火の旅嚢』が手札を補充しました。『噴角イグナロス』を選び、2アクションで直接場に出します。",
       focus: { kind: "hand-card", ownerIndex: 0, cardId: "AI-FIRE-3B" },
     };
   }
 
-  if (player.field.some((card) => card.id === "AI-FIRE-3B") && !player.field.some((card) => card.id === "AI-FIRE-1B") && player.hand.some((card) => card.id === "AI-FIRE-1B") && game.actionsRemaining > 0) {
-    const selected = selectedHumanHandCard(game);
-    if (selected?.id === "AI-FIRE-1B") {
-      return {
-        id: "play-power4-base",
-        kicker: "STEP 10",
-        title: "素材を先に置く",
-        detail: "『噴角イグナロス』は主力として残し、余った1アクションで『火花一番ピリカ』を場に出します。次の自分ターンにこのカードを大型の元にします。",
-        focus: { kind: "action", action: "play" },
-      };
-    }
-    return {
-      id: "select-power4-base",
-      kicker: "STEP 10",
-      title: "次ターンの素材を用意",
-      detail: "大型を1アクションで出すには、元になる召喚獣を前もって場に置いておく必要があります。『火花一番ピリカ』を選んでください。",
-      focus: { kind: "hand-card", ownerIndex: 0, cardId: "AI-FIRE-1B" },
-    };
-  }
-
-  if (player.field.some((card) => card.id === "AI-FIRE-3B") && player.field.some((card) => card.id === "AI-FIRE-1B") && game.active === 0 && game.turn === 5) {
+  if (player.field.some((card) => card.id === "AI-FIRE-3B") && game.active === 0 && game.turn === 5) {
     return {
       id: "end-after-power3-upgrade",
-      kicker: "STEP 11",
-      title: "仕込みを終える",
-      detail: "『火花一番ピリカ』を先に置けました。次の自分ターンは『終火の影ヴァルガ』を1アクションで出せるので、直接出すより行動が残ります。",
+      kicker: "STEP 10",
+      title: "直接召喚を終える",
+      detail: "『噴角イグナロス』を直接出すと2アクションを使い切ります。ターンを渡し、次の自分ターンで大型アップグレードの軽さを確認します。",
       focus: { kind: "action", action: "end" },
     };
   }
 
-  if (player.field.some((card) => card.id === "AI-FIRE-1B") && player.hand.some((card) => card.id === "AI-FIRE-4") && game.actionsRemaining > 0) {
+  if (player.field.some((card) => card.id === "AI-FIRE-3B") && player.hand.some((card) => card.id === "AI-FIRE-4") && game.actionsRemaining > 0) {
     const selected = selectedHumanHandCard(game);
     if (selected?.id === "AI-FIRE-4") {
       return {
         id: "upgrade-power4",
         kicker: "STEP 12",
         title: "大型へアップグレード",
-        detail: "前のターンに『火花一番ピリカ』を置いていたので、『終火の影ヴァルガ』を1アクションで出せます。直接出す2アクションとの差を確認します。",
+        detail: "前のターンに『噴角イグナロス』を場に出していたので、『終火の影ヴァルガ』へ1アクションでアップグレードできます。直接出す2アクションとの差を確認します。",
         focus: { kind: "action", action: "upgrade" },
       };
     }
@@ -346,20 +324,20 @@ export function currentTutorialStep(game: GameState): TutorialStep {
       id: "select-power4-upgrade",
       kicker: "STEP 12",
       title: "大型カードのコスト",
-      detail: "『終火の影ヴァルガ』を選んでください。大型召喚獣は直接出すと重いですが、前もって元カードを置くと1アクションで出せます。",
+      detail: "『終火の影ヴァルガ』を選んでください。大型召喚獣は直接出すと重いですが、場の中型を元にすれば1アクションで出せます。",
       focus: { kind: "hand-card", ownerIndex: 0, cardId: "AI-FIRE-4" },
     };
   }
 
   if (player.field.some((card) => card.id === "AI-FIRE-4") && canActivePlayerAttack(game) && game.active === 0 && game.turn === 7 && game.actionsRemaining > 0) {
-    const power3Index = player.field.findIndex((card, index) => card.id === "AI-FIRE-3B" && !player.spentFieldIndexes.has(index));
-    if (power3Index >= 0) {
+    const spareAttackerIndex = player.field.findIndex((card, index) => card.id === "AI-FIRE-2" && !player.spentFieldIndexes.has(index));
+    if (spareAttackerIndex >= 0) {
       return {
         id: "saved-action-attack",
         kicker: "STEP 13",
         title: "浮いた行動を使う",
-        detail: "『終火の影ヴァルガ』を1アクションで出せたので、残った1アクションで『噴角イグナロス』も攻撃できます。これが前ターンに素材を置いた旨味です。",
-        focus: selectedHumanFieldCardByIdReady(game, "AI-FIRE-3B") ? { kind: "action", action: "attack" } : { kind: "field-card", ownerIndex: 0, index: power3Index },
+        detail: "『終火の影ヴァルガ』を1アクションで出せたので、残った1アクションで『炉殻バサルトン』も攻撃できます。これがアップグレードで行動が浮く強みです。",
+        focus: selectedHumanFieldCardByIdReady(game, "AI-FIRE-2") ? { kind: "action", action: "attack" } : { kind: "field-card", ownerIndex: 0, index: spareAttackerIndex },
       };
     }
   }
@@ -524,8 +502,8 @@ function rivalTurnStep(game: GameState): TutorialStep {
     return {
       id: "watch-rival",
       kicker: "STEP 11",
-      title: "仕込み後の相手ターン",
-      detail: "『火花一番ピリカ』を前もって場に置けました。次の自分ターンで大型アップグレードの効率を確認します。",
+      title: "中型後の相手ターン",
+      detail: "『噴角イグナロス』を場に置けました。次の自分ターンで大型アップグレードの効率を確認します。",
     };
   }
   return {

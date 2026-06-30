@@ -373,18 +373,17 @@ function tutorialAllowsAction(
     if (step.id === "select-charge" || step.id === "charge") return handCard?.id === "AI-FIRE-1C";
     if (step.id === "select-post-charge-memory" || step.id === "play-post-charge-memory") return handCard?.id === "MEM-CACHE";
     if (step.id === "select-upgrade" || step.id === "upgrade") return handCard?.id === "AI-FIRE-3B";
-    if (step.id === "select-power4-base" || step.id === "play-power4-base") return handCard?.id === "AI-FIRE-1B";
     if (step.id === "select-power4-upgrade" || step.id === "upgrade-power4") return handCard?.id === "AI-FIRE-4";
     return false;
   }
   if (action === "select-field") {
     if (options.fieldOwnerIndex !== 0 || typeof options.fieldIndex !== "number" || game.players[0].spentFieldIndexes.has(options.fieldIndex)) return false;
-    if (step.id === "saved-action-attack") return game.players[0].field[options.fieldIndex]?.id === "AI-FIRE-3B";
+    if (step.id === "saved-action-attack") return game.players[0].field[options.fieldIndex]?.id === "AI-FIRE-2";
     return step.id === "attack" || step.id === "power4-attack";
   }
-  if (action === "play") return step.id === "play-summon" || step.id === "command" || step.id === "play-post-charge-memory" || step.id === "play-power4-base";
+  if (action === "play") return step.id === "play-summon" || step.id === "command" || step.id === "upgrade" || step.id === "play-post-charge-memory";
   if (action === "command") return step.id === "command";
-  if (action === "upgrade") return step.id === "upgrade" || step.id === "upgrade-power4";
+  if (action === "upgrade") return step.id === "upgrade-power4";
   if (action === "attack") return step.id === "attack" || step.id === "saved-action-attack" || step.id === "power4-attack";
   if (action === "charge") return step.id === "charge";
   if (action === "end") return step.id === "end-first-turn" || step.id === "end-after-memory" || step.id === "end-after-power3-upgrade" || step.id === "end-after-upgrade";
@@ -409,13 +408,11 @@ function tutorialActionHint(step: TutorialStep): string {
   if (step.id === "play-post-charge-memory") return "場に出すボタンを押してください";
   if (step.id === "end-after-memory") return "ターン終了で遺物の継続効果を確認します";
   if (step.id === "select-upgrade") return "『噴角イグナロス』を選んでください";
-  if (step.id === "upgrade") return "アップグレードボタンを押してください";
-  if (step.id === "end-after-power3-upgrade") return "ターン終了で別素材を待ちます";
-  if (step.id === "select-power4-base") return "『火花一番ピリカ』を選んでください";
-  if (step.id === "play-power4-base") return "場に出すボタンを押してください";
+  if (step.id === "upgrade") return "場に出すボタンを押してください";
+  if (step.id === "end-after-power3-upgrade") return "ターン終了で大型アップグレードへ進みます";
   if (step.id === "select-power4-upgrade") return "『終火の影ヴァルガ』を選んでください";
   if (step.id === "upgrade-power4") return "アップグレードボタンを押してください";
-  if (step.id === "saved-action-attack") return "『噴角イグナロス』で攻撃してください";
+  if (step.id === "saved-action-attack") return "『炉殻バサルトン』で攻撃してください";
   if (step.id === "end-after-upgrade") return "ターン終了で手札防御へ進みます";
   if (step.id === "field-defend") return "場の防御候補を選んでください";
   if (step.id === "power4-attack") return "『終火の影ヴァルガ』で攻撃してください";
@@ -442,12 +439,13 @@ function tutorialFixedSelection(step: TutorialStep | null, game: GameState): Tut
     if (
       step?.id === "select-summon"
       || step?.id === "play-summon"
+      || step?.id === "command"
+      || step?.id === "select-charge"
+      || step?.id === "charge"
       || step?.id === "select-post-charge-memory"
       || step?.id === "play-post-charge-memory"
       || step?.id === "select-upgrade"
       || step?.id === "upgrade"
-      || step?.id === "select-power4-base"
-      || step?.id === "play-power4-base"
       || step?.id === "select-power4-upgrade"
       || step?.id === "upgrade-power4"
     ) return null;
@@ -476,7 +474,7 @@ function tutorialForcedDefenseChoice(step: TutorialStep | null, game: GameState)
 
 function tutorialUpgradeSourceIndexes(step: TutorialStep | null, player: PlayerState, target: Card, sourceIndexes: number[]): number[] {
   if (step?.id !== "upgrade-power4" || target.id !== "AI-FIRE-4") return sourceIndexes;
-  return sourceIndexes.filter((index) => player.field[index]?.id === "AI-FIRE-1B");
+  return sourceIndexes.filter((index) => player.field[index]?.id === "AI-FIRE-3B");
 }
 
 function tutorialAiTurnKey(game: GameState, step: TutorialStep | null): string {
@@ -2654,9 +2652,24 @@ function TutorialGuidePanel({
         <strong>{step.title}</strong>
         <p>{step.detail}</p>
       </div>
-      <button type="button" className={complete || rivalTurn ? "primary-action" : ""} disabled={rivalAdvancing} onClick={complete ? onComplete : rivalTurn ? onAdvanceRival : onExit}>
-        {complete ? "チュートリアルを完了" : rivalTurn ? rivalAdvancing ? "ライバル行動中..." : "ライバルの行動を進める" : "チュートリアルを中断"}
-      </button>
+      <div className="tutorial-guide-actions">
+        {complete ? (
+          <button type="button" className="primary-action" onClick={onComplete}>
+            チュートリアルを完了
+          </button>
+        ) : (
+          <>
+            {rivalTurn && (
+              <button type="button" className="primary-action tutorial-advance-action" disabled={rivalAdvancing} onClick={onAdvanceRival}>
+                {rivalAdvancing ? "ライバル行動中..." : "ライバルの行動を進める"}
+              </button>
+            )}
+            <button type="button" className="tutorial-exit-action" onClick={onExit}>
+              チュートリアルを中断
+            </button>
+          </>
+        )}
+      </div>
     </section>
   );
 }

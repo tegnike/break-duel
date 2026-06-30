@@ -16,6 +16,7 @@ describe("tutorial duel setup", () => {
       "CMD-FIRE-RITE",
       "AI-FIRE-2B",
     ]);
+    expect(game.players[0].deck.slice(-2).map((card) => card.id)).toEqual(["AI-FIRE-4", "AI-FIRE-3B"]);
     expect(game.players[1].field).toEqual([]);
     expect(game.selected).toBeNull();
     expect(currentTutorialStep(game).id).toBe("select-summon");
@@ -93,20 +94,12 @@ describe("tutorial duel setup", () => {
     game.players[0].hand.push(
       game.players[0].deck.find((card) => card.id === "AI-FIRE-3B")!,
       game.players[0].deck.find((card) => card.id === "AI-FIRE-4")!,
-      game.players[0].deck.find((card) => card.id === "AI-FIRE-1B")!,
     );
     expect(currentTutorialStep(game).id).toBe("select-upgrade");
 
-    game.players[0].discard.push(game.players[0].field[0]);
     const power3 = game.players[0].hand.find((card) => card.id === "AI-FIRE-3B")!;
-    game.players[0].field[0] = power3;
+    game.players[0].field.push(power3);
     game.players[0].hand = game.players[0].hand.filter((card) => card.id !== "AI-FIRE-3B");
-    game.actionsRemaining = 1;
-    expect(currentTutorialStep(game).id).toBe("select-power4-base");
-
-    const base = game.players[0].hand.find((card) => card.id === "AI-FIRE-1B")!;
-    game.players[0].field.push(base);
-    game.players[0].hand = game.players[0].hand.filter((card) => card.id !== "AI-FIRE-1B");
     game.actionsRemaining = 0;
     expect(currentTutorialStep(game).id).toBe("end-after-power3-upgrade");
 
@@ -121,10 +114,10 @@ describe("tutorial duel setup", () => {
     game.players[0].field[1] = upgraded;
     game.players[0].hand = game.players[0].hand.filter((card) => card.id !== "AI-FIRE-4");
     game.actionsRemaining = 1;
-    expect(game.players[0].field.map((card) => card.id)).toEqual(["AI-FIRE-3B", "AI-FIRE-4"]);
+    expect(game.players[0].field.map((card) => card.id)).toEqual(["AI-FIRE-2", "AI-FIRE-4"]);
     expect(currentTutorialStep(game).id).toBe("saved-action-attack");
 
-    game.players[1].life -= 1;
+    game.players[1].life -= 2;
     game.players[0].spentFieldIndexes.add(0);
     game.actionsRemaining = 0;
     expect(currentTutorialStep(game).id).toBe("end-after-upgrade");

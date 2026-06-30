@@ -10115,7 +10115,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   line-height: 1.55;
 }
 
-.tutorial-guide-panel button,
+.tutorial-guide-actions button,
 .duel-setup-shell .starter-modal-actions > button:not(.primary-action) {
   min-height: 42px;
   border: 1px solid rgba(217, 189, 120, 0.42);
@@ -10130,7 +10130,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     0 7px 0 rgba(0, 0, 0, 0.2);
 }
 
-.tutorial-guide-panel button:hover,
+.tutorial-guide-actions button:hover,
 .duel-setup-shell .starter-modal-actions > button:not(.primary-action):hover {
   border-color: #f0c462;
   background: #24313c;
@@ -10326,25 +10326,47 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     0 0 18px rgba(245, 207, 120, 0.13);
 }
 
-.tutorial-guide-panel button {
+.tutorial-guide-actions {
+  display: grid;
+  gap: 8px;
+  justify-items: stretch;
+}
+
+.tutorial-guide-actions button {
   justify-self: stretch;
   min-height: 34px;
   font-size: 12px;
 }
 
-.tutorial-guide-panel button.primary-action {
+.tutorial-guide-actions button.primary-action {
   border-color: rgba(245, 207, 120, 0.68);
   color: #10131b;
   background: linear-gradient(180deg, #fff3ba, #e5ad43);
 }
 
-.tutorial-guide-panel button.primary-action:disabled {
+.tutorial-guide-actions button.primary-action:disabled {
   border-color: rgba(0, 240, 255, 0.5);
   color: #dffcff;
   background:
     linear-gradient(180deg, rgba(0, 240, 255, 0.25), rgba(0, 240, 255, 0.08)),
     #13252d;
   opacity: 1;
+}
+
+.tutorial-guide-actions .tutorial-exit-action {
+  justify-self: end;
+  min-height: 28px;
+  border-color: rgba(244, 236, 209, 0.18);
+  padding: 5px 9px;
+  color: #b8b1a1;
+  background: transparent;
+  box-shadow: none;
+}
+
+.tutorial-guide-actions .tutorial-exit-action:hover {
+  border-color: rgba(255, 111, 111, 0.52);
+  color: #ffd8d8;
+  background: rgba(255, 111, 111, 0.08);
 }
 
 .stitch-log-sidebar.tutorial-mode {
