@@ -85,8 +85,9 @@ def start_turn(state: GameState) -> None:
     state.active().charge_guarded_field_ai.clear()
     state.active().pending_effects.pop("sandbox_shield", None)
     state.active().turns_started += 1
+    hand_count_at_turn_start = len(state.active().hand)
     drawn = state.active().draw(1, state.rng) if _should_draw_for_turn(state) else 0
-    memory_drawn = _apply_turn_start_memory(state)
+    memory_drawn = _apply_turn_start_memory(state, hand_count_at_turn_start)
     state.log.append(
         {
             "turn": state.turn,
@@ -1339,11 +1340,15 @@ def _field_state(state: GameState) -> dict[str, list[str]]:
     return {player.name: player.field_summary() for player in state.players}
 
 
-def _apply_turn_start_memory(state: GameState) -> int:
+def _apply_turn_start_memory(
+    state: GameState, hand_count_at_turn_start: int | None = None
+) -> int:
     player = state.active()
     if not player.memory or player.memory.effect != MemoryEffect.CACHE.value:
         return 0
-    if len(player.hand) > 2:
+    if hand_count_at_turn_start is None:
+        hand_count_at_turn_start = len(player.hand)
+    if hand_count_at_turn_start > 2:
         return 0
     drawn = player.draw(1, state.rng)
     if drawn:

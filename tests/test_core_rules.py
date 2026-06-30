@@ -999,6 +999,18 @@ class CoreRuleTests(unittest.TestCase):
         start_turn(state)
         self.assertEqual(len(state.players[0].hand), 3)
 
+    def test_cache_memory_uses_pre_draw_hand_size_for_turn_start_check(self) -> None:
+        state = new_game(
+            1, no_opening_hands(first_player_first_turn_draw=True)
+        )
+        state.players[0].memory = memory("MEM-CACHE")
+        state.players[0].hand = [card("AI-FIRE-1"), card("AI-WATER-1")]
+        state.players[0].deck = [card("AI-EARTH-1"), card("AI-WIND-1")]
+        start_turn(state)
+        self.assertEqual(len(state.players[0].hand), 4)
+        self.assertEqual(state.log[-1]["draw_count"], 1)
+        self.assertEqual(state.log[-1]["memory_draw_count"], 1)
+
     def test_pipeline_memory_draws_power_1_without_discarding(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].memory = memory("MEM-PIPELINE")
