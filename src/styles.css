@@ -1662,14 +1662,16 @@ h2 {
 
 .defense-choice-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 8px;
 }
 
 .defense-choice {
   display: grid;
-  gap: 7px;
-  min-height: 126px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 148px;
   padding: 9px;
   border-color: color-mix(in srgb, var(--card-color) 70%, #ffffff 10%);
   text-align: left;
@@ -1684,11 +1686,53 @@ h2 {
     color-mix(in srgb, var(--card-color) 28%, #10202a);
 }
 
-.defense-choice-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.defense-choice-card {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
+.defense-choice-card .card {
+  width: 108px;
+  flex-basis: 108px;
+  min-height: 136px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.defense-choice-card .card-name {
+  padding-right: 0;
+  font-size: 11px;
+}
+
+.defense-choice-card .card-id {
+  display: none;
+}
+
+.defense-choice-card .card-art {
+  min-height: 42px;
+  margin-top: 5px;
+}
+
+.defense-choice-card .card-core {
+  min-height: 30px;
+  margin: 4px 0;
+}
+
+.defense-choice-card .power {
+  width: 34px;
+  height: 34px;
+  font-size: 18px;
+}
+
+.defense-choice-card .card-foot {
+  font-size: 10px;
+}
+
+.defense-choice-info {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
 }
 
 .defense-source {
@@ -1705,9 +1749,10 @@ h2 {
 .defense-choice-name {
   min-width: 0;
   color: #f8fafc;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .defense-choice-body {
@@ -2195,30 +2240,30 @@ h2 {
 .duel-action-card {
   position: relative;
   z-index: 2;
-  display: grid;
-  grid-template-rows: auto minmax(36px, auto) 42px auto;
-  width: 132px;
-  min-height: 154px;
-  border: 1px solid color-mix(in srgb, var(--card-color) 68%, #fff 12%);
-  border-radius: 4px;
-  padding: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 34%),
-    linear-gradient(135deg, color-mix(in srgb, var(--card-color) 28%, #111923), #111820 72%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035), 0 12px 24px rgba(0, 0, 0, 0.24);
-  overflow: hidden;
+  width: 136px;
+  overflow: visible;
   transform-origin: center;
   animation: duel-card-enter var(--event-duration, 2600ms) ease-out forwards;
 }
 
-.duel-action-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-top: 5px solid var(--card-color);
+.duel-action-card .card {
+  width: 136px;
+  flex-basis: 136px;
+  min-height: 178px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035), 0 12px 24px rgba(0, 0, 0, 0.24);
 }
 
-.duel-action-card.winner {
+.duel-action-card .card-art {
+  min-height: 64px;
+}
+
+.duel-action-card .card-name {
+  min-height: 20px;
+  padding-left: 42px;
+}
+
+.duel-action-card.winner .card {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 0 0 2px rgba(0, 240, 255, 0.48), 0 0 28px rgba(0, 240, 255, 0.18), 0 12px 28px rgba(0, 0, 0, 0.3);
 }
 
@@ -2295,16 +2340,11 @@ h2 {
   transform: none;
 }
 
-.duel-action-card-label,
-.duel-action-card-name,
-.duel-action-card-core,
-.duel-action-card-type {
-  position: relative;
-  z-index: 2;
-}
-
-.duel-action-card-label {
-  justify-self: start;
+.duel-action-card-role {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 4;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
   padding: 1px 6px;
@@ -2312,37 +2352,6 @@ h2 {
   background: rgba(8, 15, 23, 0.48);
   font-size: 10px;
   font-weight: 900;
-}
-
-.duel-action-card-name {
-  margin-top: 5px;
-  color: #f7fdff;
-  font-size: 13px;
-  font-weight: 900;
-  line-height: 1.18;
-  overflow-wrap: anywhere;
-}
-
-.duel-action-card-core {
-  display: grid;
-  place-items: center;
-  justify-self: center;
-  align-self: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  color: #fff;
-  background: var(--card-color);
-  font-size: 21px;
-  font-weight: 950;
-}
-
-.duel-action-card-type {
-  display: flex;
-  justify-content: space-between;
-  color: #dbeafe;
-  font-size: 11px;
-  font-weight: 800;
 }
 
 .duel-action-result {
@@ -10356,6 +10365,15 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   border-color: rgba(245, 207, 120, 0.68);
   color: #10131b;
   background: linear-gradient(180deg, #fff3ba, #e5ad43);
+}
+
+.tutorial-guide-panel button.primary-action:disabled {
+  border-color: rgba(0, 240, 255, 0.5);
+  color: #dffcff;
+  background:
+    linear-gradient(180deg, rgba(0, 240, 255, 0.25), rgba(0, 240, 255, 0.08)),
+    #13252d;
+  opacity: 1;
 }
 
 .stitch-log-sidebar.tutorial-mode {

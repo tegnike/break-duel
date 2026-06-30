@@ -55,7 +55,6 @@ import {
   TUTORIAL_SEED,
   createTutorialGame,
   currentTutorialStep,
-  readTutorialCompleted,
   tutorialForcedAiAction,
   writeTutorialCompleted,
   type TutorialFocus,
@@ -480,6 +479,10 @@ function tutorialUpgradeSourceIndexes(step: TutorialStep | null, player: PlayerS
   return sourceIndexes.filter((index) => player.field[index]?.id === "AI-FIRE-1B");
 }
 
+function tutorialAiTurnKey(game: GameState, step: TutorialStep | null): string {
+  return `${game.turn}:${game.active}:${step?.kicker ?? ""}:${step?.title ?? ""}`;
+}
+
 export default function App() {
   const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [seed, setSeed] = useState(INITIAL_SEED);
@@ -492,7 +495,8 @@ export default function App() {
   const [rulesOpen, setRulesOpen] = useState(false);
   const [starterDeckSetupOpen, setStarterDeckSetupOpen] = useState(true);
   const [tutorialActive, setTutorialActive] = useState(false);
-  const [tutorialCompleted, setTutorialCompleted] = useState(() => readTutorialCompleted());
+  const [tutorialAiAdvanceKey, setTutorialAiAdvanceKey] = useState<string | null>(null);
+  const [tutorialAiAdvancePending, setTutorialAiAdvancePending] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [duelEvent, setDuelEvent] = useState<DuelEvent | null>(null);
   const [cardFlights, setCardFlights] = useState<CardFlight[]>([]);
@@ -574,20 +578,16 @@ export default function App() {
 
   function markTutorialCompleted() {
     writeTutorialCompleted(true);
-    setTutorialCompleted(true);
   }
 
   function finishTutorial() {
     markTutorialCompleted();
     setTutorialActive(false);
+    setTutorialAiAdvanceKey(null);
+    setTutorialAiAdvancePending(false);
     setStarterDeckSetupOpen(true);
     resetDuelEvents();
     showToast("チュートリアル完了", "通常対戦を始められます");
-  }
-
-  function skipTutorialPrompt() {
-    markTutorialCompleted();
-    showToast("通常対戦へ", "チュートリアルは対戦準備からいつでも開始できます");
   }
 
   function tutorialBlocks(action: TutorialAction, options: { handIndex?: number; fieldOwnerIndex?: number; fieldIndex?: number; defenseChoice?: DefenseChoice } = {}) {
@@ -1166,6 +1166,8 @@ export default function App() {
     setRulesOpen(false);
     setStarterDeckSetupOpen(false);
     setTutorialActive(true);
+    setTutorialAiAdvanceKey(null);
+    setTutorialAiAdvancePending(false);
     setAutoDismissDuelEvents(false);
     showToast("チュートリアル開始", "基本操作を順番に確認します");
     showBanner({
@@ -1181,6 +1183,8 @@ export default function App() {
     resetDuelEvents();
     setRulesOpen(false);
     setTutorialActive(false);
+    setTutorialAiAdvanceKey(null);
+    setTutorialAiAdvancePending(false);
     changePage("duel");
     setStarterDeckSetupOpen(true);
   }
@@ -1188,6 +1192,8 @@ export default function App() {
   function changePage(nextPage: AppPage) {
     if (nextPage !== "duel") resetDuelEvents();
     if (nextPage !== "duel") setTutorialActive(false);
+    if (nextPage !== "duel") setTutorialAiAdvanceKey(null);
+    if (nextPage !== "duel") setTutorialAiAdvancePending(false);
     setRulesOpen(false);
     setPage(nextPage);
     const nextPath = routeForPage(nextPage);
@@ -1198,6 +1204,8 @@ export default function App() {
       refreshSavedDecks();
       setStarterDeckSetupOpen(true);
       setTutorialActive(false);
+      setTutorialAiAdvanceKey(null);
+      setTutorialAiAdvancePending(false);
     }
   }
 
@@ -1212,6 +1220,8 @@ export default function App() {
       setRulesOpen(false);
       setStarterDeckSetupOpen(nextPage === "duel");
       setTutorialActive(false);
+      setTutorialAiAdvanceKey(null);
+      setTutorialAiAdvancePending(false);
       setPage(nextPage);
     };
     window.addEventListener("popstate", onPopState);
@@ -1221,6 +1231,10 @@ export default function App() {
   useEffect(() => {
     if (game.active === 0) setLastHumanActionsRemaining(game.actionsRemaining);
   }, [game.active, game.actionsRemaining]);
+
+  useEffect(() => {
+    if (!tutorialActive || tutorialStep?.id !== "watch-rival") setTutorialAiAdvancePending(false);
+  }, [tutorialActive, tutorialStep?.id]);
 
   useEffect(() => {
     if (!tutorialActive) return;
@@ -1389,21 +1403,24 @@ export default function App() {
     if (starterDeckSetupOpen) return undefined;
     if (game.winner !== null || game.draw || game.pendingAttack || game.pendingTarget) return undefined;
     if (tutorialStep?.id === "complete") return undefined;
+    if (tutorialActive && tutorialStep?.id === "watch-rival" && tutorialAiAdvanceKey !== tutorialAiTurnKey(game, tutorialStep)) return undefined;
     if (active.isHuman || (game.actionsRemaining <= 0 && !canUseCharge(game, active))) return undefined;
     if (aiAnimating) return undefined;
     if (duelEvent || duelEventPlaying.current || duelEventQueue.current.length > 0 || duelEventScheduler.current !== null) return undefined;
+    const tutorialManualAdvance = tutorialActive && tutorialStep?.id === "watch-rival";
     const timer = window.setTimeout(() => {
       const action = tutorialActive ? tutorialForcedAiAction(game) ?? chooseAiAction(game, active.aiProfile) : chooseAiAction(game, active.aiProfile);
-      const commitDelay = prepareAiActionAnimation(action);
+      const commitDelay = tutorialManualAdvance ? Math.min(prepareAiActionAnimation(action), 120) : prepareAiActionAnimation(action);
       setAiAnimating(true);
       aiCommitTimer.current = window.setTimeout(() => {
         mutate((draft) => performAiActionInDraft(draft, action, { playSfx, showDuelEvent: queueDuelEvent }));
+        if (tutorialManualAdvance) setTutorialAiAdvancePending(false);
         setAiAnimating(false);
         aiCommitTimer.current = null;
       }, commitDelay);
-    }, 720);
+    }, tutorialManualAdvance ? 80 : 720);
     return () => window.clearTimeout(timer);
-  }, [page, game, duelEvent, aiAnimating, tutorialActive, tutorialStep?.id, starterDeckSetupOpen]);
+  }, [page, game, duelEvent, aiAnimating, tutorialActive, tutorialStep?.id, tutorialStep?.kicker, tutorialStep?.title, tutorialAiAdvanceKey, starterDeckSetupOpen]);
 
   useEffect(() => {
     return () => {
@@ -2375,10 +2392,8 @@ export default function App() {
           opponentSelection={opponentDeckSelection}
           opponentAiProfile={opponentAiProfile}
           savedDecks={savedDecks}
-          tutorialCompleted={tutorialCompleted}
           onClose={() => setStarterDeckSetupOpen(false)}
           onStartTutorial={startTutorialGame}
-          onSkipTutorial={skipTutorialPrompt}
           onChangePlayerSelection={setPlayerDeckSelection}
           onChangeOpponentSelection={setOpponentDeckSelection}
           onChangeOpponentAiProfile={setOpponentAiProfile}
@@ -2566,9 +2581,16 @@ export default function App() {
             step={tutorialStep}
             onExit={() => {
               setTutorialActive(false);
+              setTutorialAiAdvanceKey(null);
+              setTutorialAiAdvancePending(false);
               showToast("チュートリアル中断", "通常の対戦として続行できます");
             }}
             onComplete={finishTutorial}
+            rivalAdvancing={tutorialAiAdvancePending}
+            onAdvanceRival={() => {
+              setTutorialAiAdvancePending(true);
+              setTutorialAiAdvanceKey(tutorialAiTurnKey(game, tutorialStep));
+            }}
           />
         )}
         <LogList entries={game.log} />
@@ -2610,8 +2632,21 @@ function NoActionsEndTurnPrompt({ onConfirm }: { onConfirm: () => void }) {
   );
 }
 
-function TutorialGuidePanel({ step, onExit, onComplete }: { step: TutorialStep; onExit: () => void; onComplete: () => void }) {
+function TutorialGuidePanel({
+  step,
+  onExit,
+  onComplete,
+  rivalAdvancing,
+  onAdvanceRival,
+}: {
+  step: TutorialStep;
+  onExit: () => void;
+  onComplete: () => void;
+  rivalAdvancing: boolean;
+  onAdvanceRival: () => void;
+}) {
   const complete = step.id === "complete";
+  const rivalTurn = step.id === "watch-rival";
   return (
     <section className={`tutorial-guide-panel step-${step.id}`} aria-live="polite" aria-label="チュートリアル">
       <div>
@@ -2619,8 +2654,8 @@ function TutorialGuidePanel({ step, onExit, onComplete }: { step: TutorialStep; 
         <strong>{step.title}</strong>
         <p>{step.detail}</p>
       </div>
-      <button type="button" className={complete ? "primary-action" : ""} onClick={complete ? onComplete : onExit}>
-        {complete ? "チュートリアルを完了" : "チュートリアルを中断"}
+      <button type="button" className={complete || rivalTurn ? "primary-action" : ""} disabled={rivalAdvancing} onClick={complete ? onComplete : rivalTurn ? onAdvanceRival : onExit}>
+        {complete ? "チュートリアルを完了" : rivalTurn ? rivalAdvancing ? "ライバル行動中..." : "ライバルの行動を進める" : "チュートリアルを中断"}
       </button>
     </section>
   );
@@ -2631,10 +2666,8 @@ function StarterDeckSetupPanel({
   opponentSelection,
   opponentAiProfile,
   savedDecks,
-  tutorialCompleted,
   onClose,
   onStartTutorial,
-  onSkipTutorial,
   onChangePlayerSelection,
   onChangeOpponentSelection,
   onChangeOpponentAiProfile,
@@ -2644,10 +2677,8 @@ function StarterDeckSetupPanel({
   opponentSelection: DeckSelection;
   opponentAiProfile: AiProfile;
   savedDecks: SavedDeck[];
-  tutorialCompleted: boolean;
   onClose: () => void;
   onStartTutorial: () => void;
-  onSkipTutorial: () => void;
   onChangePlayerSelection: (selection: DeckSelection) => void;
   onChangeOpponentSelection: (selection: DeckSelection) => void;
   onChangeOpponentAiProfile: (profile: AiProfile) => void;
@@ -2667,19 +2698,6 @@ function StarterDeckSetupPanel({
         </div>
         <button type="button" onClick={onClose}>閉じる</button>
       </div>
-      {!tutorialCompleted && (
-        <section className="tutorial-start-card" aria-label="初回チュートリアル">
-          <div>
-            <span>FIRST DUEL</span>
-            <strong>初回チュートリアル対戦</strong>
-            <p>召喚、ターン終了、防御、攻撃、指令、チャージ、遺物、アップグレード、大型召喚獣を短い固定対戦で確認します。</p>
-          </div>
-          <div>
-            <button type="button" className="primary-action" onClick={onStartTutorial}>チュートリアル開始</button>
-            <button type="button" onClick={onSkipTutorial}>通常対戦へ進む</button>
-          </div>
-        </section>
-      )}
       <div className="starter-setup-summary" aria-label="現在の対戦設定">
         <div>
           <span>あなた</span>
@@ -2735,7 +2753,7 @@ function StarterDeckSetupPanel({
         </div>
       </section>
       <div className="starter-modal-actions">
-        {tutorialCompleted && <button type="button" onClick={onStartTutorial}>まずはチュートリアル</button>}
+        <button type="button" onClick={onStartTutorial}>まずはチュートリアル</button>
         <button type="button" className="primary-action" onClick={onStart}>この設定で対戦開始</button>
       </div>
     </section>
