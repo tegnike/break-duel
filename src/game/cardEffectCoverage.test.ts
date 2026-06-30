@@ -33,6 +33,7 @@ import {
   returnsAfterOverheat,
   selfDamagesOnPlay,
   spendsEnemyOnPlay,
+  startTurn,
 } from "../game";
 import {
   applyPlayEffects,
@@ -486,6 +487,13 @@ const CARD_EFFECT_CASES = {
       game.players[0].deck = [card("AI-FIRE-1")];
       const drawn = applyTurnStartMemory(game.players[0]);
       expect(drawn.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+
+      const turnStartGame = blankGame();
+      turnStartGame.players[0].memory = card("MEM-CACHE");
+      turnStartGame.players[0].hand = [card("AI-FIRE-1"), card("AI-WATER-1")];
+      turnStartGame.players[0].deck = [card("AI-EARTH-1"), card("AI-WIND-1")];
+      startTurn(turnStartGame);
+      expect(turnStartGame.players[0].hand).toHaveLength(4);
     },
   },
   pipeline: {

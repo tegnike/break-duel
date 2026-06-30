@@ -761,8 +761,9 @@ export function startTurn(game: GameState): void {
   player.chargeGuardedFieldIndexes.clear();
   player.sandboxShield = 0;
   player.turnsStarted += 1;
+  const handCountAtTurnStart = player.hand.length;
   const drawnCards = shouldDrawForTurn(game) ? drawCards(player, 1) : [];
-  const memoryDrawnCards = applyTurnStartMemory(player);
+  const memoryDrawnCards = applyTurnStartMemory(player, handCountAtTurnStart);
   const drawText = drawnCards.length > 0 ? `${visibleDrawText(player, drawnCards)}。` : "ドローなし。";
   const memoryText = memoryDrawnCards.length > 0 ? ` ${player.memory!.name}で追加${visibleDrawText(player, memoryDrawnCards)}。` : "";
   addLog(game, `${player.name}のターン。${drawText}${memoryText}`);
@@ -805,9 +806,9 @@ export function actionsForTurn(game: GameState): number {
   return CONFIG.actionsPerTurn;
 }
 
-export function applyTurnStartMemory(player: PlayerState): Card[] {
+export function applyTurnStartMemory(player: PlayerState, handCountAtTurnStart = player.hand.length): Card[] {
   if (player.memory?.effect !== "cache") return [];
-  if (player.hand.length > 2) return [];
+  if (handCountAtTurnStart > 2) return [];
   return drawCards(player, 1);
 }
 
