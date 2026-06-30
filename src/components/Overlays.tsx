@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { DuelEvent } from "../duelEvents";
-import { cardColor, cardCoreText, cardTypeLabel } from "./cardPresentation";
+import { CardView } from "./CardView";
 
 export type Toast = { title: string; detail?: string; id: number } | null;
 export type Banner = {
@@ -50,11 +50,9 @@ export function DuelActionReel({
         {event.cards.map(({ card, label, state }, index) => (
           <React.Fragment key={`${event.id}-${card.id}-${index}`}>
             {index > 0 && <div className="duel-action-vs">{event.kind === "battle" ? "VS" : "→"}</div>}
-            <div className={`duel-action-card card-${index} ${state ?? "neutral"}`} style={{ "--card-color": cardColor(card) } as React.CSSProperties}>
-              <div className="duel-action-card-label">{label}</div>
-              <div className="duel-action-card-name">{card.name}</div>
-              <div className="duel-action-card-core">{cardCoreText(card)}</div>
-              <div className="duel-action-card-type">{cardTypeLabel(card)}</div>
+            <div className={`duel-action-card card-${index} ${state ?? "neutral"}`}>
+              <div className="duel-action-card-role">{label}</div>
+              <CardView card={card} ownerIndex={0} zone="field" index={index} showCost={false} />
             </div>
           </React.Fragment>
         ))}

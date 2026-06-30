@@ -1662,14 +1662,16 @@ h2 {
 
 .defense-choice-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 8px;
 }
 
 .defense-choice {
   display: grid;
-  gap: 7px;
-  min-height: 126px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 148px;
   padding: 9px;
   border-color: color-mix(in srgb, var(--card-color) 70%, #ffffff 10%);
   text-align: left;
@@ -1684,11 +1686,53 @@ h2 {
     color-mix(in srgb, var(--card-color) 28%, #10202a);
 }
 
-.defense-choice-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.defense-choice-card {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+
+.defense-choice-card .card {
+  width: 108px;
+  flex-basis: 108px;
+  min-height: 136px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.defense-choice-card .card-name {
+  padding-right: 0;
+  font-size: 11px;
+}
+
+.defense-choice-card .card-id {
+  display: none;
+}
+
+.defense-choice-card .card-art {
+  min-height: 42px;
+  margin-top: 5px;
+}
+
+.defense-choice-card .card-core {
+  min-height: 30px;
+  margin: 4px 0;
+}
+
+.defense-choice-card .power {
+  width: 34px;
+  height: 34px;
+  font-size: 18px;
+}
+
+.defense-choice-card .card-foot {
+  font-size: 10px;
+}
+
+.defense-choice-info {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
 }
 
 .defense-source {
@@ -1705,9 +1749,10 @@ h2 {
 .defense-choice-name {
   min-width: 0;
   color: #f8fafc;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .defense-choice-body {
@@ -2195,30 +2240,30 @@ h2 {
 .duel-action-card {
   position: relative;
   z-index: 2;
-  display: grid;
-  grid-template-rows: auto minmax(36px, auto) 42px auto;
-  width: 132px;
-  min-height: 154px;
-  border: 1px solid color-mix(in srgb, var(--card-color) 68%, #fff 12%);
-  border-radius: 4px;
-  padding: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 34%),
-    linear-gradient(135deg, color-mix(in srgb, var(--card-color) 28%, #111923), #111820 72%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035), 0 12px 24px rgba(0, 0, 0, 0.24);
-  overflow: hidden;
+  width: 136px;
+  overflow: visible;
   transform-origin: center;
   animation: duel-card-enter var(--event-duration, 2600ms) ease-out forwards;
 }
 
-.duel-action-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-top: 5px solid var(--card-color);
+.duel-action-card .card {
+  width: 136px;
+  flex-basis: 136px;
+  min-height: 178px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035), 0 12px 24px rgba(0, 0, 0, 0.24);
 }
 
-.duel-action-card.winner {
+.duel-action-card .card-art {
+  min-height: 64px;
+}
+
+.duel-action-card .card-name {
+  min-height: 20px;
+  padding-left: 42px;
+}
+
+.duel-action-card.winner .card {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 0 0 2px rgba(0, 240, 255, 0.48), 0 0 28px rgba(0, 240, 255, 0.18), 0 12px 28px rgba(0, 0, 0, 0.3);
 }
 
@@ -2295,16 +2340,11 @@ h2 {
   transform: none;
 }
 
-.duel-action-card-label,
-.duel-action-card-name,
-.duel-action-card-core,
-.duel-action-card-type {
-  position: relative;
-  z-index: 2;
-}
-
-.duel-action-card-label {
-  justify-self: start;
+.duel-action-card-role {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 4;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
   padding: 1px 6px;
@@ -2312,37 +2352,6 @@ h2 {
   background: rgba(8, 15, 23, 0.48);
   font-size: 10px;
   font-weight: 900;
-}
-
-.duel-action-card-name {
-  margin-top: 5px;
-  color: #f7fdff;
-  font-size: 13px;
-  font-weight: 900;
-  line-height: 1.18;
-  overflow-wrap: anywhere;
-}
-
-.duel-action-card-core {
-  display: grid;
-  place-items: center;
-  justify-self: center;
-  align-self: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  color: #fff;
-  background: var(--card-color);
-  font-size: 21px;
-  font-weight: 950;
-}
-
-.duel-action-card-type {
-  display: flex;
-  justify-content: space-between;
-  color: #dbeafe;
-  font-size: 11px;
-  font-weight: 800;
 }
 
 .duel-action-result {
@@ -5046,7 +5055,7 @@ h1 {
   backdrop-filter: blur(2px);
 }
 
-.stitch-shell > :not(.event-toast):not(.duel-overlay):not(.duel-action-reel):not(.card-flight):not(.modal-backdrop):not(.match-result-spotlight) {
+.stitch-shell > :not(.event-toast):not(.duel-overlay):not(.duel-action-reel):not(.card-flight):not(.modal-backdrop):not(.match-result-spotlight):not(.tutorial-guide-panel) {
   position: relative;
   z-index: 1;
 }
@@ -6929,6 +6938,7 @@ h1 {
 
 .stitch-log-sidebar .log li {
   display: grid;
+  box-sizing: border-box;
   grid-template-columns: 34px minmax(0, 1fr);
   gap: 8px;
   align-items: start;
@@ -10084,6 +10094,48 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   line-height: 1.65;
 }
 
+.tutorial-guide-panel span {
+  display: block;
+  color: #f0c462;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.tutorial-guide-panel strong {
+  display: block;
+  margin-top: 3px;
+  color: #fff3cf;
+  font-size: 17px;
+}
+
+.tutorial-guide-panel p {
+  margin: 5px 0 0;
+  color: #d7d0c1;
+  line-height: 1.55;
+}
+
+.tutorial-guide-actions button,
+.duel-setup-shell .starter-modal-actions > button:not(.primary-action) {
+  min-height: 42px;
+  border: 1px solid rgba(217, 189, 120, 0.42);
+  border-radius: 5px;
+  padding: 9px 13px;
+  color: #f4ecd1;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.01)),
+    #19232c;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 7px 0 rgba(0, 0, 0, 0.2);
+}
+
+.tutorial-guide-actions button:hover,
+.duel-setup-shell .starter-modal-actions > button:not(.primary-action):hover {
+  border-color: #f0c462;
+  background: #24313c;
+}
+
 .duel-setup-shell .starter-setup-summary {
   grid-area: summary;
   align-self: stretch;
@@ -10226,17 +10278,26 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 .duel-setup-shell .starter-modal-actions {
   grid-area: actions;
+  display: grid;
+  grid-template-columns: 1fr;
   align-self: stretch;
   align-items: end;
-  justify-content: flex-end;
+  justify-content: stretch;
+  gap: 10px;
   border: 1px solid rgba(245, 207, 120, 0.18);
   border-radius: 7px;
   padding: 14px;
   background: var(--setup-panel);
 }
 
+.duel-setup-shell .starter-modal-actions > button {
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+}
+
 .duel-setup-shell .starter-modal-actions .primary-action {
-  min-width: 230px;
+  min-width: 0;
   min-height: 46px;
   border-color: rgba(245, 207, 120, 0.62);
   color: #10131b;
@@ -10245,6 +10306,106 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   box-shadow:
     0 9px 0 rgba(0, 0, 0, 0.24),
     0 18px 34px rgba(245, 207, 120, 0.16);
+}
+
+.tutorial-guide-panel {
+  display: grid;
+  width: 100%;
+  box-sizing: border-box;
+  gap: 10px;
+  margin: 0 0 12px;
+  border: 1px solid rgba(245, 207, 120, 0.62);
+  border-radius: 8px;
+  padding: 12px;
+  color: #f8efd7;
+  background:
+    linear-gradient(180deg, rgba(245, 207, 120, 0.16), rgba(245, 207, 120, 0.04)),
+    rgba(7, 7, 17, 0.78);
+  box-shadow:
+    inset 3px 0 0 rgba(245, 207, 120, 0.74),
+    0 0 18px rgba(245, 207, 120, 0.13);
+}
+
+.tutorial-guide-actions {
+  display: grid;
+  gap: 8px;
+  justify-items: stretch;
+}
+
+.tutorial-guide-actions button {
+  justify-self: stretch;
+  min-height: 34px;
+  font-size: 12px;
+}
+
+.tutorial-guide-actions button.primary-action {
+  border-color: rgba(245, 207, 120, 0.68);
+  color: #10131b;
+  background: linear-gradient(180deg, #fff3ba, #e5ad43);
+}
+
+.tutorial-guide-actions button.primary-action:disabled {
+  border-color: rgba(0, 240, 255, 0.5);
+  color: #dffcff;
+  background:
+    linear-gradient(180deg, rgba(0, 240, 255, 0.25), rgba(0, 240, 255, 0.08)),
+    #13252d;
+  opacity: 1;
+}
+
+.tutorial-guide-actions .tutorial-exit-action {
+  justify-self: end;
+  min-height: 28px;
+  border-color: rgba(244, 236, 209, 0.18);
+  padding: 5px 9px;
+  color: #b8b1a1;
+  background: transparent;
+  box-shadow: none;
+}
+
+.tutorial-guide-actions .tutorial-exit-action:hover {
+  border-color: rgba(255, 111, 111, 0.52);
+  color: #ffd8d8;
+  background: rgba(255, 111, 111, 0.08);
+}
+
+.stitch-log-sidebar.tutorial-mode {
+  gap: 10px;
+  padding: 12px;
+}
+
+.stitch-log-sidebar.tutorial-mode .stitch-log-title {
+  border-bottom: 1px solid rgba(245, 207, 120, 0.24);
+  padding: 2px 2px 10px;
+}
+
+.stitch-log-sidebar.tutorial-mode .tutorial-guide-panel {
+  margin: 0;
+}
+
+.stitch-log-sidebar.tutorial-mode .log {
+  padding: 2px 0 8px;
+}
+
+.stitch-log-sidebar.tutorial-mode .log li.log-latest {
+  margin-left: 0;
+}
+
+.card.tutorial-focus,
+.stitch-command-dock .action-strip button.tutorial-focus {
+  outline: 3px solid #f0c462;
+  outline-offset: 3px;
+  box-shadow:
+    0 0 0 5px rgba(240, 196, 98, 0.16),
+    0 0 26px rgba(240, 196, 98, 0.38),
+    0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+.stitch-command-dock .action-strip button.tutorial-focus {
+  box-shadow:
+    0 0 0 5px rgba(240, 196, 98, 0.16),
+    0 0 26px rgba(240, 196, 98, 0.4),
+    0 12px 24px rgba(0, 0, 0, 0.26);
 }
 
 @media (max-width: 920px) {
@@ -10276,11 +10437,18 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   }
 
   .duel-setup-shell .starter-modal-actions {
+    display: grid;
+    grid-template-columns: 1fr;
     justify-content: stretch;
   }
 
+  .duel-setup-shell .starter-modal-actions > button,
   .duel-setup-shell .starter-modal-actions .primary-action {
     width: 100%;
     min-width: 0;
+  }
+
+  .tutorial-guide-panel {
+    margin-bottom: 10px;
   }
 }
