@@ -58,7 +58,7 @@ export const RIVAL_VOICE_LINES: Record<RivalVoiceLineId, RivalVoiceLine> = {
     src: rivalChargeVoice,
   },
   attack: {
-    text: "アタックします！どんどんいきましょう！",
+    text: "攻撃します！どんどんいきましょう！",
     src: rivalAttackVoice,
   },
   field_defense: {

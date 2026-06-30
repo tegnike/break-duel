@@ -173,6 +173,17 @@ type PendingRivalVoiceLine = {
   stateKey: string;
 };
 
+const RIVAL_ACTION_VOICE_LINE_IDS = [
+  "play_summon",
+  "upgrade",
+  "memory",
+  "charge",
+  "attack",
+  "command",
+] as const satisfies readonly RivalVoiceLineId[];
+type RivalActionVoiceLineId = typeof RIVAL_ACTION_VOICE_LINE_IDS[number];
+type RivalVoiceTurnGroup = "odd" | "even";
+
 const TRASH_SPARKS = [
   { x: 12, y: 18, delay: 0 },
   { x: 28, y: 12, delay: 70 },
@@ -204,6 +215,8 @@ const SFX_ASSETS: Record<string, { src: string; volume: number }> = {
 
 const TRASH_SFX_PRIMARY_GRACE_MS = 450;
 const RIVAL_LINE_REPEAT_COOLDOWN_MS = 6000;
+const RIVAL_ACTION_VOICE_GROUP_SIZE = RIVAL_ACTION_VOICE_LINE_IDS.length / 2;
+const RIVAL_HIGH_FREQUENCY_ACTION_LINES: readonly [RivalActionVoiceLineId, RivalActionVoiceLineId] = ["play_summon", "attack"];
 const PRIMARY_SFX_KINDS = new Set(["play", "block", "damage", "charge"]);
 const SFX_PRIORITY: Record<string, number> = {
   hover: 0,
@@ -284,6 +297,48 @@ function actionTokenClass(index: number, actionsRemaining: number): string {
   return `action-token ${active ? "" : "spent"}`;
 }
 
+function createRivalActionVoiceTurnGroups(seed: number): Record<RivalActionVoiceLineId, RivalVoiceTurnGroup> {
+  const rng = makeRng((seed ^ 0x5f3759df) >>> 0);
+  const odd: RivalActionVoiceLineId[] = [];
+  const even: RivalActionVoiceLineId[] = [];
+  const [firstFrequent, secondFrequent] = RIVAL_HIGH_FREQUENCY_ACTION_LINES;
+  if (rng() < 0.5) {
+    odd.push(firstFrequent);
+    even.push(secondFrequent);
+  } else {
+    odd.push(secondFrequent);
+    even.push(firstFrequent);
+  }
+
+  const remaining = RIVAL_ACTION_VOICE_LINE_IDS.filter(
+    (lineId) => lineId !== firstFrequent && lineId !== secondFrequent,
+  );
+  for (let index = remaining.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(rng() * (index + 1));
+    [remaining[index], remaining[swapIndex]] = [remaining[swapIndex], remaining[index]];
+  }
+  remaining.forEach((lineId) => {
+    if (odd.length < RIVAL_ACTION_VOICE_GROUP_SIZE) {
+      odd.push(lineId);
+    } else {
+      even.push(lineId);
+    }
+  });
+
+  const groups = {} as Record<RivalActionVoiceLineId, RivalVoiceTurnGroup>;
+  odd.forEach((lineId) => {
+    groups[lineId] = "odd";
+  });
+  even.forEach((lineId) => {
+    groups[lineId] = "even";
+  });
+  return groups;
+}
+
+function isRivalActionVoiceLineId(lineId: RivalVoiceLineId): lineId is RivalActionVoiceLineId {
+  return (RIVAL_ACTION_VOICE_LINE_IDS as readonly RivalVoiceLineId[]).includes(lineId);
+}
+
 function trashSurgeForEvent(event: DuelEventPayload | DuelEvent | null): TrashSurge | null {
   if (!event || event.kind !== "trash") return null;
   const goesToTrash = event.toLabel?.includes("トラッシュ") || event.cards.some(({ state }) => state === "trash");
@@ -344,6 +399,7 @@ export default function App() {
   const lastRivalLine = useRef<{ text: string; at: number } | null>(null);
   const pendingRivalVoiceLine = useRef<PendingRivalVoiceLine | null>(null);
   const currentRivalVoiceStateKey = useRef("");
+  const rivalActionVoiceTurnGroups = useRef(createRivalActionVoiceTurnGroups(INITIAL_SEED));
   const recentLifeDamageImpact = useRef<DuelEventPayload["impact"] | null>(null);
   const suppressedTrashSfxOwners = useRef<Partial<Record<number, number>>>({});
   const previousDiscardCounts = useRef<[number, number]>([
@@ -386,9 +442,10 @@ export default function App() {
     setBanner({ ...next, id: eventId++ });
   }
 
-  function showRivalVoiceLine(lineId: RivalVoiceLineId, options: { force?: boolean } = {}) {
+  function showRivalVoiceLine(lineId: RivalVoiceLineId, options: { force?: boolean; skipTurnEligibility?: boolean } = {}) {
     const line = RIVAL_VOICE_LINES[lineId];
     if (!line) return;
+    if (!options.skipTurnEligibility && !rivalVoiceLineEligibleForCurrentTurn(lineId)) return;
     if (!options.force && recentlySpokeRivalLine(line.text)) return;
     if (rivalVoiceLineBusy()) {
       const pending = { lineId, text: line.text, force: Boolean(options.force), stateKey: currentRivalVoiceStateKey.current };
@@ -435,6 +492,19 @@ export default function App() {
     return Boolean(last && last.text === text && Date.now() - last.at < RIVAL_LINE_REPEAT_COOLDOWN_MS);
   }
 
+  function rivalVoiceLineEligibleForCurrentTurn(lineId: RivalVoiceLineId) {
+    if (lineId === "rival_turn_start") return game.active === 1 && rivalTurnNumber() === 1;
+    if (!isRivalActionVoiceLineId(lineId)) return true;
+    const rivalTurn = rivalTurnNumber();
+    if (rivalTurn <= 0) return false;
+    const currentGroup: RivalVoiceTurnGroup = rivalTurn % 2 === 1 ? "odd" : "even";
+    return rivalActionVoiceTurnGroups.current[lineId] === currentGroup;
+  }
+
+  function rivalTurnNumber() {
+    return game.players[1]?.turnsStarted ?? 0;
+  }
+
   function playRivalVoiceLine(lineId: RivalVoiceLineId) {
     if (!audioEnabledRef.current) return;
     const line = RIVAL_VOICE_LINES[lineId];
@@ -466,16 +536,17 @@ export default function App() {
   }
 
   function queueDuelEvent(event: DuelEventPayload) {
-    const hasTrashSurge = trashSurgeForEvent(event) !== null;
-    if (event.impact?.kind === "life-damage") {
-      recentLifeDamageImpact.current = event.impact;
-      scheduleLifeDamageImpact(event.impact);
+    const queuedEvent = rivalVoiceLineEligibleForEvent(event);
+    const hasTrashSurge = trashSurgeForEvent(queuedEvent) !== null;
+    if (queuedEvent.impact?.kind === "life-damage") {
+      recentLifeDamageImpact.current = queuedEvent.impact;
+      scheduleLifeDamageImpact(queuedEvent.impact);
     }
-    if ((event.kind === "play" || event.kind === "memory" || event.kind === "upgrade" || event.kind === "command") && !hasTrashSurge && !event.impact) {
-      if (event.rivalVoiceLine) showRivalVoiceLine(event.rivalVoiceLine);
+    if ((queuedEvent.kind === "play" || queuedEvent.kind === "memory" || queuedEvent.kind === "upgrade" || queuedEvent.kind === "command") && !hasTrashSurge && !queuedEvent.impact) {
+      if (queuedEvent.rivalVoiceLine) showRivalVoiceLine(queuedEvent.rivalVoiceLine, { skipTurnEligibility: true });
       return;
     }
-    duelEventQueue.current.push(event);
+    duelEventQueue.current.push(queuedEvent);
     if (duelEventScheduler.current !== null) return;
     duelEventScheduler.current = window.setTimeout(() => {
       duelEventScheduler.current = null;
@@ -490,7 +561,7 @@ export default function App() {
     duelEventPlaying.current = true;
     const event = { ...next, id: eventId++ };
     setDuelEvent(event);
-    if (event.rivalVoiceLine) showRivalVoiceLine(event.rivalVoiceLine);
+    if (event.rivalVoiceLine) showRivalVoiceLine(event.rivalVoiceLine, { skipTurnEligibility: true });
     if (!autoDismissDuelEvents) return;
     duelEventTimer.current = window.setTimeout(() => {
       dismissDuelEvent();
@@ -510,6 +581,11 @@ export default function App() {
     if (event.kind === "damage") return 2900;
     if (event.kind === "play" || event.kind === "upgrade") return 2600;
     return 2400;
+  }
+
+  function rivalVoiceLineEligibleForEvent(event: DuelEventPayload): DuelEventPayload {
+    if (!event.rivalVoiceLine || rivalVoiceLineEligibleForCurrentTurn(event.rivalVoiceLine)) return event;
+    return { ...event, rivalVoiceLine: undefined };
   }
 
   function clearLifeImpactScheduleTimers() {
@@ -897,6 +973,7 @@ export default function App() {
       const playerSelection = resolveDeckSelection(playerDeckSelection, selectionRng);
       const opponentSelection = resolveDeckSelection(opponentDeckSelection, selectionRng);
       const nextGame = createGame(nextSeed, toDuelDeckSource(playerSelection), toDuelDeckSource(opponentSelection), opponentAiProfile);
+      rivalActionVoiceTurnGroups.current = createRivalActionVoiceTurnGroups(nextSeed);
       setSeed(nextSeed);
       resetDrawTracker(nextGame);
       setGame(nextGame);
