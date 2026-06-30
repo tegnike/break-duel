@@ -21,6 +21,7 @@ export type DuelEventPayload = {
     sourcePlayerIndex: number | null;
     targetPlayerIndex: number;
     amount: number;
+    fatal?: boolean;
   };
   rivalVoiceLine?: RivalVoiceLineId;
   durationMs?: number;

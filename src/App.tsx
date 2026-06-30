@@ -85,6 +85,8 @@ import brandMark from "./assets/mark.svg";
 
 let eventId = 1;
 const INITIAL_SEED = randomSeed();
+const BGM_NORMAL_PLAYBACK_RATE = 1;
+const BGM_LOW_LIFE_PLAYBACK_RATE = 1.2;
 
 type AppPage = "duel" | "cards" | "builder";
 
@@ -96,6 +98,12 @@ type DeckSelection =
 type ResolvedDeckSelection =
   | { kind: "preset"; deckId: DeckId }
   | { kind: "saved"; deck: SavedDeck };
+
+type PitchPreservingAudioElement = HTMLAudioElement & {
+  preservesPitch?: boolean;
+  mozPreservesPitch?: boolean;
+  webkitPreservesPitch?: boolean;
+};
 
 const PAGE_PATHS: Record<AppPage, string> = {
   duel: "/duel",
@@ -398,6 +406,7 @@ export default function App() {
   const lastRivalLine = useRef<{ text: string; at: number } | null>(null);
   const pendingRivalVoiceLine = useRef<PendingRivalVoiceLine | null>(null);
   const currentRivalVoiceStateKey = useRef("");
+  const gameResolvedRef = useRef(false);
   const rivalActionVoiceTurnGroups = useRef(createRivalActionVoiceTurnGroups(INITIAL_SEED));
   const recentLifeDamageImpact = useRef<DuelEventPayload["impact"] | null>(null);
   const suppressedTrashSfxOwners = useRef<Partial<Record<number, number>>>({});
@@ -424,6 +433,7 @@ export default function App() {
   const opponent = opponentPlayer(game);
   const selectedCard = selectedCardForDetail(game);
   currentRivalVoiceStateKey.current = `${game.turn}:${game.active}:${game.winner ?? "playing"}:${game.draw ? "draw" : "active"}`;
+  gameResolvedRef.current = game.winner !== null || game.draw;
 
   function mutate(mutator: (draft: GameState) => void) {
     setGame((current) => {
@@ -444,6 +454,7 @@ export default function App() {
   function showRivalVoiceLine(lineId: RivalVoiceLineId, options: { force?: boolean; skipTurnEligibility?: boolean } = {}) {
     const line = RIVAL_VOICE_LINES[lineId];
     if (!line) return;
+    if (!rivalVoiceLineAllowedForCurrentOutcome(lineId)) return;
     if (!options.skipTurnEligibility && !rivalVoiceLineEligibleForCurrentTurn(lineId)) return;
     if (!options.force && recentlySpokeRivalLine(line.text)) return;
     if (rivalVoiceLineBusy()) {
@@ -472,6 +483,7 @@ export default function App() {
     pendingRivalVoiceLine.current = null;
     if (!pending) return;
     if (pending.stateKey !== currentRivalVoiceStateKey.current) return;
+    if (!rivalVoiceLineAllowedForCurrentOutcome(pending.lineId)) return;
     if (!pending.force && recentlySpokeRivalLine(pending.text)) return;
     if (rivalVoiceLineBusy()) {
       pendingRivalVoiceLine.current = pending;
@@ -498,6 +510,11 @@ export default function App() {
     if (rivalTurn <= 0) return false;
     const currentGroup: RivalVoiceTurnGroup = rivalTurn % 2 === 1 ? "odd" : "even";
     return rivalActionVoiceTurnGroups.current[lineId] === currentGroup;
+  }
+
+  function rivalVoiceLineAllowedForCurrentOutcome(lineId: RivalVoiceLineId) {
+    if (!gameResolvedRef.current) return true;
+    return lineId === "victory" || lineId === "defeat";
   }
 
   function rivalTurnNumber() {
@@ -688,7 +705,7 @@ export default function App() {
       const sourceIndex = normalizePlayerIndex(impact.sourcePlayerIndex);
       showLifeImpact(targetIndex, impact.amount, sourceIndex);
       showLeaderReaction(targetIndex, "hurt");
-      if (targetIndex === 1) showRivalVoiceLine("damage_taken");
+      if (targetIndex === 1 && !impact.fatal) showRivalVoiceLine("damage_taken");
       if (targetIndex === 0 && sourceIndex === 1) {
         showLeaderReaction(1, "delight");
       }
@@ -1183,6 +1200,10 @@ export default function App() {
   }, [page, game.winner, game.draw]);
 
   useEffect(() => {
+    updateBgmPlaybackRate();
+  }, [game.players[0].life, game.players[1].life]);
+
+  useEffect(() => {
     if (page !== "duel") return undefined;
     if (game.winner !== null || game.draw || game.pendingAttack || game.pendingTarget) return undefined;
     if (active.isHuman || (game.actionsRemaining <= 0 && !canUseCharge(game, active))) return undefined;
@@ -1348,14 +1369,36 @@ export default function App() {
     bgmAudio.current?.pause();
   }
 
+  function bgmPlaybackRateForGame(nextGame: GameState) {
+    return nextGame.players.some((player) => player.life === 1)
+      ? BGM_LOW_LIFE_PLAYBACK_RATE
+      : BGM_NORMAL_PLAYBACK_RATE;
+  }
+
+  function preserveBgmPitch(audio: PitchPreservingAudioElement) {
+    audio.preservesPitch = true;
+    audio.mozPreservesPitch = true;
+    audio.webkitPreservesPitch = true;
+  }
+
+  function updateBgmPlaybackRate(nextRate = bgmPlaybackRateForGame(game)) {
+    if (!bgmAudio.current) return;
+    const audio = bgmAudio.current as PitchPreservingAudioElement;
+    preserveBgmPitch(audio);
+    audio.defaultPlaybackRate = nextRate;
+    audio.playbackRate = nextRate;
+  }
+
   function startBgm() {
     if (!bgmAudio.current) {
       const audio = new Audio(battleBgm);
       audio.loop = true;
       audio.preload = "auto";
       audio.volume = 0.32;
+      preserveBgmPitch(audio);
       bgmAudio.current = audio;
     }
+    updateBgmPlaybackRate();
     bgmAudio.current.currentTime = 0;
     void bgmAudio.current.play().catch(() => {
       audioEnabledRef.current = false;

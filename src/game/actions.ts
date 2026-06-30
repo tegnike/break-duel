@@ -352,7 +352,7 @@ export function useCommandAtInDraft(
   let text = `${player.name}は${used.name}を使用。`;
   const playerIndex = draft.players.indexOf(player);
   const opponentIndex = draft.players.indexOf(opponent);
-  let impact: { kind: "life-damage"; sourcePlayerIndex: number | null; targetPlayerIndex: number; amount: number } | undefined;
+  let impact: { kind: "life-damage"; sourcePlayerIndex: number | null; targetPlayerIndex: number; amount: number; fatal?: boolean } | undefined;
   if (used.effect === "optimize") {
     const discarded = selectedDiscardCards.length > 0
       ? selectedDiscardCards
@@ -392,7 +392,7 @@ export function useCommandAtInDraft(
     }
     player.discard.push(...trashed);
     opponent.life -= 1;
-    impact = { kind: "life-damage", sourcePlayerIndex: playerIndex >= 0 ? playerIndex : null, targetPlayerIndex: opponentIndex, amount: 1 };
+    impact = { kind: "life-damage", sourcePlayerIndex: playerIndex >= 0 ? playerIndex : null, targetPlayerIndex: opponentIndex, amount: 1, fatal: opponent.life <= 0 };
     text += ` ${cardNameList(trashed)}をすべてトラッシュし、${opponent.name}のライフを1減らした。`;
   } else if (used.effect === "fire_rite") {
     if (!hasAttributeAi(player, "火")) return;
@@ -401,7 +401,7 @@ export function useCommandAtInDraft(
       text += ` ${opponent.name}の手札を1枚トラッシュ。`;
     } else {
       opponent.life -= 1;
-      impact = { kind: "life-damage", sourcePlayerIndex: playerIndex >= 0 ? playerIndex : null, targetPlayerIndex: opponentIndex, amount: 1 };
+      impact = { kind: "life-damage", sourcePlayerIndex: playerIndex >= 0 ? playerIndex : null, targetPlayerIndex: opponentIndex, amount: 1, fatal: opponent.life <= 0 };
       text += ` ${opponent.name}の手札がないため、ライフを1減らした。`;
     }
   } else if (used.effect === "water_rite") {
@@ -624,6 +624,7 @@ export function resolveDefenseInDraft(
         sourcePlayerIndex: attackerIndex,
         targetPlayerIndex: defenderIndex,
         amount: 1,
+        fatal: defender.life <= 0,
       } : undefined,
       rivalVoiceLine: defender.isHuman ? undefined : "hand_defense",
       cards: [
@@ -667,6 +668,7 @@ export function resolveDefenseInDraft(
         sourcePlayerIndex: attackerIndex,
         targetPlayerIndex: defenderIndex,
         amount: 1,
+        fatal: defender.life <= 0,
       },
       cards: [{ card: attackCard, label: "攻撃", state: "winner" }],
     });

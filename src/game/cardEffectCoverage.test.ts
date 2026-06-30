@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { DuelEventPayload } from "../duelEvents";
 import {
   CARD_BY_ID,
   CONFIG,
@@ -39,6 +40,7 @@ import {
   applyPlayEffects,
   chargeHandCardInDraft,
   confirmChargeGuardTargetInDraft,
+  resolveDefenseInDraft,
   useAcceleratorMemoryInDraft,
   useCommandAtInDraft,
 } from "./actions";
@@ -567,6 +569,44 @@ describe("registered card effect behavior", () => {
   Object.entries(CARD_EFFECT_CASES).forEach(([effect, testCase]) => {
     it(`${effect}: ${testCase.description}`, () => {
       testCase.run();
+    });
+  });
+});
+
+describe("life damage event metadata", () => {
+  it("marks lethal command damage as fatal", () => {
+    const game = blankGame();
+    const events: DuelEventPayload[] = [];
+    game.players[0].hand = [card("CMD-TRINITY")];
+    game.players[0].field = [card("AI-FIRE-1"), card("AI-WATER-1"), card("AI-WIND-1")];
+    game.players[1].life = 1;
+
+    useCommandAtInDraft(game, 0, null, [], {
+      showDuelEvent: (event) => events.push(event),
+    });
+
+    expect(events[events.length - 1]?.impact).toMatchObject({
+      kind: "life-damage",
+      targetPlayerIndex: 1,
+      fatal: true,
+    });
+  });
+
+  it("marks lethal attack damage as fatal", () => {
+    const game = blankGame();
+    const events: DuelEventPayload[] = [];
+    game.players[0].field = [card("AI-FIRE-1")];
+    game.players[1].life = 1;
+    game.pendingAttack = { attackerIndex: 0, defenderIndex: 1, fieldIndex: 0 };
+
+    resolveDefenseInDraft(game, { type: "none" }, {
+      showDuelEvent: (event) => events.push(event),
+    });
+
+    expect(events[events.length - 1]?.impact).toMatchObject({
+      kind: "life-damage",
+      targetPlayerIndex: 1,
+      fatal: true,
     });
   });
 });
