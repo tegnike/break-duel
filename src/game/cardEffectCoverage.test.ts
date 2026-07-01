@@ -43,6 +43,7 @@ import {
   useAcceleratorMemoryInDraft,
   useCommandAtInDraft,
 } from "./actions";
+import { displayCost } from "../components/cardPresentation";
 
 type ActiveEffect = Exclude<CardEffect, "">;
 
@@ -544,8 +545,10 @@ const CARD_EFFECT_CASES = {
       game.players[0].life = 3;
       game.players[1].life = 5;
       expect(playCost(card("AI-FIRE-3"), game)).toBe(2);
+      expect(displayCost(card("AI-FIRE-3"), "usable", null, game)).toBe(2);
       game.players[0].playedAiThisTurn = true;
       expect(playCost(card("AI-FIRE-3"), game)).toBe(3);
+      expect(displayCost(card("AI-FIRE-3"), "usable", null, game)).toBe(3);
     },
   },
 } satisfies Partial<Record<ActiveEffect, EffectCase>>;

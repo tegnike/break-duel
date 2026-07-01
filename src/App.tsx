@@ -2523,6 +2523,7 @@ export default function App() {
                 selectable={handSelectable}
                 actionState={tutorialActive && !handSelectable ? "idle" : baseActionState}
                 upgradeSource={sourceIndex === null ? null : human.field[sourceIndex]}
+                game={game}
                 visualEffect={tutorialFocusMatchesCard(tutorialStep?.focus, 0, "hand", card, index) ? "tutorial-focus" : ""}
                 showCost
                 onClick={handSelectable ? () => selectHand(index) : undefined}

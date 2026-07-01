@@ -89,6 +89,7 @@ export function PlayerPanel({
                   selectable
                   actionState={actionState}
                   upgradeSource={sourceIndex === null ? null : player.field[sourceIndex]}
+                  game={game}
                   showCost
                   onClick={() => onSelectHand?.(index)}
                 />

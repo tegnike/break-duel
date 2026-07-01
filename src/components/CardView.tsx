@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { Card, Zone } from "../game";
+import type { Card, GameState, Zone } from "../game";
 import {
   cardArtAsset,
   cardArtClass,
@@ -23,6 +23,7 @@ export function CardView({
   visualEffect = "",
   showCost = true,
   upgradeSource = null,
+  game,
   extraBadges = [],
   onClick,
   onMouseEnter,
@@ -38,12 +39,13 @@ export function CardView({
   visualEffect?: string;
   showCost?: boolean;
   upgradeSource?: Card | null;
+  game?: GameState;
   extraBadges?: string[];
   onClick?: () => void;
   onMouseEnter?: () => void;
 }) {
   const Element = selectable ? "button" : "div";
-  const cost = displayCost(card, actionState, upgradeSource);
+  const cost = displayCost(card, actionState, upgradeSource, game);
   return (
     <Element
       type={selectable ? "button" : undefined}
