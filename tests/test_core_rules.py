@@ -250,6 +250,53 @@ class CoreRuleTests(unittest.TestCase):
         apply_action(state, Action(ActionType.ATTACK, 0))
         self.assertEqual(state.players[1].life, 4)
 
+    def test_challenger_avoids_attack_crushed_by_field_defender(self) -> None:
+        state = new_game(1, no_opening_hands(ai_profiles=("challenger", "challenger")))
+        state.players[0].deck = []
+        state.players[0].hand = []
+        state.players[0].field_ai = [card("AI-FIRE-1")]
+        state.players[1].deck = []
+        state.players[1].hand = []
+        state.players[1].field_ai = [card("AI-FIRE-2")]
+        start_turn(state)
+
+        self.assertEqual(choose_action(state).type, ActionType.END_TURN)
+
+    def test_challenger_skips_charge_without_followup_or_immediate_value(self) -> None:
+        state = new_game(1, no_opening_hands(ai_profiles=("challenger", "challenger")))
+        state.players[0].deck = []
+        state.players[0].hand = [card("AI-FIRE-1C")]
+        state.players[0].field_ai = []
+        state.players[1].hand = []
+        start_turn(state)
+        state.actions_remaining = 0
+
+        self.assertEqual(choose_action(state).type, ActionType.END_TURN)
+
+    def test_challenger_skips_charge_for_summon_when_field_is_full(self) -> None:
+        state = new_game(1, no_opening_hands(ai_profiles=("challenger", "challenger")))
+        state.players[0].deck = []
+        state.players[0].hand = [card("AI-FIRE-1"), card("AI-WIND-2")]
+        state.players[0].field_ai = [card("AI-FIRE-2"), card("AI-WATER-2"), card("AI-EARTH-2")]
+        state.players[0].spent_field_ai = {0, 1, 2}
+        start_turn(state)
+        state.actions_remaining = 2
+        state.players[0].spent_field_ai = {0, 1, 2}
+
+        self.assertEqual(choose_action(state).type, ActionType.END_TURN)
+
+    def test_challenger_skips_accelerator_without_play_enable(self) -> None:
+        state = new_game(1, no_opening_hands(ai_profiles=("challenger", "challenger")))
+        state.players[0].deck = []
+        state.players[0].hand = []
+        state.players[0].memory = memory("MEM-ACCELERATOR")
+        state.players[0].field_ai = [card("AI-FIRE-1")]
+        start_turn(state)
+        state.actions_remaining = 1
+        state.players[0].spent_field_ai = {0}
+
+        self.assertEqual(choose_action(state).type, ActionType.END_TURN)
+
     def test_challenger_profile_crushes_beginner_same_deck(self) -> None:
         challenger_wins = 0
         games = 24

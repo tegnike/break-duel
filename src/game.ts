@@ -1566,6 +1566,7 @@ const CHALLENGER_WEIGHTS = {
   lowLifePressure: 28,
   classicPrior: 60,
 };
+const CHALLENGER_SELF_DEFEAT_ATTACK_SCORE = -10000;
 
 function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): number {
   const ai = activePlayer(game);
@@ -1594,6 +1595,7 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
     const sacrificed = ai.field[action.fieldIndex];
     if (!sacrificed) return -9999;
     const enables = ai.hand.some((card) => card.type === "ai" && playCost(card, game) <= Math.min(3, game.actionsRemaining + 1));
+    if (!enables) return score - 130;
     return score + 58 + (enables ? 42 : 0) - aiCardValue(sacrificed) * 0.55;
   }
   if (action.type === "command") {
@@ -1607,10 +1609,12 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
     const before = game.actionsRemaining;
     const after = Math.min(3, before + 1);
     const remaining = ai.hand.filter((_, index) => index !== action.index);
-    const enablesPlay = remaining.some((card) => card.type === "ai" && playCost(card, game) > before && playCost(card, game) <= after);
-    const enablesTwoStep = before === 2 && remaining.some((card) => card.type === "ai" && playCost(card, game) === 2);
+    const fieldHasRoom = ai.field.length < CONFIG.fieldLimit;
+    const enablesPlay = fieldHasRoom && remaining.some((card) => card.type === "ai" && playCost(card, game) > before && playCost(card, game) <= after);
+    const enablesTwoStep = fieldHasRoom && before === 2 && remaining.some((card) => card.type === "ai" && playCost(card, game) === 2) && remaining.length >= 2;
+    const hasImmediateValue = chargeFuelHasImmediateValue(ai, opponent, fuel, remaining);
     const effectValue = chargeAiValue(game, fuel);
-    if (!enablesPlay && !enablesTwoStep && effectValue <= 0) return score - 130;
+    if (!enablesPlay && !enablesTwoStep && !hasImmediateValue) return score - 130;
     return score + CHALLENGER_WEIGHTS.charge + (enablesPlay ? 55 : 0) + (enablesTwoStep ? 28 : 0) + effectValue - aiCardValue(fuel) * 0.42;
   }
   if (action.type === "attack") {
@@ -1637,6 +1641,8 @@ function boardAiScore(ai: PlayerState, opponent: PlayerState): number {
 
 function attackAiValue(game: GameState, attacker: Card): number {
   const defender = opponentPlayer(game);
+  if (hasCrushingFieldDefender(defender, attacker)) return CHALLENGER_SELF_DEFEAT_ATTACK_SCORE;
+
   const defense = chooseAiDefense(defender, attacker, "challenger");
   let value = CHALLENGER_WEIGHTS.attackPower * attackCombatValue(attacker);
   if (defense.type === "none") {
@@ -1659,6 +1665,17 @@ function attackAiValue(game: GameState, attacker: Card): number {
   if (drawsOnBlockedAttack(attacker)) value += 32;
   if (keepsReadyAfterAttack(attacker)) value += 36;
   return value;
+}
+
+function hasCrushingFieldDefender(defender: PlayerState, attacker: Card): boolean {
+  const attackValue = attackCombatValue(attacker);
+  return legalFieldDefenders(defender, attacker).some(({ card, index }) => {
+    const baseValue = defenseCombatValue(attacker, card, defender, { fieldIndex: index });
+    const paidValue = canUseFirewall(defender, card, attacker)
+      ? defenseCombatValue(attacker, card, defender, { firewallPaid: true, fieldIndex: index })
+      : baseValue;
+    return Math.max(baseValue, paidValue) > attackValue;
+  });
 }
 
 function aiCardValue(card: Card): number {
@@ -1760,14 +1777,15 @@ export function bestChargeFuel(game: GameState, player: PlayerState): number | n
   const opponent = playerIndex >= 0 ? game.players[1 - playerIndex] : null;
   const before = game.actionsRemaining;
   const after = Math.min(3, before + 1);
+  const fieldHasRoom = player.field.length < CONFIG.fieldLimit;
   const candidates = player.hand
     .map((card, index) => ({ card, index }))
     .filter(({ card }) => canChargeCard(card))
     .sort((a, b) => cardPriority(a.card) - cardPriority(b.card) || a.card.id.localeCompare(b.card.id));
   for (const fuel of candidates) {
     const remaining = player.hand.filter((_, index) => index !== fuel.index);
-    const enablesLargePlay = remaining.some((card) => card.type === "ai" && playCost(card, game) > before && playCost(card, game) <= after);
-    const enablesTwoStepTurn = before === 2 && remaining.some((card) => card.type === "ai" && playCost(card, game) === 2) && remaining.length >= 2;
+    const enablesLargePlay = fieldHasRoom && remaining.some((card) => card.type === "ai" && playCost(card, game) > before && playCost(card, game) <= after);
+    const enablesTwoStepTurn = fieldHasRoom && before === 2 && remaining.some((card) => card.type === "ai" && playCost(card, game) === 2) && remaining.length >= 2;
     if (enablesLargePlay || enablesTwoStepTurn || chargeFuelHasImmediateValue(player, opponent, fuel.card, remaining)) return fuel.index;
   }
   return null;

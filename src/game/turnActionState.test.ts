@@ -4,6 +4,7 @@ import {
   CONFIG,
   actionsForTurn,
   type Card,
+  chooseAiAction,
   cloneCard,
   createGame,
   finishTurn,
@@ -45,5 +46,82 @@ describe("turn action state", () => {
 
     expect(game.active).toBe(0);
     expect(game.actionsRemaining).toBe(CONFIG.actionsPerTurn);
+  });
+
+  it("keeps challenger from attacking into a stronger field defender", () => {
+    const game = createGame(
+      13,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-FIRE-2"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-FIRE-1"] },
+    );
+    game.active = 1;
+    game.turn = 2;
+    game.actionsRemaining = 2;
+    game.chargedActionsRemaining = 0;
+    game.players[0].deck = [];
+    game.players[0].hand = [];
+    game.players[0].field = [card("AI-FIRE-2")];
+    game.players[0].spentFieldIndexes.clear();
+    game.players[1].deck = [];
+    game.players[1].hand = [];
+    game.players[1].field = [card("AI-FIRE-1")];
+    game.players[1].spentFieldIndexes.clear();
+
+    expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
+  });
+
+  it("keeps challenger from charging without a follow-up or immediate value", () => {
+    const game = createGame(
+      17,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-FIRE-1"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-FIRE-1C"] },
+    );
+    game.active = 1;
+    game.turn = 2;
+    game.actionsRemaining = 0;
+    game.chargedActionsRemaining = 0;
+    game.players[0].hand = [];
+    game.players[1].deck = [];
+    game.players[1].hand = [card("AI-FIRE-1C")];
+    game.players[1].field = [];
+
+    expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
+  });
+
+  it("keeps challenger from charging for a summon when the field is full", () => {
+    const game = createGame(
+      18,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-FIRE-1"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-FIRE-1", "AI-WIND-2"] },
+    );
+    game.active = 1;
+    game.turn = 2;
+    game.actionsRemaining = 2;
+    game.chargedActionsRemaining = 0;
+    game.players[1].deck = [];
+    game.players[1].hand = [card("AI-FIRE-1"), card("AI-WIND-2")];
+    game.players[1].field = [card("AI-FIRE-2"), card("AI-WATER-2"), card("AI-EARTH-2")];
+    game.players[1].spentFieldIndexes = new Set([0, 1, 2]);
+
+    expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
+  });
+
+  it("keeps challenger from using accelerator without an enabled summon", () => {
+    const game = createGame(
+      19,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-FIRE-1"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-FIRE-1"] },
+    );
+    game.active = 1;
+    game.turn = 2;
+    game.actionsRemaining = 1;
+    game.chargedActionsRemaining = 0;
+    game.players[1].memory = card("MEM-ACCELERATOR");
+    game.players[1].deck = [];
+    game.players[1].hand = [];
+    game.players[1].field = [card("AI-FIRE-1")];
+    game.players[1].spentFieldIndexes.add(0);
+
+    expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
   });
 });

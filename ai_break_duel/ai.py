@@ -43,6 +43,7 @@ CHALLENGER_WEIGHTS = {
     "low_life_pressure": 28,
     "classic_prior": 60,
 }
+CHALLENGER_SELF_DEFEAT_ATTACK_SCORE = -10000
 
 
 def choose_action(state: GameState, profile: AiProfile | None = None) -> Action:
@@ -432,6 +433,8 @@ def _score_action(state: GameState, action: Action, weights: dict[str, int]) -> 
             card.type == CardType.AI and _play_cost(card, state) <= min(3, state.actions_remaining + 1)
             for card in player.hand
         )
+        if not enables:
+            return score - 130
         return score + 58 + (42 if enables else 0) - _card_value(sacrificed) * 0.55
 
     if action.type == ActionType.USE_COMMAND and action.source_index is not None:
@@ -443,16 +446,23 @@ def _score_action(state: GameState, action: Action, weights: dict[str, int]) -> 
         before = state.actions_remaining
         after = min(3, before + 1)
         remaining = [card for index, card in enumerate(player.hand) if index != action.source_index]
+        field_has_room = len(player.field_ai) < state.config.field_ai_limit
         enables_play = any(
             card.type == CardType.AI and before < _play_cost(card, state) <= after
             for card in remaining
+        ) and field_has_room
+        enables_two_step = (
+            field_has_room
+            and before == 2
+            and any(
+                card.type == CardType.AI and _play_cost(card, state) == 2
+                for card in remaining
+            )
+            and len(remaining) >= 2
         )
-        enables_two_step = before == 2 and any(
-            card.type == CardType.AI and _play_cost(card, state) == 2
-            for card in remaining
-        )
+        has_immediate_value = _charge_fuel_has_immediate_value(state, player, fuel, remaining)
         effect_value = _charge_effect_value(state, fuel)
-        if not enables_play and not enables_two_step and effect_value <= 0:
+        if not enables_play and not enables_two_step and not has_immediate_value:
             return score - 130
         return (
             score
@@ -486,6 +496,9 @@ def _board_score(player: PlayerState, opponent: PlayerState, weights: dict[str, 
 
 def _attack_value(state: GameState, attacker, weights: dict[str, int]) -> float:
     opponent = state.opponent()
+    if _has_crushing_field_defender(state, attacker, opponent):
+        return CHALLENGER_SELF_DEFEAT_ATTACK_SCORE
+
     field_defense = choose_defender(
         attacker,
         opponent,
@@ -550,6 +563,32 @@ def _attack_value(state: GameState, attacker, weights: dict[str, int]) -> float:
     if keeps_ready_after_attack(attacker):
         value += 36
     return value
+
+
+def _has_crushing_field_defender(state: GameState, attacker, defender: PlayerState) -> bool:
+    attack_value = attack_combat_value(attacker)
+    for index, card in enumerate(defender.field_ai):
+        if not state.config.exhausted_ai_can_defend and index in defender.spent_field_ai:
+            continue
+        if state.config.power_3_cannot_field_defend and card.power == 3:
+            continue
+        defense_value = defense_combat_value(
+            attacker,
+            card,
+            advantage_bonus=state.config.defense_advantage_bonus,
+            disadvantage_penalty=state.config.defense_disadvantage_penalty,
+            defense_power_bonus=_defense_power_bonus(
+                card,
+                state.config.power_2_defense_bonus,
+                defender,
+                attacker,
+                field_index=index,
+                power_3_defense_modifier=state.config.power_3_defense_modifier,
+            ),
+        )
+        if defense_value > attack_value:
+            return True
+    return False
 
 
 def _available_hand_defender(state: GameState, attacker, defender: PlayerState) -> int | None:
@@ -880,6 +919,7 @@ def _best_charge_fuel(state: GameState) -> int | None:
     player = state.active()
     before = state.actions_remaining
     after = min(3, before + 1)
+    field_has_room = len(player.field_ai) < state.config.field_ai_limit
     candidates = sorted(
         (
             (index, card)
@@ -893,8 +933,10 @@ def _best_charge_fuel(state: GameState) -> int | None:
         enables_large_play = any(
             card.type == CardType.AI and before < _play_cost(card, state) <= after
             for card in remaining
-        )
+        ) and field_has_room
         enables_two_step_turn = (
+            field_has_room
+            and
             before == 2
             and any(
                 card.type == CardType.AI and _play_cost(card, state) == 2
