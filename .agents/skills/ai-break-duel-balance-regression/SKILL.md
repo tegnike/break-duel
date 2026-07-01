@@ -36,7 +36,16 @@ python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance
 
 Use lower `--games-per-order` values such as `100` only for quick smoke checks. Use `1000` or more for user-facing balance reports. Candidates use the deck-builder template: 14 summon slots from the target band, plus 4 generic commands and 2 generic relics. Candidate generation also applies the current high-power construction rules: power 3 or higher summons are singleton by card ID and power 3+ summons are capped at 4 total, with remaining summon slots filled by legal low-power summons when a target band cannot supply 14 legal summons.
 
-5. Treat `candidate_win_rate > 0.5` against the six existing decks combined as a balance risk. Report both combined and per-existing-deck rates.
+5. Report `candidate_win_rate` against all six existing decks combined, but do
+   not use that number alone as the final risk call when the loss is mostly
+   concentrated in the mono-attribute decks. The mono-attribute decks
+   (`fire`, `water`, `wind`, `earth`) are allowed to be weaker because they
+   are theme / onboarding samples. The competitive baseline is the multicolor
+   pair `break` and `control`; treat a stress candidate as a stronger balance
+   risk when it also beats the `break`/`control` subset combined above 50%, or
+   when match-shape metrics such as one-sided rate are unacceptable.
+   Always report six-deck combined, `break`/`control` combined, and
+   per-existing-deck rates.
 6. When `--include-preset-league` is used, report existing-deck standings, first-player win rate, average turns, one-sided game rate, and resource-exhaustion rate before candidate stress-deck results.
 7. If the user asks to preserve the guard in tests, keep `tests/test_cost_balance.py` aligned with the script's candidate definitions and threshold.
 8. After implementation changes, run:
@@ -63,6 +72,25 @@ decks with legal filler, not pure high-power decks.
 
 The baseline opponents are the existing six deck archetypes: `break`, `control`, `fire`, `water`, `wind`, `earth`.
 
+## Evaluation Criteria
+
+- `break` and `control` are the current competitive multicolor baselines.
+  Multicolor decks are expected to have better strategic depth and higher deck
+  efficiency than mono-attribute samples.
+- `fire`, `water`, `wind`, and `earth` are mono-attribute theme / onboarding
+  decks. It is acceptable if they underperform optimized or biased stress
+  decks, as long as their play patterns remain clear and they are not the only
+  evidence for a balance conclusion.
+- Keep reporting the six-existing-deck combined win rate because it shows the
+  full preset environment, but distinguish it from the competitive
+  `break`/`control` subset. If a candidate is high only because it farms mono
+  decks, say that explicitly instead of calling the whole rule set broken.
+- One-sided game rate remains a primary quality signal. A candidate can still be
+  a problem even with acceptable `break`/`control` rates if it creates too many
+  one-sided games.
+- When updating preset decks for this rule family, preserve mono-attribute
+  identity unless the user explicitly asks to make mono decks competitive.
+
 ## Reporting
 
 Include:
@@ -72,7 +100,8 @@ Include:
 - CPU profiles; default is `challenger/challenger`
 - existing-deck league standings when included
 - first-player win rate, one-sided game rate, resource-exhaustion rate, and average turns
-- combined win rate for each stress candidate
+- six-deck combined win rate for each stress candidate
+- `break`/`control` combined win rate for each stress candidate
 - per-opponent win rates when a candidate is near or above 50%
 - whether any candidate violates the design goal
 - the exact validation command run
@@ -87,4 +116,7 @@ Useful experimental rule sets include `p3_cap_6`, `p3_cap_4`, `p3_cap_2`,
 `proposed_action_cost_comeback_memory`, and combined rule sets such as
 `p3_cap_1_high_cap_4`.
 
-Do not call a candidate "strong" just because it beats one or two archetypes. Use the combined rate against all six existing decks for the main conclusion.
+Do not call a candidate "strong" just because it beats one or two archetypes.
+For the main conclusion, separate the full six-deck environment from the
+competitive multicolor baseline. A candidate that only farms mono decks is a
+mono-deck weakness finding, not automatically a rule-set rejection.

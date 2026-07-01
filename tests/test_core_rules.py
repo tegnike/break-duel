@@ -87,6 +87,24 @@ class CoreRuleTests(unittest.TestCase):
                 )
                 self.assertLessEqual(high_power_count, 4)
 
+    def test_preset_decks_keep_power_1_summons_trimmed(self) -> None:
+        expectations = {
+            DeckArchetype.BREAK: 2,
+            DeckArchetype.CONTROL: 2,
+            DeckArchetype.FIRE: 5,
+            DeckArchetype.WATER: 5,
+            DeckArchetype.WIND: 3,
+            DeckArchetype.EARTH: 3,
+        }
+        for archetype, expected_count in expectations.items():
+            with self.subTest(archetype=archetype.value):
+                power_1_count = sum(
+                    1
+                    for card in build_deck(archetype)
+                    if card.type == CardType.AI and card.power == 1
+                )
+                self.assertLessEqual(power_1_count, expected_count)
+
     def test_power_3_recovery_delay_is_standard_rule(self) -> None:
         self.assertTrue(GameConfig().power_3_attack_recovery_delay)
 
