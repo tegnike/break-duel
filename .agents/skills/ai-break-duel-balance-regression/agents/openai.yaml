@@ -1,4 +1,4 @@
 interface:
   display_name: "AI Break Duel Balance Regression"
-  short_description: "偏りデッキ勝率を既存6デッキ相手に検証する"
-  default_prompt: "Use $ai-break-duel-balance-regression to run biased-cost deck balance checks against the existing six AI Break Duel decks."
+  short_description: "既存デッキリーグと偏りストレスデッキを検証する"
+  default_prompt: "Use $ai-break-duel-balance-regression to run preset-deck league and biased-cost stress-deck balance checks for AI Break Duel."

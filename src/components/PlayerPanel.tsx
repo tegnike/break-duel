@@ -75,20 +75,26 @@ export function PlayerPanel({
         <>
           <div className="zone-label hand-label">手札</div>
           <div className="hand-row">
-            {player.hand.map((card, index) => (
-              <CardView
-                key={`${card.id}-${index}`}
-                card={card}
-                ownerIndex={ownerIndex}
-                zone="hand"
-                index={index}
-                selected={game.selected?.zone === "hand" && game.selected.index === index}
-                selectable
-                actionState={handCardActionState(game, player, game.players[1], card)}
-                showCost
-                onClick={() => onSelectHand?.(index)}
-              />
-            ))}
+            {player.hand.map((card, index) => {
+              const actionState = handCardActionState(game, player, game.players[1], card);
+              const sourceIndex = actionState === "upgradeable" ? bestUpgradeSource(player, card) : null;
+              return (
+                <CardView
+                  key={`${card.id}-${index}`}
+                  card={card}
+                  ownerIndex={ownerIndex}
+                  zone="hand"
+                  index={index}
+                  selected={game.selected?.zone === "hand" && game.selected.index === index}
+                  selectable
+                  actionState={actionState}
+                  upgradeSource={sourceIndex === null ? null : player.field[sourceIndex]}
+                  game={game}
+                  showCost
+                  onClick={() => onSelectHand?.(index)}
+                />
+              );
+            })}
           </div>
         </>
       )}
@@ -135,8 +141,10 @@ function handCardActionState(game: GameState, player: PlayerState, opponent: Pla
   if (card.type === "event") return commandUsable(game, card, player, opponent) ? "usable" : "blocked";
   if (card.type === "memory") return "usable";
   if (card.type === "ai") {
-    const canPlay = player.field.length < CONFIG.fieldLimit && playCost(card) <= game.actionsRemaining;
-    const canUpgradeCard = bestUpgradeSource(player, card) !== null && upgradeCost(card) <= game.actionsRemaining;
+    const sourceIndex = bestUpgradeSource(player, card);
+    const source = sourceIndex === null ? null : player.field[sourceIndex];
+    const canPlay = player.field.length < CONFIG.fieldLimit && playCost(card, game) <= game.actionsRemaining;
+    const canUpgradeCard = source !== null && upgradeCost(card, source) <= game.actionsRemaining;
     if (canPlay || canUpgradeCard) return canUpgradeCard ? "upgradeable" : "usable";
   }
   return "blocked";

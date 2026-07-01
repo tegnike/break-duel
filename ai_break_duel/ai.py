@@ -270,8 +270,10 @@ def _best_memory_in_hand(player: PlayerState) -> int | None:
         return None
     priority = {
         MemoryEffect.CACHE.value: 4,
+        MemoryEffect.RECOVERY_CACHE.value: 4,
         MemoryEffect.PIPELINE.value: 3,
         MemoryEffect.ACCELERATOR.value: 3,
+        MemoryEffect.RESONATOR.value: 3,
         MemoryEffect.FIREWALL.value: 2,
     }
     return max(candidates, key=lambda item: (priority.get(item[1].effect, 0), item[1].id))[0]
@@ -280,10 +282,13 @@ def _best_memory_in_hand(player: PlayerState) -> int | None:
 def _best_upgrade(player: PlayerState, state: GameState) -> tuple[int, int] | None:
     candidates = []
     for hand_index, target in enumerate(player.hand):
-        if target.type != CardType.AI or _upgrade_cost(target, state) > state.actions_remaining:
+        if target.type != CardType.AI:
             continue
         for field_index, source in enumerate(player.field_ai):
-            if _can_upgrade_with_config(state, source, target):
+            if (
+                _can_upgrade_with_config(state, source, target)
+                and _upgrade_cost(source, target, state) <= state.actions_remaining
+            ):
                 candidates.append((hand_index, field_index, target, source))
     if not candidates:
         return None
@@ -291,8 +296,9 @@ def _best_upgrade(player: PlayerState, state: GameState) -> tuple[int, int] | No
         candidates,
         key=lambda item: (
             item[2].power or 0,
-            -1 * (item[3].power or 0),
+            item[3].power or 0,
             item[2].id,
+            item[3].id,
         ),
     )
     return hand_index, field_index
@@ -366,10 +372,13 @@ def _legal_actions(state: GameState) -> list[Action]:
             )
 
         for hand_index, target in enumerate(player.hand):
-            if target.type != CardType.AI or _upgrade_cost(target, state) > state.actions_remaining:
+            if target.type != CardType.AI:
                 continue
             for field_index, source in enumerate(player.field_ai):
-                if _can_upgrade_with_config(state, source, target):
+                if (
+                    _can_upgrade_with_config(state, source, target)
+                    and _upgrade_cost(source, target, state) <= state.actions_remaining
+                ):
                     actions.append(Action(ActionType.UPGRADE_AI, hand_index, field_index))
 
         actions.extend(
@@ -617,6 +626,7 @@ def _memory_value(card) -> int:
     priority = {
         MemoryEffect.CACHE.value: 48,
         MemoryEffect.RESONATOR.value: 45,
+        MemoryEffect.RECOVERY_CACHE.value: 42,
         MemoryEffect.PIPELINE.value: 38,
         MemoryEffect.ACCELERATOR.value: 36,
         MemoryEffect.FIREWALL.value: 30,
@@ -935,31 +945,23 @@ def _accelerator_sacrifice_target(player: PlayerState) -> int | None:
 
 
 def _play_cost(card, state: GameState) -> int:
-    if (
-        card.type == CardType.AI
-        and card.power == 3
-        and state.config.power_3_play_cost is not None
-    ):
-        return state.config.power_3_play_cost
-    if (
-        card.type == CardType.AI
-        and card.power == 4
-        and state.config.power_4_play_cost is not None
-    ):
-        return state.config.power_4_play_cost
-    if card.type == CardType.AI and (card.power or 0) >= 3:
-        return state.config.large_ai_play_cost
+    if card.type == CardType.AI:
+        cost = int(card.power or 1)
+        player = state.active()
+        if (
+            player.memory is not None
+            and player.memory.effect == MemoryEffect.RECOVERY_CACHE.value
+            and player.life < state.opponent().life
+            and not player.played_ai_this_turn
+        ):
+            return max(1, cost - 1)
+        return cost
     return 1
 
 
-def _upgrade_cost(card, state: GameState) -> int:
-    if (
-        card.type == CardType.AI
-        and (card.power or 0) >= 3
-        and state.config.large_ai_upgrade_cost is not None
-    ):
-        return state.config.large_ai_upgrade_cost
-    return max(1, _play_cost(card, state) - 1)
+def _upgrade_cost(source, target, state: GameState) -> int:
+    _ = state
+    return max(1, int(target.power or 1) - int(source.power or 0))
 
 
 def _defense_power_bonus(

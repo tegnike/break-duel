@@ -44,7 +44,7 @@ export type CommandEffect =
   | "water_rite"
   | "wind_rite"
   | "earth_rite";
-export type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator" | "resonator";
+export type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator" | "resonator" | "recovery_cache";
 export type CardEffect = AiEffect | CommandEffect | MemoryEffect | "";
 export type Zone = "hand" | "field" | "memory" | "discard";
 
@@ -74,6 +74,7 @@ export type PlayerState = {
   cardsDrawn: number;
   turnsStarted: number;
   handDefensesUsed: number;
+  playedAiThisTurn: boolean;
   pipelineUsed: boolean;
   acceleratorUsed: boolean;
   chargeUsed: boolean;
@@ -335,6 +336,7 @@ export function cardPool(): Card[] {
     { id: "MEM-PIPELINE", name: "星泉の導脈", type: "memory", effect: "pipeline" },
     { id: "MEM-ACCELERATOR", name: "刻火の加速炉", type: "memory", effect: "accelerator" },
     { id: "MEM-RESONATOR", name: "蓄光の祭壇", type: "memory", effect: "resonator" },
+    { id: "MEM-RECOVERY-CACHE", name: "再起の灯箱", type: "memory", effect: "recovery_cache" },
   ];
   return cards.map((card) => ({ ...card, status: card.status ?? "active" }));
 }
@@ -372,8 +374,8 @@ export const DECKS = {
       "CMD-OPTIMIZE",
       "CMD-FIRE-RITE",
       "CMD-FIRE-RITE",
-      "MEM-CACHE",
       "MEM-ACCELERATOR",
+      "MEM-RECOVERY-CACHE",
     ],
   },
   control: {
@@ -398,8 +400,8 @@ export const DECKS = {
       "CMD-RELEARN",
       "CMD-SANDBOX",
       "CMD-EARTH-RITE",
-      "MEM-FIREWALL",
       "MEM-PIPELINE",
+      "MEM-RECOVERY-CACHE",
     ],
   },
   fire: {
@@ -425,7 +427,7 @@ export const DECKS = {
       "CMD-FIRE-RITE",
       "CMD-FIRE-RITE",
       "MEM-CACHE",
-      "MEM-ACCELERATOR",
+      "MEM-RECOVERY-CACHE",
     ],
   },
   water: {
@@ -450,8 +452,8 @@ export const DECKS = {
       "CMD-SANDBOX",
       "CMD-WATER-RITE",
       "CMD-TRINITY",
-      "MEM-FIREWALL",
-      "MEM-CACHE",
+      "MEM-RESONATOR",
+      "MEM-RECOVERY-CACHE",
     ],
   },
   wind: {
@@ -477,7 +479,7 @@ export const DECKS = {
       "CMD-WIND-RITE",
       "CMD-WIND-RITE",
       "MEM-FIREWALL",
-      "MEM-CACHE",
+      "MEM-RECOVERY-CACHE",
     ],
   },
   earth: {
@@ -503,7 +505,7 @@ export const DECKS = {
       "CMD-EARTH-RITE",
       "CMD-TRINITY",
       "MEM-CACHE",
-      "MEM-PIPELINE",
+      "MEM-RECOVERY-CACHE",
     ],
   },
   apex: {
@@ -529,7 +531,7 @@ export const DECKS = {
       "CMD-WIND-RITE",
       "CMD-DISRUPT",
       "MEM-FIREWALL",
-      "MEM-RESONATOR",
+      "MEM-RECOVERY-CACHE",
     ],
   },
 } as const;
@@ -590,6 +592,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     cardsDrawn: 0,
     turnsStarted: 0,
     handDefensesUsed: 0,
+    playedAiThisTurn: false,
     pipelineUsed: false,
     acceleratorUsed: false,
     chargeUsed: false,
@@ -617,6 +620,7 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     cardsDrawn: 0,
     turnsStarted: 0,
     handDefensesUsed: 0,
+    playedAiThisTurn: false,
     pipelineUsed: false,
     acceleratorUsed: false,
     chargeUsed: false,
@@ -752,6 +756,7 @@ export function startTurn(game: GameState): void {
   game.chargedActionsRemaining = 0;
   game.players.forEach((player) => {
     player.handDefensesUsed = 0;
+    player.playedAiThisTurn = false;
   });
   const player = activePlayer(game);
   readyFieldForTurn(player);
@@ -850,19 +855,28 @@ export function useAction(game: GameState, cost = 1, kind: "normal" | "attack" =
   }
 }
 
-export function playCost(card: Card | null | undefined): number {
+export function playCost(card: Card | null | undefined, game?: GameState): number {
   if (!card) return 99;
   if (card.type === "event" || card.type === "memory") return 1;
-  if (card.power === 3 && CONFIG.power3PlayCost !== null) return CONFIG.power3PlayCost;
-  if (card.power === 4 && CONFIG.power4PlayCost !== null) return CONFIG.power4PlayCost;
-  return (card.power ?? 0) >= 3 ? CONFIG.largeAiPlayCost : 1;
+  const baseCost = card.power ?? 1;
+  if (!game) return baseCost;
+  const player = activePlayer(game);
+  const opponent = opponentPlayer(game);
+  if (
+    player.memory?.effect === "recovery_cache"
+    && player.life < opponent.life
+    && !player.playedAiThisTurn
+  ) {
+    return Math.max(1, baseCost - 1);
+  }
+  return baseCost;
 }
 
-export function upgradeCost(card: Card): number {
-  if (card.type === "ai" && (card.power ?? 0) >= 3 && CONFIG.largeAiUpgradeCost !== null) {
-    return CONFIG.largeAiUpgradeCost;
+export function upgradeCost(target: Card, source?: Card | null): number {
+  if (source?.type === "ai" && target.type === "ai") {
+    return Math.max(1, (target.power ?? 1) - (source.power ?? 0));
   }
-  return Math.max(1, playCost(card) - 1);
+  return Math.max(1, (target.power ?? 1) - 1);
 }
 
 export function canUpgrade(source: Card | undefined, target: Card | undefined): boolean {
@@ -883,7 +897,7 @@ export function bestUpgradeSource(player: PlayerState, targetCard: Card): number
     .map((source, index) => ({ source, index }))
     .filter(({ source }) => canUpgrade(source, targetCard));
   if (options.length === 0) return null;
-  options.sort((a, b) => (a.source.power ?? 0) - (b.source.power ?? 0) || a.source.id.localeCompare(b.source.id));
+  options.sort((a, b) => (b.source.power ?? 0) - (a.source.power ?? 0) || a.source.id.localeCompare(b.source.id));
   return options[0].index;
 }
 
@@ -1337,7 +1351,7 @@ export function chooseAiDefense(defender: PlayerState, attackCard: Card, profile
 export function bestHandAi(game: GameState, player: PlayerState): number | null {
   const aiCards = player.hand
     .map((card, index) => ({ card, index }))
-    .filter(({ card }) => card.type === "ai" && playCost(card) <= game.actionsRemaining);
+    .filter(({ card }) => card.type === "ai" && playCost(card, game) <= game.actionsRemaining);
   if (aiCards.length === 0) return null;
   aiCards.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
   return aiCards[0].index;
@@ -1346,15 +1360,17 @@ export function bestHandAi(game: GameState, player: PlayerState): number | null 
 export function bestUpgrade(game: GameState, player: PlayerState): { handIndex: number; fieldIndex: number; target: Card; source: Card } | null {
   const options: { handIndex: number; fieldIndex: number; target: Card; source: Card }[] = [];
   player.hand.forEach((target, handIndex) => {
-    if (target.type !== "ai" || upgradeCost(target) > game.actionsRemaining) return;
+    if (target.type !== "ai") return;
     player.field.forEach((source, fieldIndex) => {
-      if (canUpgrade(source, target)) options.push({ handIndex, fieldIndex, target, source });
+      if (canUpgrade(source, target) && upgradeCost(target, source) <= game.actionsRemaining) {
+        options.push({ handIndex, fieldIndex, target, source });
+      }
     });
   });
   if (options.length === 0) return null;
   options.sort((a, b) => (
     (b.target.power ?? 0) - (a.target.power ?? 0)
-    || (a.source.power ?? 0) - (b.source.power ?? 0)
+    || (b.source.power ?? 0) - (a.source.power ?? 0)
     || b.target.id.localeCompare(a.target.id)
   ));
   return options[0];
@@ -1362,7 +1378,7 @@ export function bestUpgrade(game: GameState, player: PlayerState): { handIndex: 
 
 export function bestMemory(player: PlayerState): number | null {
   if (player.memory) return null;
-  const priority: Record<string, number> = { cache: 4, resonator: 4, pipeline: 3, accelerator: 3, firewall: 2 };
+  const priority: Record<string, number> = { cache: 4, recovery_cache: 4, resonator: 4, pipeline: 3, accelerator: 3, firewall: 2 };
   const options = player.hand
     .map((card, index) => ({ card, index }))
     .filter(({ card }) => card.type === "memory");
@@ -1447,7 +1463,7 @@ function chooseClassicAiAction(game: GameState): AiAction {
   if (upgrade !== null) return { type: "upgrade", handIndex: upgrade.handIndex, fieldIndex: upgrade.fieldIndex };
   if (
     canUseAcceleratorMemory(game, ai)
-    && ai.hand.some((card) => card.type === "ai" && playCost(card) === game.actionsRemaining + 1)
+    && ai.hand.some((card) => card.type === "ai" && playCost(card, game) === game.actionsRemaining + 1)
   ) {
     const target = acceleratorSacrificeTarget(ai);
     if (target !== null) return { type: "memory-effect", fieldIndex: target };
@@ -1466,7 +1482,7 @@ function chooseBeginnerAiAction(game: GameState): AiAction {
   if (ai.field.length === 0) {
     const options = ai.hand
       .map((card, index) => ({ card, index }))
-      .filter(({ card }) => card.type === "ai" && playCost(card) <= game.actionsRemaining)
+      .filter(({ card }) => card.type === "ai" && playCost(card, game) <= game.actionsRemaining)
       .sort((a, b) => (a.card.power ?? 0) - (b.card.power ?? 0) || a.card.id.localeCompare(b.card.id));
     if (options[0]) return { type: "play", index: options[0].index };
   }
@@ -1503,7 +1519,7 @@ function legalAiActions(game: GameState): AiAction[] {
   if (game.actionsRemaining > 0) {
     if (ai.field.length < CONFIG.fieldLimit) {
       ai.hand.forEach((card, index) => {
-        if (card.type === "ai" && playCost(card) <= game.actionsRemaining) actions.push({ type: "play", index });
+        if (card.type === "ai" && playCost(card, game) <= game.actionsRemaining) actions.push({ type: "play", index });
       });
     }
     ai.hand.forEach((card, index) => {
@@ -1514,9 +1530,11 @@ function legalAiActions(game: GameState): AiAction[] {
       ai.field.forEach((_, fieldIndex) => actions.push({ type: "memory-effect", fieldIndex }));
     }
     ai.hand.forEach((target, handIndex) => {
-      if (target.type !== "ai" || upgradeCost(target) > game.actionsRemaining) return;
+      if (target.type !== "ai") return;
       ai.field.forEach((source, fieldIndex) => {
-        if (canUpgrade(source, target)) actions.push({ type: "upgrade", handIndex, fieldIndex });
+        if (canUpgrade(source, target) && upgradeCost(target, source) <= game.actionsRemaining) {
+          actions.push({ type: "upgrade", handIndex, fieldIndex });
+        }
       });
     });
     if (canActivePlayerAttack(game)) {
@@ -1575,7 +1593,7 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
   if (action.type === "memory-effect") {
     const sacrificed = ai.field[action.fieldIndex];
     if (!sacrificed) return -9999;
-    const enables = ai.hand.some((card) => card.type === "ai" && playCost(card) <= Math.min(3, game.actionsRemaining + 1));
+    const enables = ai.hand.some((card) => card.type === "ai" && playCost(card, game) <= Math.min(3, game.actionsRemaining + 1));
     return score + 58 + (enables ? 42 : 0) - aiCardValue(sacrificed) * 0.55;
   }
   if (action.type === "command") {
@@ -1589,8 +1607,8 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
     const before = game.actionsRemaining;
     const after = Math.min(3, before + 1);
     const remaining = ai.hand.filter((_, index) => index !== action.index);
-    const enablesPlay = remaining.some((card) => card.type === "ai" && playCost(card) > before && playCost(card) <= after);
-    const enablesTwoStep = before === 2 && remaining.some((card) => card.type === "ai" && playCost(card) === 2);
+    const enablesPlay = remaining.some((card) => card.type === "ai" && playCost(card, game) > before && playCost(card, game) <= after);
+    const enablesTwoStep = before === 2 && remaining.some((card) => card.type === "ai" && playCost(card, game) === 2);
     const effectValue = chargeAiValue(game, fuel);
     if (!enablesPlay && !enablesTwoStep && effectValue <= 0) return score - 130;
     return score + CHALLENGER_WEIGHTS.charge + (enablesPlay ? 55 : 0) + (enablesTwoStep ? 28 : 0) + effectValue - aiCardValue(fuel) * 0.42;
@@ -1645,7 +1663,7 @@ function attackAiValue(game: GameState, attacker: Card): number {
 
 function aiCardValue(card: Card): number {
   if (card.type === "memory") {
-    const priority: Record<string, number> = { cache: 48, resonator: 45, pipeline: 38, accelerator: 36, firewall: 30 };
+    const priority: Record<string, number> = { cache: 48, resonator: 45, recovery_cache: 42, pipeline: 38, accelerator: 36, firewall: 30 };
     return priority[card.effect ?? ""] ?? 12;
   }
   if (card.type !== "ai") return 12;
@@ -1748,8 +1766,8 @@ export function bestChargeFuel(game: GameState, player: PlayerState): number | n
     .sort((a, b) => cardPriority(a.card) - cardPriority(b.card) || a.card.id.localeCompare(b.card.id));
   for (const fuel of candidates) {
     const remaining = player.hand.filter((_, index) => index !== fuel.index);
-    const enablesLargePlay = remaining.some((card) => card.type === "ai" && playCost(card) > before && playCost(card) <= after);
-    const enablesTwoStepTurn = before === 2 && remaining.some((card) => card.type === "ai" && playCost(card) === 2) && remaining.length >= 2;
+    const enablesLargePlay = remaining.some((card) => card.type === "ai" && playCost(card, game) > before && playCost(card, game) <= after);
+    const enablesTwoStepTurn = before === 2 && remaining.some((card) => card.type === "ai" && playCost(card, game) === 2) && remaining.length >= 2;
     if (enablesLargePlay || enablesTwoStepTurn || chargeFuelHasImmediateValue(player, opponent, fuel.card, remaining)) return fuel.index;
   }
   return null;

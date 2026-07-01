@@ -377,8 +377,9 @@ export function actionHintText(game: GameState, card: Card | null, zone: string 
     if (card.type === "memory") return human.memory ? "配置すると現在の遺物はトラッシュされます。" : "遺物枠に配置できます。";
     if (canUseCharge(game, human) && canChargeCard(card)) return "チャージで手札からトラッシュし、このターンのアクションを1増やせます。このターンは攻撃できません。";
     const sourceIndex = bestUpgradeSource(human, card);
-    if (sourceIndex !== null && upgradeCost(card) <= game.actionsRemaining) return `${human.field[sourceIndex].name}を元に${upgradeCost(card)}アクションでアップグレードできます。`;
-    if (human.field.length < 3 && playCost(card) <= game.actionsRemaining) return "場に出せます。";
+    const source = sourceIndex === null ? null : human.field[sourceIndex];
+    if (source && upgradeCost(card, source) <= game.actionsRemaining) return `${source.name}を元に${upgradeCost(card, source)}アクションでアップグレードできます。`;
+    if (human.field.length < 3 && playCost(card, game) <= game.actionsRemaining) return "場に出せます。";
     if (human.field.length >= 3) return "場が埋まっています。アップグレード元があれば入れ替えられます。";
     return "残りアクションが足りません。";
   }

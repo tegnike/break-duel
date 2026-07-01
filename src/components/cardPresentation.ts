@@ -4,6 +4,7 @@ import {
   MEMORY_COLOR,
   aiEffectText,
   type Card,
+  type GameState,
   playCost,
   upgradeCost,
 } from "../game";
@@ -57,6 +58,7 @@ import memAcceleratorArt from "../assets/card-art/mem-accelerator.webp";
 import memCacheArt from "../assets/card-art/mem-cache.webp";
 import memFirewallArt from "../assets/card-art/mem-firewall.webp";
 import memPipelineArt from "../assets/card-art/mem-pipeline.webp";
+import memRecoveryCacheArt from "../assets/card-art/mem-recovery-cache.webp";
 import memResonatorArt from "../assets/card-art/mem-resonator.webp";
 import cardIcon from "../assets/kenney/card.png";
 import cardTargetIcon from "../assets/kenney/card_target.png";
@@ -126,6 +128,7 @@ const SUPPORT_CARD_ART: Record<string, string> = {
   "MEM-FIREWALL": memFirewallArt,
   "MEM-CACHE": memCacheArt,
   "MEM-PIPELINE": memPipelineArt,
+  "MEM-RECOVERY-CACHE": memRecoveryCacheArt,
   "MEM-RESONATOR": memResonatorArt,
 };
 
@@ -167,6 +170,7 @@ export function cardArtGlyph(card: Card): string {
     if (card.effect === "cache") return "鞄";
     if (card.effect === "pipeline") return "水";
     if (card.effect === "accelerator") return "速";
+    if (card.effect === "recovery_cache") return "再";
     return "遺";
   }
   return ATTRIBUTES[card.attribute!].code.slice(0, 1);
@@ -194,6 +198,7 @@ export function cardArtAsset(card: Card): string {
     if (card.effect === "cache") return cardIcon;
     if (card.effect === "pipeline") return cardsTakeIcon;
     if (card.effect === "accelerator") return hexagonSwitchIcon;
+    if (card.effect === "recovery_cache") return cardsTakeIcon;
     return hexagonIcon;
   }
   const generatedArt = AI_CARD_ART[card.id];
@@ -243,9 +248,10 @@ export function roleText(card: Card): string {
   if (card.effect === "pipeline") return "1ターンに1回、power 1登場時、山札からカードを1枚引く";
   if (card.effect === "accelerator") return "1ターンに1回使える。場の召喚獣1体をトラッシュしてもよい。その場合、アクション+1する";
   if (card.effect === "resonator") return "自分がチャージした後、手札2枚以下なら山札からカードを1枚引く";
+  if (card.effect === "recovery_cache") return "ライフ劣勢時、自分のターン最初の召喚獣登場コストを1少なくする。1未満にはならない";
   const trait = card.effect ? ` / ${aiEffectText(card)}` : "";
   if (card.power === 1) return `1アクション${trait}`;
-  if (card.power === 2) return `1アクション${trait}`;
+  if (card.power === 2) return `2アクション${trait}`;
   if (card.power === 3) return `${playCost(card)}アクション / アップグレード${upgradeCost(card)}アクション。${aiBaseRuleText(card)}${trait}`;
   if (card.power === 4) return `${playCost(card)}アクション / アップグレード${upgradeCost(card)}アクション。${aiBaseRuleText(card)}${trait}`;
   return "召喚獣";
@@ -257,6 +263,11 @@ export function selectedText(card: Card): string {
   return `${card.name} / ${card.attribute} / power ${card.power} / ${roleText(card)}`;
 }
 
-export function displayCost(card: Card, actionState: string): number {
-  return actionState === "upgradeable" ? Math.max(1, playCost(card) - 1) : playCost(card);
+export function displayCost(
+  card: Card,
+  actionState: string,
+  upgradeSource?: Card | null,
+  game?: GameState,
+): number {
+  return actionState === "upgradeable" ? upgradeCost(card, upgradeSource) : playCost(card, game);
 }

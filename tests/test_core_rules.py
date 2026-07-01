@@ -266,8 +266,8 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(len(player_1_deck), 20)
         self.assertEqual(len(player_2_deck), 20)
         self.assertNotEqual(player_1_deck, player_2_deck)
-        self.assertIn("MEM-CACHE", player_1_deck)
-        self.assertIn("MEM-FIREWALL", player_2_deck)
+        self.assertIn("MEM-RECOVERY-CACHE", player_1_deck)
+        self.assertIn("MEM-RECOVERY-CACHE", player_2_deck)
 
     def test_fixed_decks_cover_card_pool_and_required_card_types(self) -> None:
         used_card_ids = set()
@@ -450,7 +450,7 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-1", "AI-WIND-1"])
 
     def test_recover_ai_on_upgrade_does_not_return_source_immediately(self) -> None:
-        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=3))
         state.players[0].field_ai = [card("AI-EARTH-1")]
         state.players[0].hand = [card("AI-EARTH-4")]
         start_turn(state)
@@ -459,7 +459,7 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[0].discard], ["AI-EARTH-1"])
 
     def test_spend_enemy_on_play_ai_spends_ready_opponent(self) -> None:
-        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=3))
         state.players[0].hand = [card("AI-WIND-3")]
         state.players[1].field_ai = [card("AI-FIRE-1"), card("AI-FIRE-4")]
         start_turn(state)
@@ -467,7 +467,7 @@ class CoreRuleTests(unittest.TestCase):
         self.assertIn(1, state.players[1].spent_field_ai)
 
     def test_recover_ai_on_play_returns_ai_from_discard(self) -> None:
-        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=4))
         state.players[0].hand = [card("AI-EARTH-4")]
         state.players[0].discard = [command("CMD-PATCH"), card("AI-EARTH-2")]
         start_turn(state)
@@ -544,7 +544,7 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[1].hand], ["AI-EARTH-4B"])
 
     def test_self_damage_on_play_cost_loses_one_life(self) -> None:
-        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=4))
         state.players[0].hand = [card("AI-FIRE-4B")]
         start_turn(state)
         apply_action(state, Action(ActionType.PLAY_AI, 0))
@@ -552,7 +552,7 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.log[-1]["effect_self_damage"], 1)
 
     def test_opponent_draw_on_play_cost_draws_for_opponent(self) -> None:
-        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=4))
         state.players[0].hand = [card("AI-WATER-4B")]
         state.players[1].deck = [card("AI-FIRE-1")]
         start_turn(state)
@@ -561,7 +561,7 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.log[-1]["effect_opponent_draw_count"], 1)
 
     def test_wind_3b_draws_and_readies_spent_summon(self) -> None:
-        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=3))
         state.players[0].field_ai = [card("AI-WIND-1")]
         state.players[0].spent_field_ai = {0}
         state.players[0].hand = [card("AI-WIND-3B")]
@@ -603,7 +603,7 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-WATER-3"])
 
     def test_enters_spent_drawback_spends_card_on_play(self) -> None:
-        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=4))
         state.players[0].hand = [card("AI-WIND-4B")]
         start_turn(state)
         apply_action(state, Action(ActionType.PLAY_AI, 0))
@@ -656,65 +656,61 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[1].hand], ["AI-EARTH-2"])
         self.assertEqual(state.stats.undefended_attacks, 1)
 
-    def test_large_ai_requires_two_actions_to_play_directly(self) -> None:
+    def test_summon_cost_matches_power(self) -> None:
         state = new_game(1, no_opening_hands())
+        state.players[0].hand = [
+            card("AI-FIRE-1"),
+            card("AI-FIRE-2"),
+            card("AI-FIRE-3"),
+        ]
+        start_turn(state)
+        state.actions_remaining = 6
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual(state.actions_remaining, 0)
+        self.assertEqual([item.id for item in state.players[0].field_ai], [
+            "AI-FIRE-1",
+            "AI-FIRE-2",
+            "AI-FIRE-3",
+        ])
+
+    def test_power_3_requires_three_actions_to_play_directly(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].hand = [card("AI-FIRE-3")]
         start_turn(state)
-        state.actions_remaining = 1
         with self.assertRaises(ValueError):
             apply_action(state, Action(ActionType.PLAY_AI, 0))
 
-    def test_large_ai_direct_play_cost_can_be_configured_to_three(self) -> None:
-        state = new_game(
-            1,
-            no_opening_hands(
-                first_player_first_turn_actions=3,
-                large_ai_play_cost=3,
-            ),
-        )
+    def test_power_4_requires_four_actions_to_play_directly(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=3))
+        state.players[0].hand = [card("AI-FIRE-4")]
+        start_turn(state)
+        with self.assertRaises(ValueError):
+            apply_action(state, Action(ActionType.PLAY_AI, 0))
+
+    def test_recovery_cache_discounts_first_summon_when_behind(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].memory = memory("MEM-RECOVERY-CACHE")
+        state.players[0].life = 3
+        state.players[1].life = 5
         state.players[0].hand = [card("AI-FIRE-3")]
         start_turn(state)
         apply_action(state, Action(ActionType.PLAY_AI, 0))
         self.assertEqual(state.actions_remaining, 0)
+        self.assertEqual([item.id for item in state.players[0].field_ai], ["AI-FIRE-3"])
 
-    def test_power_3_play_cost_can_be_configured(self) -> None:
-        state = new_game(
-            1,
-            no_opening_hands(
-                first_player_first_turn_actions=2,
-                power_3_play_cost=2,
-            ),
-        )
-        state.players[0].hand = [card("AI-FIRE-3")]
+    def test_recovery_cache_only_discounts_first_summon_each_turn(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=3))
+        state.players[0].memory = memory("MEM-RECOVERY-CACHE")
+        state.players[0].life = 3
+        state.players[1].life = 5
+        state.players[0].hand = [card("AI-FIRE-2"), card("AI-WATER-2")]
         start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual(state.actions_remaining, 2)
         apply_action(state, Action(ActionType.PLAY_AI, 0))
         self.assertEqual(state.actions_remaining, 0)
-
-    def test_power_3_play_cost_override_does_not_change_power_4_cost(self) -> None:
-        state = new_game(
-            1,
-            no_opening_hands(
-                first_player_first_turn_actions=3,
-                power_3_play_cost=3,
-            ),
-        )
-        state.players[0].hand = [card("AI-FIRE-4")]
-        start_turn(state)
-        apply_action(state, Action(ActionType.PLAY_AI, 0))
-        self.assertEqual(state.actions_remaining, 1)
-
-    def test_power_4_play_cost_can_be_configured(self) -> None:
-        state = new_game(
-            1,
-            no_opening_hands(
-                first_player_first_turn_actions=2,
-                power_4_play_cost=1,
-            ),
-        )
-        state.players[0].hand = [card("AI-FIRE-4")]
-        start_turn(state)
-        apply_action(state, Action(ActionType.PLAY_AI, 0))
-        self.assertEqual(state.actions_remaining, 1)
 
     def test_fire_3_gets_attack_plus_1(self) -> None:
         self.assertEqual(attack_combat_value(card("AI-FIRE-3")), 4)
@@ -730,7 +726,7 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[1].field_ai, [card("AI-WATER-3")])
 
     def test_power_4_enters_ready(self) -> None:
-        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=4))
         state.players[0].hand = [card("AI-FIRE-4")]
         start_turn(state)
         apply_action(state, Action(ActionType.PLAY_AI, 0))
@@ -741,7 +737,7 @@ class CoreRuleTests(unittest.TestCase):
         state = new_game(
             1,
             no_opening_hands(
-                first_player_first_turn_actions=2,
+                first_player_first_turn_actions=3,
                 power_3_enters_spent=True,
             ),
         )
@@ -754,7 +750,7 @@ class CoreRuleTests(unittest.TestCase):
         state = new_game(
             1,
             no_opening_hands(
-                first_player_first_turn_actions=2,
+                first_player_first_turn_actions=3,
                 power_3_discards_on_play=True,
             ),
         )
@@ -1249,15 +1245,25 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[0].field_ai[0].id, "AI-FIRE-3")
         self.assertEqual(state.players[0].discard[0].id, "AI-FIRE-1")
 
-    def test_upgrade_cost_is_one_less_than_normal_play_cost(self) -> None:
-        state = new_game(1, no_opening_hands(first_player_first_turn_actions=1))
+    def test_upgrade_cost_matches_power_difference(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].field_ai = [card("AI-FIRE-1")]
         state.players[0].hand = [card("AI-FIRE-3")]
         start_turn(state)
         apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
         self.assertEqual(state.players[0].field_ai[0].id, "AI-FIRE-3")
         self.assertEqual(state.actions_remaining, 0)
-        self.assertEqual(state.log[-1]["action_cost"], 1)
+        self.assertEqual(state.log[-1]["action_cost"], 2)
+
+    def test_upgrade_from_power_2_to_power_4_costs_two_actions(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].field_ai = [card("AI-FIRE-2")]
+        state.players[0].hand = [card("AI-FIRE-4")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
+        self.assertEqual(state.players[0].field_ai[0].id, "AI-FIRE-4")
+        self.assertEqual(state.actions_remaining, 0)
+        self.assertEqual(state.log[-1]["action_cost"], 2)
 
     def test_exact_upgrade_step_blocks_skipping_power(self) -> None:
         state = new_game(
@@ -1336,22 +1342,13 @@ class CoreRuleTests(unittest.TestCase):
         self.assertNotIn(0, state.players[0].spent_field_ai)
         self.assertEqual(state.players[0].power_3_recovery_delayed_field_ai, set())
 
-    def test_large_ai_upgrade_cost_can_be_configured_to_one(self) -> None:
-        state = new_game(
-            1,
-            no_opening_hands(
-                first_player_first_turn_actions=1,
-                large_ai_play_cost=3,
-                large_ai_upgrade_cost=1,
-            ),
-        )
+    def test_upgrade_from_power_1_to_power_4_requires_three_actions(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].field_ai = [card("AI-FIRE-1")]
         state.players[0].hand = [card("AI-FIRE-4")]
         start_turn(state)
-        apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
-        self.assertEqual(state.players[0].field_ai[0].id, "AI-FIRE-4")
-        self.assertEqual(state.actions_remaining, 0)
-        self.assertEqual(state.log[-1]["action_cost"], 1)
+        with self.assertRaises(ValueError):
+            apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
 
     def test_upgrade_keeps_remaining_hand_cards(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
