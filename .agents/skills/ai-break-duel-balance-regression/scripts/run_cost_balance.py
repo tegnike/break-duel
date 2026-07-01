@@ -1108,8 +1108,12 @@ def evaluate_candidate(
         "candidate_wins": wins["candidate_wins"],
         "existing_wins": wins["existing_wins"],
         "draws": wins["draws"],
-        "first_player_win_rate": first_player_wins / decisive_games,
-        "one_sided_game_rate": one_sided_games / decisive_games,
+        "first_player_win_rate": (
+            first_player_wins / decisive_games if decisive_games else None
+        ),
+        "one_sided_game_rate": (
+            one_sided_games / decisive_games if decisive_games else None
+        ),
         "resource_exhaustion_rate": terminal_events["resource_exhaustion"] / total_games,
         "average_turns": mean(turns),
         "median_turns": median(turns),
@@ -1307,6 +1311,10 @@ def seat_split_with_rates(rows: dict[str, dict[str, int]]) -> dict[str, dict[str
     return result
 
 
+def fmt_rate(value: float | None) -> str:
+    return f"{value:.4f}" if value is not None else "n/a"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run AI Break Duel biased-cost deck balance checks.",
@@ -1464,9 +1472,9 @@ def main() -> int:
             )
             print(
                 f"{league['rule_set']:<10} preset_league "
-                f"first={overall['first_player_win_rate']:.4f} "
-                f"one_sided={overall['one_sided_game_rate']:.4f} "
-                f"resource={overall['resource_exhaustion_rate']:.4f} "
+                f"first={fmt_rate(overall['first_player_win_rate'])} "
+                f"one_sided={fmt_rate(overall['one_sided_game_rate'])} "
+                f"resource={fmt_rate(overall['resource_exhaustion_rate'])} "
                 f"turns={overall['average_turns']:.2f}"
             )
             print(f"     standings {standings}")
@@ -1476,8 +1484,8 @@ def main() -> int:
             print(
                 f"{result['rule_set']:<10} {result['candidate']:>4} {label:<24} "
                 f"win_rate={result['candidate_win_rate']:.4f} "
-                f"first={result['first_player_win_rate']:.4f} "
-                f"one_sided={result['one_sided_game_rate']:.4f} "
+                f"first={fmt_rate(result['first_player_win_rate'])} "
+                f"one_sided={fmt_rate(result['one_sided_game_rate'])} "
                 f"wins={result['candidate_wins']}/{result['games']} {status}"
             )
             rates = ", ".join(

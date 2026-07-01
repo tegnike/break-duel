@@ -98,6 +98,29 @@ LOW_COST_CARD_IDS = (
     "AI-EARTH-1",
 )
 
+MID_COST_CARD_IDS = (
+    "AI-FIRE-3",
+    "AI-FIRE-3B",
+    "AI-WATER-3",
+    "AI-WATER-3B",
+    "AI-WIND-3",
+    "AI-WIND-3B",
+    "AI-EARTH-3",
+    "AI-EARTH-3B",
+    "AI-FIRE-2",
+    "AI-FIRE-2B",
+    "AI-WATER-2",
+    "AI-WATER-2B",
+    "AI-WIND-2",
+    "AI-WIND-2B",
+    "AI-WIND-2C",
+    "AI-EARTH-2",
+    "AI-EARTH-2B",
+    "AI-EARTH-2C",
+    "AI-FIRE-2",
+    "AI-WATER-2",
+)
+
 HIGH_COST_CARD_IDS = (
     "AI-FIRE-3",
     "AI-FIRE-3B",
@@ -138,6 +161,7 @@ ADOPTED_COST_BUCKET_WIN_RATE_LIMITS = {
     "power 3 cap stress": 0.80,
     "power 4 cap stress": 0.75,
     "power 1-2 stress": 0.45,
+    "power 2-3 stress": 0.80,
     "power 3-4 cap stress": 0.75,
 }
 
@@ -278,7 +302,8 @@ class TestCostBalanceRegression(unittest.TestCase):
     def test_low_and_high_cost_band_decks_stay_within_adopted_guardrails(self) -> None:
         for label, card_ids, seed in (
             ("power 1-2 stress", LOW_COST_CARD_IDS, 1_400_000),
-            ("power 3-4 cap stress", HIGH_COST_CARD_IDS, 1_450_000),
+            ("power 2-3 stress", MID_COST_CARD_IDS, 1_450_000),
+            ("power 3-4 cap stress", HIGH_COST_CARD_IDS, 1_500_000),
         ):
             with self.subTest(label=label):
                 self.assert_within_adopted_guardrail(label, legal_stress_deck(card_ids), seed)

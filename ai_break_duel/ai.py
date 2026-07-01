@@ -298,6 +298,7 @@ def _best_upgrade(player: PlayerState, state: GameState) -> tuple[int, int] | No
             item[2].power or 0,
             item[3].power or 0,
             item[2].id,
+            item[3].id,
         ),
     )
     return hand_index, field_index

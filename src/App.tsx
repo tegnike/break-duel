@@ -2511,6 +2511,7 @@ export default function App() {
             );
             const handSelectable = !tutorialActive || tutorialCanSelectHand;
             const baseActionState = pendingCardTarget === "target" || pendingCardTarget === "selected" ? "usable" : handActionState(game, human, ai, card);
+            const sourceIndex = baseActionState === "upgradeable" ? bestUpgradeSource(human, card) : null;
             return (
               <CardView
                 key={`${card.id}-${index}`}
@@ -2521,6 +2522,7 @@ export default function App() {
                 selected={pendingCardTarget === "selected" || (game.selected?.zone === "hand" && game.selected.index === index)}
                 selectable={handSelectable}
                 actionState={tutorialActive && !handSelectable ? "idle" : baseActionState}
+                upgradeSource={sourceIndex === null ? null : human.field[sourceIndex]}
                 visualEffect={tutorialFocusMatchesCard(tutorialStep?.focus, 0, "hand", card, index) ? "tutorial-focus" : ""}
                 showCost
                 onClick={handSelectable ? () => selectHand(index) : undefined}

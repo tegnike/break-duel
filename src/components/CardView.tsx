@@ -22,6 +22,7 @@ export function CardView({
   actionState = "idle",
   visualEffect = "",
   showCost = true,
+  upgradeSource = null,
   extraBadges = [],
   onClick,
   onMouseEnter,
@@ -36,12 +37,13 @@ export function CardView({
   actionState?: string;
   visualEffect?: string;
   showCost?: boolean;
+  upgradeSource?: Card | null;
   extraBadges?: string[];
   onClick?: () => void;
   onMouseEnter?: () => void;
 }) {
   const Element = selectable ? "button" : "div";
-  const cost = displayCost(card, actionState);
+  const cost = displayCost(card, actionState, upgradeSource);
   return (
     <Element
       type={selectable ? "button" : undefined}

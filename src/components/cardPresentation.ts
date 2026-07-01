@@ -262,6 +262,6 @@ export function selectedText(card: Card): string {
   return `${card.name} / ${card.attribute} / power ${card.power} / ${roleText(card)}`;
 }
 
-export function displayCost(card: Card, actionState: string): number {
-  return actionState === "upgradeable" ? upgradeCost(card) : playCost(card);
+export function displayCost(card: Card, actionState: string, upgradeSource?: Card | null): number {
+  return actionState === "upgradeable" ? upgradeCost(card, upgradeSource) : playCost(card);
 }

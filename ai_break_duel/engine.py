@@ -272,6 +272,7 @@ def _play_ai(state: GameState, action: Action) -> None:
     card = player.hand.pop(action.source_index)
     if card.type != CardType.AI:
         raise ValueError("Only summon cards can be played with PLAY_AI.")
+    action_cost = _play_cost(state, card)
     player.field_ai.append(card)
     player.played_ai_this_turn = True
     field_index = len(player.field_ai) - 1
@@ -293,7 +294,7 @@ def _play_ai(state: GameState, action: Action) -> None:
         | {
             "card_id": card.id,
             "result": "played",
-            "action_cost": _play_cost(state, card),
+            "action_cost": action_cost,
             "draw_count": drawn,
             "power_3_discarded_card": (
                 power_3_discarded.id if power_3_discarded else None
