@@ -24,6 +24,8 @@ export function DuelActionReel({
 }) {
   if (!event) return null;
   const durationMs = event.durationMs ?? defaultDuelEventDuration(event.kind);
+  const resultText = event.resultLabel ?? routeText(event);
+  const showResult = resultText.trim() !== event.title.trim();
   return (
     <section
       className={`duel-action-reel ${autoDismiss ? "auto" : "manual"} ${event.kind} ${event.tone ?? ""} ${event.cards.length > 1 ? "pair" : "single"} ${children ? "with-panel" : ""}`}
@@ -52,12 +54,12 @@ export function DuelActionReel({
             {index > 0 && <div className="duel-action-vs">{event.kind === "battle" ? "VS" : "→"}</div>}
             <div className={`duel-action-card card-${index} ${state ?? "neutral"}`}>
               <div className="duel-action-card-role">{label}</div>
-              <CardView card={card} ownerIndex={0} zone="field" index={index} showCost={false} />
+              <CardView card={card} ownerIndex={9} zone="field" index={index} showCost={false} />
             </div>
           </React.Fragment>
         ))}
       </div>
-      <div className="duel-action-result"><span>{event.resultLabel ?? routeText(event)}</span></div>
+      {showResult && <div className="duel-action-result"><span>{resultText}</span></div>}
       <p>{event.detail}</p>
       {children && <div className="duel-action-embedded">{children}</div>}
     </section>

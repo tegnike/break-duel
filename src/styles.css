@@ -1611,8 +1611,10 @@ h2 {
 }
 
 .pending-card-choice .card {
+  align-self: start;
   width: 82px;
-  min-height: 116px;
+  height: 116px;
+  min-height: 0;
   flex-basis: 82px;
   padding: 6px;
   pointer-events: none;
@@ -2182,7 +2184,7 @@ h2 {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  min-height: 176px;
+  min-height: 216px;
   margin-top: 12px;
 }
 
@@ -2246,12 +2248,18 @@ h2 {
   animation: duel-card-enter var(--event-duration, 2600ms) ease-out forwards;
 }
 
+.duel-action-card::before {
+  content: none;
+}
+
 .duel-action-card .card {
   width: 136px;
   flex-basis: 136px;
   min-height: 178px;
   border-radius: 6px;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035), 0 12px 24px rgba(0, 0, 0, 0.24);
+  pointer-events: none;
+  transform: none;
 }
 
 .duel-action-card .card-art {
@@ -7707,6 +7715,12 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   .pending-card-choice {
     grid-template-columns: 76px minmax(0, 1fr);
   }
+
+  .pending-card-choice .card {
+    width: 76px;
+    height: 108px;
+    flex-basis: 76px;
+  }
 }
 
 /* Rich battlefield pass: darker fantasy frame, stronger card presence, no attribute-guide dock. */
@@ -9496,7 +9510,8 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 .field-grid::after,
 .clash-line::before,
 .empty-preview span,
-.match-result-panel strong {
+.match-result-panel strong,
+.duel-action-head strong {
   font-family: var(--duel-serif);
   font-weight: 900;
 }
@@ -9517,6 +9532,10 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 .card-name,
 .card-foot,
 .power,
+.duel-action-head,
+.duel-action-route,
+.duel-action-card-role,
+.duel-action-result,
 .leader-portrait figcaption span {
   font-family: var(--duel-ui);
 }

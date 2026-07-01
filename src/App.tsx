@@ -30,12 +30,14 @@ import {
   chooseAiDefense,
   defenseCombatValue,
   finishTurn,
+  highestPowerAiInDiscard,
   legalFieldDefenders,
   legalHandDefenders,
   makeRng,
   needsFirewallFuel,
   opponentPlayer,
   playCost,
+  recoversAiOnPlay,
   upgradeCost,
 } from "./game";
 import {
@@ -626,6 +628,13 @@ export default function App() {
     if (!rivalVoiceLineAllowedForCurrentOutcome(lineId)) return;
     if (!options.skipTurnEligibility && !rivalVoiceLineEligibleForCurrentTurn(lineId)) return;
     if (!options.force && recentlySpokeRivalLine(line.text)) return;
+    if (options.force && rivalVoiceLineBusy()) {
+      pendingRivalVoiceLine.current = null;
+      if (rivalSpeechTimer.current !== null) window.clearTimeout(rivalSpeechTimer.current);
+      rivalSpeechTimer.current = null;
+      setRivalSpeech(null);
+      stopRivalVoiceLine();
+    }
     if (rivalVoiceLineBusy()) {
       const pending = { lineId, text: line.text, force: Boolean(options.force), stateKey: currentRivalVoiceStateKey.current };
       if (!pendingRivalVoiceLine.current || pending.force) pendingRivalVoiceLine.current = pending;
@@ -725,7 +734,7 @@ export default function App() {
     const hasTrashSurge = trashSurgeForEvent(queuedEvent) !== null;
     if (queuedEvent.impact?.kind === "life-damage") {
       recentLifeDamageImpact.current = queuedEvent.impact;
-      scheduleLifeDamageImpact(queuedEvent.impact);
+      scheduleLifeDamageImpact(queuedEvent.impact, { suppressRivalDamageVoice: Boolean(queuedEvent.rivalVoiceLine) });
     }
     if ((queuedEvent.kind === "play" || queuedEvent.kind === "memory" || queuedEvent.kind === "upgrade" || queuedEvent.kind === "command") && !hasTrashSurge && !queuedEvent.impact) {
       if (queuedEvent.rivalVoiceLine) showRivalVoiceLine(queuedEvent.rivalVoiceLine, { skipTurnEligibility: true });
@@ -866,7 +875,10 @@ export default function App() {
     }, mood === "delight" ? 1400 : 1500);
   }
 
-  function scheduleLifeDamageImpact(impact: NonNullable<DuelEventPayload["impact"]>) {
+  function scheduleLifeDamageImpact(
+    impact: NonNullable<DuelEventPayload["impact"]>,
+    options: { suppressRivalDamageVoice?: boolean } = {},
+  ) {
     const timer = window.setTimeout(() => {
       lifeImpactScheduleTimers.current = lifeImpactScheduleTimers.current.filter((item) => item !== timer);
       const targetIndex = normalizePlayerIndex(impact.targetPlayerIndex);
@@ -874,7 +886,7 @@ export default function App() {
       const sourceIndex = normalizePlayerIndex(impact.sourcePlayerIndex);
       showLifeImpact(targetIndex, impact.amount, sourceIndex);
       showLeaderReaction(targetIndex, "hurt");
-      if (targetIndex === 1 && !impact.fatal) showRivalVoiceLine("damage_taken");
+      if (targetIndex === 1 && !impact.fatal && !options.suppressRivalDamageVoice) showRivalVoiceLine("damage_taken");
       if (targetIndex === 0 && sourceIndex === 1) {
         showLeaderReaction(1, "delight");
       }
@@ -999,6 +1011,39 @@ export default function App() {
     return player.isHuman ? "hand" : "hand-source";
   }
 
+  function launchRecoverFlight(card: Card | null | undefined, ownerIndex: number, discardIndex: number, label = "回収") {
+    const player = game.players[ownerIndex];
+    if (!card || !player) return;
+    const exactDiscardSource = document.querySelector(cardSelector(ownerIndex, "discard", discardIndex));
+    const sourceIndex = exactDiscardSource ? discardIndex : trashTargetIndex(player);
+    launchCardFlight({
+      card,
+      from: { ownerIndex, zone: "discard", index: sourceIndex },
+      to: { ownerIndex, zone: "hand-source", index: 0 },
+      label,
+      tone: flightTone(player),
+      durationMs: 900,
+    });
+  }
+
+  function commandRecoverPreview(player: PlayerState, command: Card, targetIndex: number | null): { card: Card; index: number } | null {
+    if (command.effect !== "relearn" && command.effect !== "earth_rite") return null;
+    const index = command.effect === "relearn"
+      ? targetIndex ?? highestPowerAiInDiscard(player)
+      : highestPowerAiInDiscard(player);
+    if (index === null) return null;
+    const card = player.discard[index];
+    return card ? { card, index } : null;
+  }
+
+  function recoverOnPlayPreview(player: PlayerState, card: Card, excludedCard?: Card): { card: Card; index: number } | null {
+    if (!recoversAiOnPlay(card) || player.hand.length - 1 > 1) return null;
+    const index = highestPowerAiInDiscard(player, excludedCard);
+    if (index === null) return null;
+    const recovered = player.discard[index];
+    return recovered ? { card: recovered, index } : null;
+  }
+
   function launchTrashFlight(
     card: Card | null | undefined,
     from: { ownerIndex: number; zone: string; index: number },
@@ -1062,6 +1107,8 @@ export default function App() {
         tone: "ai",
         durationMs: 1700,
       });
+      const recovered = recoverOnPlayPreview(ai, card);
+      if (recovered) launchRecoverFlight(recovered.card, 1, recovered.index);
       return 1400;
     }
     if (action.type === "memory") {
@@ -1097,6 +1144,8 @@ export default function App() {
         tone: "ai",
         durationMs: 1700,
       });
+      const recovered = recoverOnPlayPreview(ai, card, source);
+      if (recovered) launchRecoverFlight(recovered.card, 1, recovered.index);
       return 1400;
     }
     if (action.type === "memory-effect") {
@@ -1111,6 +1160,8 @@ export default function App() {
       playSfx("play");
       suppressNextTrashSfx(1);
       launchTrashFlight(card, { ownerIndex: 1, zone: "hand-source", index: 0 }, 1, "指令使用", 980);
+      const recovered = commandRecoverPreview(ai, card, null);
+      if (recovered) launchRecoverFlight(recovered.card, 1, recovered.index);
       return 760;
     }
     if (action.type === "charge") {
@@ -1976,6 +2027,9 @@ export default function App() {
     const player = activePlayer(game);
     const command = player.hand[sourceIndex];
     if (command?.type === "event") {
+      const recovered = commandUsable(game, command, player, opponentPlayer(game))
+        ? commandRecoverPreview(player, command, targetIndex)
+        : null;
       suppressNextTrashSfx(game.active);
       launchTrashFlight(
         command,
@@ -1983,6 +2037,7 @@ export default function App() {
         game.active,
         "指令使用",
       );
+      if (recovered) launchRecoverFlight(recovered.card, game.active, recovered.index);
       if (command.effect === "trinity") {
         player.field.forEach((card, index) => {
           launchTrashFlight(card, { ownerIndex: game.active, zone: "field", index }, game.active, "場を一掃", 780);
@@ -2136,6 +2191,9 @@ export default function App() {
     if (pending.reason === "relearn-recover") {
       useCommandAt(pending.sourceIndex!, selectedIndex, pending.discardIndexes ?? []);
       return;
+    }
+    if (pending.reason === "recover-on-play") {
+      launchRecoverFlight(pendingPlayer.discard[selectedIndex], pending.playerIndex, selectedIndex);
     }
     if (pending.reason === "charge-guard") {
       const charged = pendingPlayer.hand[pending.sourceIndex!];
@@ -2538,7 +2596,7 @@ export default function App() {
 
       <section className="stitch-hand-zone" aria-label="手札と山札">
         <DeckPileCard player={human} ownerIndex={0} />
-        <div className="stitch-hand" aria-label="手札">
+        <div className="stitch-hand" aria-label="手札" data-owner={0} data-zone="hand-source" data-index={0}>
           {human.hand.map((card, index) => {
             const pendingCardTarget = pendingTargetCardState(game, 0, "hand", index);
             const tutorialCanSelectHand = Boolean(
