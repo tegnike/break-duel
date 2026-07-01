@@ -135,8 +135,10 @@ function handCardActionState(game: GameState, player: PlayerState, opponent: Pla
   if (card.type === "event") return commandUsable(game, card, player, opponent) ? "usable" : "blocked";
   if (card.type === "memory") return "usable";
   if (card.type === "ai") {
-    const canPlay = player.field.length < CONFIG.fieldLimit && playCost(card) <= game.actionsRemaining;
-    const canUpgradeCard = bestUpgradeSource(player, card) !== null && upgradeCost(card) <= game.actionsRemaining;
+    const sourceIndex = bestUpgradeSource(player, card);
+    const source = sourceIndex === null ? null : player.field[sourceIndex];
+    const canPlay = player.field.length < CONFIG.fieldLimit && playCost(card, game) <= game.actionsRemaining;
+    const canUpgradeCard = source !== null && upgradeCost(card, source) <= game.actionsRemaining;
     if (canPlay || canUpgradeCard) return canUpgradeCard ? "upgradeable" : "usable";
   }
   return "blocked";

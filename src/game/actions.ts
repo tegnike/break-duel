@@ -737,12 +737,14 @@ export function performAiActionInDraft(
   }
   if (action.type === "play") {
     const card = player.hand[action.index];
-    if (!card || card.type !== "ai" || playCost(card) > draft.actionsRemaining || player.field.length >= CONFIG.fieldLimit) return;
+    const cost = playCost(card, draft);
+    if (!card || card.type !== "ai" || cost > draft.actionsRemaining || player.field.length >= CONFIG.fieldLimit) return;
     player.hand.splice(action.index, 1);
     player.field.push(card);
+    player.playedAiThisTurn = true;
     const fieldIndex = player.field.length - 1;
     let text = `${player.name}は${card.name}を場に出した。`;
-    text += applyPlayEffects(draft, player, card, fieldIndex, playCost(card));
+    text += applyPlayEffects(draft, player, card, fieldIndex, cost);
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "play",
@@ -754,11 +756,12 @@ export function performAiActionInDraft(
       rivalVoiceLine: player.isHuman ? undefined : "play_summon",
       cards: [{ card, label: "登場", state: "neutral" }],
     });
-    if (!draft.pendingTarget) afterAction(draft, playCost(card));
+    if (!draft.pendingTarget) afterAction(draft, cost);
   } else if (action.type === "upgrade") {
     const card = player.hand[action.handIndex];
     const source = player.field[action.fieldIndex];
-    if (!card || !source || !canUpgrade(source, card) || upgradeCost(card) > draft.actionsRemaining) return;
+    const cost = card && source ? upgradeCost(card, source) : 99;
+    if (!card || !source || !canUpgrade(source, card) || cost > draft.actionsRemaining) return;
     player.hand.splice(action.handIndex, 1);
     player.discard.push(source);
     player.field[action.fieldIndex] = card;
@@ -766,7 +769,7 @@ export function performAiActionInDraft(
     player.power3RecoveryDelayedFieldIndexes.delete(action.fieldIndex);
     player.chargeGuardedFieldIndexes.delete(action.fieldIndex);
     let text = `${player.name}は${source.name}を元に${card.name}へアップグレード。`;
-    text += applyPlayEffects(draft, player, card, action.fieldIndex, upgradeCost(card), source);
+    text += applyPlayEffects(draft, player, card, action.fieldIndex, cost, source);
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "upgrade",
@@ -781,7 +784,7 @@ export function performAiActionInDraft(
         { card, label: "新", state: "winner" },
       ],
     });
-    if (!draft.pendingTarget) afterAction(draft, upgradeCost(card));
+    if (!draft.pendingTarget) afterAction(draft, cost);
   } else if (action.type === "memory") {
     const memory = player.hand[action.index];
     if (!memory || memory.type !== "memory") return;

@@ -1715,7 +1715,7 @@ export default function App() {
     if (game.selected?.zone !== "hand") return;
     const player = activePlayer(game);
     const card = player.hand[game.selected.index];
-    if (!card || card.type !== "ai" || player.field.length >= CONFIG.fieldLimit || game.actionsRemaining < playCost(card)) return;
+    if (!card || card.type !== "ai" || player.field.length >= CONFIG.fieldLimit || game.actionsRemaining < playCost(card, game)) return;
     const handIndex = game.selected.index;
     const fieldIndex = player.field.length;
     launchCardFlight({
@@ -1728,10 +1728,11 @@ export default function App() {
       if (draft.selected?.zone !== "hand") return;
       const player = activePlayer(draft);
       const card = player.hand[draft.selected.index];
-      if (!card || card.type !== "ai" || player.field.length >= CONFIG.fieldLimit || draft.actionsRemaining < playCost(card)) return;
-      const cost = playCost(card);
+      const cost = playCost(card, draft);
+      if (!card || card.type !== "ai" || player.field.length >= CONFIG.fieldLimit || draft.actionsRemaining < cost) return;
       player.hand.splice(draft.selected.index, 1);
       player.field.push(card);
+      player.playedAiThisTurn = true;
       const fieldIndex = player.field.length - 1;
       let text = `${player.name}は${card.name}を場に出した。`;
       text += applyPlayEffects(draft, player, card, fieldIndex, cost);
@@ -1780,7 +1781,9 @@ export default function App() {
     if (tutorialBlocks("upgrade")) return;
     const player = activePlayer(game);
     const target = player.hand[game.selected.index];
-    if (!target || target.type !== "ai" || upgradeCost(target) > game.actionsRemaining) return;
+    const previewSourceIndex = target?.type === "ai" ? bestUpgradeSource(player, target) : null;
+    const previewSource = previewSourceIndex === null ? null : player.field[previewSourceIndex];
+    if (!target || target.type !== "ai" || !previewSource || upgradeCost(target, previewSource) > game.actionsRemaining) return;
     const sourceIndexes = tutorialUpgradeSourceIndexes(tutorialStep, player, target, upgradeSourceIndexes(player, target));
     if (sourceIndexes.length === 0) return;
     if (sourceIndexes.length > 1) {
@@ -1804,7 +1807,7 @@ export default function App() {
           excludeIndexes: player.field.map((_, index) => sourceIndexes.includes(index) ? -1 : index).filter((index) => index >= 0),
           selectedIndexes: [],
           sourceIndex: handIndex,
-          actionCost: upgradeCost(target),
+          actionCost: upgradeCost(target, player.field[sourceIndexes[0]]),
           cancelable: true,
         };
       });
@@ -1817,7 +1820,8 @@ export default function App() {
     const player = activePlayer(game);
     const target = player.hand[handIndex];
     const source = player.field[sourceIndex];
-    if (!target || target.type !== "ai" || !source || !canUpgrade(source, target) || upgradeCost(target) > game.actionsRemaining) return;
+    const cost = target && source ? upgradeCost(target, source) : 99;
+    if (!target || target.type !== "ai" || !source || !canUpgrade(source, target) || cost > game.actionsRemaining) return;
     suppressNextTrashSfx(0);
     launchTrashFlight(source, { ownerIndex: 0, zone: "field", index: sourceIndex }, 0, "元カード破棄");
     launchCardFlight({
@@ -1831,8 +1835,8 @@ export default function App() {
       const target = player.hand[handIndex];
       if (!target || target.type !== "ai") return;
       const source = player.field[sourceIndex];
-      if (!source || !canUpgrade(source, target) || draft.actionsRemaining < upgradeCost(target)) return;
-      const cost = upgradeCost(target);
+      const cost = source ? upgradeCost(target, source) : 99;
+      if (!source || !canUpgrade(source, target) || draft.actionsRemaining < cost) return;
       const card = player.hand.splice(handIndex, 1)[0];
       player.discard.push(source);
       player.field[sourceIndex] = card;
@@ -2282,14 +2286,16 @@ export default function App() {
           ? !commandUsable(game, selectedHandCard, active, opponent)
           : selectedHandCard.type === "memory"
             ? playCost(selectedHandCard) > game.actionsRemaining
-            : active.field.length >= CONFIG.fieldLimit || playCost(selectedHandCard) > game.actionsRemaining
+            : active.field.length >= CONFIG.fieldLimit || playCost(selectedHandCard, game) > game.actionsRemaining
       )
   );
+  const selectedUpgradeSourceIndex = selectedHandCard?.type === "ai" ? bestUpgradeSource(active, selectedHandCard) : null;
+  const selectedUpgradeSource = selectedUpgradeSourceIndex === null ? null : active.field[selectedUpgradeSourceIndex];
   const upgradeDisabled = !canHumanAct(game)
     || !selectedHand
     || selectedHandCard?.type !== "ai"
-    || bestUpgradeSource(active, selectedHandCard) === null
-    || upgradeCost(selectedHandCard) > game.actionsRemaining;
+    || !selectedUpgradeSource
+    || upgradeCost(selectedHandCard, selectedUpgradeSource) > game.actionsRemaining;
   const attackDisabled = !canHumanAct(game)
     || !selectedField
     || !canActivePlayerAttack(game)
@@ -3285,8 +3291,10 @@ function handActionState(game: GameState, player: PlayerState, opponent: PlayerS
   if (card.type === "event") return commandUsable(game, card, player, opponent) ? "usable" : "blocked";
   if (card.type === "memory") return "usable";
   if (card.type === "ai") {
-    const canPlay = player.field.length < CONFIG.fieldLimit && playCost(card) <= game.actionsRemaining;
-    const canUpgradeCard = bestUpgradeSource(player, card) !== null && upgradeCost(card) <= game.actionsRemaining;
+    const sourceIndex = bestUpgradeSource(player, card);
+    const source = sourceIndex === null ? null : player.field[sourceIndex];
+    const canPlay = player.field.length < CONFIG.fieldLimit && playCost(card, game) <= game.actionsRemaining;
+    const canUpgradeCard = source !== null && upgradeCost(card, source) <= game.actionsRemaining;
     if (canPlay || canUpgradeCard) return canUpgradeCard ? "upgradeable" : "usable";
   }
   return "blocked";

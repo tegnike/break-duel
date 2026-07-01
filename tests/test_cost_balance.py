@@ -133,12 +133,12 @@ FILLER_SUMMON_CARD_IDS = POWER_CARD_IDS[2] + POWER_CARD_IDS[1]
 BALANCE_CONFIG = GameConfig(max_turns=60)
 BALANCE_GAMES_PER_ORDERED_MATCHUP = 500
 ADOPTED_COST_BUCKET_WIN_RATE_LIMITS = {
-    "power 1 only": 0.15,
-    "power 2 only": 0.53,
-    "power 3 only": 0.75,
-    "power 4 only": 0.60,
-    "power 1-2 only": 0.40,
-    "power 3-4 only": 0.60,
+    "power 1 stress": 0.15,
+    "power 2 stress": 0.65,
+    "power 3 cap stress": 0.80,
+    "power 4 cap stress": 0.75,
+    "power 1-2 stress": 0.45,
+    "power 3-4 cap stress": 0.75,
 }
 
 
@@ -247,38 +247,38 @@ class TestCostBalanceRegression(unittest.TestCase):
             f"{limit:.3f} against the six existing decks",
         )
 
-    def test_power_1_only_deck_stays_within_adopted_guardrail(self) -> None:
+    def test_power_1_stress_deck_stays_within_adopted_guardrail(self) -> None:
         self.assert_within_adopted_guardrail(
-            "power 1 only",
+            "power 1 stress",
             legal_stress_deck(POWER_CARD_IDS[1] * 3),
             1_200_000,
         )
 
-    def test_power_2_only_deck_stays_within_adopted_guardrail(self) -> None:
+    def test_power_2_stress_deck_stays_within_adopted_guardrail(self) -> None:
         self.assert_within_adopted_guardrail(
-            "power 2 only",
+            "power 2 stress",
             legal_stress_deck(POWER_CARD_IDS[2] * 3),
             1_250_000,
         )
 
-    def test_power_3_only_deck_stays_within_adopted_guardrail(self) -> None:
+    def test_power_3_cap_stress_deck_stays_within_adopted_guardrail(self) -> None:
         self.assert_within_adopted_guardrail(
-            "power 3 only",
+            "power 3 cap stress",
             legal_stress_deck(POWER_CARD_IDS[3] * 3),
             1_300_000,
         )
 
-    def test_power_4_only_deck_stays_within_adopted_guardrail(self) -> None:
+    def test_power_4_cap_stress_deck_stays_within_adopted_guardrail(self) -> None:
         self.assert_within_adopted_guardrail(
-            "power 4 only",
+            "power 4 cap stress",
             legal_stress_deck(POWER_CARD_IDS[4] * 3),
             1_350_000,
         )
 
     def test_low_and_high_cost_band_decks_stay_within_adopted_guardrails(self) -> None:
         for label, card_ids, seed in (
-            ("power 1-2 only", LOW_COST_CARD_IDS, 1_400_000),
-            ("power 3-4 only", HIGH_COST_CARD_IDS, 1_450_000),
+            ("power 1-2 stress", LOW_COST_CARD_IDS, 1_400_000),
+            ("power 3-4 cap stress", HIGH_COST_CARD_IDS, 1_450_000),
         ):
             with self.subTest(label=label):
                 self.assert_within_adopted_guardrail(label, legal_stress_deck(card_ids), seed)

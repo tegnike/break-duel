@@ -44,6 +44,7 @@ class PlayerState:
     actions_used: int = 0
     turns_started: int = 0
     hand_defenses_used_this_turn: int = 0
+    played_ai_this_turn: bool = False
     spent_field_ai: set[int] = field(default_factory=set)
     power_3_recovery_delayed_field_ai: set[int] = field(default_factory=set)
     charge_guarded_field_ai: set[int] = field(default_factory=set)

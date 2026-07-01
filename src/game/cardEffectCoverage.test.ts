@@ -27,6 +27,7 @@ import {
   makeRng,
   opponentDrawsOnPlay,
   piercesHandDefense,
+  playCost,
   pressuresOnBlock,
   readiesAllyOnPlay,
   recoversAiOnPlay,
@@ -89,6 +90,7 @@ function blankGame(): GameState {
     player.pipelineUsed = false;
     player.acceleratorUsed = false;
     player.chargeUsed = false;
+    player.playedAiThisTurn = false;
     player.chargeGuardedFieldIndexes.clear();
     player.sandboxShield = 0;
     player.spentFieldIndexes.clear();
@@ -531,6 +533,19 @@ const CARD_EFFECT_CASES = {
       game.players[0].deck = [card("AI-FIRE-1"), card("AI-FIRE-2")];
       chargeHandCardInDraft(game, 0, 0);
       expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-2", "AI-FIRE-1"]);
+    },
+  },
+  recovery_cache: {
+    cardId: "MEM-RECOVERY-CACHE",
+    description: "ライフ劣勢時、そのターン最初の召喚獣登場コストを1下げる。最低1",
+    run: () => {
+      const game = blankGame();
+      game.players[0].memory = card("MEM-RECOVERY-CACHE");
+      game.players[0].life = 3;
+      game.players[1].life = 5;
+      expect(playCost(card("AI-FIRE-3"), game)).toBe(2);
+      game.players[0].playedAiThisTurn = true;
+      expect(playCost(card("AI-FIRE-3"), game)).toBe(3);
     },
   },
 } satisfies Partial<Record<ActiveEffect, EffectCase>>;

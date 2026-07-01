@@ -155,7 +155,7 @@ src/
 type Attribute = "火" | "水" | "風" | "土";
 type CardType = "ai" | "event" | "memory";
 type CommandEffect = "optimize" | "patch" | "disrupt" | "relearn" | "sandbox" | "trinity";
-type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator";
+type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator" | "resonator" | "recovery_cache";
 
 type AiCard = {
   id: string;

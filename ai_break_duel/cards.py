@@ -35,6 +35,7 @@ class MemoryEffect(str, Enum):
     PIPELINE = "pipeline"
     ACCELERATOR = "accelerator"
     RESONATOR = "resonator"
+    RECOVERY_CACHE = "recovery_cache"
 
 
 class AiEffect(str, Enum):
@@ -537,6 +538,12 @@ def build_memory_card_pool() -> list[Card]:
             type=CardType.MEMORY,
             effect=MemoryEffect.RESONATOR.value,
         ),
+        Card(
+            id="MEM-RECOVERY-CACHE",
+            name="再起の灯箱",
+            type=CardType.MEMORY,
+            effect=MemoryEffect.RECOVERY_CACHE.value,
+        ),
     ]
 
 
@@ -583,8 +590,8 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-OPTIMIZE",
                 "CMD-FIRE-RITE",
                 "CMD-FIRE-RITE",
-                "MEM-CACHE",
                 "MEM-ACCELERATOR",
+                "MEM-RECOVERY-CACHE",
             ]
         )
     if archetype == DeckArchetype.CONTROL:
@@ -608,8 +615,8 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-RELEARN",
                 "CMD-SANDBOX",
                 "CMD-EARTH-RITE",
-                "MEM-FIREWALL",
                 "MEM-PIPELINE",
+                "MEM-RECOVERY-CACHE",
             ]
         )
     if archetype == DeckArchetype.FIRE:
@@ -634,7 +641,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-FIRE-RITE",
                 "CMD-FIRE-RITE",
                 "MEM-CACHE",
-                "MEM-ACCELERATOR",
+                "MEM-RECOVERY-CACHE",
             ]
         )
     if archetype == DeckArchetype.WATER:
@@ -658,8 +665,8 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-SANDBOX",
                 "CMD-WATER-RITE",
                 "CMD-TRINITY",
-                "MEM-FIREWALL",
-                "MEM-CACHE",
+                "MEM-RESONATOR",
+                "MEM-RECOVERY-CACHE",
             ]
         )
     if archetype == DeckArchetype.WIND:
@@ -684,7 +691,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-WIND-RITE",
                 "CMD-WIND-RITE",
                 "MEM-FIREWALL",
-                "MEM-CACHE",
+                "MEM-RECOVERY-CACHE",
             ]
         )
     if archetype == DeckArchetype.EARTH:
@@ -709,7 +716,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-EARTH-RITE",
                 "CMD-TRINITY",
                 "MEM-CACHE",
-                "MEM-PIPELINE",
+                "MEM-RECOVERY-CACHE",
             ]
         )
     if archetype == DeckArchetype.APEX:
@@ -734,7 +741,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-WIND-RITE",
                 "CMD-DISRUPT",
                 "MEM-FIREWALL",
-                "MEM-RESONATOR",
+                "MEM-RECOVERY-CACHE",
             ]
         )
     raise ValueError(f"Unsupported deck archetype: {archetype}")

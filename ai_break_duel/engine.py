@@ -78,6 +78,7 @@ def start_turn(state: GameState) -> None:
     state.phase = "main"
     for player in state.players:
         player.hand_defenses_used_this_turn = 0
+        player.played_ai_this_turn = False
     _ready_active_field_ai_for_turn(state)
     state.active().pending_effects["pipeline_used"] = False
     state.active().pending_effects["accelerator_used"] = False
@@ -272,6 +273,7 @@ def _play_ai(state: GameState, action: Action) -> None:
     if card.type != CardType.AI:
         raise ValueError("Only summon cards can be played with PLAY_AI.")
     player.field_ai.append(card)
+    player.played_ai_this_turn = True
     field_index = len(player.field_ai) - 1
     drawn = 0
     if state.config.power_3_enters_spent and card.power == 3:
@@ -406,7 +408,7 @@ def _upgrade_ai(state: GameState, action: Action) -> None:
             "card_id": card.id,
             "upgrade_source": source.id,
             "result": "upgraded",
-            "action_cost": _upgrade_cost(state, card),
+            "action_cost": _upgrade_cost(state, source, card),
             "draw_count": drawn,
             "power_3_discarded_card": (
                 power_3_discarded.id if power_3_discarded else None
@@ -1068,9 +1070,14 @@ def _action_cost(state: GameState, action: Action) -> int:
             raise ValueError(f"{action.type.value} requires a hand index.")
         return _play_cost(state, state.active().hand[action.source_index])
     if action.type == ActionType.UPGRADE_AI:
-        if action.source_index is None:
-            raise ValueError(f"{action.type.value} requires a hand index.")
-        return _upgrade_cost(state, state.active().hand[action.source_index])
+        if action.source_index is None or action.target_index is None:
+            raise ValueError(f"{action.type.value} requires hand and field indexes.")
+        player = state.active()
+        return _upgrade_cost(
+            state,
+            player.field_ai[action.target_index],
+            player.hand[action.source_index],
+        )
     if action.type == ActionType.USE_MEMORY:
         return 0
     if action.type == ActionType.CHARGE:
@@ -1092,31 +1099,23 @@ def _spend_actions(state: GameState, cost: int, *, attack: bool = False) -> None
 
 
 def _play_cost(state: GameState, card) -> int:
-    if (
-        card.type == CardType.AI
-        and card.power == 3
-        and state.config.power_3_play_cost is not None
-    ):
-        return state.config.power_3_play_cost
-    if (
-        card.type == CardType.AI
-        and card.power == 4
-        and state.config.power_4_play_cost is not None
-    ):
-        return state.config.power_4_play_cost
-    if card.type == CardType.AI and (card.power or 0) >= 3:
-        return state.config.large_ai_play_cost
+    if card.type == CardType.AI:
+        cost = int(card.power or 1)
+        player = state.active()
+        if (
+            player.memory is not None
+            and player.memory.effect == MemoryEffect.RECOVERY_CACHE.value
+            and player.life < state.opponent().life
+            and not player.played_ai_this_turn
+        ):
+            return max(1, cost - 1)
+        return cost
     return 1
 
 
-def _upgrade_cost(state: GameState, card) -> int:
-    if (
-        card.type == CardType.AI
-        and (card.power or 0) >= 3
-        and state.config.large_ai_upgrade_cost is not None
-    ):
-        return state.config.large_ai_upgrade_cost
-    return max(1, _play_cost(state, card) - 1)
+def _upgrade_cost(state: GameState, source, target) -> int:
+    _ = state
+    return max(1, int(target.power or 1) - int(source.power or 0))
 
 
 def _defense_power_bonus(
