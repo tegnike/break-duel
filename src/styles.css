@@ -10471,3 +10471,251 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     margin-bottom: 10px;
   }
 }
+
+/* Operation dock compact integration: detail rail + single-row command status. */
+.dock-status-row {
+  display: flex;
+  flex: none;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dock-status-row .action-meter {
+  flex: none;
+}
+
+.dock-status-row .action-hint {
+  flex: 1 1 200px;
+}
+
+.dock-status-row .event-mode-toggle {
+  flex: none;
+}
+
+.dock-detail-rail .selected-art-preview,
+.dock-detail-rail .empty-preview {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+}
+
+.dock-detail-rail .selected-card {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.dock-detail-rail .detail-title {
+  color: #fff4cc;
+  font-family: "Noto Serif JP", "Noto Sans", system-ui, sans-serif;
+  font-size: 18px;
+}
+
+.dock-detail-rail .detail-meta,
+.dock-detail-rail .detail-effect,
+.dock-detail-rail .detail-affinity {
+  color: #efe3cb;
+}
+
+@media (min-width: 1025px) {
+  .stitch-shell {
+    grid-template-rows: 78px minmax(320px, 1fr) 48px 176px 150px;
+  }
+
+  .stitch-shell > .dock-detail-rail {
+    position: absolute !important;
+    left: 0;
+    bottom: 0;
+    z-index: 26 !important;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 340px;
+    height: calc(48px + 176px + 150px);
+    padding: 14px 16px;
+    border-top: 2px solid rgba(245, 207, 120, 0.48);
+    border-right: 1px solid rgba(245, 207, 120, 0.28);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 18%),
+      linear-gradient(90deg, rgba(38, 20, 54, 0.97), rgba(8, 8, 19, 0.97));
+  }
+
+  .dock-detail-rail .detail-title {
+    font-size: 18px;
+  }
+
+  .stitch-player-status,
+  .stitch-hand-zone,
+  .stitch-command-dock {
+    padding-left: 356px;
+  }
+
+  .stitch-command-dock {
+    grid-template-columns: 1fr;
+    min-height: 150px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .stitch-shell > .stitch-player-status {
+    position: relative;
+    z-index: 5 !important;
+  }
+
+  .stitch-shell > .stitch-hand-zone {
+    position: relative;
+    z-index: 30 !important;
+    grid-template-columns: minmax(0, 1fr) 104px 104px;
+    overflow: visible;
+  }
+
+  .stitch-hand {
+    margin-top: -30px;
+    overflow: visible;
+  }
+
+  .stitch-command-dock .dock-status-row .action-meter {
+    min-height: 36px;
+    padding: 0 14px 0 8px;
+  }
+
+  .stitch-command-dock .dock-status-row .meter-value {
+    width: 30px;
+    height: 30px;
+    font-size: 15px;
+  }
+
+  .stitch-command-dock .dock-status-row .action-hint {
+    min-height: 36px;
+  }
+
+  .stitch-command-dock .action-strip {
+    min-height: 54px;
+  }
+
+  .stitch-command-dock .action-strip button {
+    min-height: 54px;
+    flex-direction: row;
+    gap: 7px;
+    white-space: nowrap;
+  }
+
+  .stitch-command-dock .action-strip button span {
+    width: 24px;
+    height: 24px;
+    font-size: 12px;
+  }
+}
+
+@media (min-width: 921px) and (max-width: 1024px) {
+  .stitch-hand-zone {
+    grid-template-columns: minmax(0, 1fr) 84px 84px;
+  }
+
+  .stitch-hand {
+    justify-content: center;
+    overflow: visible;
+  }
+
+  .dock-detail-rail {
+    display: grid;
+    grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+    gap: 12px;
+    padding: 10px 14px;
+    border-top: 1px solid rgba(245, 207, 120, 0.3);
+  }
+}
+
+@media (max-width: 920px) {
+  .stitch-hand-zone {
+    grid-template-columns: minmax(0, 1fr) 74px 74px;
+  }
+
+  .dock-detail-rail {
+    display: grid;
+    grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+    gap: 12px;
+    padding: 10px 14px;
+    border-top: 1px solid rgba(245, 207, 120, 0.3);
+  }
+}
+
+@media (min-width: 641px) and (max-width: 920px) {
+  .stitch-hand {
+    justify-content: center;
+    padding-inline: 10px;
+    overflow: visible;
+  }
+
+  .stitch-hand .card {
+    flex: 1 1 84px;
+    width: auto;
+    min-width: 78px;
+    max-width: 100px;
+    margin-inline: -7px;
+  }
+}
+
+@media (max-width: 640px) {
+  .dock-detail-rail {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Keep the hand fan when a card is raised, and keep the detail rail visible above the hand band. */
+.stitch-hand .card:nth-child(1) {
+  --hand-lift: 10px;
+  --hand-tilt: -8deg;
+}
+
+.stitch-hand .card:nth-child(2) {
+  --hand-lift: 4px;
+  --hand-tilt: -4deg;
+}
+
+.stitch-hand .card:nth-child(3) {
+  --hand-lift: 0px;
+  --hand-tilt: -1deg;
+}
+
+.stitch-hand .card:nth-child(4) {
+  --hand-lift: 0px;
+  --hand-tilt: 1deg;
+}
+
+.stitch-hand .card:nth-child(5) {
+  --hand-lift: 4px;
+  --hand-tilt: 4deg;
+}
+
+.stitch-hand .card:nth-child(6) {
+  --hand-lift: 10px;
+  --hand-tilt: 8deg;
+}
+
+.stitch-hand .card:nth-child(n + 7) {
+  --hand-lift: 12px;
+  --hand-tilt: 10deg;
+}
+
+.stitch-hand .card {
+  transform: translateY(var(--hand-lift, 0px)) rotate(var(--hand-tilt, 0deg)) !important;
+}
+
+.stitch-hand .card:hover,
+.stitch-hand .card.selected {
+  transform: translateY(-24px) scale(1.08) rotate(var(--hand-tilt, 0deg)) !important;
+}
+
+@media (min-width: 1025px) {
+  .stitch-shell > .dock-detail-rail {
+    z-index: 34 !important;
+  }
+}

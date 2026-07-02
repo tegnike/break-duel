@@ -2601,7 +2601,6 @@ export default function App() {
       </section>
 
       <section className="stitch-hand-zone" aria-label="手札と山札">
-        <DeckPileCard player={human} ownerIndex={0} />
         <div className="stitch-hand" aria-label="手札" data-owner={0} data-zone="hand-source" data-index={0}>
           {human.hand.map((card, index) => {
             const pendingCardTarget = pendingTargetCardState(game, 0, "hand", index);
@@ -2633,17 +2632,18 @@ export default function App() {
             );
           })}
         </div>
+        <DeckPileCard player={human} ownerIndex={0} />
         <TrashPileButton player={human} ownerIndex={0} trashSurge={ownerHasTrashSurge(0)} onOpen={openDiscardViewer} />
       </section>
 
-      <section className="stitch-command-dock" aria-live="polite">
-        <div className="dock-detail">
-          <div className="dock-preview">
-            <CardArtPreview card={selectedCard} />
-          </div>
-          <SelectedCardDetail card={selectedCard} zone={game.selected?.zone ?? null} game={game} />
+      <aside className="dock-detail-rail" aria-live="polite">
+        <div className="dock-preview">
+          <CardArtPreview card={selectedCard} />
         </div>
+        <SelectedCardDetail card={selectedCard} zone={game.selected?.zone ?? null} game={game} />
+      </aside>
 
+      <section className="stitch-command-dock" aria-live="polite">
         <div className="dock-actions">
           {matchResult && (
             <div className={`match-result-panel ${matchResult.tone}`} aria-live="polite">
@@ -2655,24 +2655,17 @@ export default function App() {
               <button type="button" onClick={openStarterDeckSetup}>再戦</button>
             </div>
           )}
-          <div className="action-meter" aria-label={`${actionMeterLabel} ${humanActionsRemaining}${humanAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
-            <span className="meter-label">{actionMeterLabel}</span>
-            <span className="meter-value">{humanActionsRemaining}</span>
-            <span className="action-tokens" aria-hidden="true">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <span key={index} className={actionTokenClass(index, humanActionsRemaining)} />
-              ))}
-            </span>
-            {humanAttackLockedByCharge && <span className="charge-lock-badge">チャージ済み・攻撃不可</span>}
-          </div>
-          <div className="action-strip">
-            <button type="button" className={`${!playDisabled && !playTutorialBlocked ? "action-ready" : ""} ${tutorialFocusMatchesAction(tutorialStep?.focus, "play") ? "tutorial-focus" : ""}`} disabled={playDisabled || playTutorialBlocked} onClick={playSelected}><span>⇧</span>{playButtonLabel}</button>
-            <button type="button" className={`${!upgradeDisabled && !upgradeTutorialBlocked ? "action-ready" : ""} ${tutorialFocusMatchesAction(tutorialStep?.focus, "upgrade") ? "tutorial-focus" : ""}`} disabled={upgradeDisabled || upgradeTutorialBlocked} onClick={upgradeSelectedAi}><span>↑</span>アップグレード</button>
-            <button type="button" className={`${!attackDisabled && !attackTutorialBlocked ? "action-ready" : ""} ${tutorialFocusMatchesAction(tutorialStep?.focus, "attack") ? "tutorial-focus" : ""}`} disabled={attackDisabled || attackTutorialBlocked} onClick={attackWithSelectedAi}><span>⚔</span>攻撃</button>
-            <button type="button" className={`${!chargeDisabled && !chargeTutorialBlocked ? "action-ready charge-action" : "charge-action"} ${tutorialFocusMatchesAction(tutorialStep?.focus, "charge") ? "tutorial-focus" : ""}`} disabled={chargeDisabled || chargeTutorialBlocked} onClick={chargeSelectedCard}><span>◆</span>チャージ</button>
-            <button type="button" className={`${endTurnEnabled && !endTurnTutorialBlocked ? "action-ready end-turn" : "end-turn"} ${tutorialFocusMatchesAction(tutorialStep?.focus, "end") ? "tutorial-focus" : ""}`} disabled={!endTurnEnabled || endTurnTutorialBlocked} onClick={endTurn}><span>●</span>ターン終了</button>
-          </div>
-          <div className="dock-action-footer">
+          <div className="dock-status-row">
+            <div className="action-meter" aria-label={`${actionMeterLabel} ${humanActionsRemaining}${humanAttackLockedByCharge ? "、チャージ済みで攻撃不可" : ""}`}>
+              <span className="meter-label">{actionMeterLabel}</span>
+              <span className="meter-value">{humanActionsRemaining}</span>
+              <span className="action-tokens" aria-hidden="true">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <span key={index} className={actionTokenClass(index, humanActionsRemaining)} />
+                ))}
+              </span>
+              {humanAttackLockedByCharge && <span className="charge-lock-badge">チャージ済み・攻撃不可</span>}
+            </div>
             <div className="action-hint">{actionHintText(game, selectedCard, game.selected?.zone ?? null)}</div>
             <div className="event-mode-toggle" role="group" aria-label="演出モーダルの閉じ方">
               <span>演出</span>
@@ -2693,6 +2686,13 @@ export default function App() {
                 自動送り
               </button>
             </div>
+          </div>
+          <div className="action-strip">
+            <button type="button" className={`${!playDisabled && !playTutorialBlocked ? "action-ready" : ""} ${tutorialFocusMatchesAction(tutorialStep?.focus, "play") ? "tutorial-focus" : ""}`} disabled={playDisabled || playTutorialBlocked} onClick={playSelected}><span>⇧</span>{playButtonLabel}</button>
+            <button type="button" className={`${!upgradeDisabled && !upgradeTutorialBlocked ? "action-ready" : ""} ${tutorialFocusMatchesAction(tutorialStep?.focus, "upgrade") ? "tutorial-focus" : ""}`} disabled={upgradeDisabled || upgradeTutorialBlocked} onClick={upgradeSelectedAi}><span>↑</span>アップグレード</button>
+            <button type="button" className={`${!attackDisabled && !attackTutorialBlocked ? "action-ready" : ""} ${tutorialFocusMatchesAction(tutorialStep?.focus, "attack") ? "tutorial-focus" : ""}`} disabled={attackDisabled || attackTutorialBlocked} onClick={attackWithSelectedAi}><span>⚔</span>攻撃</button>
+            <button type="button" className={`${!chargeDisabled && !chargeTutorialBlocked ? "action-ready charge-action" : "charge-action"} ${tutorialFocusMatchesAction(tutorialStep?.focus, "charge") ? "tutorial-focus" : ""}`} disabled={chargeDisabled || chargeTutorialBlocked} onClick={chargeSelectedCard}><span>◆</span>チャージ</button>
+            <button type="button" className={`${endTurnEnabled && !endTurnTutorialBlocked ? "action-ready end-turn" : "end-turn"} ${tutorialFocusMatchesAction(tutorialStep?.focus, "end") ? "tutorial-focus" : ""}`} disabled={!endTurnEnabled || endTurnTutorialBlocked} onClick={endTurn}><span>●</span>ターン終了</button>
           </div>
         </div>
 
