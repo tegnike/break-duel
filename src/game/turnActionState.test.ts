@@ -8,6 +8,7 @@ import {
   cloneCard,
   createGame,
   finishTurn,
+  upgradeSourceIndexes,
 } from "../game";
 import { chargeHandCardInDraft } from "./actions";
 
@@ -123,5 +124,28 @@ describe("turn action state", () => {
     game.players[1].spentFieldIndexes.add(0);
 
     expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
+  });
+
+  it("filters upgrade source choices by the remaining action cost", () => {
+    const game = createGame(
+      23,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-WATER-3"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-FIRE-1"] },
+    );
+    game.players[0].field = [
+      card("AI-WATER-1"),
+      card("AI-WATER-2"),
+      card("AI-WATER-1C"),
+    ];
+    const target = card("AI-WATER-3");
+
+    expect(upgradeSourceIndexes(game.players[0], target).map((index) => game.players[0].field[index].id)).toEqual([
+      "AI-WATER-1",
+      "AI-WATER-2",
+      "AI-WATER-1C",
+    ]);
+    expect(upgradeSourceIndexes(game.players[0], target, 1).map((index) => game.players[0].field[index].id)).toEqual([
+      "AI-WATER-2",
+    ]);
   });
 });

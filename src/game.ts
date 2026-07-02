@@ -898,12 +898,19 @@ export function canUpgrade(source: Card | undefined, target: Card | undefined): 
 }
 
 export function bestUpgradeSource(player: PlayerState, targetCard: Card): number | null {
-  const options = player.field
-    .map((source, index) => ({ source, index }))
-    .filter(({ source }) => canUpgrade(source, targetCard));
+  const options = upgradeSourceIndexes(player, targetCard)
+    .map((index) => ({ source: player.field[index], index }));
   if (options.length === 0) return null;
   options.sort((a, b) => (b.source.power ?? 0) - (a.source.power ?? 0) || a.source.id.localeCompare(b.source.id));
   return options[0].index;
+}
+
+export function upgradeSourceIndexes(player: PlayerState, targetCard: Card, maxCost = Number.POSITIVE_INFINITY): number[] {
+  return player.field
+    .map((source, index) => (
+      canUpgrade(source, targetCard) && upgradeCost(targetCard, source) <= maxCost ? index : -1
+    ))
+    .filter((index) => index >= 0);
 }
 
 export function matchupModifier(defenseAttribute: Attribute, attackAttribute: Attribute): number {

@@ -40,6 +40,7 @@ import {
   recoversAiOnPlay,
   stackUpgradeCard,
   upgradeCost,
+  upgradeSourceIndexes,
 } from "./game";
 import {
   afterAction,
@@ -1877,7 +1878,7 @@ export default function App() {
     const previewSourceIndex = target?.type === "ai" ? bestUpgradeSource(player, target) : null;
     const previewSource = previewSourceIndex === null ? null : player.field[previewSourceIndex];
     if (!target || target.type !== "ai" || !previewSource || upgradeCost(target, previewSource) > game.actionsRemaining) return;
-    const sourceIndexes = tutorialUpgradeSourceIndexes(tutorialStep, player, target, upgradeSourceIndexes(player, target));
+    const sourceIndexes = tutorialUpgradeSourceIndexes(tutorialStep, player, target, upgradeSourceIndexes(player, target, game.actionsRemaining));
     if (sourceIndexes.length === 0) return;
     if (sourceIndexes.length > 1) {
       const handIndex = game.selected.index;
@@ -1885,7 +1886,7 @@ export default function App() {
         const player = activePlayer(draft);
         const target = player.hand[handIndex];
         if (!target || target.type !== "ai") return;
-        const sourceIndexes = tutorialUpgradeSourceIndexes(tutorialStep, player, target, upgradeSourceIndexes(player, target));
+        const sourceIndexes = tutorialUpgradeSourceIndexes(tutorialStep, player, target, upgradeSourceIndexes(player, target, draft.actionsRemaining));
         if (sourceIndexes.length <= 1) return;
         draft.pendingTarget = {
           kind: "card-select",
@@ -3417,10 +3418,4 @@ function pendingTargetCardState(game: GameState, ownerIndex: number, zone: "hand
   if (!pending || pending.kind !== "card-select") return "idle";
   if (pending.playerIndex !== ownerIndex || pending.zone !== zone || pending.excludeIndexes.includes(index)) return "idle";
   return pending.selectedIndexes.includes(index) ? "selected" : "target";
-}
-
-function upgradeSourceIndexes(player: PlayerState, target: Card): number[] {
-  return player.field
-    .map((source, index) => canUpgrade(source, target) ? index : -1)
-    .filter((index) => index >= 0);
 }
