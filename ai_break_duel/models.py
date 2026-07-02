@@ -36,6 +36,7 @@ class PlayerState:
     deck: list[Card] = field(default_factory=list)
     hand: list[Card] = field(default_factory=list)
     field_ai: list[Card] = field(default_factory=list)
+    field_stacks: list[list[Card]] = field(default_factory=list)
     memory: Card | None = None
     discard: list[Card] = field(default_factory=list)
     pending_effects: dict[str, Any] = field(default_factory=dict)
@@ -63,7 +64,8 @@ class PlayerState:
         return [
             (
                 f"{card.id}({card.attribute.value if card.attribute else '-'}:"
-                f"{card.power}{',spent' if index in self.spent_field_ai else ''})"
+                f"{card.power}{',spent' if index in self.spent_field_ai else ''}"
+                f"{',stack+' + str(len(self.field_stacks[index])) if index < len(self.field_stacks) and self.field_stacks[index] else ''})"
             )
             for index, card in enumerate(self.field_ai)
         ]

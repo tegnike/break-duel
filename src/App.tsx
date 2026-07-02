@@ -38,6 +38,7 @@ import {
   opponentPlayer,
   playCost,
   recoversAiOnPlay,
+  stackUpgradeCard,
   upgradeCost,
 } from "./game";
 import {
@@ -1134,8 +1135,6 @@ export default function App() {
       const source = ai.field[action.fieldIndex];
       if (!card || !source) return 0;
       playSfx("play");
-      suppressNextTrashSfx(1);
-      launchTrashFlight(source, { ownerIndex: 1, zone: "field", index: action.fieldIndex }, 1, "元カード破棄", 1500);
       launchCardFlight({
         card,
         from: { ownerIndex: 1, zone: "hand-source", index: 0 },
@@ -1894,7 +1893,7 @@ export default function App() {
           zone: "field",
           playerIndex: draft.active,
           title: `${target.name}のアップグレード元を選択`,
-          prompt: "トラッシュへ送って入れ替える元の召喚獣を選んでください。",
+          prompt: "下に重ねる元の召喚獣を選んでください。",
           confirmLabel: "このカードを元にする",
           min: 1,
           max: 1,
@@ -1916,8 +1915,6 @@ export default function App() {
     const source = player.field[sourceIndex];
     const cost = target && source ? upgradeCost(target, source) : 99;
     if (!target || target.type !== "ai" || !source || !canUpgrade(source, target) || cost > game.actionsRemaining) return;
-    suppressNextTrashSfx(0);
-    launchTrashFlight(source, { ownerIndex: 0, zone: "field", index: sourceIndex }, 0, "元カード破棄");
     launchCardFlight({
       card: target,
       from: { ownerIndex: 0, zone: "hand", index: handIndex },
@@ -1932,7 +1929,7 @@ export default function App() {
       const cost = source ? upgradeCost(target, source) : 99;
       if (!source || !canUpgrade(source, target) || draft.actionsRemaining < cost) return;
       const card = player.hand.splice(handIndex, 1)[0];
-      player.discard.push(source);
+      stackUpgradeCard(player, sourceIndex, source);
       player.field[sourceIndex] = card;
       player.spentFieldIndexes.delete(sourceIndex);
       player.power3RecoveryDelayedFieldIndexes.delete(sourceIndex);

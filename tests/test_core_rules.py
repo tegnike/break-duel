@@ -497,6 +497,14 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[0].cards_drawn, 1)
         self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-1"])
 
+    def test_play_ai_keeps_field_stacks_aligned_with_field_ai(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [card("AI-FIRE-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual(len(state.players[0].field_stacks), len(state.players[0].field_ai))
+        self.assertEqual(state.players[0].field_stacks, [[]])
+
     def test_wind_ai_does_not_spend_after_attacking(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].field_ai = [card("AI-WIND-1")]
@@ -521,7 +529,8 @@ class CoreRuleTests(unittest.TestCase):
         start_turn(state)
         apply_action(state, Action(ActionType.UPGRADE_AI, 0, target_index=0))
         self.assertEqual([item.id for item in state.players[0].hand], [])
-        self.assertEqual([item.id for item in state.players[0].discard], ["AI-EARTH-1"])
+        self.assertEqual([item.id for item in state.players[0].field_stacks[0]], ["AI-EARTH-1"])
+        self.assertEqual(state.players[0].discard, [])
 
     def test_spend_enemy_on_play_ai_spends_ready_opponent(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=3))
@@ -861,7 +870,7 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[0].field_ai], ["AI-WATER-4"])
         self.assertEqual(state.players[0].discard, [])
 
-    def test_fire_4_draws_two_when_power_4_overheats(self) -> None:
+    def test_fire_4_draws_one_when_power_4_overheats(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].field_ai = [card("AI-FIRE-4")]
         state.players[0].deck = [card("AI-FIRE-1"), card("AI-FIRE-2")]
@@ -869,8 +878,22 @@ class CoreRuleTests(unittest.TestCase):
         apply_action(state, Action(ActionType.ATTACK, 0))
         self.assertEqual(state.players[0].field_ai, [])
         self.assertEqual([item.id for item in state.players[0].discard], ["AI-FIRE-4"])
-        self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-2", "AI-FIRE-1"])
-        self.assertEqual(state.log[-1]["overheat_draw_count"], 2)
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-2"])
+        self.assertEqual(state.log[-1]["overheat_draw_count"], 1)
+
+    def test_water_4b_draws_one_after_overheat_and_opponent_draws_on_play(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [card("AI-WATER-4B")]
+        state.players[0].field_ai = [card("AI-WATER-2")]
+        state.players[0].deck = [card("AI-WATER-1"), card("AI-WATER-2")]
+        state.players[1].deck = [card("AI-FIRE-1")]
+        state.actions_remaining = 4
+        apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-FIRE-1"])
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-WATER-4B", "AI-WATER-2"])
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-WATER-2"])
+        self.assertEqual(state.log[-1]["overheat_draw_count"], 1)
 
     def test_optimize_discards_one_and_draws_two(self) -> None:
         state = new_game(1, no_opening_hands())
@@ -1308,7 +1331,8 @@ class CoreRuleTests(unittest.TestCase):
         start_turn(state)
         apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
         self.assertEqual(state.players[0].field_ai[0].id, "AI-FIRE-3")
-        self.assertEqual(state.players[0].discard[0].id, "AI-FIRE-1")
+        self.assertEqual([item.id for item in state.players[0].field_stacks[0]], ["AI-FIRE-1"])
+        self.assertEqual(state.players[0].discard, [])
 
     def test_upgrade_cost_matches_power_difference(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
@@ -1422,8 +1446,31 @@ class CoreRuleTests(unittest.TestCase):
         start_turn(state)
         apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
         self.assertEqual(state.players[0].field_ai[0].id, "AI-FIRE-3")
-        self.assertEqual([item.id for item in state.players[0].discard], ["AI-FIRE-1"])
+        self.assertEqual([item.id for item in state.players[0].field_stacks[0]], ["AI-FIRE-1"])
+        self.assertEqual(state.players[0].discard, [])
         self.assertEqual([item.id for item in state.players[0].hand], ["CMD-PATCH"])
+
+    def test_upgraded_stack_moves_to_discard_with_top_card(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=3))
+        state.players[0].field_ai = [card("AI-FIRE-1")]
+        state.players[0].hand = [card("AI-FIRE-3")]
+        state.players[1].field_ai = [card("AI-FIRE-4")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[0].field_ai, [])
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-FIRE-3", "AI-FIRE-1"])
+
+    def test_power_4_overheat_discards_upgrade_stack(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=3))
+        state.players[0].field_ai = [card("AI-FIRE-2")]
+        state.players[0].hand = [card("AI-FIRE-4")]
+        state.players[0].deck = [card("AI-FIRE-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.UPGRADE_AI, 0, 0))
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[0].field_ai, [])
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-FIRE-4", "AI-FIRE-2"])
 
     def test_end_turn_discards_low_priority_cards_over_hand_limit(self) -> None:
         state = new_game(1, no_opening_hands(hand_limit=3))

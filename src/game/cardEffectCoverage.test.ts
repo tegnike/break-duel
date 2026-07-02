@@ -32,9 +32,11 @@ import {
   pressuresOnBlock,
   readiesAllyOnPlay,
   recoversAiOnPlay,
+  removeFieldStack,
   returnsAfterOverheat,
   selfDamagesOnPlay,
   spendsEnemyOnPlay,
+  stackUpgradeCard,
   startTurn,
 } from "../game";
 import {
@@ -86,6 +88,7 @@ function blankGame(): GameState {
     player.deck = [card(index === 0 ? "AI-FIRE-1" : "AI-WATER-1")];
     player.hand = [];
     player.field = [];
+    player.fieldStacks = [];
     player.memory = null;
     player.discard = [];
     player.cardsDrawn = 0;
@@ -129,20 +132,24 @@ const CARD_EFFECT_CASES = {
       expect(cannotHandDefend(target)).toBe(true);
     },
   },
-  draw_two_after_overheat: {
+  draw_after_overheat: {
     cardId: "AI-FIRE-4",
-    description: "攻撃後退場時2枚ドロー対象になる",
-    run: () => expect(drawsTwoAfterOverheat(card("AI-FIRE-4"))).toBe(true),
+    description: "攻撃後退場時1枚ドロー対象になる",
+    run: () => {
+      expect(drawsAfterOverheat(card("AI-FIRE-4"))).toBe(true);
+      expect(drawsTwoAfterOverheat(card("AI-FIRE-4"))).toBe(false);
+    },
   },
-  draw_two_after_overheat_opponent_draw: {
+  draw_after_overheat_opponent_draw: {
     cardId: "AI-WATER-4B",
-    description: "攻撃後退場2枚ドローと登場時相手ドローを持つ",
+    description: "攻撃後退場1枚ドローと登場時相手ドローを持つ",
     run: () => {
       const game = blankGame();
       game.players[1].deck = [card("AI-FIRE-1")];
       const target = card("AI-WATER-4B");
       applyPlayEffects(game, game.players[0], target, 0, 1);
-      expect(drawsTwoAfterOverheat(target)).toBe(true);
+      expect(drawsAfterOverheat(target)).toBe(true);
+      expect(drawsTwoAfterOverheat(target)).toBe(false);
       expect(opponentDrawsOnPlay(target)).toBe(true);
       expect(game.players[1].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
     },
@@ -613,6 +620,26 @@ describe("life damage event metadata", () => {
     });
   });
 
+  it("shows every stacked trinity sacrifice card", () => {
+    const game = blankGame();
+    const events: DuelEventPayload[] = [];
+    const player = game.players[0];
+    player.hand = [card("CMD-TRINITY")];
+    player.field = [card("AI-FIRE-2"), card("AI-WATER-1"), card("AI-WIND-1")];
+    stackUpgradeCard(player, 0, card("AI-FIRE-1"));
+
+    useCommandAtInDraft(game, 0, null, [], {
+      showDuelEvent: (event) => events.push(event),
+    });
+
+    expect(events[events.length - 1]?.cards.map((entry) => entry.card.id)).toEqual([
+      "AI-FIRE-2",
+      "AI-FIRE-1",
+      "AI-WATER-1",
+      "AI-WIND-1",
+    ]);
+  });
+
   it("marks lethal attack damage as fatal", () => {
     const game = blankGame();
     const events: DuelEventPayload[] = [];
@@ -629,6 +656,21 @@ describe("life damage event metadata", () => {
       targetPlayerIndex: 1,
       fatal: true,
     });
+  });
+
+  it("moves stacked upgrade cards with the top field card", () => {
+    const game = blankGame();
+    const player = game.players[0];
+    player.field = [card("AI-FIRE-2")];
+    player.fieldStacks = [[]];
+    stackUpgradeCard(player, 0, player.field[0]);
+    player.field[0] = card("AI-FIRE-4");
+
+    const removed = removeFieldStack(player, 0);
+
+    expect(removed.map((item) => item.id)).toEqual(["AI-FIRE-4", "AI-FIRE-2"]);
+    expect(player.field).toEqual([]);
+    expect(player.fieldStacks).toEqual([]);
   });
 
   it("emits a discard-to-hand event for automatic recover-on-play", () => {

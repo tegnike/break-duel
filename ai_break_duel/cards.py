@@ -42,6 +42,7 @@ class AiEffect(str, Enum):
     ATTACK_PLUS_1 = "attack_plus_1"
     RECKLESS_ATTACK_PLUS_1 = "reckless_attack_plus_1"
     DRAW_AFTER_OVERHEAT = "draw_after_overheat"
+    DRAW_AFTER_OVERHEAT_OPPONENT_DRAW = "draw_after_overheat_opponent_draw"
     DRAW_TWO_AFTER_OVERHEAT = "draw_two_after_overheat"
     DRAW_TWO_AFTER_OVERHEAT_OPPONENT_DRAW = "draw_two_after_overheat_opponent_draw"
     DRAW_ON_PLAY = "draw_on_play"
@@ -186,7 +187,10 @@ def keeps_ready_after_attack(ai: Card) -> bool:
 
 
 def draws_after_overheat(ai: Card) -> bool:
-    return ai.type == CardType.AI and ai.effect == AiEffect.DRAW_AFTER_OVERHEAT.value
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.DRAW_AFTER_OVERHEAT.value,
+        AiEffect.DRAW_AFTER_OVERHEAT_OPPONENT_DRAW.value,
+    }
 
 
 def draws_two_after_overheat(ai: Card) -> bool:
@@ -284,7 +288,10 @@ def self_damages_on_play(ai: Card) -> bool:
 
 
 def opponent_draws_on_play(ai: Card) -> bool:
-    return ai.type == CardType.AI and ai.effect == AiEffect.DRAW_TWO_AFTER_OVERHEAT_OPPONENT_DRAW.value
+    return ai.type == CardType.AI and ai.effect in {
+        AiEffect.DRAW_AFTER_OVERHEAT_OPPONENT_DRAW.value,
+        AiEffect.DRAW_TWO_AFTER_OVERHEAT_OPPONENT_DRAW.value,
+    }
 
 
 def cannot_hand_defend(ai: Card) -> bool:
@@ -361,7 +368,7 @@ def build_ai_card_pool() -> list[Card]:
         "AI-FIRE-2B": AiEffect.HAND_DEFENSE_PIERCE.value,
         "AI-FIRE-3": AiEffect.ATTACK_PLUS_1.value,
         "AI-FIRE-3B": AiEffect.RECKLESS_ATTACK_PLUS_1.value,
-        "AI-FIRE-4": AiEffect.DRAW_TWO_AFTER_OVERHEAT.value,
+        "AI-FIRE-4": AiEffect.DRAW_AFTER_OVERHEAT.value,
         "AI-FIRE-4B": AiEffect.LOW_LIFE_NO_HAND_DEFENSE_SELF_DAMAGE.value,
         "AI-FIRE-1C": AiEffect.CHARGE_PRESSURE.value,
         "AI-WATER-1": AiEffect.DRAW_ON_PLAY.value,
@@ -370,7 +377,7 @@ def build_ai_card_pool() -> list[Card]:
         "AI-WATER-2B": AiEffect.DRAW_ON_BLOCKED_ATTACK_CANNOT_HAND_DEFEND.value,
         "AI-WATER-3": AiEffect.DRAW_ON_PLAY.value,
         "AI-WATER-3B": AiEffect.FILTER_ON_PLAY.value,
-        "AI-WATER-4B": AiEffect.DRAW_TWO_AFTER_OVERHEAT_OPPONENT_DRAW.value,
+        "AI-WATER-4B": AiEffect.DRAW_AFTER_OVERHEAT_OPPONENT_DRAW.value,
         "AI-WATER-1C": AiEffect.CHARGE_DRAW.value,
         "AI-WIND-1": AiEffect.NO_SPEND_AFTER_ATTACK.value,
         "AI-WIND-1B": AiEffect.NO_SPEND_AFTER_ATTACK.value,

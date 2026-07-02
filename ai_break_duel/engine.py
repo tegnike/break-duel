@@ -274,6 +274,7 @@ def _play_ai(state: GameState, action: Action) -> None:
         raise ValueError("Only summon cards can be played with PLAY_AI.")
     action_cost = _play_cost(state, card)
     player.field_ai.append(card)
+    _ensure_field_stacks(player)
     player.played_ai_this_turn = True
     field_index = len(player.field_ai) - 1
     drawn = 0
@@ -350,9 +351,10 @@ def _use_memory(state: GameState, action: Action) -> None:
         raise ValueError("Accelerator relic cannot increase actions beyond 3.")
     if action.target_index < 0 or action.target_index >= len(player.field_ai):
         raise ValueError("Accelerator target is out of range.")
-    sacrificed = _remove_field_ai(player, action.target_index)
-    player.discard.append(sacrificed)
-    player.ai_lost += 1
+    sacrificed_cards = _remove_field_stack(player, action.target_index)
+    sacrificed = sacrificed_cards[0]
+    player.discard.extend(sacrificed_cards)
+    player.ai_lost += len(sacrificed_cards)
     player.pending_effects["accelerator_used"] = True
     state.actions_remaining = min(3, state.actions_remaining + 1)
     state.stats.record_card_usage(player.memory.id, "used")
@@ -383,8 +385,7 @@ def _upgrade_ai(state: GameState, action: Action) -> None:
         player.hand.insert(action.source_index, card)
         raise ValueError("Upgrade requires a lower-power summon with the same attribute.")
 
-    player.discard.append(source)
-    player.ai_lost += 1
+    _ensure_field_stacks(player)[action.target_index].append(source)
     player.field_ai[action.target_index] = card
     player.spent_field_ai.discard(action.target_index)
     player.power_3_recovery_delayed_field_ai.discard(action.target_index)
@@ -528,18 +529,21 @@ def _attack(state: GameState, action: Action) -> None:
             if draws_on_successful_defense(defense_ai):
                 defense_draw_count = defender.draw(1, state.rng)
                 state.stats.record_card_usage(defense_ai.id, "defense_draw")
-            attacker.discard.append(_remove_field_ai(attacker, action.source_index))
-            attacker.ai_lost += 1
+            attacker_lost = _remove_field_stack(attacker, action.source_index)
+            attacker.discard.extend(attacker_lost)
+            attacker.ai_lost += len(attacker_lost)
             if defense_value == attack_value:
-                defender.discard.append(_remove_field_ai(defender, defense_index))
-                defender.ai_lost += 1
+                defender_lost = _remove_field_stack(defender, defense_index)
+                defender.discard.extend(defender_lost)
+                defender.ai_lost += len(defender_lost)
             else:
                 defender.spent_field_ai.add(defense_index)
         else:
             # The phase-1 automated player should not choose this, but the engine supports it.
-            lost_ai = _remove_field_ai(defender, defense_index)
-            defender.discard.append(lost_ai)
-            defender.ai_lost += 1
+            lost_cards = _remove_field_stack(defender, defense_index)
+            lost_ai = lost_cards[0]
+            defender.discard.extend(lost_cards)
+            defender.ai_lost += len(lost_cards)
             damage = 1
             _deal_damage(defender)
             state.stats.failed_defenses += 1
@@ -760,10 +764,14 @@ def _use_command(state: GameState, action: Action) -> None:
         if len(player.field_ai) < state.config.field_ai_limit:
             player.hand.insert(action.source_index, command)
             raise ValueError("Trinity requires a full summon field.")
-        sacrificed = []
+        sacrificed_groups = []
         while player.field_ai:
-            sacrificed.append(_remove_field_ai(player, len(player.field_ai) - 1))
-        sacrificed.reverse()
+            sacrificed_groups.append(_remove_field_stack(player, len(player.field_ai) - 1))
+        sacrificed = [
+            card
+            for group in reversed(sacrificed_groups)
+            for card in group
+        ]
         player.discard.extend(sacrificed)
         player.ai_lost += len(sacrificed)
         _deal_damage(opponent)
@@ -973,8 +981,18 @@ def _finish_by_life_judgement(state: GameState, event: str) -> None:
     )
 
 
-def _remove_field_ai(player: PlayerState, index: int):
+def _ensure_field_stacks(player: PlayerState) -> list[list]:
+    while len(player.field_stacks) < len(player.field_ai):
+        player.field_stacks.append([])
+    if len(player.field_stacks) > len(player.field_ai):
+        player.field_stacks = player.field_stacks[: len(player.field_ai)]
+    return player.field_stacks
+
+
+def _remove_field_stack(player: PlayerState, index: int):
+    stacks = _ensure_field_stacks(player)
     lost_ai = player.field_ai.pop(index)
+    stack = stacks.pop(index) if index < len(stacks) else []
     player.spent_field_ai = {
         spent_index if spent_index < index else spent_index - 1
         for spent_index in player.spent_field_ai
@@ -990,7 +1008,11 @@ def _remove_field_ai(player: PlayerState, index: int):
         for guarded_index in player.charge_guarded_field_ai
         if guarded_index != index
     }
-    return lost_ai
+    return [lost_ai, *reversed(stack)]
+
+
+def _remove_field_ai(player: PlayerState, index: int):
+    return _remove_field_stack(player, index)[0]
 
 
 def _overheat_attacker_after_attack(
@@ -1025,12 +1047,16 @@ def _overheat_attacker_after_attack(
         result["sandbox_command_used"] = True
         return result
     if returns_after_overheat(attack_ai):
-        attacker.hand.append(_remove_field_ai(attacker, attack_index))
+        returned_ai, *stacked_cards = _remove_field_stack(attacker, attack_index)
+        attacker.hand.append(returned_ai)
+        attacker.discard.extend(stacked_cards)
+        attacker.ai_lost += len(stacked_cards)
         state.stats.record_card_usage(attack_ai.id, "returned_after_overheat")
         result["overheated"] = True
         return result
-    attacker.discard.append(_remove_field_ai(attacker, attack_index))
-    attacker.ai_lost += 1
+    overheated_cards = _remove_field_stack(attacker, attack_index)
+    attacker.discard.extend(overheated_cards)
+    attacker.ai_lost += len(overheated_cards)
     if draws_after_overheat(attack_ai):
         result["overheat_draw_count"] = attacker.draw(1, state.rng)
         state.stats.record_card_usage(attack_ai.id, "overheat_draw")
