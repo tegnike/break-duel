@@ -687,6 +687,10 @@ def _command_value(state: GameState, command) -> int:
         return 68 if player.deck else 0
     if command.effect == CommandEffect.EARTH_RITE.value:
         return 62
+    if command.effect == CommandEffect.COMEBACK_RITE.value:
+        ready_bonus = 40 if player.spent_field_ai else 0
+        draw_bonus = 34 if player.deck else 0
+        return 48 + ready_bonus + draw_bonus
     if command.effect == CommandEffect.DISRUPT.value:
         return 70 + max((card.power or 0) * 9 for index, card in enumerate(opponent.field_ai) if index not in opponent.spent_field_ai)
     if command.effect == CommandEffect.SANDBOX.value:
@@ -817,6 +821,7 @@ def _best_command_in_hand(state: GameState) -> int | None:
         CommandEffect.WATER_RITE.value: 4,
         CommandEffect.WIND_RITE.value: 4,
         CommandEffect.EARTH_RITE.value: 4,
+        CommandEffect.COMEBACK_RITE.value: 4,
         CommandEffect.DISRUPT.value: 4,
         CommandEffect.PATCH.value: 3,
         CommandEffect.RELEARN.value: 2,
@@ -855,6 +860,8 @@ def _command_is_usable(state: GameState, source_index: int) -> bool:
         return _has_attribute_ai(player, Attribute.EARTH) and any(
             item.type == CardType.AI for item in player.discard
         )
+    if card.effect == CommandEffect.COMEBACK_RITE.value:
+        return player.life < opponent.life and (bool(player.deck) or bool(player.spent_field_ai))
     return False
 
 

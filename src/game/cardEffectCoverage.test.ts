@@ -155,12 +155,12 @@ const CARD_EFFECT_CASES = {
     },
   },
   draw_on_play: {
-    cardId: "AI-WATER-1",
+    cardId: "AI-WATER-3",
     description: "登場時に1枚引く",
     run: () => {
       const game = blankGame();
       game.players[0].deck = [card("AI-FIRE-1")];
-      applyPlayEffects(game, game.players[0], card("AI-WATER-1"), 0, 1);
+      applyPlayEffects(game, game.players[0], card("AI-WATER-3"), 0, 1);
       expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
     },
   },
@@ -192,15 +192,24 @@ const CARD_EFFECT_CASES = {
     run: () => expect(keepsReadyAfterAttack(card("AI-WIND-1"))).toBe(true),
   },
   spend_enemy_on_play: {
-    cardId: "AI-WIND-2B",
+    cardId: "AI-WIND-3",
     description: "登場時に相手の未消耗召喚獣選択を要求する",
     run: () => {
       const game = blankGame();
       game.players[1].field = [card("AI-FIRE-2")];
-      applyPlayEffects(game, game.players[0], card("AI-WIND-2B"), 0, 1);
-      expect(spendsEnemyOnPlay(card("AI-WIND-2B"))).toBe(true);
+      applyPlayEffects(game, game.players[0], card("AI-WIND-3"), 0, 1);
+      expect(spendsEnemyOnPlay(card("AI-WIND-3"))).toBe(true);
       expect(game.pendingTarget?.kind).toBe("card-select");
       expect(game.pendingTarget && "reason" in game.pendingTarget ? game.pendingTarget.reason : null).toBe("spend-enemy");
+    },
+  },
+  spend_enemy_on_play_enters_spent: {
+    cardId: "AI-WIND-2B",
+    description: "相手を消耗させ、自身も消耗で出る",
+    run: () => {
+      const target = card("AI-WIND-2B");
+      expect(spendsEnemyOnPlay(target)).toBe(true);
+      expect(entersSpentOnPlay(target)).toBe(true);
     },
   },
   defense_plus_1: {
@@ -247,6 +256,11 @@ const CARD_EFFECT_CASES = {
       expect(game.players[0].life).toBe(CONFIG.life - 1);
     },
   },
+  draw_on_blocked_attack: {
+    cardId: "AI-WATER-1",
+    description: "防御された時ドロー対象になる",
+    run: () => expect(drawsOnBlockedAttack(card("AI-WATER-1"))).toBe(true),
+  },
   draw_on_blocked_attack_cannot_hand_defend: {
     cardId: "AI-WATER-2B",
     description: "防御された時ドロー対象かつ手札防御不可",
@@ -280,6 +294,15 @@ const CARD_EFFECT_CASES = {
       expect(returnsAfterOverheat(target)).toBe(true);
       expect(cannotHandDefend(target)).toBe(true);
       expect(entersSpentOnPlay(target)).toBe(true);
+    },
+  },
+  return_after_overheat: {
+    cardId: "AI-WATER-4",
+    description: "攻撃後退場時に手札へ戻る",
+    run: () => {
+      const target = card("AI-WATER-4");
+      expect(returnsAfterOverheat(target)).toBe(true);
+      expect(cannotHandDefend(target)).toBe(false);
     },
   },
   draw_on_successful_defense: {
@@ -474,6 +497,23 @@ const CARD_EFFECT_CASES = {
       useCommandAtInDraft(game, 0, null);
       expectCommandUsed(game, "CMD-EARTH-RITE");
       expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-2"]);
+    },
+  },
+  comeback_rite: {
+    cardId: "CMD-COMEBACK-RITE",
+    description: "劣勢時に1枚引き、自分の消耗召喚獣を回復する",
+    run: () => {
+      const game = blankGame();
+      game.players[0].life = 3;
+      game.players[1].life = 5;
+      game.players[0].hand = [card("CMD-COMEBACK-RITE")];
+      game.players[0].field = [card("AI-FIRE-2")];
+      game.players[0].spentFieldIndexes.add(0);
+      game.players[0].deck = [card("AI-FIRE-1")];
+      useCommandAtInDraft(game, 0, null);
+      expectCommandUsed(game, "CMD-COMEBACK-RITE");
+      expect(game.players[0].spentFieldIndexes.has(0)).toBe(false);
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
     },
   },
   firewall: {

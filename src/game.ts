@@ -44,7 +44,8 @@ export type CommandEffect =
   | "fire_rite"
   | "water_rite"
   | "wind_rite"
-  | "earth_rite";
+  | "earth_rite"
+  | "comeback_rite";
 export type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator" | "resonator" | "recovery_cache";
 export type CardEffect = AiEffect | CommandEffect | MemoryEffect | "";
 export type Zone = "hand" | "field" | "memory" | "discard";
@@ -269,31 +270,36 @@ export function cardPool(): Card[] {
     "AI-EARTH-2C": "石灯りノーム",
   };
   const aiEffects = new Map<string, AiEffect>([
+    ["AI-FIRE-1", "no_spend_after_attack"],
     ["AI-FIRE-1B", "block_pressure"],
     ["AI-FIRE-2", "attack_plus_1"],
     ["AI-FIRE-2B", "hand_defense_pierce"],
-    ["AI-FIRE-3", "attack_plus_1"],
+    ["AI-FIRE-3", "hand_defense_pierce"],
     ["AI-FIRE-3B", "reckless_attack_plus_1"],
     ["AI-FIRE-4", "draw_after_overheat"],
     ["AI-FIRE-4B", "low_life_no_hand_defense_self_damage"],
     ["AI-FIRE-1C", "charge_pressure"],
-    ["AI-WATER-1", "draw_on_play"],
+    ["AI-WATER-1", "draw_on_blocked_attack"],
     ["AI-WATER-1B", "draw_on_play_cannot_hand_defend"],
     ["AI-WATER-2", "filter_on_play"],
     ["AI-WATER-2B", "draw_on_blocked_attack_cannot_hand_defend"],
     ["AI-WATER-3", "draw_on_play"],
     ["AI-WATER-3B", "filter_on_play"],
+    ["AI-WATER-4", "return_after_overheat"],
     ["AI-WATER-4B", "draw_after_overheat_opponent_draw"],
     ["AI-WATER-1C", "charge_draw"],
     ["AI-WIND-1", "no_spend_after_attack"],
-    ["AI-WIND-1B", "no_spend_after_attack"],
-    ["AI-WIND-2B", "spend_enemy_on_play"],
+    ["AI-WIND-1B", "draw_on_blocked_attack_cannot_hand_defend"],
+    ["AI-WIND-2B", "spend_enemy_on_play_enters_spent"],
     ["AI-WIND-3", "spend_enemy_on_play"],
     ["AI-WIND-3B", "ready_ally_on_play_draw"],
     ["AI-WIND-4B", "return_after_overheat_cannot_hand_defend"],
     ["AI-WIND-2C", "charge_ready_ally"],
+    ["AI-EARTH-1", "block_pressure"],
     ["AI-EARTH-1B", "draw_on_successful_defense"],
     ["AI-EARTH-2", "defense_plus_1"],
+    ["AI-EARTH-2B", "draw_on_successful_defense"],
+    ["AI-EARTH-3", "defense_plus_1"],
     ["AI-EARTH-3B", "recover_ai_on_play"],
     ["AI-EARTH-4", "recover_ai_on_play"],
     ["AI-EARTH-4B", "draw_on_successful_defense_enters_spent"],
@@ -333,6 +339,7 @@ export function cardPool(): Card[] {
     { id: "CMD-WATER-RITE", name: "清流再編術", type: "event", effect: "water_rite" },
     { id: "CMD-WIND-RITE", name: "旋風転身術", type: "event", effect: "wind_rite" },
     { id: "CMD-EARTH-RITE", name: "岩壁継承術", type: "event", effect: "earth_rite" },
+    { id: "CMD-COMEBACK-RITE", name: "逆転再起術", type: "event", effect: "comeback_rite" },
     { id: "MEM-FIREWALL", name: "竜盾の紋章", type: "memory", effect: "firewall" },
     { id: "MEM-CACHE", name: "灯火の旅嚢", type: "memory", effect: "cache" },
     { id: "MEM-PIPELINE", name: "星泉の導脈", type: "memory", effect: "pipeline" },
@@ -427,8 +434,8 @@ export const DECKS = {
       "CMD-FIRE-RITE",
       "CMD-RELEARN",
       "CMD-RELEARN",
+      "CMD-COMEBACK-RITE",
       "MEM-CACHE",
-      "MEM-FIREWALL",
       "MEM-PIPELINE",
     ],
   },
@@ -504,8 +511,8 @@ export const DECKS = {
       "AI-EARTH-2C",
       "CMD-EARTH-RITE",
       "CMD-EARTH-RITE",
-      "CMD-SANDBOX",
-      "MEM-ACCELERATOR",
+      "CMD-COMEBACK-RITE",
+      "CMD-COMEBACK-RITE",
       "MEM-FIREWALL",
       "MEM-PIPELINE",
     ],
@@ -1303,6 +1310,9 @@ export function commandUsable(game: GameState, command: Card | null | undefined,
   if (command.effect === "earth_rite") {
     return hasAttributeAi(player, "土") && highestPowerAiInDiscard(player) !== null;
   }
+  if (command.effect === "comeback_rite") {
+    return player.life < opponent.life && (player.deck.length > 0 || highestPowerSpentAi(player) !== null);
+  }
   return false;
 }
 
@@ -1425,6 +1435,7 @@ export function bestCommand(game: GameState, player: PlayerState, opponent: Play
     water_rite: 4,
     wind_rite: 4,
     earth_rite: 4,
+    comeback_rite: 4,
     disrupt: 4,
     patch: 3,
     relearn: 2,
@@ -1755,6 +1766,9 @@ function commandAiValue(game: GameState, command: Card): number {
   if (command.effect === "wind_rite") return 74 + (highestPowerReadyAi(opponent) !== null ? 22 : 0);
   if (command.effect === "water_rite") return ai.deck.length > 0 ? 68 : 0;
   if (command.effect === "earth_rite") return 62;
+  if (command.effect === "comeback_rite") {
+    return 48 + (highestPowerSpentAi(ai) !== null ? 40 : 0) + (ai.deck.length > 0 ? 34 : 0);
+  }
   if (command.effect === "disrupt") {
     const ready = opponent.field.filter((_, index) => !opponent.spentFieldIndexes.has(index));
     return 70 + Math.max(0, ...ready.map((card) => (card.power ?? 0) * 9));

@@ -27,6 +27,7 @@ class CommandEffect(str, Enum):
     WATER_RITE = "water_rite"
     WIND_RITE = "wind_rite"
     EARTH_RITE = "earth_rite"
+    COMEBACK_RITE = "comeback_rite"
 
 
 class MemoryEffect(str, Enum):
@@ -363,31 +364,36 @@ def build_ai_card_pool() -> list[Card]:
         "AI-EARTH-2C": "石灯りノーム",
     }
     effects = {
+        "AI-FIRE-1": AiEffect.NO_SPEND_AFTER_ATTACK.value,
         "AI-FIRE-1B": AiEffect.BLOCK_PRESSURE.value,
         "AI-FIRE-2": AiEffect.ATTACK_PLUS_1.value,
         "AI-FIRE-2B": AiEffect.HAND_DEFENSE_PIERCE.value,
-        "AI-FIRE-3": AiEffect.ATTACK_PLUS_1.value,
+        "AI-FIRE-3": AiEffect.HAND_DEFENSE_PIERCE.value,
         "AI-FIRE-3B": AiEffect.RECKLESS_ATTACK_PLUS_1.value,
         "AI-FIRE-4": AiEffect.DRAW_AFTER_OVERHEAT.value,
         "AI-FIRE-4B": AiEffect.LOW_LIFE_NO_HAND_DEFENSE_SELF_DAMAGE.value,
         "AI-FIRE-1C": AiEffect.CHARGE_PRESSURE.value,
-        "AI-WATER-1": AiEffect.DRAW_ON_PLAY.value,
+        "AI-WATER-1": AiEffect.DRAW_ON_BLOCKED_ATTACK.value,
         "AI-WATER-1B": AiEffect.DRAW_ON_PLAY_CANNOT_HAND_DEFEND.value,
         "AI-WATER-2": AiEffect.FILTER_ON_PLAY.value,
         "AI-WATER-2B": AiEffect.DRAW_ON_BLOCKED_ATTACK_CANNOT_HAND_DEFEND.value,
         "AI-WATER-3": AiEffect.DRAW_ON_PLAY.value,
         "AI-WATER-3B": AiEffect.FILTER_ON_PLAY.value,
+        "AI-WATER-4": AiEffect.RETURN_AFTER_OVERHEAT.value,
         "AI-WATER-4B": AiEffect.DRAW_AFTER_OVERHEAT_OPPONENT_DRAW.value,
         "AI-WATER-1C": AiEffect.CHARGE_DRAW.value,
         "AI-WIND-1": AiEffect.NO_SPEND_AFTER_ATTACK.value,
-        "AI-WIND-1B": AiEffect.NO_SPEND_AFTER_ATTACK.value,
-        "AI-WIND-2B": AiEffect.SPEND_ENEMY_ON_PLAY.value,
+        "AI-WIND-1B": AiEffect.DRAW_ON_BLOCKED_ATTACK_CANNOT_HAND_DEFEND.value,
+        "AI-WIND-2B": AiEffect.SPEND_ENEMY_ON_PLAY_ENTERS_SPENT.value,
         "AI-WIND-3": AiEffect.SPEND_ENEMY_ON_PLAY.value,
         "AI-WIND-3B": AiEffect.READY_ALLY_ON_PLAY_DRAW.value,
         "AI-WIND-4B": AiEffect.RETURN_AFTER_OVERHEAT_CANNOT_HAND_DEFEND.value,
         "AI-WIND-2C": AiEffect.CHARGE_READY_ALLY.value,
+        "AI-EARTH-1": AiEffect.BLOCK_PRESSURE.value,
         "AI-EARTH-1B": AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE.value,
         "AI-EARTH-2": AiEffect.DEFENSE_PLUS_1.value,
+        "AI-EARTH-2B": AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE.value,
+        "AI-EARTH-3": AiEffect.DEFENSE_PLUS_1.value,
         "AI-EARTH-3B": AiEffect.RECOVER_AI_ON_PLAY.value,
         "AI-EARTH-4": AiEffect.RECOVER_AI_ON_PLAY.value,
         "AI-EARTH-4B": AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE_ENTERS_SPENT.value,
@@ -509,6 +515,12 @@ def build_command_card_pool() -> list[Card]:
             name="岩壁継承術",
             type=CardType.EVENT,
             effect=CommandEffect.EARTH_RITE.value,
+        ),
+        Card(
+            id="CMD-COMEBACK-RITE",
+            name="逆転再起術",
+            type=CardType.EVENT,
+            effect=CommandEffect.COMEBACK_RITE.value,
         ),
     ]
 
@@ -646,8 +658,8 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-FIRE-RITE",
                 "CMD-RELEARN",
                 "CMD-RELEARN",
+                "CMD-COMEBACK-RITE",
                 "MEM-CACHE",
-                "MEM-FIREWALL",
                 "MEM-PIPELINE",
             ]
         )
@@ -720,8 +732,8 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "AI-EARTH-2C",
                 "CMD-EARTH-RITE",
                 "CMD-EARTH-RITE",
-                "CMD-SANDBOX",
-                "MEM-ACCELERATOR",
+                "CMD-COMEBACK-RITE",
+                "CMD-COMEBACK-RITE",
                 "MEM-FIREWALL",
                 "MEM-PIPELINE",
             ]

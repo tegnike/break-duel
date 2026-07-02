@@ -14,6 +14,7 @@ from ai_break_duel.cards import (
     build_deck,
     build_player_deck,
     can_defend,
+    pierces_hand_defense,
     validate_same_name_limit,
 )
 from ai_break_duel.ai import choose_action
@@ -255,7 +256,7 @@ class CoreRuleTests(unittest.TestCase):
         state = new_game(1, no_opening_hands(ai_profiles=("challenger", "challenger")))
         state.players[0].deck = []
         state.players[0].hand = []
-        state.players[0].field_ai = [card("AI-FIRE-1")]
+        state.players[0].field_ai = [card("AI-WATER-1")]
         state.players[1].deck = []
         state.players[1].hand = []
         state.players[1].field_ai = [card("AI-FIRE-2")]
@@ -291,7 +292,7 @@ class CoreRuleTests(unittest.TestCase):
         state.players[0].deck = []
         state.players[0].hand = []
         state.players[0].memory = memory("MEM-ACCELERATOR")
-        state.players[0].field_ai = [card("AI-FIRE-1")]
+        state.players[0].field_ai = [card("AI-WATER-1")]
         start_turn(state)
         state.actions_remaining = 1
         state.players[0].spent_field_ai = {0}
@@ -382,12 +383,12 @@ class CoreRuleTests(unittest.TestCase):
             1,
             no_opening_hands(),
         )
-        state.players[0].field_ai = [card("AI-FIRE-3")]
+        state.players[0].field_ai = [card("AI-WATER-3")]
         state.players[1].hand = [card("AI-WATER-4")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
         self.assertEqual(state.players[1].life, 5)
-        self.assertEqual([item.id for item in state.players[0].field_ai], ["AI-FIRE-3"])
+        self.assertEqual([item.id for item in state.players[0].field_ai], ["AI-WATER-3"])
         self.assertIn(0, state.players[0].spent_field_ai)
         self.assertEqual(state.players[1].field_ai, [])
         self.assertEqual(state.players[1].discard[0].id, "AI-WATER-4")
@@ -414,7 +415,7 @@ class CoreRuleTests(unittest.TestCase):
             1,
             no_opening_hands(first_player_first_turn_actions=2),
         )
-        state.players[0].field_ai = [card("AI-FIRE-3"), card("AI-FIRE-3")]
+        state.players[0].field_ai = [card("AI-WATER-3"), card("AI-WATER-3")]
         state.players[1].hand = [card("AI-WATER-4"), card("AI-WATER-4")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
@@ -462,8 +463,8 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.log[-1]["defense_result"], "success_trade")
 
     def test_draw_on_play_ai_draws_one_card_when_played(self) -> None:
-        state = new_game(1, no_opening_hands())
-        state.players[0].hand = [card("AI-WATER-1")]
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=3))
+        state.players[0].hand = [card("AI-WATER-3")]
         state.players[0].deck = [card("AI-FIRE-1")]
         start_turn(state)
         apply_action(state, Action(ActionType.PLAY_AI, 0))
@@ -759,8 +760,9 @@ class CoreRuleTests(unittest.TestCase):
         apply_action(state, Action(ActionType.PLAY_AI, 0))
         self.assertEqual(state.actions_remaining, 0)
 
-    def test_fire_3_gets_attack_plus_1(self) -> None:
-        self.assertEqual(attack_combat_value(card("AI-FIRE-3")), 4)
+    def test_fire_3_pierces_hand_defense(self) -> None:
+        self.assertEqual(attack_combat_value(card("AI-FIRE-3")), 3)
+        self.assertTrue(pierces_hand_defense(card("AI-FIRE-3")))
 
     def test_power_3_defense_modifier_can_be_configured(self) -> None:
         state = new_game(1, no_opening_hands(power_3_defense_modifier=-1))
@@ -811,13 +813,13 @@ class CoreRuleTests(unittest.TestCase):
 
     def test_power_4_overheats_after_attack(self) -> None:
         state = new_game(1, no_opening_hands())
-        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[0].field_ai = [card("AI-FIRE-4")]
         state.players[1].deck = [card("AI-WATER-1")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
         self.assertEqual(state.players[1].life, 4)
         self.assertEqual(state.players[0].field_ai, [])
-        self.assertEqual(state.players[0].discard[0].id, "AI-WATER-4")
+        self.assertEqual(state.players[0].discard[0].id, "AI-FIRE-4")
 
     def test_power_3_can_overheat_after_attack_when_configured(self) -> None:
         state = new_game(
@@ -1038,6 +1040,22 @@ class CoreRuleTests(unittest.TestCase):
         self.assertIn(0, state.players[0].spent_field_ai)
         self.assertEqual(state.players[0].discard[-1].id, "CMD-EARTH-RITE")
 
+    def test_comeback_rite_draws_and_readies_when_behind(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].life = 3
+        state.players[1].life = 5
+        state.players[0].hand = [command("CMD-COMEBACK-RITE")]
+        state.players[0].field_ai = [card("AI-FIRE-2")]
+        state.players[0].deck = [card("AI-FIRE-1")]
+        start_turn(state)
+        state.players[0].spent_field_ai = {0}
+        apply_action(state, Action(ActionType.USE_COMMAND, 0))
+        self.assertNotIn(0, state.players[0].spent_field_ai)
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-1"])
+        self.assertEqual(state.players[0].discard[-1].id, "CMD-COMEBACK-RITE")
+        self.assertEqual(state.log[-1]["readied_ai"], "AI-FIRE-2")
+        self.assertEqual(state.log[-1]["draw_count"], 1)
+
     def test_memory_card_enters_memory_slot_and_replaces_existing_memory(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].hand = [memory("MEM-CACHE"), memory("MEM-FIREWALL")]
@@ -1202,7 +1220,7 @@ class CoreRuleTests(unittest.TestCase):
 
     def test_earth_charge_summon_adds_selected_next_defense_bonus_until_next_turn(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
-        state.players[0].field_ai = [card("AI-EARTH-3")]
+        state.players[0].field_ai = [card("AI-EARTH-2")]
         state.players[0].hand = [card("AI-EARTH-2C")]
         state.players[0].turns_started = 1
         state.turn = 1
@@ -1214,7 +1232,7 @@ class CoreRuleTests(unittest.TestCase):
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
         self.assertEqual(state.stats.successful_defenses, 1)
-        self.assertEqual([item.id for item in state.players[0].discard], ["AI-EARTH-2C", "AI-EARTH-3"])
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-EARTH-2C", "AI-EARTH-2"])
 
     def test_earth_charge_summon_does_not_boost_unselected_field_ai(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
@@ -1469,7 +1487,7 @@ class CoreRuleTests(unittest.TestCase):
 
     def test_attack_exhausts_ai_and_prevents_second_attack(self) -> None:
         state = new_game(1, no_opening_hands())
-        state.players[0].field_ai = [card("AI-FIRE-1")]
+        state.players[0].field_ai = [card("AI-WATER-1")]
         state.players[1].deck = [card("AI-WATER-1"), card("AI-WIND-1")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))

@@ -442,6 +442,15 @@ export function useCommandAtInDraft(
       player.hand.push(recovered);
       text += ` ${recovered.name}をトラッシュから回収。`;
     }
+  } else if (used.effect === "comeback_rite") {
+    const readyIndex = highestPowerSpentAi(player);
+    if (readyIndex !== null) {
+      player.spentFieldIndexes.delete(readyIndex);
+      player.power3RecoveryDelayedFieldIndexes.delete(readyIndex);
+      text += ` ${player.field[readyIndex].name}を回復。`;
+    }
+    const drawnCards = drawCards(player, 1);
+    text += ` ${visibleDrawText(player, drawnCards)}。`;
   }
   addLog(draft, text);
   effects.showDuelEvent?.({

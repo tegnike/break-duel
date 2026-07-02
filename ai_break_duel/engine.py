@@ -845,6 +845,25 @@ def _use_command(state: GameState, action: Action) -> None:
         result |= {
             "recovered_ai": recovered.id,
         }
+    elif command.effect == CommandEffect.COMEBACK_RITE.value:
+        if player.life >= opponent.life:
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Comeback rite requires lower life than opponent.")
+        ready_index = _highest_power_spent_ai(player)
+        if ready_index is None and not player.deck:
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Comeback rite requires a spent summon or deck card.")
+        readied_ai = None
+        if ready_index is not None:
+            player.spent_field_ai.remove(ready_index)
+            player.power_3_recovery_delayed_field_ai.discard(ready_index)
+            readied_ai = player.field_ai[ready_index].id
+        drawn = player.draw(1, state.rng) if player.deck else 0
+        player.discard.append(command)
+        result |= {
+            "readied_ai": readied_ai,
+            "draw_count": drawn,
+        }
     else:
         player.hand.insert(action.source_index, command)
         raise ValueError(f"Unsupported command effect: {command.effect}")
@@ -1229,6 +1248,10 @@ def command_is_usable(state: GameState, source_index: int) -> bool:
         return (
             _has_attribute_ai(player, Attribute.EARTH)
             and _highest_power_ai_in_discard(player) is not None
+        )
+    if command.effect == CommandEffect.COMEBACK_RITE.value:
+        return player.life < state.opponent().life and (
+            bool(player.deck) or bool(player.spent_field_ai)
         )
     return False
 
