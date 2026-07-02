@@ -1154,14 +1154,19 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.charged_actions_remaining, 1)
         self.assertTrue(state.players[0].pending_effects["charge_used"])
 
-    def test_power_3_or_higher_summons_cannot_be_charged(self) -> None:
-        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
-        state.players[0].hand = [card("AI-WATER-3")]
-        state.players[0].turns_started = 1
-        state.turn = 1
-        start_turn(state)
-        with self.assertRaisesRegex(ValueError, "cannot be charged"):
-            apply_action(state, Action(ActionType.CHARGE, 0))
+    def test_power_3_and_4_summons_can_be_charged(self) -> None:
+        for card_id in ("AI-WATER-3", "AI-WATER-4"):
+            with self.subTest(card_id=card_id):
+                state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+                state.players[0].hand = [card(card_id)]
+                state.players[0].turns_started = 1
+                state.turn = 1
+                start_turn(state)
+                apply_action(state, Action(ActionType.CHARGE, 0))
+                self.assertEqual(state.actions_remaining, 3)
+                self.assertEqual(state.charged_actions_remaining, 1)
+                self.assertEqual([item.id for item in state.players[0].discard], [card_id])
+                self.assertTrue(state.players[0].pending_effects["charge_used"])
 
     def test_charged_action_is_spent_first_by_non_attack_actions(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))

@@ -975,7 +975,7 @@ def _charge_fuel_has_immediate_value(
 
 
 def _can_charge_card(card) -> bool:
-    return card.type != CardType.AI or (card.power or 0) <= 2
+    return True
 
 
 def _accelerator_sacrifice_target(player: PlayerState) -> int | None:

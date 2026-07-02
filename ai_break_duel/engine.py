@@ -597,8 +597,6 @@ def _charge(state: GameState, action: Action) -> None:
         raise ValueError("CHARGE requires a hand index.")
     if action.source_index < 0 or action.source_index >= len(player.hand):
         raise ValueError("Charge source is out of range.")
-    if not _can_charge_card(player.hand[action.source_index]):
-        raise ValueError("Power 3 or higher summons cannot be charged.")
     if player.pending_effects.get("charge_used"):
         raise ValueError("Charge is already used this turn.")
     if state.actions_remaining >= 3:
@@ -1316,10 +1314,6 @@ def _card_priority(card) -> int:
     if card.type == CardType.AI:
         return card.power or 0
     return 1
-
-
-def _can_charge_card(card) -> bool:
-    return card.type != CardType.AI or (card.power or 0) <= 2
 
 
 def _can_active_player_attack(state: GameState) -> bool:

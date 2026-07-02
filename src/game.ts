@@ -1339,7 +1339,7 @@ export function canUseCharge(game: GameState, player: PlayerState): boolean {
 }
 
 export function canChargeCard(card: Card | null | undefined): boolean {
-  return Boolean(card && (card.type !== "ai" || (card.power ?? 0) <= 2));
+  return Boolean(card);
 }
 
 export function acceleratorSacrificeTarget(player: PlayerState): number | null {
