@@ -274,7 +274,7 @@ def _play_ai(state: GameState, action: Action) -> None:
         raise ValueError("Only summon cards can be played with PLAY_AI.")
     action_cost = _play_cost(state, card)
     player.field_ai.append(card)
-    _ensure_field_stacks(player).append([])
+    _ensure_field_stacks(player)
     player.played_ai_this_turn = True
     field_index = len(player.field_ai) - 1
     drawn = 0

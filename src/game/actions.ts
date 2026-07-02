@@ -366,6 +366,7 @@ export function useCommandAtInDraft(
   const playerIndex = draft.players.indexOf(player);
   const opponentIndex = draft.players.indexOf(opponent);
   let impact: { kind: "life-damage"; sourcePlayerIndex: number | null; targetPlayerIndex: number; amount: number; fatal?: boolean } | undefined;
+  const trinityTrashed: Card[] = [];
   if (used.effect === "optimize") {
     const discarded = selectedDiscardCards.length > 0
       ? selectedDiscardCards
@@ -399,14 +400,13 @@ export function useCommandAtInDraft(
     player.sandboxShield = 1;
     text += " このターン、次のpower 4攻撃後退場を1回防ぐ。";
   } else if (used.effect === "trinity") {
-    const trashed: Card[] = [];
     for (let index = player.field.length - 1; index >= 0; index -= 1) {
-      trashed.unshift(...removeFieldStack(player, index));
+      trinityTrashed.unshift(...removeFieldStack(player, index));
     }
-    player.discard.push(...trashed);
+    player.discard.push(...trinityTrashed);
     opponent.life -= 1;
     impact = { kind: "life-damage", sourcePlayerIndex: playerIndex >= 0 ? playerIndex : null, targetPlayerIndex: opponentIndex, amount: 1, fatal: opponent.life <= 0 };
-    text += ` ${cardNameList(trashed)}をすべてトラッシュし、${opponent.name}のライフを1減らした。`;
+    text += ` ${cardNameList(trinityTrashed)}をすべてトラッシュし、${opponent.name}のライフを1減らした。`;
   } else if (used.effect === "fire_rite") {
     if (!hasAttributeAi(player, "火")) return;
     const discarded = discardLowPriorityCards(opponent, 1);
@@ -455,7 +455,7 @@ export function useCommandAtInDraft(
     rivalVoiceLine: player.isHuman ? undefined : "command",
     cards: [
       ...(used.effect === "trinity"
-        ? player.discard.slice(-3).map((card) => ({ card, label: "犠牲", state: "trash" as const }))
+        ? trinityTrashed.map((card) => ({ card, label: "犠牲", state: "trash" as const }))
         : [{ card: used, label: "使用", state: "trash" as const }]),
     ],
   });

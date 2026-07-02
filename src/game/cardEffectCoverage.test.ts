@@ -620,6 +620,26 @@ describe("life damage event metadata", () => {
     });
   });
 
+  it("shows every stacked trinity sacrifice card", () => {
+    const game = blankGame();
+    const events: DuelEventPayload[] = [];
+    const player = game.players[0];
+    player.hand = [card("CMD-TRINITY")];
+    player.field = [card("AI-FIRE-2"), card("AI-WATER-1"), card("AI-WIND-1")];
+    stackUpgradeCard(player, 0, card("AI-FIRE-1"));
+
+    useCommandAtInDraft(game, 0, null, [], {
+      showDuelEvent: (event) => events.push(event),
+    });
+
+    expect(events[events.length - 1]?.cards.map((entry) => entry.card.id)).toEqual([
+      "AI-FIRE-2",
+      "AI-FIRE-1",
+      "AI-WATER-1",
+      "AI-WIND-1",
+    ]);
+  });
+
   it("marks lethal attack damage as fatal", () => {
     const game = blankGame();
     const events: DuelEventPayload[] = [];

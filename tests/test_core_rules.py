@@ -497,6 +497,14 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[0].cards_drawn, 1)
         self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-1"])
 
+    def test_play_ai_keeps_field_stacks_aligned_with_field_ai(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [card("AI-FIRE-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertEqual(len(state.players[0].field_stacks), len(state.players[0].field_ai))
+        self.assertEqual(state.players[0].field_stacks, [[]])
+
     def test_wind_ai_does_not_spend_after_attacking(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].field_ai = [card("AI-WIND-1")]
