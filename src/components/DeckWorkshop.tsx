@@ -60,13 +60,13 @@ export function CardLibraryPage() {
       <div className="workshop-heading">
         <div>
           <h2>カード一覧</h2>
-          <p>{CARD_LIST.length}種類 / 召喚獣{aiCount}種 / 指令{eventCount}種 / 遺物{memoryCount}種</p>
+          <p>{CARD_LIST.length}種類 / 召喚獣{aiCount}種 / 術式{eventCount}種 / 遺物{memoryCount}種</p>
         </div>
         <div className="workshop-filters">
           <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}>
             <option value="all">すべて</option>
             <option value="ai">召喚獣</option>
-            <option value="event">指令</option>
+            <option value="event">術式</option>
             <option value="memory">遺物</option>
           </select>
           <select value={attributeFilter} onChange={(event) => setAttributeFilter(event.target.value as AttributeFilter)}>
@@ -232,7 +232,7 @@ export function DeckBuilderPage() {
             <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}>
               <option value="all">すべて</option>
               <option value="ai">召喚獣</option>
-              <option value="event">指令</option>
+              <option value="event">術式</option>
               <option value="memory">遺物</option>
             </select>
             <select value={attributeFilter} onChange={(event) => setAttributeFilter(event.target.value as AttributeFilter)}>
@@ -340,7 +340,7 @@ function CardInspector({ card, compact = false }: { card: Card | null; compact?:
         <p>{inspectorMetaText(card)}</p>
         <dl>
           <div><dt>ID</dt><dd>{card.id}</dd></div>
-          <div><dt>種別</dt><dd>{card.type === "ai" ? "召喚獣" : card.type === "event" ? "指令" : "遺物"}</dd></div>
+          <div><dt>種別</dt><dd>{card.type === "ai" ? "召喚獣" : card.type === "event" ? "術式" : "遺物"}</dd></div>
           {card.attribute && <div><dt>属性</dt><dd>{card.attribute}</dd></div>}
           {card.power && <div><dt>power</dt><dd>{card.power}</dd></div>}
         </dl>
@@ -351,7 +351,7 @@ function CardInspector({ card, compact = false }: { card: Card | null; compact?:
 }
 
 function inspectorMetaText(card: Card): string {
-  if (card.type === "event") return "指令";
+  if (card.type === "event") return "術式";
   if (card.type === "memory") return "遺物";
   return [
     `${card.attribute}属性`,
@@ -369,7 +369,7 @@ function DeckStats({ cardIds }: { cardIds: string[] }) {
   return (
     <div className="deck-stats">
       <StatChip label="召喚獣" value={aiCount} />
-      <StatChip label="指令" value={eventCount} />
+      <StatChip label="術式" value={eventCount} />
       <StatChip label="遺物" value={memoryCount} />
       {powerCounts.map((count, index) => <StatChip label={`P${index + 1}`} value={count} key={index} />)}
     </div>

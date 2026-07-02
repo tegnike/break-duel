@@ -147,7 +147,7 @@ function applyChargeEffects(draft: GameState, playerIndex: number, charged: Card
     if (targetIndex !== null) {
       player.spentFieldIndexes.delete(targetIndex);
       player.power3RecoveryDelayedFieldIndexes.delete(targetIndex);
-      texts.push(`${player.field[targetIndex].name}を回復。`);
+      texts.push(`${player.field[targetIndex].name}を回復した。`);
     }
   }
   if (charged.effect === "charge_guard") {
@@ -189,7 +189,7 @@ export function applyPlayEffects(
   if (CONFIG.power3DiscardsOnPlay && card.power === 3) {
     const discarded = discardLowPriorityCards(player, 1);
     if (discarded.length > 0) {
-      text += ` 代償として${cardNameList(discarded)}を捨てた。`;
+      text += ` 代償として${cardNameList(discarded)}をトラッシュへ送った。`;
     }
   }
   if (selfDamagesOnPlay(card)) {
@@ -218,9 +218,9 @@ export function applyPlayEffects(
           reason: "filter-discard",
           zone: "hand",
           playerIndex: draft.players.indexOf(player),
-          title: `${card.name}の捨て札を選択`,
-          prompt: `登場時効果で${visibleDrawText(player, drawnCards)}。手札からトラッシュするカードを1枚選んでください。`,
-          confirmLabel: "このカードを捨てる",
+          title: `${card.name}でトラッシュへ送るカードを選択`,
+          prompt: `登場時効果で${visibleDrawText(player, drawnCards)}。手札からトラッシュへ送るカードを1枚選んでください。`,
+          confirmLabel: "このカードを送る",
           min: 1,
           max: 1,
           excludeIndexes: [],
@@ -228,12 +228,12 @@ export function applyPlayEffects(
           actionCost,
           cancelable: false,
         };
-        text += " 捨てるカードを選択。";
+        text += " トラッシュへ送るカードを選択。";
       } else {
         const discardIndex = lowestPriorityHand(player);
         const discarded = player.hand.splice(discardIndex, 1)[0];
         player.discard.push(discarded);
-        text += ` ${discarded.name}を捨てた。`;
+        text += ` ${discarded.name}をトラッシュへ送った。`;
       }
     }
   }
@@ -317,8 +317,8 @@ export function applyPlayEffects(
           zone: "field",
           playerIndex: draft.players.indexOf(player),
           title: `${card.name}で回復する召喚獣を選択`,
-          prompt: "消耗から回復させる自分の召喚獣を1体選んでください。",
-          confirmLabel: "この召喚獣を回復",
+          prompt: "消耗から回復する自分の召喚獣を1体選んでください。",
+          confirmLabel: "この召喚獣を回復する",
           min: 1,
           max: 1,
           excludeIndexes: player.field.map((_, index) => player.spentFieldIndexes.has(index) ? -1 : index).filter((index) => index >= 0),
@@ -330,7 +330,7 @@ export function applyPlayEffects(
       } else {
         player.spentFieldIndexes.delete(targetIndex);
         player.power3RecoveryDelayedFieldIndexes.delete(targetIndex);
-        text += ` ${player.field[targetIndex].name}を回復。`;
+        text += ` ${player.field[targetIndex].name}を回復した。`;
       }
     }
   }
@@ -362,7 +362,7 @@ export function useCommandAtInDraft(
   if (commandIndex < 0) return;
   const used = player.hand.splice(commandIndex, 1)[0];
   player.discard.push(used);
-  let text = `${player.name}は${used.name}を使用。`;
+  let text = `${player.name}は${used.name}を発動。`;
   const playerIndex = draft.players.indexOf(player);
   const opponentIndex = draft.players.indexOf(opponent);
   let impact: { kind: "life-damage"; sourcePlayerIndex: number | null; targetPlayerIndex: number; amount: number; fatal?: boolean } | undefined;
@@ -372,13 +372,13 @@ export function useCommandAtInDraft(
       ? selectedDiscardCards
       : discardLowPriorityCards(player, 1);
     const drawnCards = drawCards(player, 2);
-    text += ` ${cardNameList(discarded)}を捨て、${visibleDrawText(player, drawnCards)}。`;
+    text += ` ${cardNameList(discarded)}をトラッシュへ送り、${visibleDrawText(player, drawnCards)}。`;
   } else if (used.effect === "patch") {
     const target = targetIndex ?? highestPowerSpentAi(player);
     if (target !== null) {
       player.spentFieldIndexes.delete(target);
       player.power3RecoveryDelayedFieldIndexes.delete(target);
-      text += ` ${player.field[target].name}を回復。`;
+      text += ` ${player.field[target].name}を回復した。`;
     }
   } else if (used.effect === "disrupt") {
     const resolvedTarget = targetIndex ?? highestPowerReadyAi(opponent);
@@ -393,7 +393,7 @@ export function useCommandAtInDraft(
         : discardLowPriorityCards(player, 1);
       const recovered = player.discard.splice(relearnTarget, 1)[0];
       player.hand.push(recovered);
-      if (fuel.length > 0) text += ` ${fuel[0].name}を代償としてトラッシュ。`;
+      if (fuel.length > 0) text += ` ${fuel[0].name}を代償としてトラッシュへ送った。`;
       text += ` ${recovered.name}をトラッシュから回収。`;
     }
   } else if (used.effect === "sandbox") {
@@ -432,7 +432,7 @@ export function useCommandAtInDraft(
     if (readiedIndex !== null) {
       player.spentFieldIndexes.delete(readiedIndex);
       player.power3RecoveryDelayedFieldIndexes.delete(readiedIndex);
-      text += ` ${player.field[readiedIndex].name}を回復。`;
+      text += ` ${player.field[readiedIndex].name}を回復した。`;
     }
   } else if (used.effect === "earth_rite") {
     if (!hasAttributeAi(player, "土")) return;
@@ -447,7 +447,7 @@ export function useCommandAtInDraft(
     if (readyIndex !== null) {
       player.spentFieldIndexes.delete(readyIndex);
       player.power3RecoveryDelayedFieldIndexes.delete(readyIndex);
-      text += ` ${player.field[readyIndex].name}を回復。`;
+      text += ` ${player.field[readyIndex].name}を回復した。`;
     }
     const drawnCards = drawCards(player, 1);
     text += ` ${visibleDrawText(player, drawnCards)}。`;
@@ -455,7 +455,7 @@ export function useCommandAtInDraft(
   addLog(draft, text);
   effects.showDuelEvent?.({
     kind: "command",
-    title: `${player.name}の指令`,
+    title: `${player.name}の術式`,
     detail: text,
     fromLabel: "手札",
     toLabel: used.effect === "trinity" ? "場 / トラッシュ / ライフ" : "トラッシュ",
@@ -533,7 +533,7 @@ export function resolveDefenseInDraft(
         kind: "hand-discard",
         reason: "firewall",
         playerIndex: defenderIndex,
-        title: `${defender.memory!.name}の捨て札を選択`,
+        title: `${defender.memory!.name}でトラッシュへ送るカードを選択`,
         prompt: baseCanDefend
           ? "他属性防御で power +1 できます。使うなら手札を1枚選んでください。"
           : "他属性防御で power +1 しないと防御できません。手札を1枚選んでください。",
@@ -564,7 +564,7 @@ export function resolveDefenseInDraft(
     const blockedDrawnCards = drawsOnBlockedAttack(attackCard) ? drawCards(attacker, 1) : [];
     const extraText = [
       defenseDrawnCards.length > 0 ? `${defenseCard.name}の効果で${defender.name}は${visibleDrawText(defender, defenseDrawnCards)}。` : "",
-      pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}を捨てた。` : "",
+      pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}をトラッシュへ送った。` : "",
       blockedDrawnCards.length > 0 ? `${attackCard.name}の効果で${attacker.name}は${visibleDrawText(attacker, blockedDrawnCards)}。` : "",
     ].filter(Boolean).join(" ");
     addLog(
@@ -599,9 +599,9 @@ export function resolveDefenseInDraft(
         reason: "block-pressure",
         zone: "hand",
         playerIndex: defenderIndex,
-        title: `${attackCard.name}の圧で捨てるカードを選択`,
-        prompt: "攻撃を防いだため、手札からトラッシュするカードを1枚選んでください。",
-        confirmLabel: "このカードを捨てる",
+        title: `${attackCard.name}の圧でトラッシュへ送るカードを選択`,
+        prompt: "攻撃を防いだため、手札からトラッシュへ送るカードを1枚選んでください。",
+        confirmLabel: "このカードを送る",
         min: 1,
         max: 1,
         excludeIndexes: [],
@@ -628,7 +628,7 @@ export function resolveDefenseInDraft(
     const blockedDrawnCards = !pierced && drawsOnBlockedAttack(attackCard) ? drawCards(attacker, 1) : [];
     const extraText = [
       pierced ? `${attackCard.name}の効果で防御されても1ダメージ。` : "",
-      pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}を捨てた。` : "",
+      pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}をトラッシュへ送った。` : "",
       blockedDrawnCards.length > 0 ? `${attackCard.name}の効果で${attacker.name}は${visibleDrawText(attacker, blockedDrawnCards)}。` : "",
     ].filter(Boolean).join(" ");
     addLog(draft, `${defender.name}は手札の${defenseCard.name}で攻撃を止めた。${defenseCard.name}はトラッシュへ。${extraText ? ` ${extraText}` : ""}`);
@@ -659,9 +659,9 @@ export function resolveDefenseInDraft(
         reason: "block-pressure",
         zone: "hand",
         playerIndex: defenderIndex,
-        title: `${attackCard.name}の圧で捨てるカードを選択`,
-        prompt: "攻撃を防いだため、手札からトラッシュするカードを1枚選んでください。",
-        confirmLabel: "このカードを捨てる",
+        title: `${attackCard.name}の圧でトラッシュへ送るカードを選択`,
+        prompt: "攻撃を防いだため、手札からトラッシュへ送るカードを1枚選んでください。",
+        confirmLabel: "このカードを送る",
         min: 1,
         max: 1,
         excludeIndexes: [],

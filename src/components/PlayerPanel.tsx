@@ -39,7 +39,7 @@ export function PlayerPanel({
       <div className="player-head">
         <div>
           <h2>{player.name}</h2>
-          <p>{player.deckName} / 手札 {player.hand.length} / 山札 {player.deck.length} / 捨札 {player.discard.length}</p>
+          <p>{player.deckName} / 手札 {player.hand.length} / 山札 {player.deck.length} / トラッシュ {player.discard.length}</p>
           <DiscardTray player={player} ownerIndex={ownerIndex} onOpen={onOpenDiscard} />
         </div>
         <Life life={player.life} />

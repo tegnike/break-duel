@@ -233,16 +233,16 @@ export function currentTutorialStep(game: GameState): TutorialStep {
       return {
         id: "command",
         kicker: "STEP 5",
-        title: "指令を使う",
-        detail: "指令は1回使い切りのカードです。場に火の召喚獣がいるので、『紅蓮圧壊術』を使えます。",
+        title: "術式を発動する",
+        detail: "術式は1回使い切りのカードです。場に火の召喚獣がいるので、『紅蓮圧壊術』を発動できます。",
         focus: { kind: "action", action: "command" },
       };
     }
     return {
       id: "command",
       kicker: "STEP 5",
-      title: "指令を確認",
-      detail: "チュートリアルでは使う指令も固定します。『紅蓮圧壊術』を使う準備をします。",
+      title: "術式を確認",
+      detail: "チュートリアルでは発動する術式も固定します。『紅蓮圧壊術』を発動する準備をします。",
       focus: { kind: "hand-card", ownerIndex: 0, cardId: "CMD-FIRE-RITE" },
     };
   }

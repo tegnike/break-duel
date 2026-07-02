@@ -162,10 +162,10 @@ export function DefensePanel({
           <div className="defense-actions pending-actions">
             <button type="button" disabled={pending.selectedIndexes.length < pending.min} onClick={onConfirmPending}>
               {pending.reason === "optimize"
-                ? "捨てて山札からカードを2枚引く"
+                ? "トラッシュへ送って山札からカードを2枚引く"
                 : pending.reason === "firewall"
                   ? pending.selectedIndexes.length > 0 ? "このカードで強化" : "使わず防御"
-                  : "このカードを捨てる"}
+                  : "このカードを送る"}
             </button>
             {pending.cancelable !== false && <button type="button" onClick={onCancelTarget}>キャンセル</button>}
           </div>
@@ -369,7 +369,7 @@ function logEventMeta(entry: string): { kind: string; icon: string } {
   if (entry.includes("攻撃")) return { kind: "attack", icon: "ATK" };
   if (entry.includes("防御") || entry.includes("相打ち")) return { kind: "block", icon: "DEF" };
   if (entry.includes("ダメージ") || entry.includes("ライフ")) return { kind: "damage", icon: "DMG" };
-  if (entry.includes("指令") || entry.includes("術") || entry.includes("使用")) return { kind: "command", icon: "CMD" };
+  if (entry.includes("術式") || entry.includes("術") || entry.includes("発動")) return { kind: "command", icon: "CMD" };
   if (entry.includes("トラッシュ") || entry.includes("捨て")) return { kind: "trash", icon: "TRS" };
   if (entry.includes("ターン") || entry.includes("手番")) return { kind: "turn", icon: "TRN" };
   if (entry.includes("勝利") || entry.includes("敗北") || entry.includes("引き分け")) return { kind: "result", icon: "END" };
@@ -383,7 +383,7 @@ export function actionHintText(game: GameState, card: Card | null, zone: string 
   const human = game.players[0];
   const opponent = game.players[1];
   if (zone === "hand") {
-    if (card.type === "event") return commandUsable(game, card, human, opponent) ? `${card.name}を使用できます。` : `${card.name}は条件を満たすと使用できます。`;
+    if (card.type === "event") return commandUsable(game, card, human, opponent) ? `${card.name}を発動できます。` : `${card.name}は条件を満たすと発動できます。`;
     if (card.type === "memory") return human.memory ? "配置すると現在の遺物はトラッシュされます。" : "遺物枠に配置できます。";
     if (canUseCharge(game, human) && canChargeCard(card)) return "チャージで手札からトラッシュし、このターンのアクションを1増やせます。このターンは攻撃できません。";
     const sourceIndex = bestUpgradeSource(human, card);

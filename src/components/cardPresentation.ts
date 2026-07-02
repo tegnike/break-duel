@@ -214,13 +214,13 @@ export function cardArtAsset(card: Card): string {
 }
 
 export function cardTypeLabel(card: Card): string {
-  if (card.type === "event") return "指令";
+  if (card.type === "event") return "術式";
   if (card.type === "memory") return "遺物";
   return card.attribute ?? "";
 }
 
 export function roleLabel(card: Card): string {
-  if (card.type === "event") return "指令";
+  if (card.type === "event") return "術式";
   if (card.type === "memory") return "継続";
   if (card.power === 1) return "補給";
   if (card.power === 2) return "防御";
@@ -237,18 +237,18 @@ export function aiBaseRuleText(card: Card): string {
 }
 
 export function roleText(card: Card): string {
-  if (card.effect === "optimize") return "1アクション。手札1枚を捨て、山札からカードを2枚引く";
-  if (card.effect === "patch") return "1アクション。自分の消耗召喚獣1体を回復";
+  if (card.effect === "optimize") return "1アクション。手札1枚をトラッシュへ送り、山札からカードを2枚引く";
+  if (card.effect === "patch") return "1アクション。自分の消耗召喚獣1体を回復する";
   if (card.effect === "disrupt") return "1アクション。相手の未消耗召喚獣1体を消耗";
-  if (card.effect === "relearn") return "1アクション。手札1枚を捨て、トラッシュの召喚獣1枚を回収";
+  if (card.effect === "relearn") return "1アクション。手札1枚をトラッシュへ送り、トラッシュの召喚獣1枚を回収";
   if (card.effect === "sandbox") return "1アクション。このターン、次のpower 4攻撃後退場を1回防ぐ";
   if (card.effect === "trinity") return "1アクション。場が3枚なら全てトラッシュし、相手ライフ-1";
-  if (card.effect === "fire_rite") return "1アクション。場に火の召喚獣がいる時、相手の手札1枚をトラッシュ。なければ相手ライフ-1";
+  if (card.effect === "fire_rite") return "1アクション。場に火の召喚獣がいる時、相手の手札1枚をトラッシュへ送る。なければ相手ライフ-1";
   if (card.effect === "water_rite") return "1アクション。場に水の召喚獣がいる時、山札からカードを1枚引く";
-  if (card.effect === "wind_rite") return "1アクション。場に風の召喚獣がいる時、相手1体を消耗し、自分の風1体を回復";
+  if (card.effect === "wind_rite") return "1アクション。場に風の召喚獣がいる時、相手1体を消耗し、自分の風1体を回復する";
   if (card.effect === "earth_rite") return "1アクション。場に土の召喚獣がいる時、トラッシュの召喚獣1枚を回収";
-  if (card.effect === "comeback_rite") return "1アクション。自分のライフが少ない時、山札からカードを1枚引き、自分の消耗召喚獣1体を回復";
-  if (card.effect === "firewall") return "他属性召喚獣の攻撃を場防御する時、手札を1枚捨てるなら power +1";
+  if (card.effect === "comeback_rite") return "1アクション。相手よりライフが少ない場合、山札からカードを1枚引き、自分の消耗召喚獣1体を回復する";
+  if (card.effect === "firewall") return "他属性召喚獣の攻撃を場防御する時、手札を1枚トラッシュへ送るなら power +1";
   if (card.effect === "cache") return "ターン開始時、手札2枚以下なら山札からカードを1枚引く";
   if (card.effect === "pipeline") return "1ターンに1回、power 1登場時、山札からカードを1枚引く";
   if (card.effect === "accelerator") return "1ターンに1回使える。場の召喚獣1体をトラッシュしてもよい。その場合、アクション+1する";
@@ -263,7 +263,7 @@ export function roleText(card: Card): string {
 }
 
 export function selectedText(card: Card): string {
-  if (card.type === "event") return `${card.name} / 指令 / ${roleText(card)}`;
+  if (card.type === "event") return `${card.name} / 術式 / ${roleText(card)}`;
   if (card.type === "memory") return `${card.name} / 遺物 / ${roleText(card)}`;
   return `${card.name} / ${card.attribute} / power ${card.power} / ${roleText(card)}`;
 }

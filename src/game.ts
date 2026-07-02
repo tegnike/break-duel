@@ -944,14 +944,14 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "draw_two_after_overheat_opponent_draw") return "攻撃後退場時、山札からカードを2枚引く。登場時、相手は山札からカードを1枚引く";
   if (card.effect === "draw_on_play") return "登場時、山札からカードを1枚引く";
   if (card.effect === "draw_on_play_cannot_hand_defend") return "登場時、山札からカードを1枚引く。手札防御に使えない";
-  if (card.effect === "filter_on_play") return "登場時、山札からカードを2枚引いて1枚捨てる";
+  if (card.effect === "filter_on_play") return "登場時、山札からカードを2枚引き、手札1枚をトラッシュへ送る";
   if (card.effect === "no_spend_after_attack") return "攻撃しても消耗しない";
   if (card.effect === "spend_enemy_on_play") return "登場時、相手の未消耗召喚獣1体を消耗";
   if (card.effect === "spend_enemy_on_play_enters_spent") return "登場時、相手の未消耗召喚獣1体を消耗。自身も消耗で出る";
   if (card.effect === "defense_plus_1") return "場防御時、防御値 +1";
   if (card.effect === "defense_plus_1_enters_spent") return "場防御時、防御値 +1。消耗で出る";
   if (card.effect === "recover_ai_on_play") return "登場時、手札1枚以下ならトラッシュの召喚獣1枚を回収";
-  if (card.effect === "block_pressure") return "攻撃が防御された時、相手は手札1枚を捨てる";
+  if (card.effect === "block_pressure") return "攻撃が防御された時、相手は手札1枚をトラッシュへ送る";
   if (card.effect === "hand_defense_pierce") return "手札防御されても1ダメージ";
   if (card.effect === "low_life_no_hand_defense") return "相手ライフ2以下なら手札防御不可";
   if (card.effect === "low_life_no_hand_defense_self_damage") return "相手ライフ2以下なら手札防御不可。登場時、自分に1ダメージ";
@@ -963,7 +963,7 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "return_after_overheat_cannot_hand_defend") return "攻撃後退場時、手札に戻る。消耗で出る。手札防御に使えない";
   if (card.effect === "draw_on_successful_defense") return "場防御成功時、山札からカードを1枚引く";
   if (card.effect === "draw_on_successful_defense_enters_spent") return "場防御成功時、山札からカードを1枚引く。消耗で出る";
-  if (card.effect === "charge_pressure") return "このカードをチャージした時、相手の手札が3枚以上なら1枚トラッシュ";
+  if (card.effect === "charge_pressure") return "このカードをチャージした時、相手の手札が3枚以上なら1枚トラッシュへ送る";
   if (card.effect === "charge_draw") return "このカードをチャージした時、山札からカードを1枚引く";
   if (card.effect === "charge_ready_ally") return "このカードをチャージした時、自分の消耗召喚獣1体を回復";
   if (card.effect === "charge_guard") return "このカードをチャージした時、場の召喚獣を1体選び、その召喚獣は次の自分ターンまで場防御値 +1";

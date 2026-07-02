@@ -422,7 +422,7 @@ function tutorialActionHint(step: TutorialStep): string {
   if (step.id === "watch-rival") return "ライバルの行動を確認してください";
   if (step.id === "defend") return "手札の防御候補を選んでください";
   if (step.id === "attack") return "場の召喚獣を選んで攻撃してください";
-  if (step.id === "command") return "『紅蓮圧壊術』を選んで使ってください";
+  if (step.id === "command") return "『紅蓮圧壊術』を選んで発動してください";
   if (step.id === "select-charge") return "チャージできるカードを選んでください";
   if (step.id === "charge") return "チャージボタンを押してください";
   if (step.id === "select-post-charge-memory") return "『灯火の旅嚢』を選んでください";
@@ -1159,7 +1159,7 @@ export default function App() {
       if (!card) return 0;
       playSfx("play");
       suppressNextTrashSfx(1);
-      launchTrashFlight(card, { ownerIndex: 1, zone: "hand-source", index: 0 }, 1, "指令使用", 980);
+      launchTrashFlight(card, { ownerIndex: 1, zone: "hand-source", index: 0 }, 1, "術式発動", 980);
       const recovered = commandRecoverPreview(ai, card, null);
       if (recovered) launchRecoverFlight(recovered.card, 1, recovered.index);
       return 760;
@@ -1255,7 +1255,7 @@ export default function App() {
     showBanner({
       kind: "start",
       title: "TUTORIAL DUEL",
-      detail: "召喚、攻撃、防御、指令、チャージ、遺物、アップグレード、大型召喚獣を確認します",
+      detail: "召喚、攻撃、防御、術式、チャージ、遺物、アップグレード、大型召喚獣を確認します",
     });
     showRivalVoiceLine("match_start");
   }
@@ -1970,8 +1970,8 @@ export default function App() {
           zone: "field",
           playerIndex: draft.active,
           title: `${command.name}で回復する召喚獣を選択`,
-          prompt: "消耗から回復させる自分の召喚獣を1体選んでください。",
-          confirmLabel: "この召喚獣を回復",
+          prompt: "消耗から回復する自分の召喚獣を1体選んでください。",
+          confirmLabel: "この召喚獣を回復する",
           min: 1,
           max: 1,
           excludeIndexes: player.field.map((_, index) => player.spentFieldIndexes.has(index) ? -1 : index).filter((index) => index >= 0),
@@ -1989,7 +1989,7 @@ export default function App() {
           kind: "hand-discard",
           reason: "optimize",
           playerIndex: draft.active,
-          title: `${command.name}で捨てるカードを選択`,
+          title: `${command.name}でトラッシュへ送るカードを選択`,
           prompt: "1枚選んでから山札からカードを2枚引きます。",
           min: 1,
           max: 1,
@@ -2037,7 +2037,7 @@ export default function App() {
         command,
         { ownerIndex: game.active, zone: flightHandZone(player), index: player.isHuman ? sourceIndex : 0 },
         game.active,
-        "指令使用",
+        "術式発動",
       );
       if (recovered) launchRecoverFlight(recovered.card, game.active, recovered.index);
       if (command.effect === "trinity") {
@@ -2047,7 +2047,7 @@ export default function App() {
       }
     }
     mutate((draft) => useCommandAtInDraft(draft, sourceIndex, targetIndex, discardIndexes, { playSfx, showDuelEvent: queueDuelEvent }));
-    showToast("指令", "カードを使用しました");
+    showToast("術式", "カードを発動しました");
     playSfx("play");
   }
 
@@ -2211,7 +2211,7 @@ export default function App() {
         discarded,
         { ownerIndex: pending.playerIndex, zone: flightHandZone(pendingPlayer), index: pendingPlayer.isHuman ? selectedIndex : 0 },
         pending.playerIndex,
-        "捨て札",
+        "トラッシュへ送る",
       );
     } else if (pending.reason === "accelerator-sacrifice") {
       const sacrificed = pendingPlayer.field[selectedIndex];
@@ -2230,15 +2230,15 @@ export default function App() {
         const discarded = discardHandCards(draft, current.playerIndex, current.selectedIndexes);
         if (discarded.length > 0) {
           const sourceName = current.reason === "block-pressure" ? "攻撃の圧" : "登場時効果";
-          addLog(draft, `${player.name}は${sourceName}で${discarded.map((card) => card.name).join("、")}を捨てた。`);
+          addLog(draft, `${player.name}は${sourceName}で${discarded.map((card) => card.name).join("、")}をトラッシュへ送った。`);
           queueDuelEvent({
             kind: "trash",
-            title: `${sourceName}の捨て札`,
+            title: `${sourceName}でトラッシュへ送るカード`,
             detail: `${discarded.map((card) => card.name).join("、")}を手札からトラッシュへ送りました。`,
             fromLabel: "手札",
             toLabel: "トラッシュ",
             tone: player.isHuman ? "magenta" : "cyan",
-            cards: discarded.map((card) => ({ card, label: "捨て札", state: "trash" })),
+            cards: discarded.map((card) => ({ card, label: "トラッシュへ送る", state: "trash" })),
           });
         }
       } else if (current.reason === "recover-on-play") {
@@ -2265,7 +2265,7 @@ export default function App() {
         if (card) {
           player.spentFieldIndexes.delete(selectedIndex);
           player.power3RecoveryDelayedFieldIndexes.delete(selectedIndex);
-          addLog(draft, `${player.name}は${card.name}を回復。`);
+          addLog(draft, `${player.name}は${card.name}を回復した。`);
         }
       } else if (current.reason === "spend-enemy") {
         const card = player.field[selectedIndex];

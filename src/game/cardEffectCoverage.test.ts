@@ -175,7 +175,7 @@ const CARD_EFFECT_CASES = {
   },
   filter_on_play: {
     cardId: "AI-WATER-2",
-    description: "登場時に2枚引き、捨て札選択を要求する",
+    description: "登場時に2枚引き、トラッシュへ送るカード選択を要求する",
     run: () => {
       const game = blankGame();
       game.players[0].deck = [card("AI-FIRE-1"), card("AI-FIRE-2")];
