@@ -28,7 +28,7 @@ export function DuelActionReel({
   const showResult = resultText.trim() !== event.title.trim();
   return (
     <section
-      className={`duel-action-reel ${autoDismiss ? "auto" : "manual"} ${event.kind} ${event.tone ?? ""} ${event.cards.length > 1 ? "pair" : "single"} ${children ? "with-panel" : ""}`}
+      className={`duel-action-reel ${autoDismiss ? "auto" : "manual"} ${event.kind} ${event.tone ?? ""} ${event.cards.length > 2 ? "multi" : event.cards.length > 1 ? "pair" : "single"} ${children ? "with-panel" : ""}`}
       style={{ "--event-duration": `${durationMs}ms` } as React.CSSProperties}
       aria-live="polite"
     >

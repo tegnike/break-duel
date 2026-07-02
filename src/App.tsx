@@ -3392,7 +3392,8 @@ function TrashSurgeLayer({ surge, eventId }: { surge: TrashSurge; eventId: numbe
 
 function handActionState(game: GameState, player: PlayerState, opponent: PlayerState, card: Card): string {
   if (!canHumanAct(game)) return "idle";
-  if (card.type === "event") return commandUsable(game, card, player, opponent) ? "usable" : "blocked";
+  const canCharge = canUseCharge(game, player) && canChargeCard(card);
+  if (card.type === "event") return commandUsable(game, card, player, opponent) ? "usable" : canCharge ? "chargeable" : "blocked";
   if (card.type === "memory") return "usable";
   if (card.type === "ai") {
     const sourceIndex = bestUpgradeSource(player, card);
@@ -3401,7 +3402,7 @@ function handActionState(game: GameState, player: PlayerState, opponent: PlayerS
     const canUpgradeCard = source !== null && upgradeCost(card, source) <= game.actionsRemaining;
     if (canPlay || canUpgradeCard) return canUpgradeCard ? "upgradeable" : "usable";
   }
-  return "blocked";
+  return canCharge ? "chargeable" : "blocked";
 }
 
 function fieldActionState(game: GameState, player: PlayerState, index: number): string {

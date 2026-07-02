@@ -70,6 +70,7 @@ export function CardView({
       <div className="card-badges">
         {showCost && Number.isFinite(cost) && cost < 99 && <span>{cost}A</span>}
         {actionState === "usable" && <span>実行可</span>}
+        {actionState === "chargeable" && <span>チャージ可</span>}
         {actionState === "upgradeable" && <span>進化可</span>}
         {actionState === "upgrade-source" && <span>元</span>}
         {spent && <span>消耗</span>}
