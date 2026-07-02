@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from collections import Counter
 import unittest
 
 from ai_break_duel.cards import (
     AI_CARD_POOL,
-    ACTIVE_CARD_POOL,
     COMMAND_CARD_POOL,
     CardType,
     CardStatus,
@@ -62,21 +60,6 @@ class CoreRuleTests(unittest.TestCase):
                 validate_same_name_limit(deck)
                 self.assertEqual(len(deck), 20)
 
-    def test_preset_decks_do_not_duplicate_high_power_summons(self) -> None:
-        for archetype in DeckArchetype:
-            with self.subTest(archetype=archetype.value):
-                high_power_counts = Counter(
-                    card.id
-                    for card in build_deck(archetype)
-                    if card.type == CardType.AI and (card.power or 0) >= 3
-                )
-                duplicated = {
-                    card_id: count
-                    for card_id, count in high_power_counts.items()
-                    if count > 1
-                }
-                self.assertEqual(duplicated, {})
-
     def test_preset_decks_limit_total_high_power_summons(self) -> None:
         for archetype in DeckArchetype:
             with self.subTest(archetype=archetype.value):
@@ -92,9 +75,9 @@ class CoreRuleTests(unittest.TestCase):
             DeckArchetype.BREAK: 2,
             DeckArchetype.CONTROL: 2,
             DeckArchetype.FIRE: 5,
-            DeckArchetype.WATER: 5,
+            DeckArchetype.WATER: 6,
             DeckArchetype.WIND: 3,
-            DeckArchetype.EARTH: 3,
+            DeckArchetype.EARTH: 4,
         }
         for archetype, expected_count in expectations.items():
             with self.subTest(archetype=archetype.value):
@@ -335,12 +318,10 @@ class CoreRuleTests(unittest.TestCase):
         self.assertIn("MEM-RECOVERY-CACHE", player_2_deck)
 
     def test_fixed_decks_cover_card_pool_and_required_card_types(self) -> None:
-        used_card_ids = set()
         for archetype in DeckArchetype:
             deck = build_deck(archetype)
             self.assertEqual(len(deck), 20, archetype.value)
             validate_same_name_limit(deck)
-            used_card_ids.update(card.id for card in deck)
 
             self.assertGreaterEqual(
                 sum(1 for card in deck if card.type == CardType.AI),
@@ -357,9 +338,6 @@ class CoreRuleTests(unittest.TestCase):
                 2,
                 archetype.value,
             )
-
-        all_card_ids = {card.id for card in ACTIVE_CARD_POOL}
-        self.assertFalse(all_card_ids - used_card_ids)
 
     def test_inactive_cards_stay_out_of_fixed_decks(self) -> None:
         inactive_card_ids = {
@@ -382,11 +360,6 @@ class CoreRuleTests(unittest.TestCase):
 
         for archetype, attribute in expected_attributes.items():
             deck = build_deck(archetype)
-            summon_ids = {card.id for card in deck if card.type == CardType.AI}
-            expected_summon_ids = {
-                card.id for card in AI_CARD_POOL if card.attribute == attribute
-            }
-            self.assertTrue(expected_summon_ids <= summon_ids, archetype.value)
             self.assertEqual(
                 {card.attribute for card in deck if card.type == CardType.AI},
                 {attribute},

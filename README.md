@@ -241,6 +241,7 @@ tests/
 
 docs/
   game-spec.md
+  balance-history.md
   architecture.md
   evolution-design.md
 

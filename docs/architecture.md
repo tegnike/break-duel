@@ -51,6 +51,7 @@ tests/
 
 docs/
   game-spec.md      現行ゲーム仕様
+  balance-history.md バランス検証履歴
   architecture.md   この文書
   evolution-design.md 次期進化設計
   typescript-migration-plan.md React + TypeScript 移行記録
