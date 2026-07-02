@@ -43,6 +43,7 @@ import {
   applyPlayEffects,
   chargeHandCardInDraft,
   confirmChargeGuardTargetInDraft,
+  performAiActionInDraft,
   resolveDefenseInDraft,
   useAcceleratorMemoryInDraft,
   useCommandAtInDraft,
@@ -547,7 +548,7 @@ const CARD_EFFECT_CASES = {
   },
   recovery_cache: {
     cardId: "MEM-RECOVERY-CACHE",
-    description: "ライフ劣勢時、そのターン最初の召喚獣登場コストを1下げる。最低1",
+    description: "相手よりライフが少ない場合、そのターン最初の召喚獣登場コストを1下げる。最低1",
     run: () => {
       const game = blankGame();
       game.players[0].memory = card("MEM-RECOVERY-CACHE");
@@ -610,6 +611,8 @@ describe("life damage event metadata", () => {
       showDuelEvent: (event) => events.push(event),
     });
 
+    expect(events[events.length - 1]?.cards).toHaveLength(3);
+    expect(events[events.length - 1]?.cards.map((entry) => entry.label)).toEqual(["犠牲", "犠牲", "犠牲"]);
     expect(events[events.length - 1]?.impact).toMatchObject({
       kind: "life-damage",
       targetPlayerIndex: 1,
@@ -648,5 +651,27 @@ describe("life damage event metadata", () => {
     expect(removed.map((item) => item.id)).toEqual(["AI-FIRE-4", "AI-FIRE-2"]);
     expect(player.field).toEqual([]);
     expect(player.fieldStacks).toEqual([]);
+  });
+
+  it("emits a discard-to-hand event for automatic recover-on-play", () => {
+    const game = blankGame();
+    const events: DuelEventPayload[] = [];
+    game.active = 1;
+    game.actionsRemaining = 4;
+    game.players[1].hand = [card("AI-EARTH-4")];
+    game.players[1].discard = [card("AI-FIRE-2")];
+
+    performAiActionInDraft(game, { type: "play", index: 0 }, {
+      showDuelEvent: (event) => events.push(event),
+    });
+
+    const recoverEvent = events.find((event) => event.title.includes("回収"));
+    expect(recoverEvent).toMatchObject({
+      kind: "trash",
+      fromLabel: "トラッシュ",
+      toLabel: "手札",
+    });
+    expect(recoverEvent?.cards[0]?.card.id).toBe("AI-FIRE-2");
+    expect(game.players[1].hand.map((item) => item.id)).toContain("AI-FIRE-2");
   });
 });

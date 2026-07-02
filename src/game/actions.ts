@@ -171,6 +171,7 @@ export function applyPlayEffects(
   fieldIndex: number,
   actionCost: number,
   excludedRecoverCard?: Card,
+  effects: GameActionEffects = {},
 ): string {
   let text = "";
   if (CONFIG.power3EntersSpent && card.power === 3) {
@@ -293,6 +294,16 @@ export function applyPlayEffects(
         const recovered = player.discard.splice(targetIndex, 1)[0];
         player.hand.push(recovered);
         text += ` ${recovered.name}をトラッシュから回収。`;
+        effects.showDuelEvent?.({
+          kind: "trash",
+          title: `${card.name}の回収`,
+          detail: `${recovered.name}をトラッシュから手札に戻しました。`,
+          fromLabel: "トラッシュ",
+          toLabel: "手札",
+          tone: player.isHuman ? "magenta" : "cyan",
+          cards: [{ card: recovered, label: "回収", state: "winner" }],
+          rivalVoiceLine: player.isHuman ? undefined : "play_summon",
+        });
       }
     }
   }
@@ -443,10 +454,9 @@ export function useCommandAtInDraft(
     impact,
     rivalVoiceLine: player.isHuman ? undefined : "command",
     cards: [
-      { card: used, label: "使用", state: "trash" },
       ...(used.effect === "trinity"
         ? player.discard.slice(-3).map((card) => ({ card, label: "犠牲", state: "trash" as const }))
-        : []),
+        : [{ card: used, label: "使用", state: "trash" as const }]),
     ],
   });
   draft.selected = null;
@@ -750,7 +760,7 @@ export function performAiActionInDraft(
     player.playedAiThisTurn = true;
     const fieldIndex = player.field.length - 1;
     let text = `${player.name}は${card.name}を場に出した。`;
-    text += applyPlayEffects(draft, player, card, fieldIndex, cost);
+    text += applyPlayEffects(draft, player, card, fieldIndex, cost, undefined, effects);
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "play",
@@ -775,7 +785,7 @@ export function performAiActionInDraft(
     player.power3RecoveryDelayedFieldIndexes.delete(action.fieldIndex);
     player.chargeGuardedFieldIndexes.delete(action.fieldIndex);
     let text = `${player.name}は${source.name}を元に${card.name}へアップグレード。`;
-    text += applyPlayEffects(draft, player, card, action.fieldIndex, cost, source);
+    text += applyPlayEffects(draft, player, card, action.fieldIndex, cost, source, effects);
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "upgrade",

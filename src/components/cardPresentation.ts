@@ -243,12 +243,12 @@ export function roleText(card: Card): string {
   if (card.effect === "water_rite") return "1アクション。場に水の召喚獣がいる時、山札からカードを1枚引く";
   if (card.effect === "wind_rite") return "1アクション。場に風の召喚獣がいる時、相手1体を消耗し、自分の風1体を回復";
   if (card.effect === "earth_rite") return "1アクション。場に土の召喚獣がいる時、トラッシュの召喚獣1枚を回収";
-  if (card.effect === "firewall") return "他属性防御時、手札を1枚捨てるなら power +1";
+  if (card.effect === "firewall") return "他属性召喚獣の攻撃を場防御する時、手札を1枚捨てるなら power +1";
   if (card.effect === "cache") return "ターン開始時、手札2枚以下なら山札からカードを1枚引く";
   if (card.effect === "pipeline") return "1ターンに1回、power 1登場時、山札からカードを1枚引く";
   if (card.effect === "accelerator") return "1ターンに1回使える。場の召喚獣1体をトラッシュしてもよい。その場合、アクション+1する";
   if (card.effect === "resonator") return "自分がチャージした後、手札2枚以下なら山札からカードを1枚引く";
-  if (card.effect === "recovery_cache") return "ライフ劣勢時、自分のターン最初の召喚獣登場コストを1少なくする。1未満にはならない";
+  if (card.effect === "recovery_cache") return "相手よりライフが少ない場合、自分のターン最初の召喚獣登場コストを1少なくする。1より少なくならない";
   const trait = card.effect ? ` / ${aiEffectText(card)}` : "";
   if (card.power === 1) return `1アクション${trait}`;
   if (card.power === 2) return `2アクション${trait}`;
@@ -269,5 +269,6 @@ export function displayCost(
   upgradeSource?: Card | null,
   game?: GameState,
 ): number {
+  if (actionState === "chargeable") return 99;
   return actionState === "upgradeable" ? upgradeCost(card, upgradeSource) : playCost(card, game);
 }
