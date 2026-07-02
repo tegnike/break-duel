@@ -50,10 +50,11 @@ import {
   pressuresOnBlock,
   readiesAllyOnPlay,
   recoversAiOnPlay,
-  removeFieldCard,
+  removeFieldStack,
   returnsAfterOverheat,
   selfDamagesOnPlay,
   spendsEnemyOnPlay,
+  stackUpgradeCard,
   upgradeCost,
   useAction,
   visibleDrawText,
@@ -91,7 +92,8 @@ export function useAcceleratorMemoryInDraft(draft: GameState, playerIndex: numbe
   if (!player || !canUseAcceleratorMemory(draft, player)) return null;
   const sacrificed = player.field[fieldIndex];
   if (!sacrificed) return null;
-  player.discard.push(removeFieldCard(player, fieldIndex));
+  const removedCards = removeFieldStack(player, fieldIndex);
+  player.discard.push(...removedCards);
   player.acceleratorUsed = true;
   const before = draft.actionsRemaining;
   draft.actionsRemaining = Math.min(3, draft.actionsRemaining + 1);
@@ -388,7 +390,7 @@ export function useCommandAtInDraft(
   } else if (used.effect === "trinity") {
     const trashed: Card[] = [];
     for (let index = player.field.length - 1; index >= 0; index -= 1) {
-      trashed.unshift(removeFieldCard(player, index));
+      trashed.unshift(...removeFieldStack(player, index));
     }
     player.discard.push(...trashed);
     opponent.life -= 1;
@@ -566,9 +568,9 @@ export function resolveDefenseInDraft(
         { card: defenseCard, label: "防御", state: isTrade ? "trash" : "winner" },
       ],
     });
-    attacker.discard.push(removeFieldCard(attacker, fieldIndex));
+    attacker.discard.push(...removeFieldStack(attacker, fieldIndex));
     if (isTrade) {
-      defender.discard.push(removeFieldCard(defender, choice.index));
+      defender.discard.push(...removeFieldStack(defender, choice.index));
     } else {
       defender.spentFieldIndexes.add(choice.index);
     }
@@ -703,11 +705,13 @@ function overheatAttackerIfNeeded(
     return;
   }
   if (returnsAfterOverheat(attackCard)) {
-    attacker.hand.push(removeFieldCard(attacker, fieldIndex));
+    const [returnedCard, ...stackedCards] = removeFieldStack(attacker, fieldIndex);
+    attacker.hand.push(returnedCard);
+    attacker.discard.push(...stackedCards);
     addLog(draft, `${attacker.name}の${attackCard.name}は攻撃後、風に乗って手札へ戻った。`);
     return;
   }
-  attacker.discard.push(removeFieldCard(attacker, fieldIndex));
+  attacker.discard.push(...removeFieldStack(attacker, fieldIndex));
   const drawnCards = drawsTwoAfterOverheat(attackCard)
     ? drawCards(attacker, 2)
     : drawsAfterOverheat(attackCard)
@@ -765,7 +769,7 @@ export function performAiActionInDraft(
     const cost = card && source ? upgradeCost(card, source) : 99;
     if (!card || !source || !canUpgrade(source, card) || cost > draft.actionsRemaining) return;
     player.hand.splice(action.handIndex, 1);
-    player.discard.push(source);
+    stackUpgradeCard(player, action.fieldIndex, source);
     player.field[action.fieldIndex] = card;
     player.spentFieldIndexes.delete(action.fieldIndex);
     player.power3RecoveryDelayedFieldIndexes.delete(action.fieldIndex);
@@ -776,13 +780,13 @@ export function performAiActionInDraft(
     effects.showDuelEvent?.({
       kind: "upgrade",
       title: `${player.name}がアップグレード`,
-      detail: `${source.name}を元に${card.name}へ。元カードはトラッシュへ。`,
+      detail: `${source.name}を元に${card.name}へ。元カードは下に重ねます。`,
       fromLabel: "手札 + 場",
-      toLabel: "場 / トラッシュ",
+      toLabel: "場",
       tone: player.isHuman ? "magenta" : "cyan",
       rivalVoiceLine: player.isHuman ? undefined : "upgrade",
       cards: [
-        { card: source, label: "元", state: "trash" },
+        { card: source, label: "元", state: "neutral" },
         { card, label: "新", state: "winner" },
       ],
     });

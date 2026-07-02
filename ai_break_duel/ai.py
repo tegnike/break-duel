@@ -618,6 +618,7 @@ def _card_value(card) -> int:
             "attack_plus_1": 18,
             "reckless_attack_plus_1": 8,
             "draw_after_overheat": 10,
+            "draw_after_overheat_opponent_draw": 0,
             "draw_two_after_overheat": 18,
             "draw_two_after_overheat_opponent_draw": 8,
             "draw_on_play": 20,

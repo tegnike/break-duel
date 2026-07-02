@@ -6,6 +6,7 @@ export type AiEffect =
   | "attack_plus_1"
   | "reckless_attack_plus_1"
   | "draw_after_overheat"
+  | "draw_after_overheat_opponent_draw"
   | "draw_two_after_overheat"
   | "draw_two_after_overheat_opponent_draw"
   | "draw_on_play"
@@ -69,6 +70,7 @@ export type PlayerState = {
   deck: Card[];
   hand: Card[];
   field: Card[];
+  fieldStacks: Card[][];
   memory: Card | null;
   discard: Card[];
   cardsDrawn: number;
@@ -272,7 +274,7 @@ export function cardPool(): Card[] {
     ["AI-FIRE-2B", "hand_defense_pierce"],
     ["AI-FIRE-3", "attack_plus_1"],
     ["AI-FIRE-3B", "reckless_attack_plus_1"],
-    ["AI-FIRE-4", "draw_two_after_overheat"],
+    ["AI-FIRE-4", "draw_after_overheat"],
     ["AI-FIRE-4B", "low_life_no_hand_defense_self_damage"],
     ["AI-FIRE-1C", "charge_pressure"],
     ["AI-WATER-1", "draw_on_play"],
@@ -281,7 +283,7 @@ export function cardPool(): Card[] {
     ["AI-WATER-2B", "draw_on_blocked_attack_cannot_hand_defend"],
     ["AI-WATER-3", "draw_on_play"],
     ["AI-WATER-3B", "filter_on_play"],
-    ["AI-WATER-4B", "draw_two_after_overheat_opponent_draw"],
+    ["AI-WATER-4B", "draw_after_overheat_opponent_draw"],
     ["AI-WATER-1C", "charge_draw"],
     ["AI-WIND-1", "no_spend_after_attack"],
     ["AI-WIND-1B", "no_spend_after_attack"],
@@ -587,6 +589,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     deck,
     hand: [],
     field: [],
+    fieldStacks: [],
     memory: null,
     discard: [],
     cardsDrawn: 0,
@@ -615,6 +618,7 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     deck,
     hand: [],
     field: [],
+    fieldStacks: [],
     memory: null,
     discard: [],
     cardsDrawn: 0,
@@ -654,6 +658,7 @@ export function cloneGame(game: GameState): GameState {
       deck: [...player.deck],
       hand: [...player.hand],
       field: [...player.field],
+      fieldStacks: (player.fieldStacks ?? []).map((stack) => [...stack]),
       discard: [...player.discard],
       spentFieldIndexes: new Set(player.spentFieldIndexes),
       power3RecoveryDelayedFieldIndexes: new Set(player.power3RecoveryDelayedFieldIndexes),
@@ -920,6 +925,7 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "attack_plus_1") return "攻撃値 +1";
   if (card.effect === "reckless_attack_plus_1") return "攻撃値 +1。手札防御に使えない";
   if (card.effect === "draw_after_overheat") return "攻撃後退場時、山札からカードを1枚引く";
+  if (card.effect === "draw_after_overheat_opponent_draw") return "攻撃後退場時、山札からカードを1枚引く。登場時、相手は山札からカードを1枚引く";
   if (card.effect === "draw_two_after_overheat") return "攻撃後退場時、山札からカードを2枚引く";
   if (card.effect === "draw_two_after_overheat_opponent_draw") return "攻撃後退場時、山札からカードを2枚引く。登場時、相手は山札からカードを1枚引く";
   if (card.effect === "draw_on_play") return "登場時、山札からカードを1枚引く";
@@ -967,7 +973,7 @@ export function keepsReadyAfterAttack(card: Card): boolean {
 }
 
 export function drawsAfterOverheat(card: Card): boolean {
-  return card.type === "ai" && card.effect === "draw_after_overheat";
+  return card.type === "ai" && (card.effect === "draw_after_overheat" || card.effect === "draw_after_overheat_opponent_draw");
 }
 
 export function drawsTwoAfterOverheat(card: Card): boolean {
@@ -1039,7 +1045,7 @@ export function selfDamagesOnPlay(card: Card): boolean {
 }
 
 export function opponentDrawsOnPlay(card: Card): boolean {
-  return card.type === "ai" && card.effect === "draw_two_after_overheat_opponent_draw";
+  return card.type === "ai" && (card.effect === "draw_after_overheat_opponent_draw" || card.effect === "draw_two_after_overheat_opponent_draw");
 }
 
 export function cannotHandDefend(card: Card): boolean {
@@ -1167,7 +1173,14 @@ export function discardFirewallFuel(defender: PlayerState, defenseCard: Card, at
 }
 
 export function removeFieldCard(player: PlayerState, index: number): Card {
+  return removeFieldStack(player, index)[0];
+}
+
+export function removeFieldStack(player: PlayerState, index: number): Card[] {
+  player.fieldStacks ??= [];
+  while (player.fieldStacks.length < player.field.length) player.fieldStacks.push([]);
   const [card] = player.field.splice(index, 1);
+  const [stack = []] = player.fieldStacks.splice(index, 1);
   const nextSpent = new Set<number>();
   player.spentFieldIndexes.forEach((spentIndex) => {
     if (spentIndex < index) nextSpent.add(spentIndex);
@@ -1186,7 +1199,14 @@ export function removeFieldCard(player: PlayerState, index: number): Card {
     if (guardedIndex > index) nextChargeGuarded.add(guardedIndex - 1);
   });
   player.chargeGuardedFieldIndexes = nextChargeGuarded;
-  return card;
+  return [card, ...[...stack].reverse()];
+}
+
+export function stackUpgradeCard(player: PlayerState, index: number, source: Card): void {
+  player.fieldStacks ??= [];
+  while (player.fieldStacks.length < player.field.length) player.fieldStacks.push([]);
+  const stack = player.fieldStacks[index] ?? [];
+  player.fieldStacks[index] = [...stack, source];
 }
 
 export function highestPowerSpentAi(player: PlayerState): number | null {
@@ -1688,6 +1708,7 @@ function aiCardValue(card: Card): number {
     attack_plus_1: 18,
     reckless_attack_plus_1: 8,
     draw_after_overheat: 10,
+    draw_after_overheat_opponent_draw: 0,
     draw_two_after_overheat: 18,
     draw_two_after_overheat_opponent_draw: 8,
     draw_on_play: 20,
