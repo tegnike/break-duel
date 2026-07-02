@@ -45,6 +45,7 @@ import aiWind3bArt from "../assets/card-art/ai-wind-3b.webp";
 import aiWind4Art from "../assets/card-art/ai-wind-4.webp";
 import aiWind4bArt from "../assets/card-art/ai-wind-4b.webp";
 import cmdDisruptArt from "../assets/card-art/cmd-disrupt.webp";
+import cmdComebackRiteArt from "../assets/card-art/cmd-comeback-rite.webp";
 import cmdEarthRiteArt from "../assets/card-art/cmd-earth-rite.webp";
 import cmdFireRiteArt from "../assets/card-art/cmd-fire-rite.webp";
 import cmdOptimizeArt from "../assets/card-art/cmd-optimize.webp";
@@ -124,6 +125,7 @@ const SUPPORT_CARD_ART: Record<string, string> = {
   "CMD-WATER-RITE": cmdWaterRiteArt,
   "CMD-WIND-RITE": cmdWindRiteArt,
   "CMD-EARTH-RITE": cmdEarthRiteArt,
+  "CMD-COMEBACK-RITE": cmdComebackRiteArt,
   "MEM-ACCELERATOR": memAcceleratorArt,
   "MEM-FIREWALL": memFirewallArt,
   "MEM-CACHE": memCacheArt,
@@ -163,6 +165,7 @@ export function cardArtGlyph(card: Card): string {
     if (card.effect === "water_rite") return "水";
     if (card.effect === "wind_rite") return "風";
     if (card.effect === "earth_rite") return "土";
+    if (card.effect === "comeback_rite") return "逆";
     return "術";
   }
   if (card.type === "memory") {
@@ -191,6 +194,7 @@ export function cardArtAsset(card: Card): string {
     if (card.effect === "water_rite") return cardsTakeIcon;
     if (card.effect === "wind_rite") return timerIcon;
     if (card.effect === "earth_rite") return cardsReturnIcon;
+    if (card.effect === "comeback_rite") return cardsReturnIcon;
     return cardIcon;
   }
   if (card.type === "memory") {
@@ -243,6 +247,7 @@ export function roleText(card: Card): string {
   if (card.effect === "water_rite") return "1アクション。場に水の召喚獣がいる時、山札からカードを1枚引く";
   if (card.effect === "wind_rite") return "1アクション。場に風の召喚獣がいる時、相手1体を消耗し、自分の風1体を回復";
   if (card.effect === "earth_rite") return "1アクション。場に土の召喚獣がいる時、トラッシュの召喚獣1枚を回収";
+  if (card.effect === "comeback_rite") return "1アクション。自分のライフが少ない時、山札からカードを1枚引き、自分の消耗召喚獣1体を回復";
   if (card.effect === "firewall") return "他属性召喚獣の攻撃を場防御する時、手札を1枚捨てるなら power +1";
   if (card.effect === "cache") return "ターン開始時、手札2枚以下なら山札からカードを1枚引く";
   if (card.effect === "pipeline") return "1ターンに1回、power 1登場時、山札からカードを1枚引く";
