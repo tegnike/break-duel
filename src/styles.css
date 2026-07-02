@@ -10781,8 +10781,77 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   transform: translateY(-24px) scale(1.08) rotate(var(--hand-tilt, 0deg)) !important;
 }
 
+/* Pending card choices need enough width for Japanese rules text. */
+.pending-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 286px), 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.pending-card-choice {
+  grid-template-columns: 92px minmax(0, 1fr);
+  min-height: 136px;
+  padding: 10px;
+  gap: 12px;
+}
+
+.pending-card-choice .card {
+  width: 92px;
+  height: 128px;
+  flex-basis: 92px;
+}
+
+.pending-card-copy {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  min-width: 0;
+  color: #f4ecd1;
+}
+
+.pending-card-title {
+  color: #fff6dc;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+.pending-card-meta {
+  color: #b9d6e4;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.pending-card-effect {
+  display: block;
+  color: #e8dfcf;
+  font-size: 12.5px;
+  font-weight: 750;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 @media (min-width: 1025px) {
   .stitch-shell > .dock-detail-rail {
     z-index: 34 !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .pending-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pending-card-choice {
+    grid-template-columns: 82px minmax(0, 1fr);
+    min-height: 124px;
+  }
+
+  .pending-card-choice .card {
+    width: 82px;
+    height: 116px;
+    flex-basis: 82px;
   }
 }

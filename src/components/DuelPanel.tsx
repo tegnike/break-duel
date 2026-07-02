@@ -279,6 +279,12 @@ function PendingCardChoice({
   spent?: boolean;
   onClick: () => void;
 }) {
+  const meta = [
+    cardTypeLabel(card),
+    card.attribute ? `${card.attribute} / power ${card.power}` : null,
+    `${playCost(card)}アクション`,
+  ].filter(Boolean);
+
   return (
     <button
       type="button"
@@ -295,7 +301,11 @@ function PendingCardChoice({
         spent={spent}
         showCost={false}
       />
-      <span className="pending-card-effect">{selectedText(card)}</span>
+      <span className="pending-card-copy">
+        <span className="pending-card-title">{card.name}</span>
+        <span className="pending-card-meta">{meta.join(" / ")}</span>
+        <span className="pending-card-effect">{selectedText(card)}</span>
+      </span>
     </button>
   );
 }
