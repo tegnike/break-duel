@@ -11,7 +11,7 @@ import {
   playCost,
 } from "../game";
 import { CardArtPreview, CardView } from "./CardView";
-import { cardColor, roleText, selectedText } from "./cardPresentation";
+import { cardArtAsset, cardArtClass, cardArtGlyph, cardColor, roleText, selectedText } from "./cardPresentation";
 
 const DECK_SIZE = 20;
 const SAME_NAME_LIMIT = 2;
@@ -20,6 +20,8 @@ export const SAVED_DECKS_STORAGE_KEY = "break-duel:saved-decks";
 
 type TypeFilter = CardType | "all";
 type AttributeFilter = Attribute | "all";
+
+const CARD_ID_COLLATOR = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
 export type SavedDeck = {
   version: 1;
@@ -123,7 +125,7 @@ export function DeckBuilderPage() {
   function addCard(cardId: string) {
     if (cardIds.length >= DECK_SIZE) return;
     if ((counts.get(cardId) ?? 0) >= SAME_NAME_LIMIT) return;
-    setCardIds((current) => [...current, cardId]);
+    setCardIds((current) => sortCardIds([...current, cardId]));
     setSelectedId(cardId);
     setNotice("");
   }
@@ -135,7 +137,7 @@ export function DeckBuilderPage() {
 
   function loadPreset(deckId: keyof typeof DECKS) {
     setDeckName(DECKS[deckId].name);
-    setCardIds([...DECKS[deckId].cards]);
+    setCardIds(sortCardIds(DECKS[deckId].cards));
     setNotice(`${DECKS[deckId].name}を読み込みました`);
   }
 
@@ -155,7 +157,7 @@ export function DeckBuilderPage() {
       version: 1,
       id: existing?.id ?? `deck-${Date.now()}`,
       name: trimmedName,
-      cardIds,
+      cardIds: sortCardIds(cardIds),
       updatedAt: new Date().toISOString(),
     };
     setSavedDecks((current) => [next, ...current.filter((deck) => deck.id !== next.id)]);
@@ -164,7 +166,7 @@ export function DeckBuilderPage() {
 
   function loadDeck(deck: SavedDeck) {
     setDeckName(deck.name);
-    setCardIds([...deck.cardIds]);
+    setCardIds(sortCardIds(deck.cardIds));
     setNotice(`${deck.name}を読み込みました`);
   }
 
@@ -179,7 +181,7 @@ export function DeckBuilderPage() {
       version: 1,
       id: `deck-${Date.now()}`,
       name: deckName.trim() || "無名デッキ",
-      cardIds,
+      cardIds: sortCardIds(cardIds),
       updatedAt: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -202,7 +204,7 @@ export function DeckBuilderPage() {
         const parsed = JSON.parse(String(reader.result));
         const deck = normalizeImportedDeck(parsed);
         setDeckName(deck.name);
-        setCardIds(deck.cardIds);
+        setCardIds(sortCardIds(deck.cardIds));
         setNotice(`${deck.name}をインポートしました`);
       } catch (error) {
         setNotice(error instanceof Error ? error.message : "JSONを読み込めませんでした");
@@ -333,7 +335,7 @@ function CardInspector({ card, compact = false }: { card: Card | null; compact?:
   return (
     <aside className={`card-inspector ${compact ? "compact" : ""}`} style={{ "--card-color": cardColor(card) } as React.CSSProperties}>
       {compact
-        ? <CardView card={card} ownerIndex={3} zone="hand" index={0} showCost />
+        ? <BuilderCardArtPreview card={card} />
         : <CardArtPreview card={card} />}
       <div className="inspector-copy">
         <h3>{card.name}</h3>
@@ -347,6 +349,15 @@ function CardInspector({ card, compact = false }: { card: Card | null; compact?:
         <p className="inspector-effect">{roleText(card)}</p>
       </div>
     </aside>
+  );
+}
+
+function BuilderCardArtPreview({ card }: { card: Card }) {
+  return (
+    <div className={`builder-art-preview ${cardArtClass(card)}`} aria-label={`${card.name}のイラスト`}>
+      <img src={cardArtAsset(card)} alt="" loading="lazy" />
+      <span>{cardArtGlyph(card)}</span>
+    </div>
   );
 }
 
@@ -441,9 +452,32 @@ function normalizeImportedDeck(input: unknown): SavedDeck {
     version: 1,
     id: typeof item.id === "string" ? item.id : `deck-${Date.now()}`,
     name,
-    cardIds: [...item.cardIds],
+    cardIds: sortCardIds(item.cardIds),
     updatedAt: typeof item.updatedAt === "string" ? item.updatedAt : new Date().toISOString(),
   };
+}
+
+function sortCardIds(cardIds: readonly string[]): string[] {
+  return [...cardIds].sort(compareCardIds);
+}
+
+function compareCardIds(leftId: string, rightId: string): number {
+  const left = CARD_BY_ID.get(leftId);
+  const right = CARD_BY_ID.get(rightId);
+  if (left && right) return compareCardsByNumber(left, right);
+  if (left) return -1;
+  if (right) return 1;
+  return CARD_ID_COLLATOR.compare(leftId, rightId);
+}
+
+function compareCardsByNumber(left: Card, right: Card): number {
+  const typeOrder = typeRank(left.type) - typeRank(right.type);
+  if (typeOrder !== 0) return typeOrder;
+  const attrOrder = attributeRank(left.attribute) - attributeRank(right.attribute);
+  if (attrOrder !== 0) return attrOrder;
+  const powerOrder = (left.power ?? 0) - (right.power ?? 0);
+  if (powerOrder !== 0) return powerOrder;
+  return CARD_ID_COLLATOR.compare(left.id, right.id);
 }
 
 function safeFileName(name: string): string {

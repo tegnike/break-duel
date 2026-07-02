@@ -78,6 +78,7 @@ import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from 
 import type { DuelEvent, DuelEventPayload } from "./duelEvents";
 import { RIVAL_VOICE_LINES, type RivalVoiceLineId } from "./rivalVoiceLines";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
+import menuBgm from "./assets/audio/menu_music_loop.ogg";
 import sfxAttack from "./assets/audio/sfx-attack.ogg";
 import sfxBlock from "./assets/audio/sfx-block.ogg";
 import sfxCardHover from "./assets/audio/sfx-card-hover.ogg";
@@ -100,6 +101,12 @@ let eventId = 1;
 const INITIAL_SEED = randomSeed();
 const BGM_NORMAL_PLAYBACK_RATE = 1;
 const BGM_LOW_LIFE_PLAYBACK_RATE = 1.2;
+const BATTLE_BGM_VOLUME = 0.32;
+const MENU_BGM_VOLUME = 0.26;
+const BGM_FADE_OUT_MS = 360;
+const BGM_TRACK_SWITCH_PAUSE_MS = 160;
+const BGM_FADE_IN_MS = 900;
+const BGM_FADE_STEP_MS = 40;
 
 type AppPage = "duel" | "cards" | "builder";
 
@@ -192,6 +199,11 @@ type PendingRivalVoiceLine = {
   text: string;
   force: boolean;
   stateKey: string;
+};
+
+type BgmTrack = {
+  src: string;
+  volume: number;
 };
 
 const RIVAL_ACTION_VOICE_LINE_IDS = [
@@ -535,6 +547,9 @@ export default function App() {
   const audioEnabledRef = useRef(false);
   const audioContext = useRef<AudioContext | null>(null);
   const bgmAudio = useRef<HTMLAudioElement | null>(null);
+  const bgmSrc = useRef<string | null>(null);
+  const bgmFadeTimer = useRef<number | null>(null);
+  const bgmSwitchTimer = useRef<number | null>(null);
   const sfxBuffers = useRef<Partial<Record<string, AudioBuffer>>>({});
   const pendingSfxBuffers = useRef<Partial<Record<string, Promise<void>>>>({});
   const lastSfxPlayedAt = useRef<Record<string, number>>({});
@@ -556,6 +571,7 @@ export default function App() {
   const pendingRivalVoiceLine = useRef<PendingRivalVoiceLine | null>(null);
   const currentRivalVoiceStateKey = useRef("");
   const gameResolvedRef = useRef(false);
+  const announcedResultKey = useRef<string | null>(null);
   const rivalActionVoiceTurnGroups = useRef(createRivalActionVoiceTurnGroups(INITIAL_SEED));
   const recentLifeDamageImpact = useRef<DuelEventPayload["impact"] | null>(null);
   const suppressedTrashSfxOwners = useRef<Partial<Record<number, number>>>({});
@@ -1210,6 +1226,7 @@ export default function App() {
       const opponentSelection = resolveDeckSelection(opponentDeckSelection, selectionRng);
       const nextGame = createGame(nextSeed, toDuelDeckSource(playerSelection), toDuelDeckSource(opponentSelection), opponentAiProfile);
       rivalActionVoiceTurnGroups.current = createRivalActionVoiceTurnGroups(nextSeed);
+      announcedResultKey.current = null;
       setSeed(nextSeed);
       resetDrawTracker(nextGame);
       setGame(nextGame);
@@ -1240,6 +1257,7 @@ export default function App() {
     }
     const nextGame = createTutorialGame();
     rivalActionVoiceTurnGroups.current = createRivalActionVoiceTurnGroups(TUTORIAL_SEED);
+    announcedResultKey.current = null;
     setSeed(TUTORIAL_SEED);
     resetDrawTracker(nextGame);
     setGame(nextGame);
@@ -1466,6 +1484,9 @@ export default function App() {
   useEffect(() => {
     if (page !== "duel") return;
     if (game.winner === null && !game.draw) return;
+    const resultKey = `${seed}:${game.turn}:${game.winner ?? "draw"}:${game.draw ? "draw" : "win"}:${human.life}:${ai.life}`;
+    if (announcedResultKey.current === resultKey) return;
+    announcedResultKey.current = resultKey;
     const score = `あなた ${human.life} - ${ai.life} ライバル`;
     const winnerIndex = game.winner ?? 0;
     showBanner({
@@ -1478,11 +1499,16 @@ export default function App() {
     if (!game.draw) {
       showRivalVoiceLine(game.winner === 1 ? "victory" : "defeat", { force: true });
     }
-  }, [page, game.winner, game.draw]);
+  }, [page, seed, game.turn, game.winner, game.draw, human.life, ai.life]);
 
   useEffect(() => {
     updateBgmPlaybackRate();
-  }, [game.players[0].life, game.players[1].life]);
+  }, [page, starterDeckSetupOpen, game.winner, game.draw, game.players[0].life, game.players[1].life]);
+
+  useEffect(() => {
+    if (!audioEnabled) return;
+    startBgm();
+  }, [audioEnabled, page, starterDeckSetupOpen, game.winner, game.draw]);
 
   useEffect(() => {
     if (page !== "duel") return undefined;
@@ -1651,11 +1677,37 @@ export default function App() {
     return false;
   }
 
+  function clearBgmTransitionTimers() {
+    if (bgmFadeTimer.current !== null) window.clearInterval(bgmFadeTimer.current);
+    if (bgmSwitchTimer.current !== null) window.clearTimeout(bgmSwitchTimer.current);
+    bgmFadeTimer.current = null;
+    bgmSwitchTimer.current = null;
+  }
+
   function stopBgm() {
+    clearBgmTransitionTimers();
     bgmAudio.current?.pause();
   }
 
+  function activeDuelUsesBattleBgm(
+    nextPage = page,
+    nextGame = game,
+    nextStarterDeckSetupOpen = starterDeckSetupOpen,
+  ) {
+    return nextPage === "duel"
+      && !nextStarterDeckSetupOpen
+      && nextGame.winner === null
+      && !nextGame.draw;
+  }
+
+  function bgmTrackForCurrentView(): BgmTrack {
+    return activeDuelUsesBattleBgm()
+      ? { src: battleBgm, volume: BATTLE_BGM_VOLUME }
+      : { src: menuBgm, volume: MENU_BGM_VOLUME };
+  }
+
   function bgmPlaybackRateForGame(nextGame: GameState) {
+    if (!activeDuelUsesBattleBgm(page, nextGame, starterDeckSetupOpen)) return BGM_NORMAL_PLAYBACK_RATE;
     return nextGame.players.some((player) => player.life === 1)
       ? BGM_LOW_LIFE_PLAYBACK_RATE
       : BGM_NORMAL_PLAYBACK_RATE;
@@ -1675,22 +1727,88 @@ export default function App() {
     audio.playbackRate = nextRate;
   }
 
-  function startBgm() {
-    if (!bgmAudio.current) {
-      const audio = new Audio(battleBgm);
-      audio.loop = true;
-      audio.preload = "auto";
-      audio.volume = 0.32;
-      preserveBgmPitch(audio);
-      bgmAudio.current = audio;
+  function createBgmAudio(track: BgmTrack, initialVolume: number) {
+    const audio = new Audio(track.src);
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = initialVolume;
+    preserveBgmPitch(audio);
+    bgmAudio.current = audio;
+    bgmSrc.current = track.src;
+    return audio;
+  }
+
+  function fadeBgmVolume(audio: HTMLAudioElement, targetVolume: number, durationMs: number, onComplete?: () => void) {
+    if (bgmFadeTimer.current !== null) window.clearInterval(bgmFadeTimer.current);
+    const startVolume = audio.volume;
+    const startedAt = performance.now();
+    const finish = () => {
+      if (bgmFadeTimer.current !== null) window.clearInterval(bgmFadeTimer.current);
+      bgmFadeTimer.current = null;
+      audio.volume = targetVolume;
+      onComplete?.();
+    };
+    if (durationMs <= 0 || Math.abs(startVolume - targetVolume) < 0.001) {
+      finish();
+      return;
     }
-    updateBgmPlaybackRate();
-    bgmAudio.current.currentTime = 0;
-    void bgmAudio.current.play().catch(() => {
+    bgmFadeTimer.current = window.setInterval(() => {
+      const progress = Math.min(1, (performance.now() - startedAt) / durationMs);
+      audio.volume = startVolume + (targetVolume - startVolume) * progress;
+      if (progress >= 1) finish();
+    }, BGM_FADE_STEP_MS);
+  }
+
+  function playBgmAudio(audio: HTMLAudioElement) {
+    void audio.play().catch(() => {
       audioEnabledRef.current = false;
       setAudioEnabled(false);
       showToast("BGM再生失敗", "ブラウザの音声許可を確認してください");
     });
+  }
+
+  function startBgm(options: { restart?: boolean } = {}) {
+    const track = bgmTrackForCurrentView();
+    const existing = bgmAudio.current;
+    const changed = !existing || bgmSrc.current !== track.src;
+    if (!changed) {
+      const audio = existing;
+      updateBgmPlaybackRate();
+      if (options.restart) {
+        clearBgmTransitionTimers();
+        audio.currentTime = 0;
+        audio.volume = 0;
+        playBgmAudio(audio);
+        fadeBgmVolume(audio, track.volume, BGM_FADE_IN_MS);
+        return;
+      }
+      if (bgmFadeTimer.current === null) audio.volume = track.volume;
+      playBgmAudio(audio);
+      return;
+    }
+
+    clearBgmTransitionTimers();
+    const startNextTrack = () => {
+      if (!audioEnabledRef.current) return;
+      const nextAudio = createBgmAudio(track, 0);
+      updateBgmPlaybackRate();
+      if (options.restart) nextAudio.currentTime = 0;
+      playBgmAudio(nextAudio);
+      fadeBgmVolume(nextAudio, track.volume, BGM_FADE_IN_MS);
+    };
+
+    if (existing && !existing.paused) {
+      fadeBgmVolume(existing, 0, BGM_FADE_OUT_MS, () => {
+        existing.pause();
+        bgmSwitchTimer.current = window.setTimeout(() => {
+          bgmSwitchTimer.current = null;
+          startNextTrack();
+        }, BGM_TRACK_SWITCH_PAUSE_MS);
+      });
+      return;
+    }
+
+    startNextTrack();
   }
 
   function toggleAudio() {
@@ -1700,7 +1818,7 @@ export default function App() {
     if (next) {
       void ensureAudioContext().resume();
       preloadSfx();
-      startBgm();
+      startBgm({ restart: true });
     } else {
       stopBgm();
       if (rivalSpeechTimer.current !== null) window.clearTimeout(rivalSpeechTimer.current);

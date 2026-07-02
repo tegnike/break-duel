@@ -258,8 +258,10 @@ web/
 - Source: https://kenney.nl/assets/board-game-icons
 - License: Creative Commons CC0
 
-ブラウザ UI の効果音には、以下の CC0 素材を編集して使用しています。詳細は [src/assets/audio/README.md](src/assets/audio/README.md) を参照してください。
+ブラウザ UI のBGM・効果音には、以下の CC0 素材を編集して使用しています。詳細は [src/assets/audio/README.md](src/assets/audio/README.md) を参照してください。
 
+- Chiptune Battle Music
+- Menu Music
 - Kenney Casino Audio
 - Kenney Impact Sounds
 - Kenney Interface Sounds

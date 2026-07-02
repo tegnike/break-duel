@@ -8,6 +8,15 @@
 - License: CC0
 - Notes: The source page states the loop is free to use without attribution.
 
+## `menu_music_loop.ogg`
+
+- Title: Menu Music
+- Author: wipics
+- Source: https://opengameart.org/content/menu-music-1
+- Source file: `menu.ogg`
+- License: CC0
+- Notes: Public Domain menu loop used outside active duels.
+
 ## Card Battle SFX
 
 The following short effects are edited from card-focused CC0 packs for card
