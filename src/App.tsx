@@ -2741,7 +2741,7 @@ export default function App() {
                 upgradeSource={sourceIndex === null ? null : human.field[sourceIndex]}
                 game={game}
                 visualEffect={tutorialFocusMatchesCard(tutorialStep?.focus, 0, "hand", card, index) ? "tutorial-focus" : ""}
-                showCost
+                showCost={false}
                 onClick={handSelectable ? () => selectHand(index) : undefined}
                 onMouseEnter={() => playSfx("hover")}
               />
@@ -3363,6 +3363,7 @@ function FieldGrid({
             actionState={tutorialLocked && !fieldSelectable ? "idle" : baseActionState}
             visualEffect={`${trashSurge ? "trash-alert" : ""} ${defensePreview ? `combat-preview ${defensePreview.result}` : ""} ${isAttackerPreview ? "attack-preview-source" : ""} ${tutorialFocusMatchesCard(tutorialFocus, ownerIndex, "field", card, index) ? "tutorial-focus" : ""}`}
             extraBadges={defensePreview ? [defensePreview.label] : isAttackerPreview ? [`ATK ${combatPreview.attackValue}`] : []}
+            game={game}
             showCost={false}
             onClick={fieldSelectable ? () => onSelectField(ownerIndex, index) : undefined}
           />

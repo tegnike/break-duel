@@ -65,6 +65,7 @@ export function PlayerPanel({
             selectable={ownerIndex === 0}
             spent={player.spentFieldIndexes.has(index)}
             actionState={ownerIndex === 0 ? fieldCardActionState(game, player, index) : "idle"}
+            game={game}
             showCost={false}
             onClick={() => onSelectField?.(index)}
           />
@@ -92,7 +93,7 @@ export function PlayerPanel({
                   actionState={actionState}
                   upgradeSource={sourceIndex === null ? null : player.field[sourceIndex]}
                   game={game}
-                  showCost
+                  showCost={false}
                   onClick={() => onSelectHand?.(index)}
                 />
               );

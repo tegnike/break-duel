@@ -327,11 +327,13 @@ function DefenseChoiceButton({ source, card, cardIndex, attackCard, defender, ha
       ? "相打ち / 両方トラッシュ"
       : "防御側が残る / 攻撃側退場";
   const firewallText = !hand && paidDefenseValue > baseDefenseValue ? ` / 竜盾使用時 ${paidDefenseValue}` : "";
+  const visibleDefenseBonus = hand ? 0 : defensePowerBonus(card, defender, attackCard, defenseOptions);
+  const extraBadges = visibleDefenseBonus > 0 ? [`場防御+${visibleDefenseBonus}`] : [];
   return (
     <button type="button" className="defense-choice" style={{ "--card-color": cardColor(card) } as React.CSSProperties} title={`${source}: ${card.name} / ${defenseMathText(attackCard, card, defender, defenseOptions)}`} onClick={onClick}>
       <div className="defense-choice-card">
         <span className="defense-source">{source}</span>
-        <CardView card={card} ownerIndex={0} zone={hand ? "hand" : "field"} index={cardIndex} showCost={false} />
+        <CardView card={card} ownerIndex={0} zone={hand ? "hand" : "field"} index={cardIndex} showCost={false} extraBadges={extraBadges} />
       </div>
       <div className="defense-choice-info">
         <div className="defense-choice-name">{card.name}</div>

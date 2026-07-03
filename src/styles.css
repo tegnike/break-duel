@@ -1684,7 +1684,9 @@ h2 {
 }
 
 .pending-card-choice .card-foot,
-.pending-card-choice .card-badges {
+.pending-card-choice .card-badges,
+.pending-card-choice .card-stat-badges,
+.pending-card-choice .card-overlay-badges {
   font-size: 8px;
 }
 
@@ -3356,7 +3358,7 @@ h2 {
   box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.4);
 }
 
-.card.blocked {
+.card.blocked:not([data-zone="field"]) {
   opacity: 0.64;
 }
 
@@ -3401,11 +3403,15 @@ h2 {
 .card-name {
   position: relative;
   z-index: 1;
-  padding-right: 34px;
+  padding-right: 0;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.25;
   overflow-wrap: anywhere;
+}
+
+.card.has-cost-badge .card-name {
+  padding-right: 34px;
 }
 
 .card-id {
@@ -3616,6 +3622,32 @@ h2 {
   pointer-events: none;
 }
 
+.card-stat-badges {
+  position: absolute;
+  top: 42px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.card-overlay-badges {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: 23px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 3px;
+  pointer-events: none;
+}
+
 .card-badges span {
   min-width: 28px;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -3629,16 +3661,66 @@ h2 {
   text-align: center;
 }
 
-.card-badges span.wide-badge {
+.card-overlay-badges .wide-badge {
   min-width: 0;
   max-width: 92px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 4px;
-  padding-inline: 5px;
+  padding: 2px 5px;
   overflow: hidden;
   color: #081014;
   background: #00f0ff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.card-stat-badges .stat-badge {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  min-width: 39px;
+  min-height: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 5px;
+  padding: 2px 4px;
+  gap: 3px;
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.26),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.card-stat-badges .stat-badge span,
+.card-stat-badges .stat-badge b {
+  line-height: 1;
+}
+
+.card-stat-badges .stat-badge span {
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.card-stat-badges .stat-badge b {
+  font-size: 12px;
+  font-weight: 950;
+  text-align: center;
+}
+
+.card-stat-badges .sword-badge {
+  color: #fff4ef;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 42%),
+    #b9322a;
+}
+
+.card-stat-badges .shield-badge {
+  color: #edffe7;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 42%),
+    #287a4e;
 }
 
 .action-ready {
@@ -4022,8 +4104,12 @@ h2 {
   }
 
   .card-name {
-    padding-right: 28px;
+    padding-right: 0;
     font-size: 13px;
+  }
+
+  .card.has-cost-badge .card-name {
+    padding-right: 28px;
   }
 
   .card-id {
@@ -4070,6 +4156,34 @@ h2 {
     min-width: 24px;
     padding: 2px 5px;
     font-size: 9px;
+  }
+
+  .card-stat-badges {
+    top: 35px;
+    right: 6px;
+    gap: 2px;
+  }
+
+  .card-overlay-badges {
+    left: 6px;
+    right: 6px;
+    bottom: 21px;
+    gap: 2px;
+  }
+
+  .card-stat-badges .stat-badge {
+    min-width: 34px;
+    min-height: 18px;
+    padding: 2px 3px;
+    gap: 2px;
+  }
+
+  .card-stat-badges .stat-badge span {
+    font-size: 9px;
+  }
+
+  .card-stat-badges .stat-badge b {
+    font-size: 11px;
   }
 
   .life {
@@ -5824,7 +5938,9 @@ h1 {
 }
 
 .trash-pile-front-card .card-id,
-.trash-pile-front-card .card-badges {
+.trash-pile-front-card .card-badges,
+.trash-pile-front-card .card-stat-badges,
+.trash-pile-front-card .card-overlay-badges {
   display: none;
 }
 
