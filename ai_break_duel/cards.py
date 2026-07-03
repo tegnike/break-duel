@@ -371,7 +371,7 @@ def build_ai_card_pool() -> list[Card]:
         "AI-FIRE-3": AiEffect.HAND_DEFENSE_PIERCE.value,
         "AI-FIRE-3B": AiEffect.RECKLESS_ATTACK_PLUS_1.value,
         "AI-FIRE-4": AiEffect.DRAW_AFTER_OVERHEAT.value,
-        "AI-FIRE-4B": AiEffect.LOW_LIFE_NO_HAND_DEFENSE_SELF_DAMAGE.value,
+        "AI-FIRE-4B": AiEffect.LOW_LIFE_NO_HAND_DEFENSE.value,
         "AI-FIRE-1C": AiEffect.CHARGE_PRESSURE.value,
         "AI-WATER-1": AiEffect.DRAW_ON_BLOCKED_ATTACK.value,
         "AI-WATER-1B": AiEffect.DRAW_ON_PLAY_CANNOT_HAND_DEFEND.value,
@@ -387,7 +387,8 @@ def build_ai_card_pool() -> list[Card]:
         "AI-WIND-2B": AiEffect.SPEND_ENEMY_ON_PLAY_ENTERS_SPENT.value,
         "AI-WIND-3": AiEffect.SPEND_ENEMY_ON_PLAY.value,
         "AI-WIND-3B": AiEffect.READY_ALLY_ON_PLAY_DRAW.value,
-        "AI-WIND-4B": AiEffect.RETURN_AFTER_OVERHEAT_CANNOT_HAND_DEFEND.value,
+        "AI-WIND-4": AiEffect.RETURN_AFTER_OVERHEAT.value,
+        "AI-WIND-4B": AiEffect.SPEND_ENEMY_ON_PLAY.value,
         "AI-WIND-2C": AiEffect.CHARGE_READY_ALLY.value,
         "AI-EARTH-1": AiEffect.BLOCK_PRESSURE.value,
         "AI-EARTH-1B": AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE.value,
@@ -396,7 +397,7 @@ def build_ai_card_pool() -> list[Card]:
         "AI-EARTH-3": AiEffect.DEFENSE_PLUS_1.value,
         "AI-EARTH-3B": AiEffect.RECOVER_AI_ON_PLAY.value,
         "AI-EARTH-4": AiEffect.RECOVER_AI_ON_PLAY.value,
-        "AI-EARTH-4B": AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE_ENTERS_SPENT.value,
+        "AI-EARTH-4B": AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE.value,
         "AI-EARTH-2C": AiEffect.CHARGE_GUARD.value,
     }
     cards: list[Card] = []

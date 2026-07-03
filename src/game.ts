@@ -279,7 +279,7 @@ export function cardPool(): Card[] {
     ["AI-FIRE-3", "hand_defense_pierce"],
     ["AI-FIRE-3B", "reckless_attack_plus_1"],
     ["AI-FIRE-4", "draw_after_overheat"],
-    ["AI-FIRE-4B", "low_life_no_hand_defense_self_damage"],
+    ["AI-FIRE-4B", "low_life_no_hand_defense"],
     ["AI-FIRE-1C", "charge_pressure"],
     ["AI-WATER-1", "draw_on_blocked_attack"],
     ["AI-WATER-1B", "draw_on_play_cannot_hand_defend"],
@@ -295,7 +295,8 @@ export function cardPool(): Card[] {
     ["AI-WIND-2B", "spend_enemy_on_play_enters_spent"],
     ["AI-WIND-3", "spend_enemy_on_play"],
     ["AI-WIND-3B", "ready_ally_on_play_draw"],
-    ["AI-WIND-4B", "return_after_overheat_cannot_hand_defend"],
+    ["AI-WIND-4", "return_after_overheat"],
+    ["AI-WIND-4B", "spend_enemy_on_play"],
     ["AI-WIND-2C", "charge_ready_ally"],
     ["AI-EARTH-1", "block_pressure"],
     ["AI-EARTH-1B", "draw_on_successful_defense"],
@@ -304,7 +305,7 @@ export function cardPool(): Card[] {
     ["AI-EARTH-3", "defense_plus_1"],
     ["AI-EARTH-3B", "recover_ai_on_play"],
     ["AI-EARTH-4", "recover_ai_on_play"],
-    ["AI-EARTH-4B", "draw_on_successful_defense_enters_spent"],
+    ["AI-EARTH-4B", "draw_on_successful_defense"],
     ["AI-EARTH-2C", "charge_guard"],
   ]);
   const aiCards: CardSeed[] = (Object.entries(ATTRIBUTES) as [Attribute, { code: string; color: string }][])

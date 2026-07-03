@@ -34,7 +34,6 @@ import {
   recoversAiOnPlay,
   removeFieldStack,
   returnsAfterOverheat,
-  selfDamagesOnPlay,
   spendsEnemyOnPlay,
   stackUpgradeCard,
   startTurn,
@@ -192,13 +191,13 @@ const CARD_EFFECT_CASES = {
     run: () => expect(keepsReadyAfterAttack(card("AI-WIND-1"))).toBe(true),
   },
   spend_enemy_on_play: {
-    cardId: "AI-WIND-3",
+    cardId: "AI-WIND-4B",
     description: "登場時に相手の未消耗召喚獣選択を要求する",
     run: () => {
       const game = blankGame();
       game.players[1].field = [card("AI-FIRE-2")];
-      applyPlayEffects(game, game.players[0], card("AI-WIND-3"), 0, 1);
-      expect(spendsEnemyOnPlay(card("AI-WIND-3"))).toBe(true);
+      applyPlayEffects(game, game.players[0], card("AI-WIND-4B"), 0, 1);
+      expect(spendsEnemyOnPlay(card("AI-WIND-4B"))).toBe(true);
       expect(game.pendingTarget?.kind).toBe("card-select");
       expect(game.pendingTarget && "reason" in game.pendingTarget ? game.pendingTarget.reason : null).toBe("spend-enemy");
     },
@@ -243,17 +242,16 @@ const CARD_EFFECT_CASES = {
     description: "手札防御貫通対象になる",
     run: () => expect(piercesHandDefense(card("AI-FIRE-2B"))).toBe(true),
   },
-  low_life_no_hand_defense_self_damage: {
+  low_life_no_hand_defense: {
     cardId: "AI-FIRE-4B",
-    description: "低ライフ手札防御不可と登場時自傷を持つ",
+    description: "低ライフ手札防御不可を持つ",
     run: () => {
       const game = blankGame();
       const target = card("AI-FIRE-4B");
       game.players[1].life = 2;
       applyPlayEffects(game, game.players[0], target, 0, 1);
       expect(blocksLowLifeHandDefense(target, game.players[1])).toBe(true);
-      expect(selfDamagesOnPlay(target)).toBe(true);
-      expect(game.players[0].life).toBe(CONFIG.life - 1);
+      expect(game.players[0].life).toBe(CONFIG.life);
     },
   },
   draw_on_blocked_attack: {
@@ -286,37 +284,22 @@ const CARD_EFFECT_CASES = {
       expect(game.pendingTarget && "reason" in game.pendingTarget ? game.pendingTarget.reason : null).toBe("ready-ally");
     },
   },
-  return_after_overheat_cannot_hand_defend: {
-    cardId: "AI-WIND-4B",
-    description: "攻撃後退場時に手札へ戻り、手札防御不可で、消耗登場する",
-    run: () => {
-      const target = card("AI-WIND-4B");
-      expect(returnsAfterOverheat(target)).toBe(true);
-      expect(cannotHandDefend(target)).toBe(true);
-      expect(entersSpentOnPlay(target)).toBe(true);
-    },
-  },
   return_after_overheat: {
-    cardId: "AI-WATER-4",
+    cardId: "AI-WIND-4",
     description: "攻撃後退場時に手札へ戻る",
     run: () => {
-      const target = card("AI-WATER-4");
+      const target = card("AI-WIND-4");
       expect(returnsAfterOverheat(target)).toBe(true);
       expect(cannotHandDefend(target)).toBe(false);
     },
   },
   draw_on_successful_defense: {
-    cardId: "AI-EARTH-1B",
-    description: "場防御成功時ドロー対象になる",
-    run: () => expect(drawsOnSuccessfulDefense(card("AI-EARTH-1B"))).toBe(true),
-  },
-  draw_on_successful_defense_enters_spent: {
     cardId: "AI-EARTH-4B",
-    description: "場防御成功時ドロー対象で、消耗登場する",
+    description: "場防御成功時ドロー対象になる",
     run: () => {
       const target = card("AI-EARTH-4B");
       expect(drawsOnSuccessfulDefense(target)).toBe(true);
-      expect(entersSpentOnPlay(target)).toBe(true);
+      expect(entersSpentOnPlay(target)).toBe(false);
     },
   },
   charge_pressure: {

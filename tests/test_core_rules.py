@@ -534,8 +534,8 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[0].discard, [])
 
     def test_spend_enemy_on_play_ai_spends_ready_opponent(self) -> None:
-        state = new_game(1, no_opening_hands(first_player_first_turn_actions=3))
-        state.players[0].hand = [card("AI-WIND-3")]
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=4))
+        state.players[0].hand = [card("AI-WIND-4B")]
         state.players[1].field_ai = [card("AI-FIRE-1"), card("AI-FIRE-4")]
         start_turn(state)
         apply_action(state, Action(ActionType.PLAY_AI, 0))
@@ -618,13 +618,13 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[1].life, 1)
         self.assertEqual([item.id for item in state.players[1].hand], ["AI-EARTH-4B"])
 
-    def test_self_damage_on_play_cost_loses_one_life(self) -> None:
+    def test_low_life_finisher_play_has_no_self_damage(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=4))
         state.players[0].hand = [card("AI-FIRE-4B")]
         start_turn(state)
         apply_action(state, Action(ActionType.PLAY_AI, 0))
-        self.assertEqual(state.players[0].life, 4)
-        self.assertEqual(state.log[-1]["effect_self_damage"], 1)
+        self.assertEqual(state.players[0].life, 5)
+        self.assertEqual(state.log[-1]["effect_self_damage"], 0)
 
     def test_opponent_draw_on_play_cost_draws_for_opponent(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=4))
@@ -679,26 +679,33 @@ class CoreRuleTests(unittest.TestCase):
 
     def test_enters_spent_drawback_spends_card_on_play(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=4))
-        state.players[0].hand = [card("AI-WIND-4B")]
+        state.players[0].hand = [card("AI-WIND-2B")]
         start_turn(state)
         apply_action(state, Action(ActionType.PLAY_AI, 0))
         self.assertIn(0, state.players[0].spent_field_ai)
 
-    def test_wind_power_4b_returns_to_hand_after_attack(self) -> None:
+    def test_earth_power_4b_play_does_not_enter_spent(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=4))
+        state.players[0].hand = [card("AI-EARTH-4B")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.PLAY_AI, 0))
+        self.assertNotIn(0, state.players[0].spent_field_ai)
+
+    def test_wind_power_4b_overheats_to_discard_after_attack(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].field_ai = [card("AI-WIND-4B")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
-        self.assertEqual([item.id for item in state.players[0].hand], ["AI-WIND-4B"])
-        self.assertEqual(state.players[0].discard, [])
+        self.assertEqual(state.players[0].hand, [])
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-WIND-4B"])
 
-    def test_wind_power_4_overheats_to_discard_after_attack(self) -> None:
+    def test_wind_power_4_returns_to_hand_after_attack(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].field_ai = [card("AI-WIND-4")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
-        self.assertEqual(state.players[0].hand, [])
-        self.assertEqual([item.id for item in state.players[0].discard], ["AI-WIND-4"])
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-WIND-4"])
+        self.assertEqual(state.players[0].discard, [])
 
     def test_defense_plus_1_ai_gets_defense_bonus(self) -> None:
         state = new_game(1, no_opening_hands())
