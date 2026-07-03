@@ -183,8 +183,26 @@ def choose_defender(
     power_3_cannot_field_defend: bool = False,
     power_3_defense_modifier: int = 0,
 ) -> int | None:
+    attack_value = attack_combat_value(attack_ai)
     successful = [
-        (index, card)
+        (
+            index,
+            card,
+            defense_combat_value(
+                attack_ai,
+                card,
+                advantage_bonus=advantage_bonus,
+                disadvantage_penalty=disadvantage_penalty,
+                defense_power_bonus=_defense_power_bonus(
+                    card,
+                    power_2_defense_bonus,
+                    defender,
+                    attack_ai,
+                    field_index=index,
+                    power_3_defense_modifier=power_3_defense_modifier,
+                ),
+            ),
+        )
         for index, card in enumerate(defender.field_ai)
         if (exhausted_ai_can_defend or index not in defender.spent_field_ai)
         and not (power_3_cannot_field_defend and card.power == 3)
@@ -206,7 +224,14 @@ def choose_defender(
     ]
     if not successful:
         return None
-    return min(successful, key=lambda item: (item[1].power or 0, item[1].id))[0]
+    return min(
+        successful,
+        key=lambda item: (
+            0 if item[2] > attack_value else 1,
+            item[1].power or 0,
+            item[1].id,
+        ),
+    )[0]
 
 
 def choose_hand_defender(
@@ -513,13 +538,8 @@ def _attack_value(state: GameState, attacker, weights: dict[str, int]) -> float:
     hand_defense = _available_hand_defender(state, attacker, opponent)
     if pierces_hand_defense(attacker):
         hand_defense = None
-    elif field_defense is not None and hand_defense is not None:
-        field_card = opponent.field_ai[field_defense]
-        hand_card = opponent.hand[hand_defense]
-        if (hand_card.power or 0, hand_card.id) >= (field_card.power or 0, field_card.id):
-            hand_defense = None
-        else:
-            field_defense = None
+    elif field_defense is not None:
+        hand_defense = None
 
     value = weights["attack_power"] * (attack_combat_value(attacker) or 0)
     if field_defense is None and hand_defense is None:

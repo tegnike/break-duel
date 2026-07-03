@@ -1365,26 +1365,36 @@ export function chooseAiDefense(defender: PlayerState, attackCard: Card, profile
   if (profile === "beginner") return { type: "none" };
   const fieldOptions = legalFieldDefenders(defender, attackCard);
   const handOptions = legalHandDefenders(defender, attackCard);
-  if (piercesHandDefense(attackCard) && fieldOptions.length > 0) {
+  if (fieldOptions.length > 0) {
+    const attackValue = attackCombatValue(attackCard);
     const best = fieldOptions.sort((a, b) => (
-      (a.card.power ?? 0) - (b.card.power ?? 0)
+      fieldDefenseOutcomeRank(defender, attackCard, a, attackValue) - fieldDefenseOutcomeRank(defender, attackCard, b, attackValue)
+      || (a.card.power ?? 0) - (b.card.power ?? 0)
       || a.card.id.localeCompare(b.card.id)
     ))[0];
     return { type: "field", index: best.index };
   }
-  const options = [
-    ...fieldOptions.map((option) => ({ ...option, type: "field" as const })),
-    ...handOptions.map((option) => ({ ...option, type: "hand" as const })),
-  ];
-  if (options.length > 0) {
-    const best = options.sort((a, b) => (
+  if (handOptions.length > 0) {
+    const best = handOptions.sort((a, b) => (
       (a.card.power ?? 0) - (b.card.power ?? 0)
-      || (a.type === "field" ? 0 : 1) - (b.type === "field" ? 0 : 1)
       || a.card.id.localeCompare(b.card.id)
     ))[0];
-    return { type: best.type, index: best.index };
+    return { type: "hand", index: best.index };
   }
   return { type: "none" };
+}
+
+function fieldDefenseOutcomeRank(
+  defender: PlayerState,
+  attackCard: Card,
+  option: { card: Card; index: number },
+  attackValue: number,
+): number {
+  const baseValue = defenseCombatValue(attackCard, option.card, defender, { fieldIndex: option.index });
+  const paidValue = canUseFirewall(defender, option.card, attackCard)
+    ? defenseCombatValue(attackCard, option.card, defender, { firewallPaid: true, fieldIndex: option.index })
+    : baseValue;
+  return Math.max(baseValue, paidValue) > attackValue ? 0 : 1;
 }
 
 export function bestHandAi(game: GameState, player: PlayerState): number | null {

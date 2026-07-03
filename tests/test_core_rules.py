@@ -410,6 +410,33 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[1].discard[0].id, "AI-WATER-3")
         self.assertEqual(state.stats.successful_defenses, 1)
 
+    def test_ai_prefers_surviving_field_defense_over_lower_hand_defense(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-2")]
+        state.players[1].field_ai = [card("AI-WATER-3")]
+        state.players[1].hand = [card("AI-WATER-2")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-WATER-3"])
+        self.assertIn(0, state.players[1].spent_field_ai)
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-WATER-2"])
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-WATER-2"])
+        self.assertEqual(state.players[1].discard, [])
+        self.assertEqual(state.log[-1]["defense_result"], "success")
+
+    def test_ai_prefers_field_trade_over_hand_defense(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-2")]
+        state.players[1].field_ai = [card("AI-WATER-2")]
+        state.players[1].hand = [card("AI-WATER-2")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[0].field_ai, [])
+        self.assertEqual(state.players[1].field_ai, [])
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-WATER-2"])
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-WATER-2"])
+        self.assertEqual(state.log[-1]["defense_result"], "success_trade")
+
     def test_hand_defense_is_limited_to_once_per_turn_by_default(self) -> None:
         state = new_game(
             1,

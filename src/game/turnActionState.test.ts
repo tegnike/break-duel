@@ -5,6 +5,7 @@ import {
   actionsForTurn,
   type Card,
   chooseAiAction,
+  chooseAiDefense,
   cloneCard,
   createGame,
   finishTurn,
@@ -105,6 +106,32 @@ describe("turn action state", () => {
     game.players[1].spentFieldIndexes = new Set([0, 1, 2]);
 
     expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
+  });
+
+  it("prefers a surviving field defense over a lower hand defense", () => {
+    const game = createGame(
+      31,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-WATER-2"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-WATER-2", "AI-WATER-3"] },
+    );
+    const defender = game.players[1];
+    defender.field = [card("AI-WATER-3")];
+    defender.hand = [card("AI-WATER-2")];
+
+    expect(chooseAiDefense(defender, card("AI-WATER-2"), "challenger")).toEqual({ type: "field", index: 0 });
+  });
+
+  it("prefers field trade over spending a hand defender", () => {
+    const game = createGame(
+      32,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-WATER-2"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-WATER-2"] },
+    );
+    const defender = game.players[1];
+    defender.field = [card("AI-WATER-2")];
+    defender.hand = [card("AI-WATER-2")];
+
+    expect(chooseAiDefense(defender, card("AI-WATER-2"), "challenger")).toEqual({ type: "field", index: 0 });
   });
 
   it("keeps challenger from using accelerator without an enabled summon", () => {

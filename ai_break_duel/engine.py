@@ -442,12 +442,7 @@ def _attack(state: GameState, action: Action) -> None:
         if pierces_hand_defense(attack_ai):
             hand_defense_index = None
         else:
-            field_ai = defender.field_ai[defense_index]
-            hand_ai = defender.hand[hand_defense_index]
-            if (hand_ai.power or 0, hand_ai.id) < (field_ai.power or 0, field_ai.id):
-                defense_index = None
-            else:
-                hand_defense_index = None
+            hand_defense_index = None
     defense_ai_id = None
     firewall_discarded_card = None
     block_pressure_discarded_card = None
