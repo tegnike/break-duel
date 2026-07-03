@@ -245,9 +245,9 @@ export function roleText(card: Card): string {
   if (card.effect === "trinity") return "1アクション。場が3枚なら全てトラッシュし、相手ライフ-1";
   if (card.effect === "fire_rite") return "1アクション。場に火の召喚獣がいる時、相手の手札1枚をトラッシュへ送る。なければ相手ライフ-1";
   if (card.effect === "water_rite") return "1アクション。場に水の召喚獣がいる時、山札からカードを1枚引く";
-  if (card.effect === "wind_rite") return "1アクション。場に風の召喚獣がいる時、相手1体を消耗し、自分の風1体を回復する";
+  if (card.effect === "wind_rite") return "1アクション。場に風の召喚獣がいる時、相手1体を選んで消耗し、自分の風1体を選んで回復する";
   if (card.effect === "earth_rite") return "1アクション。場に土の召喚獣がいる時、トラッシュの召喚獣1枚を回収";
-  if (card.effect === "comeback_rite") return "1アクション。相手よりライフが少ない場合、山札からカードを1枚引き、自分の消耗召喚獣1体を回復する";
+  if (card.effect === "comeback_rite") return "1アクション。相手よりライフが少ない場合、山札からカードを1枚引き、自分の消耗召喚獣1体を選んで回復する";
   if (card.effect === "firewall") return "他属性召喚獣の攻撃を場防御する時、手札を1枚トラッシュへ送るなら power +1";
   if (card.effect === "cache") return "ターン開始時、手札2枚以下なら山札からカードを1枚引く";
   if (card.effect === "pipeline") return "1ターンに1回、power 1登場時、山札からカードを1枚引く";

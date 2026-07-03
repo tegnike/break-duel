@@ -14,7 +14,7 @@ describe("card presentation", () => {
 
     expect(roleText(comebackRite)).toContain("相手よりライフが少ない場合、");
     expect(roleText(comebackRite)).toContain("山札からカードを1枚引き");
-    expect(roleText(comebackRite)).toContain("消耗召喚獣1体を回復する");
+    expect(roleText(comebackRite)).toContain("消耗召喚獣1体を選んで回復する");
     expect(selectedText(comebackRite)).toContain("逆転再起術");
     expect(cardArtClass(comebackRite)).toContain("art-generated");
   });

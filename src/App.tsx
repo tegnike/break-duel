@@ -31,6 +31,9 @@ import {
   defenseCombatValue,
   finishTurn,
   highestPowerAiInDiscard,
+  highestPowerReadyAi,
+  highestPowerSpentAi,
+  highestPowerSpentAiByAttribute,
   legalFieldDefenders,
   legalHandDefenders,
   makeRng,
@@ -48,6 +51,7 @@ import {
   beginAttackInDraft,
   chargeHandCardInDraft,
   confirmChargeGuardTargetInDraft,
+  confirmChargeReadyAllyTargetInDraft,
   discardHandCards,
   performAiActionInDraft,
   resolveDefenseInDraft,
@@ -1048,7 +1052,7 @@ export default function App() {
     if (command.effect !== "relearn" && command.effect !== "earth_rite") return null;
     const index = command.effect === "relearn"
       ? targetIndex ?? highestPowerAiInDiscard(player)
-      : highestPowerAiInDiscard(player);
+      : targetIndex ?? highestPowerAiInDiscard(player);
     if (index === null) return null;
     const card = player.discard[index];
     return card ? { card, index } : null;
@@ -2140,10 +2144,111 @@ export default function App() {
       });
       return;
     }
+    if (command.effect === "wind_rite") {
+      const enemyTarget = highestPowerReadyAi(opponentPlayerState);
+      const readyTarget = highestPowerSpentAiByAttribute(player, "風");
+      if (enemyTarget !== null) {
+        mutate((draft) => {
+          const player = activePlayer(draft);
+          const opponent = opponentPlayer(draft);
+          const command = player.hand[sourceIndex];
+          if (!command || command.effect !== "wind_rite") return;
+          draft.pendingTarget = {
+            kind: "card-select",
+            reason: "wind-rite-disrupt",
+            zone: "field",
+            playerIndex: 1 - draft.active,
+            title: `${command.name}で消耗させる相手を選択`,
+            prompt: "消耗させる相手の未消耗召喚獣を1体選んでください。",
+            confirmLabel: "この召喚獣を消耗",
+            min: 1,
+            max: 1,
+            excludeIndexes: opponent.field.map((_, index) => opponent.spentFieldIndexes.has(index) ? index : -1).filter((index) => index >= 0),
+            selectedIndexes: [],
+            sourceIndex,
+            actionCost: 1,
+            cancelable: true,
+          };
+        });
+        return;
+      }
+      if (readyTarget !== null) {
+        mutate((draft) => {
+          const player = activePlayer(draft);
+          const command = player.hand[sourceIndex];
+          if (!command || command.effect !== "wind_rite") return;
+          draft.pendingTarget = {
+            kind: "card-select",
+            reason: "wind-rite-ready",
+            zone: "field",
+            playerIndex: draft.active,
+            title: `${command.name}で回復する風召喚獣を選択`,
+            prompt: "消耗から回復する自分の風召喚獣を1体選んでください。",
+            confirmLabel: "この召喚獣を回復する",
+            min: 1,
+            max: 1,
+            excludeIndexes: player.field.map((card, index) => card.attribute === "風" && player.spentFieldIndexes.has(index) ? -1 : index).filter((index) => index >= 0),
+            selectedIndexes: [],
+            sourceIndex,
+            actionCost: 1,
+            cancelable: true,
+          };
+        });
+        return;
+      }
+    }
+    if (command.effect === "earth_rite") {
+      mutate((draft) => {
+        const player = activePlayer(draft);
+        const command = player.hand[sourceIndex];
+        if (!command || command.effect !== "earth_rite") return;
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "earth-rite-recover",
+          zone: "discard",
+          playerIndex: draft.active,
+          title: `${command.name}で回収するカードを選択`,
+          prompt: "トラッシュから手札に戻す召喚獣を1枚選んでください。",
+          confirmLabel: "このカードを回収",
+          min: 1,
+          max: 1,
+          excludeIndexes: player.discard.map((card, index) => card.type === "ai" ? -1 : index).filter((index) => index >= 0),
+          selectedIndexes: [],
+          sourceIndex,
+          actionCost: 1,
+          cancelable: true,
+        };
+      });
+      return;
+    }
+    if (command.effect === "comeback_rite" && highestPowerSpentAi(player) !== null) {
+      mutate((draft) => {
+        const player = activePlayer(draft);
+        const command = player.hand[sourceIndex];
+        if (!command || command.effect !== "comeback_rite") return;
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "comeback-rite-ready",
+          zone: "field",
+          playerIndex: draft.active,
+          title: `${command.name}で回復する召喚獣を選択`,
+          prompt: "消耗から回復する自分の召喚獣を1体選んでください。",
+          confirmLabel: "この召喚獣を回復する",
+          min: 1,
+          max: 1,
+          excludeIndexes: player.field.map((_, index) => player.spentFieldIndexes.has(index) ? -1 : index).filter((index) => index >= 0),
+          selectedIndexes: [],
+          sourceIndex,
+          actionCost: 1,
+          cancelable: true,
+        };
+      });
+      return;
+    }
     useCommandAt(sourceIndex, null);
   }
 
-  function useCommandAt(sourceIndex: number, targetIndex: number | null, discardIndexes: number[] = []) {
+  function useCommandAt(sourceIndex: number, targetIndex: number | null, discardIndexes: number[] = [], secondaryTargetIndex: number | null = null) {
     const player = activePlayer(game);
     const command = player.hand[sourceIndex];
     if (command?.type === "event") {
@@ -2164,7 +2269,7 @@ export default function App() {
         });
       }
     }
-    mutate((draft) => useCommandAtInDraft(draft, sourceIndex, targetIndex, discardIndexes, { playSfx, showDuelEvent: queueDuelEvent }));
+    mutate((draft) => useCommandAtInDraft(draft, sourceIndex, targetIndex, discardIndexes, { playSfx, showDuelEvent: queueDuelEvent }, secondaryTargetIndex));
     showToast("術式", "カードを発動しました");
     playSfx("play");
   }
@@ -2203,6 +2308,30 @@ export default function App() {
     const player = activePlayer(game);
     const card = player.hand[game.selected.index];
     if (!card) return;
+    if (card.effect === "charge_ready_ally" && highestPowerSpentAi(player) !== null) {
+      const handIndex = game.selected.index;
+      mutate((draft) => {
+        const player = activePlayer(draft);
+        const current = player.hand[handIndex];
+        if (!current || current.effect !== "charge_ready_ally") return;
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "charge-ready-ally",
+          zone: "field",
+          playerIndex: draft.active,
+          title: `${current.name}で回復する召喚獣を選択`,
+          prompt: "消耗から回復する自分の召喚獣を1体選んでください。",
+          confirmLabel: "この召喚獣を回復する",
+          min: 1,
+          max: 1,
+          excludeIndexes: player.field.map((_, index) => player.spentFieldIndexes.has(index) ? -1 : index).filter((index) => index >= 0),
+          selectedIndexes: [],
+          sourceIndex: handIndex,
+          cancelable: true,
+        };
+      });
+      return;
+    }
     if (card.effect === "charge_guard" && player.field.length > 0) {
       const handIndex = game.selected.index;
       mutate((draft) => {
@@ -2308,14 +2437,53 @@ export default function App() {
       performUpgradeSelectedAi(pending.sourceIndex!, selectedIndex);
       return;
     }
-    if (pending.reason === "relearn-recover") {
+    if (pending.reason === "wind-rite-disrupt") {
+      const player = game.players[game.active];
+      const readyTarget = highestPowerSpentAiByAttribute(player, "風");
+      if (readyTarget !== null) {
+        mutate((draft) => {
+          const player = activePlayer(draft);
+          const command = player.hand[pending.sourceIndex!];
+          if (!command || command.effect !== "wind_rite") return;
+          draft.pendingTarget = {
+            kind: "card-select",
+            reason: "wind-rite-ready",
+            zone: "field",
+            playerIndex: draft.active,
+            title: `${command.name}で回復する風召喚獣を選択`,
+            prompt: "消耗から回復する自分の風召喚獣を1体選んでください。",
+            confirmLabel: "この召喚獣を回復する",
+            min: 1,
+            max: 1,
+            excludeIndexes: player.field.map((card, index) => card.attribute === "風" && player.spentFieldIndexes.has(index) ? -1 : index).filter((index) => index >= 0),
+            selectedIndexes: [],
+            sourceIndex: pending.sourceIndex,
+            targetIndex: selectedIndex,
+            actionCost: 1,
+            cancelable: true,
+          };
+        });
+        return;
+      }
+      useCommandAt(pending.sourceIndex!, selectedIndex);
+      return;
+    }
+    if (pending.reason === "wind-rite-ready") {
+      useCommandAt(pending.sourceIndex!, pending.targetIndex ?? null, [], selectedIndex);
+      return;
+    }
+    if (pending.reason === "comeback-rite-ready") {
+      useCommandAt(pending.sourceIndex!, selectedIndex);
+      return;
+    }
+    if (pending.reason === "relearn-recover" || pending.reason === "earth-rite-recover") {
       useCommandAt(pending.sourceIndex!, selectedIndex, pending.discardIndexes ?? []);
       return;
     }
     if (pending.reason === "recover-on-play") {
       launchRecoverFlight(pendingPlayer.discard[selectedIndex], pending.playerIndex, selectedIndex);
     }
-    if (pending.reason === "charge-guard") {
+    if (pending.reason === "charge-guard" || pending.reason === "charge-ready-ally") {
       const charged = pendingPlayer.hand[pending.sourceIndex!];
       if (charged) {
         playSfx("charge");
@@ -2408,6 +2576,21 @@ export default function App() {
           });
         }
         return;
+      } else if (current.reason === "charge-ready-ally") {
+        const targetIndex = current.selectedIndexes[0];
+        const charged = confirmChargeReadyAllyTargetInDraft(draft, current.playerIndex, current.sourceIndex!, targetIndex);
+        if (charged) {
+          queueDuelEvent({
+            kind: "command",
+            title: `${player.name}がチャージ`,
+            detail: `${charged.name}をトラッシュへ送り、このターンのアクションを1増やしました。${player.field[targetIndex]?.name ?? "選んだ召喚獣"}を回復します。`,
+            fromLabel: "手札",
+            toLabel: "トラッシュ",
+            tone: player.isHuman ? "magenta" : "cyan",
+            cards: [{ card: charged, label: "チャージ", state: "trash" }],
+          });
+        }
+        return;
       } else if (current.reason === "charge-guard") {
         const targetIndex = current.selectedIndexes[0];
         const charged = confirmChargeGuardTargetInDraft(draft, current.playerIndex, current.sourceIndex!, targetIndex);
@@ -2477,6 +2660,11 @@ export default function App() {
   }
 
   function selectDiscardCard(index: number) {
+    const pending = game.pendingTarget;
+    if (pending?.kind === "card-select" && pending.playerIndex === game.discardViewerOwner && pending.zone === "discard") {
+      togglePendingCardIndex(index);
+      return;
+    }
     mutate((draft) => {
       draft.discardViewerIndex = index;
     });

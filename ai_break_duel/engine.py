@@ -608,7 +608,7 @@ def _charge(state: GameState, action: Action) -> None:
     if state.actions_remaining > before:
         state.charged_actions_remaining += 1
     player.pending_effects["charge_used"] = True
-    charge_effect = _apply_charge_effect(state, player, card)
+    charge_effect = _apply_charge_effect(state, player, card, action.target_index)
     state.stats.record_card_usage(card.id, "charged")
     state.log.append(
         _action_log_base(state, action)
@@ -623,7 +623,12 @@ def _charge(state: GameState, action: Action) -> None:
     )
 
 
-def _apply_charge_effect(state: GameState, player: PlayerState, charged_card) -> dict[str, Any]:
+def _apply_charge_effect(
+    state: GameState,
+    player: PlayerState,
+    charged_card,
+    ready_target_index: int | None = None,
+) -> dict[str, Any]:
     opponent = state.opponent()
     result: dict[str, Any] = {
         "opponent_discarded_card": None,
@@ -640,8 +645,14 @@ def _apply_charge_effect(state: GameState, player: PlayerState, charged_card) ->
         result["draw_count"] = player.draw(1, state.rng)
         state.stats.record_card_usage(charged_card.id, "charge_draw")
     if charged_card.effect == AiEffect.CHARGE_READY_ALLY.value:
-        target_index = _highest_power_spent_ai(player)
+        target_index = ready_target_index
+        if target_index is None:
+            target_index = _highest_power_spent_ai(player)
         if target_index is not None:
+            if target_index < 0 or target_index >= len(player.field_ai):
+                raise ValueError("Charge ready target is out of range.")
+            if target_index not in player.spent_field_ai:
+                raise ValueError("Charge ready target must be spent.")
             target = player.field_ai[target_index]
             player.spent_field_ai.remove(target_index)
             player.power_3_recovery_delayed_field_ai.discard(target_index)
@@ -812,11 +823,32 @@ def _use_command(state: GameState, action: Action) -> None:
         if not _has_attribute_ai(player, Attribute.WIND):
             player.hand.insert(action.source_index, command)
             raise ValueError("Wind rite requires a wind summon in field.")
-        disrupted_index = _highest_power_ready_ai(opponent)
-        readied_index = _highest_power_spent_ai_by_attribute(player, Attribute.WIND)
+        disrupted_index = action.target_index
+        if disrupted_index is None:
+            disrupted_index = _highest_power_ready_ai(opponent)
+        readied_index = action.secondary_target_index
+        if readied_index is None:
+            readied_index = _highest_power_spent_ai_by_attribute(player, Attribute.WIND)
         if disrupted_index is None and readied_index is None:
             player.hand.insert(action.source_index, command)
             raise ValueError("Wind rite requires a ready enemy or spent wind summon.")
+        if disrupted_index is not None:
+            if disrupted_index < 0 or disrupted_index >= len(opponent.field_ai):
+                player.hand.insert(action.source_index, command)
+                raise ValueError("Wind rite enemy target is out of range.")
+            if disrupted_index in opponent.spent_field_ai:
+                player.hand.insert(action.source_index, command)
+                raise ValueError("Wind rite enemy target must be ready.")
+        if readied_index is not None:
+            if readied_index < 0 or readied_index >= len(player.field_ai):
+                player.hand.insert(action.source_index, command)
+                raise ValueError("Wind rite ready target is out of range.")
+            if readied_index not in player.spent_field_ai:
+                player.hand.insert(action.source_index, command)
+                raise ValueError("Wind rite ready target must be spent.")
+            if player.field_ai[readied_index].attribute != Attribute.WIND:
+                player.hand.insert(action.source_index, command)
+                raise ValueError("Wind rite ready target must be wind.")
         player.discard.append(command)
         disrupted_ai = None
         readied_ai = None
@@ -835,10 +867,18 @@ def _use_command(state: GameState, action: Action) -> None:
         if not _has_attribute_ai(player, Attribute.EARTH):
             player.hand.insert(action.source_index, command)
             raise ValueError("Earth rite requires an earth summon in field.")
-        target_index = _highest_power_ai_in_discard(player)
+        target_index = action.target_index
+        if target_index is None:
+            target_index = _highest_power_ai_in_discard(player)
         if target_index is None:
             player.hand.insert(action.source_index, command)
             raise ValueError("Earth rite requires a summon in discard.")
+        if target_index < 0 or target_index >= len(player.discard):
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Earth rite target is out of range.")
+        if player.discard[target_index].type != CardType.AI:
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Earth rite target must be a summon.")
         recovered = player.discard.pop(target_index)
         player.hand.append(recovered)
         player.discard.append(command)
@@ -849,12 +889,20 @@ def _use_command(state: GameState, action: Action) -> None:
         if player.life >= opponent.life:
             player.hand.insert(action.source_index, command)
             raise ValueError("Comeback rite requires lower life than opponent.")
-        ready_index = _highest_power_spent_ai(player)
+        ready_index = action.target_index
+        if ready_index is None:
+            ready_index = _highest_power_spent_ai(player)
         if ready_index is None and not player.deck:
             player.hand.insert(action.source_index, command)
             raise ValueError("Comeback rite requires a spent summon or deck card.")
         readied_ai = None
         if ready_index is not None:
+            if ready_index < 0 or ready_index >= len(player.field_ai):
+                player.hand.insert(action.source_index, command)
+                raise ValueError("Comeback rite ready target is out of range.")
+            if ready_index not in player.spent_field_ai:
+                player.hand.insert(action.source_index, command)
+                raise ValueError("Comeback rite ready target must be spent.")
             player.spent_field_ai.remove(ready_index)
             player.power_3_recovery_delayed_field_ai.discard(ready_index)
             readied_ai = player.field_ai[ready_index].id

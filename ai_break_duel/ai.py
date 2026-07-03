@@ -720,7 +720,7 @@ def _charge_effect_value(state: GameState, fuel) -> int:
     return 0
 
 
-def _action_tie_break(action: Action) -> tuple[int, int, int]:
+def _action_tie_break(action: Action) -> tuple[int, int, int, int]:
     priority = {
         ActionType.ATTACK: 7,
         ActionType.USE_COMMAND: 6,
@@ -735,6 +735,7 @@ def _action_tie_break(action: Action) -> tuple[int, int, int]:
         priority.get(action.type, 0),
         -1 if action.source_index is None else -action.source_index,
         -1 if action.target_index is None else -action.target_index,
+        -1 if action.secondary_target_index is None else -action.secondary_target_index,
     )
 
 

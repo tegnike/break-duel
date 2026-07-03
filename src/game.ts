@@ -127,7 +127,7 @@ export type PendingTarget =
     }
   | {
       kind: "card-select";
-      reason: "filter-discard" | "relearn-recover" | "recover-on-play" | "upgrade-source" | "ready-ally" | "spend-enemy" | "block-pressure" | "accelerator-sacrifice" | "charge-guard";
+      reason: "filter-discard" | "relearn-recover" | "earth-rite-recover" | "recover-on-play" | "upgrade-source" | "ready-ally" | "spend-enemy" | "block-pressure" | "accelerator-sacrifice" | "charge-guard" | "charge-ready-ally" | "wind-rite-disrupt" | "wind-rite-ready" | "comeback-rite-ready";
       zone: "hand" | "field" | "discard";
       playerIndex: number;
       title: string;
@@ -139,6 +139,8 @@ export type PendingTarget =
       selectedIndexes: number[];
       discardIndexes?: number[];
       sourceIndex?: number;
+      targetIndex?: number;
+      secondaryTargetIndex?: number;
       actionCost?: number;
       actionKind?: "normal" | "attack";
       cancelable?: boolean;
@@ -965,7 +967,7 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "draw_on_successful_defense_enters_spent") return "場防御成功時、山札からカードを1枚引く。消耗で出る";
   if (card.effect === "charge_pressure") return "このカードをチャージした時、相手の手札が3枚以上なら1枚トラッシュへ送る";
   if (card.effect === "charge_draw") return "このカードをチャージした時、山札からカードを1枚引く";
-  if (card.effect === "charge_ready_ally") return "このカードをチャージした時、自分の消耗召喚獣1体を回復";
+  if (card.effect === "charge_ready_ally") return "このカードをチャージした時、自分の消耗召喚獣1体を選んで回復";
   if (card.effect === "charge_guard") return "このカードをチャージした時、場の召喚獣を1体選び、その召喚獣は次の自分ターンまで場防御値 +1";
   return "効果なし";
 }

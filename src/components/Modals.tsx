@@ -65,7 +65,11 @@ export function DiscardModal({ game, onClose, onSelect }: { game: GameState; onC
   const owner = game.discardViewerOwner!;
   const player = game.players[owner];
   const selectedIndex = game.discardViewerIndex ?? (player.discard.length > 0 ? player.discard.length - 1 : null);
-  const selectedCard: Card | null = selectedIndex === null ? null : player.discard[selectedIndex] ?? null;
+  const pending = game.pendingTarget?.kind === "card-select" && game.pendingTarget.zone === "discard" && game.pendingTarget.playerIndex === owner
+    ? game.pendingTarget
+    : null;
+  const detailIndex = pending?.selectedIndexes[0] ?? selectedIndex;
+  const selectedCard: Card | null = detailIndex === null ? null : player.discard[detailIndex] ?? null;
   return (
     <div className="modal-backdrop discard-backdrop" role="dialog" aria-modal="true" onClick={(event) => {
       if (event.currentTarget === event.target) onClose();
@@ -86,11 +90,11 @@ export function DiscardModal({ game, onClose, onSelect }: { game: GameState; onC
                   ownerIndex={owner}
                   zone="discard"
                   index={index}
-                  selected={selectedIndex === index}
-                  selectable
+                  selected={pending ? pending.selectedIndexes.includes(index) : selectedIndex === index}
+                  selectable={!pending || !pending.excludeIndexes.includes(index)}
                   showCost={false}
-                  actionState="usable"
-                  onClick={() => onSelect(index)}
+                  actionState={pending && pending.excludeIndexes.includes(index) ? "idle" : "usable"}
+                  onClick={pending?.excludeIndexes.includes(index) ? undefined : () => onSelect(index)}
                 />
               );
             })}

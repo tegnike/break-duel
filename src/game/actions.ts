@@ -66,6 +66,11 @@ export type GameActionEffects = {
   showDuelEvent?: (event: DuelEventPayload) => void;
 };
 
+export type ChargeTargetOptions = {
+  guardTargetIndex?: number | null;
+  readyTargetIndex?: number | null;
+};
+
 export function afterAction(draft: GameState, cost = 1, kind: "normal" | "attack" = "normal"): void {
   useAction(draft, cost, kind);
   checkWinner(draft);
@@ -105,7 +110,12 @@ export function useAcceleratorMemoryInDraft(draft: GameState, playerIndex: numbe
   return sacrificed;
 }
 
-export function chargeHandCardInDraft(draft: GameState, playerIndex: number, handIndex: number, chargeGuardTargetIndex?: number | null): Card | null {
+export function chargeHandCardInDraft(
+  draft: GameState,
+  playerIndex: number,
+  handIndex: number,
+  chargeTargets?: number | null | ChargeTargetOptions,
+): Card | null {
   const player = draft.players[playerIndex];
   if (!player || !canUseCharge(draft, player)) return null;
   const charged = player.hand[handIndex];
@@ -116,7 +126,7 @@ export function chargeHandCardInDraft(draft: GameState, playerIndex: number, han
   const before = draft.actionsRemaining;
   draft.actionsRemaining = Math.min(3, draft.actionsRemaining + 1);
   draft.chargedActionsRemaining += draft.actionsRemaining > before ? 1 : 0;
-  const effectText = applyChargeEffects(draft, playerIndex, charged, chargeGuardTargetIndex);
+  const effectText = applyChargeEffects(draft, playerIndex, charged, chargeTargets);
   addLog(draft, `${player.name}は${charged.name}をチャージし、残りアクションを${before}から${draft.actionsRemaining}に増やした。${effectText}`);
   draft.selected = null;
   draft.pendingTarget = null;
@@ -127,12 +137,28 @@ export function chargeHandCardInDraft(draft: GameState, playerIndex: number, han
 
 export function confirmChargeGuardTargetInDraft(draft: GameState, playerIndex: number, handIndex: number, fieldIndex: number): Card | null {
   draft.pendingTarget = null;
-  return chargeHandCardInDraft(draft, playerIndex, handIndex, fieldIndex);
+  return chargeHandCardInDraft(draft, playerIndex, handIndex, { guardTargetIndex: fieldIndex });
 }
 
-function applyChargeEffects(draft: GameState, playerIndex: number, charged: Card, chargeGuardTargetIndex?: number | null): string {
+export function confirmChargeReadyAllyTargetInDraft(draft: GameState, playerIndex: number, handIndex: number, fieldIndex: number): Card | null {
+  draft.pendingTarget = null;
+  return chargeHandCardInDraft(draft, playerIndex, handIndex, { readyTargetIndex: fieldIndex });
+}
+
+function applyChargeEffects(
+  draft: GameState,
+  playerIndex: number,
+  charged: Card,
+  chargeTargets?: number | null | ChargeTargetOptions,
+): string {
   const player = draft.players[playerIndex];
   const opponent = draft.players[1 - playerIndex];
+  const guardTargetIndex = chargeTargets && typeof chargeTargets === "object"
+    ? chargeTargets.guardTargetIndex
+    : chargeTargets;
+  const readyTargetIndex = chargeTargets && typeof chargeTargets === "object"
+    ? chargeTargets.readyTargetIndex
+    : undefined;
   const texts: string[] = [];
   if (charged.effect === "charge_pressure" && opponent.hand.length >= 3) {
     discardLowPriorityCards(opponent, 1);
@@ -143,15 +169,15 @@ function applyChargeEffects(draft: GameState, playerIndex: number, charged: Card
     texts.push(`${visibleDrawText(player, drawnCards)}。`);
   }
   if (charged.effect === "charge_ready_ally") {
-    const targetIndex = highestPowerSpentAi(player);
-    if (targetIndex !== null) {
+    const targetIndex = readyTargetIndex ?? highestPowerSpentAi(player);
+    if (targetIndex !== null && player.spentFieldIndexes.has(targetIndex) && player.field[targetIndex]) {
       player.spentFieldIndexes.delete(targetIndex);
       player.power3RecoveryDelayedFieldIndexes.delete(targetIndex);
       texts.push(`${player.field[targetIndex].name}を回復した。`);
     }
   }
   if (charged.effect === "charge_guard") {
-    const targetIndex = chargeGuardTargetIndex ?? highestPowerFieldAi(player);
+    const targetIndex = guardTargetIndex ?? highestPowerFieldAi(player);
     if (targetIndex !== null && player.field[targetIndex]) {
       player.chargeGuardedFieldIndexes.add(targetIndex);
       texts.push(`${player.field[targetIndex].name}は次の自分ターンまで場防御値+1。`);
@@ -348,6 +374,7 @@ export function useCommandAtInDraft(
   targetIndex: number | null,
   discardIndexes: number[] = [],
   effects: GameActionEffects = {},
+  secondaryTargetIndex: number | null = null,
 ): void {
   const player = activePlayer(draft);
   const opponent = opponentPlayer(draft);
@@ -423,28 +450,28 @@ export function useCommandAtInDraft(
     text += ` ${visibleDrawText(player, drawnCards)}。`;
   } else if (used.effect === "wind_rite") {
     if (!hasAttributeAi(player, "風")) return;
-    const disruptedIndex = highestPowerReadyAi(opponent);
-    const readiedIndex = highestPowerSpentAiByAttribute(player, "風");
-    if (disruptedIndex !== null) {
+    const disruptedIndex = targetIndex ?? highestPowerReadyAi(opponent);
+    const readiedIndex = secondaryTargetIndex ?? highestPowerSpentAiByAttribute(player, "風");
+    if (disruptedIndex !== null && opponent.field[disruptedIndex] && !opponent.spentFieldIndexes.has(disruptedIndex)) {
       opponent.spentFieldIndexes.add(disruptedIndex);
       text += ` ${opponent.name}の${opponent.field[disruptedIndex].name}を消耗。`;
     }
-    if (readiedIndex !== null) {
+    if (readiedIndex !== null && player.field[readiedIndex]?.attribute === "風" && player.spentFieldIndexes.has(readiedIndex)) {
       player.spentFieldIndexes.delete(readiedIndex);
       player.power3RecoveryDelayedFieldIndexes.delete(readiedIndex);
       text += ` ${player.field[readiedIndex].name}を回復した。`;
     }
   } else if (used.effect === "earth_rite") {
     if (!hasAttributeAi(player, "土")) return;
-    const recoverIndex = highestPowerAiInDiscard(player);
-    if (recoverIndex !== null) {
+    const recoverIndex = targetIndex ?? highestPowerAiInDiscard(player);
+    if (recoverIndex !== null && player.discard[recoverIndex]?.type === "ai") {
       const recovered = player.discard.splice(recoverIndex, 1)[0];
       player.hand.push(recovered);
       text += ` ${recovered.name}をトラッシュから回収。`;
     }
   } else if (used.effect === "comeback_rite") {
-    const readyIndex = highestPowerSpentAi(player);
-    if (readyIndex !== null) {
+    const readyIndex = targetIndex ?? highestPowerSpentAi(player);
+    if (readyIndex !== null && player.field[readyIndex] && player.spentFieldIndexes.has(readyIndex)) {
       player.spentFieldIndexes.delete(readyIndex);
       player.power3RecoveryDelayedFieldIndexes.delete(readyIndex);
       text += ` ${player.field[readyIndex].name}を回復した。`;

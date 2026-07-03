@@ -347,10 +347,11 @@ const CARD_EFFECT_CASES = {
     description: "チャージ時に消耗中の自分召喚獣を回復する",
     run: () => {
       const game = playableChargeGame("AI-WIND-2C");
-      game.players[0].field = [card("AI-WIND-1")];
-      game.players[0].spentFieldIndexes.add(0);
-      chargeHandCardInDraft(game, 0, 0);
+      game.players[0].field = [card("AI-WIND-1"), card("AI-WIND-3")];
+      game.players[0].spentFieldIndexes = new Set([0, 1]);
+      chargeHandCardInDraft(game, 0, 0, { readyTargetIndex: 0 });
       expect(game.players[0].spentFieldIndexes.has(0)).toBe(false);
+      expect(game.players[0].spentFieldIndexes.has(1)).toBe(true);
     },
   },
   charge_guard: {
@@ -477,13 +478,14 @@ const CARD_EFFECT_CASES = {
     run: () => {
       const game = blankGame();
       game.players[0].hand = [card("CMD-WIND-RITE")];
-      game.players[0].field = [card("AI-WIND-1")];
-      game.players[0].spentFieldIndexes.add(0);
-      game.players[1].field = [card("AI-FIRE-2")];
-      useCommandAtInDraft(game, 0, null);
+      game.players[0].field = [card("AI-WIND-1"), card("AI-WIND-3")];
+      game.players[0].spentFieldIndexes = new Set([0, 1]);
+      game.players[1].field = [card("AI-FIRE-4"), card("AI-FIRE-2")];
+      useCommandAtInDraft(game, 0, 1, [], {}, 0);
       expectCommandUsed(game, "CMD-WIND-RITE");
       expect(game.players[0].spentFieldIndexes.has(0)).toBe(false);
-      expect(game.players[1].spentFieldIndexes).toEqual(new Set([0]));
+      expect(game.players[0].spentFieldIndexes.has(1)).toBe(true);
+      expect(game.players[1].spentFieldIndexes).toEqual(new Set([1]));
     },
   },
   earth_rite: {
@@ -493,10 +495,11 @@ const CARD_EFFECT_CASES = {
       const game = blankGame();
       game.players[0].hand = [card("CMD-EARTH-RITE")];
       game.players[0].field = [card("AI-EARTH-1")];
-      game.players[0].discard = [card("AI-FIRE-2")];
-      useCommandAtInDraft(game, 0, null);
+      game.players[0].discard = [card("AI-FIRE-2"), card("AI-WATER-4")];
+      useCommandAtInDraft(game, 0, 0);
       expectCommandUsed(game, "CMD-EARTH-RITE");
       expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-2"]);
+      expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-WATER-4", "CMD-EARTH-RITE"]);
     },
   },
   comeback_rite: {
@@ -507,12 +510,13 @@ const CARD_EFFECT_CASES = {
       game.players[0].life = 3;
       game.players[1].life = 5;
       game.players[0].hand = [card("CMD-COMEBACK-RITE")];
-      game.players[0].field = [card("AI-FIRE-2")];
-      game.players[0].spentFieldIndexes.add(0);
+      game.players[0].field = [card("AI-FIRE-2"), card("AI-WATER-4")];
+      game.players[0].spentFieldIndexes = new Set([0, 1]);
       game.players[0].deck = [card("AI-FIRE-1")];
-      useCommandAtInDraft(game, 0, null);
+      useCommandAtInDraft(game, 0, 0);
       expectCommandUsed(game, "CMD-COMEBACK-RITE");
       expect(game.players[0].spentFieldIndexes.has(0)).toBe(false);
+      expect(game.players[0].spentFieldIndexes.has(1)).toBe(true);
       expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
     },
   },

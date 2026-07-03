@@ -27,6 +27,7 @@ class Action:
     type: ActionType
     source_index: int | None = None
     target_index: int | None = None
+    secondary_target_index: int | None = None
 
 
 @dataclass

@@ -1027,6 +1027,25 @@ class CoreRuleTests(unittest.TestCase):
         self.assertIn(1, state.players[0].spent_field_ai)
         self.assertIn(0, state.players[1].spent_field_ai)
 
+    def test_wind_rite_can_target_specific_enemy_and_wind_summons(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [command("CMD-WIND-RITE")]
+        state.players[0].field_ai = [card("AI-WIND-1"), card("AI-WIND-3")]
+        state.players[0].spent_field_ai = {0, 1}
+        state.players[1].field_ai = [card("AI-FIRE-4"), card("AI-WATER-2")]
+        start_turn(state)
+        state.players[0].spent_field_ai = {0, 1}
+        apply_action(state, Action(
+            ActionType.USE_COMMAND,
+            0,
+            target_index=1,
+            secondary_target_index=0,
+        ))
+        self.assertNotIn(0, state.players[0].spent_field_ai)
+        self.assertIn(1, state.players[0].spent_field_ai)
+        self.assertNotIn(0, state.players[1].spent_field_ai)
+        self.assertIn(1, state.players[1].spent_field_ai)
+
     def test_earth_rite_recovers_ai_without_readying_earth(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].hand = [command("CMD-EARTH-RITE")]
@@ -1039,6 +1058,19 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[0].hand], ["AI-WATER-4"])
         self.assertIn(0, state.players[0].spent_field_ai)
         self.assertEqual(state.players[0].discard[-1].id, "CMD-EARTH-RITE")
+
+    def test_earth_rite_can_target_a_specific_discarded_ai(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [command("CMD-EARTH-RITE")]
+        state.players[0].field_ai = [card("AI-EARTH-2")]
+        state.players[0].discard = [card("AI-FIRE-1"), card("AI-WATER-4")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.USE_COMMAND, 0, 0))
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-FIRE-1"])
+        self.assertEqual([item.id for item in state.players[0].discard], [
+            "AI-WATER-4",
+            "CMD-EARTH-RITE",
+        ])
 
     def test_comeback_rite_draws_and_readies_when_behind(self) -> None:
         state = new_game(1, no_opening_hands())
@@ -1055,6 +1087,20 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[0].discard[-1].id, "CMD-COMEBACK-RITE")
         self.assertEqual(state.log[-1]["readied_ai"], "AI-FIRE-2")
         self.assertEqual(state.log[-1]["draw_count"], 1)
+
+    def test_comeback_rite_can_target_a_specific_spent_summon(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].life = 3
+        state.players[1].life = 5
+        state.players[0].hand = [command("CMD-COMEBACK-RITE")]
+        state.players[0].field_ai = [card("AI-FIRE-2"), card("AI-WATER-4")]
+        state.players[0].deck = [card("AI-FIRE-1")]
+        start_turn(state)
+        state.players[0].spent_field_ai = {0, 1}
+        apply_action(state, Action(ActionType.USE_COMMAND, 0, target_index=0))
+        self.assertNotIn(0, state.players[0].spent_field_ai)
+        self.assertIn(1, state.players[0].spent_field_ai)
+        self.assertEqual(state.log[-1]["readied_ai"], "AI-FIRE-2")
 
     def test_memory_card_enters_memory_slot_and_replaces_existing_memory(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
@@ -1217,6 +1263,19 @@ class CoreRuleTests(unittest.TestCase):
         state.players[0].spent_field_ai = {0}
         apply_action(state, Action(ActionType.CHARGE, 0))
         self.assertEqual(state.players[0].spent_field_ai, set())
+
+    def test_wind_charge_summon_can_target_a_specific_spent_summon(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].field_ai = [card("AI-WIND-1"), card("AI-FIRE-4")]
+        state.players[0].spent_field_ai = {0, 1}
+        state.players[0].hand = [card("AI-WIND-2C")]
+        state.players[0].turns_started = 1
+        state.turn = 1
+        start_turn(state)
+        state.players[0].spent_field_ai = {0, 1}
+        apply_action(state, Action(ActionType.CHARGE, 0, target_index=0))
+        self.assertNotIn(0, state.players[0].spent_field_ai)
+        self.assertIn(1, state.players[0].spent_field_ai)
 
     def test_earth_charge_summon_adds_selected_next_defense_bonus_until_next_turn(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
