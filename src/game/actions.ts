@@ -9,6 +9,7 @@ import {
   type PlayerState,
   addLog,
   activePlayer,
+  applyWarBannerDraw,
   attackCombatValue,
   canActivePlayerAttack,
   canChargeCard,
@@ -71,6 +72,8 @@ export type GameActionEffects = {
 export type ChargeTargetOptions = {
   guardTargetIndex?: number | null;
   readyTargetIndex?: number | null;
+  spendTargetIndex?: number | null;
+  recoverTargetIndex?: number | null;
 };
 
 export function afterAction(draft: GameState, cost = 1, kind: "normal" | "attack" = "normal"): void {
@@ -147,6 +150,16 @@ export function confirmChargeReadyAllyTargetInDraft(draft: GameState, playerInde
   return chargeHandCardInDraft(draft, playerIndex, handIndex, { readyTargetIndex: fieldIndex });
 }
 
+export function confirmChargeSpendEnemyTargetInDraft(draft: GameState, playerIndex: number, handIndex: number, enemyFieldIndex: number): Card | null {
+  draft.pendingTarget = null;
+  return chargeHandCardInDraft(draft, playerIndex, handIndex, { spendTargetIndex: enemyFieldIndex });
+}
+
+export function confirmChargeRecoverTargetInDraft(draft: GameState, playerIndex: number, handIndex: number, discardIndex: number): Card | null {
+  draft.pendingTarget = null;
+  return chargeHandCardInDraft(draft, playerIndex, handIndex, { recoverTargetIndex: discardIndex });
+}
+
 function applyChargeEffects(
   draft: GameState,
   playerIndex: number,
@@ -160,6 +173,12 @@ function applyChargeEffects(
     : chargeTargets;
   const readyTargetIndex = chargeTargets && typeof chargeTargets === "object"
     ? chargeTargets.readyTargetIndex
+    : undefined;
+  const spendTargetIndex = chargeTargets && typeof chargeTargets === "object"
+    ? chargeTargets.spendTargetIndex
+    : undefined;
+  const recoverTargetIndex = chargeTargets && typeof chargeTargets === "object"
+    ? chargeTargets.recoverTargetIndex
     : undefined;
   const texts: string[] = [];
   if (charged.effect === "charge_pressure" && opponent.hand.length >= 3) {
@@ -183,6 +202,30 @@ function applyChargeEffects(
     if (targetIndex !== null && player.field[targetIndex]) {
       player.chargeGuardedFieldIndexes.add(targetIndex);
       texts.push(`${player.field[targetIndex].name}は次の自分ターンまで場防御値+1。`);
+    }
+  }
+  if (charged.effect === "charge_pressure_plus" && opponent.hand.length >= 2) {
+    discardLowPriorityCards(opponent, 1);
+    texts.push(`${opponent.name}の手札を1枚トラッシュ。`);
+  }
+  if (charged.effect === "charge_surge_draw" && player.hand.length <= 2) {
+    const drawnCards = drawCards(player, 2);
+    if (drawnCards.length > 0) texts.push(`${visibleDrawText(player, drawnCards)}。`);
+  }
+  if (charged.effect === "charge_spend_enemy") {
+    const targetIndex = spendTargetIndex ?? highestPowerReadyAi(opponent);
+    if (targetIndex !== null && opponent.field[targetIndex] && !opponent.spentFieldIndexes.has(targetIndex)) {
+      opponent.spentFieldIndexes.add(targetIndex);
+      texts.push(`${opponent.name}の${opponent.field[targetIndex].name}を消耗。`);
+    }
+  }
+  if (charged.effect === "charge_recover_discard" && player.hand.length <= 2) {
+    const recoverIndex = recoverTargetIndex ?? highestPowerAiInDiscard(player, charged);
+    const recovered = recoverIndex !== null ? player.discard[recoverIndex] : null;
+    if (recovered && recovered !== charged && recovered.type === "ai") {
+      player.discard.splice(recoverIndex!, 1);
+      player.hand.push(recovered);
+      texts.push(`${recovered.name}をトラッシュから回収。`);
     }
   }
   if (player.memory?.effect === "resonator" && player.hand.length <= 2) {
@@ -413,6 +456,10 @@ export function useCommandAtInDraft(
       player.spentFieldIndexes.delete(target);
       player.power3RecoveryDelayedFieldIndexes.delete(target);
       text += ` ${player.field[target].name}を回復した。`;
+    }
+    const drawnCards = drawCards(player, 1);
+    if (drawnCards.length > 0) {
+      text += ` ${visibleDrawText(player, drawnCards)}。`;
     }
   } else if (used.effect === "disrupt") {
     const resolvedTarget = targetIndex ?? highestPowerReadyAi(opponent);
@@ -665,6 +712,7 @@ export function resolveDefenseInDraft(
     const pierced = piercesHandDefense(attackCard);
     if (pierced) defender.life -= 1;
     const pierceBreakDrawnCards = pierced && CONFIG.drawOnAttackDamage !== "none" ? drawCards(defender, 1) : [];
+    const pierceBannerDrawnCards = pierced ? applyWarBannerDraw(attacker) : [];
     const shouldChoosePressureDiscard = !pierced && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
     const pressureDiscarded = !pierced && pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
       ? discardLowPriorityCards(defender, 1)[0] ?? null
@@ -673,6 +721,7 @@ export function resolveDefenseInDraft(
     const extraText = [
       pierced ? `${attackCard.name}の効果で防御されても1ダメージ。` : "",
       pierceBreakDrawnCards.length > 0 ? `ブレイクドローで${defender.name}は${visibleDrawText(defender, pierceBreakDrawnCards)}。` : "",
+      pierceBannerDrawnCards.length > 0 ? `${attacker.memory?.name ?? "遺物"}で${attacker.name}は${visibleDrawText(attacker, pierceBannerDrawnCards)}。` : "",
       pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}をトラッシュへ送った。` : "",
       blockedDrawnCards.length > 0 ? `${attackCard.name}の効果で${attacker.name}は${visibleDrawText(attacker, blockedDrawnCards)}。` : "",
     ].filter(Boolean).join(" ");
@@ -726,8 +775,10 @@ export function resolveDefenseInDraft(
     const breakDrawnCards = CONFIG.drawOnAttackDamage === "none"
       ? []
       : drawCards(defender, CONFIG.drawOnAttackDamage === "event" ? 1 : damage);
+    const bannerDrawnCards = damage > 0 ? applyWarBannerDraw(attacker) : [];
     const breakText = breakDrawnCards.length > 0 ? ` ブレイクドローで${defender.name}は${visibleDrawText(defender, breakDrawnCards)}。` : "";
-    addLog(draft, `${defender.name}は防御せず${damage}ダメージ。${breakText}`);
+    const bannerText = bannerDrawnCards.length > 0 ? ` ${attacker.memory?.name ?? "遺物"}で${attacker.name}は${visibleDrawText(attacker, bannerDrawnCards)}。` : "";
+    addLog(draft, `${defender.name}は防御せず${damage}ダメージ。${breakText}${bannerText}`);
     effects.showDuelEvent?.({
       kind: "damage",
       title: damage >= 3 ? `${defender.name}に強烈な${damage}ダメージ!!` : `${defender.name}に${damage}ダメージ`,

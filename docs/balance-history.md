@@ -1,8 +1,77 @@
 # Break Duel バランス履歴
 
-最終更新: 2026-07-04
+最終更新: 2026-07-05
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
+
+## 2026-07-05 カードプール60種化（C系統補完4種・遺物2種・若葉の息吹復活）と後攻ドロー補正
+
+### 背景
+
+カード種類数が 54（アクティブ 53）と中途半端で、チャージ対応 C 系統も各属性 1 枚（火1C/水1C/風2C/土2C）の非対称でした。遺物は 6 種でデッキ制作の選択肢が薄く、`CMD-PATCH`（若葉の息吹）は非アクティブのまま死蔵していました。総数・アクティブ数ともに 60 に揃えるため、C 系統補完 4 種＋遺物 2 種を新規追加し、若葉の息吹をリワークして復活させました。
+
+また検証の過程で、変更前 HEAD の先攻勝率が 4 シード（2026070261 / 2026070462 / 42260701 / 42260901）で 54.3〜56.6% と基準（48-52%）を大きく外れていることが判明しました。前回エントリの 51.1% はその後のコード変更（power 4 召喚獣調整ほか）の後に再計測されておらず、先攻偏重は今回の追加以前から存在していたものです。
+
+### 変更内容（Python / TypeScript 両実装に同期）
+
+新カード 6 種と若葉の息吹リワーク:
+
+| カード | 種別 | 効果 |
+| --- | --- | --- |
+| `AI-FIRE-2C` 烽火狐フレンネ | 火 power 2 | チャージ時、相手の手札が 2 枚以上なら 1 枚トラッシュへ送る |
+| `AI-WATER-2C` 渦紡ぎシェルナ | 水 power 2 | チャージ時、手札が 2 枚以下なら山札からカードを 2 枚引く |
+| `AI-WIND-1C` 辻風雀ツムジ | 風 power 1 | チャージ時、相手の未消耗召喚獣 1 体を選んで消耗させる |
+| `AI-EARTH-1C` 種運びのクルミ | 土 power 1 | チャージ時、手札が 2 枚以下ならトラッシュの召喚獣 1 枚を回収（自身は不可） |
+| `MEM-WAR-BANNER` 猛火の戦旗 | 遺物 | 1 ターンに 1 回、自分の攻撃で相手のライフが減った時 1 枚引く |
+| `MEM-GROVE` 大樹の寝床 | 遺物 | ターン終了時、ライフ劣勢かつ消耗中召喚獣 2 体以上なら 1 体回復 |
+| `CMD-PATCH` 若葉の息吹 | 術式 | リワーク: 消耗中召喚獣 1 体を回復し、山札からカードを 1 枚引く（再アクティブ化） |
+
+カードプールは召喚獣 40 / 術式 12 / 遺物 8 の計 60 種（全アクティブ）になりました。
+
+デッキ変更: `fire`（+2C×2, +戦旗, −RELEARN/−PURGE/−PIPELINE）、`water`（+2C×2, −1B/−RELEARN）、`wind`（+1C, −WIND-1）、`earth`（+1C×2, +寝床, +若葉, −E1/−E1B/−OPTIMIZE/−PIPELINE）、`control`（+若葉, −PURGE）、`break`（+2C, +戦旗, −1B/−加速炉）。`apex` は据え置き。
+
+ルール変更（先攻補正）: **後攻は最初の自分ターンからターン開始ドローを行う**（`second_player_first_turn_draw` を標準で有効化）。上記の既存先攻偏重（約 55%)への対処で、A/B では後攻初期手札 6 枚化とほぼ同効果（いずれも約 −5.6pp）だったが、ターン開始ドローの一般則に寄せる方を採用。
+
+調整過程のナーフ: 初版の `AI-EARTH-1C`（無条件回収）と `MEM-GROVE`（無条件回復）では earth が 59.5% まで跳ねたため、それぞれ「手札 2 枚以下」「ライフ劣勢」の条件を追加して 54.4% まで戻しました。
+
+### 検証
+
+リーグ（200 games/ordered pair × 2 シード、計 12000 戦、seed 2026070261 / 2026070462）:
+
+| デッキ | 勝率（2シード平均） |
+| --- | ---: |
+| earth | 54.4% |
+| water | 51.5% |
+| wind | 51.0% |
+| fire | 49.9% |
+| break | 47.3% |
+| control | 45.9% |
+
+先攻勝率 49.3% / 49.9%（平均 49.6%）。league_report 判定 **PASS**（単色 45-55%・先攻 48-52%）。追加 2 シード（42260701 / 42260901、60/pair）でも先攻 50.9% / 50.4%、同シードの HEAD（56.6% / 54.3%）から補正されています。earth は 4 シード加重平均 54.6% と帯上限のため監視対象です。
+
+試合の質（HEAD と同シード同条件の比較）: 平均ターン 14.55→14.55/14.60、ワンサイド率 44.9%→44.5/45.4% でいずれも変化なし。盛り上がり指標（simulate 1000 戦、seed 2026070471、break vs control）: 平均 14.4 ターン、2点ビハインド逆転勝ち 52.5%、先2点差側勝率 58.0%、リード交代あり 65.8%、リソース切れ決着 0.9%。
+
+card_usage（同 simulate）: `AI-FIRE-2C` チャージ 396 回（効果発動率 100%）、`MEM-WAR-BANNER` ドロー 371 回、`CMD-PATCH` 素打ち 215 回 / チャージ燃料 197 回で、死にカードはありません。
+
+ストレスデッキ回帰（run_cost_balance.py 1000 games/order、seed 2026070481、各 12000 戦）: 全 7 帯 OK。p1 0.0% / p1-2 3.7% / p2 9.4% / p2-3 38.4% / p3 33.0% / p3-4 41.9% / p4 44.9% で、いずれも RISK 閾値（50%）未満です。
+
+`npm run check`（typecheck + TS unit 71 件 + build + Python unittest 179 件、コスト帯ガードレール込み）green。
+
+### 判断
+
+採用します。60 種化と C 系統の対称化を達成しつつ、単色 4 デッキと先攻勝率が基準内に収まりました。残る監視対象は (1) earth 54.4%（帯上限）、(2) break 47.3% / control 45.9%（多色基準デッキが単色を下回ったままで良いか）。apex の再探索（tune_apex_deck.py）は未実施のフォローアップです。
+
+### 検証コマンド
+
+```bash
+npm run check
+python3 -m ai_break_duel.cli league --games-per-pair 200 --seed 2026070261 --decks break control fire water wind earth --out tmp/sixty-cards-r3-league-2026070261
+python3 -m ai_break_duel.cli league --games-per-pair 200 --seed 2026070462 --decks break control fire water wind earth --out tmp/sixty-cards-r3-league-2026070462
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/sixty-cards-r3-league-2026070261 tmp/sixty-cards-r3-league-2026070462
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070471 --out tmp/sixty-cards-r3-sim
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/sixty-cards-r3-sim
+python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --games-per-order 1000 --seed 2026070481 --rule-set current
+```
 
 ## 2026-07-04 突破ダメージのダメージ=power化
 

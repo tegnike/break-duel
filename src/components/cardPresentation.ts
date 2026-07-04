@@ -10,6 +10,7 @@ import {
 } from "../game";
 import aiEarth1Art from "../assets/card-art/ai-earth-1.webp";
 import aiEarth1bArt from "../assets/card-art/ai-earth-1b.webp";
+import aiEarth1cArt from "../assets/card-art/ai-earth-1c.webp";
 import aiEarth2Art from "../assets/card-art/ai-earth-2.webp";
 import aiEarth2bArt from "../assets/card-art/ai-earth-2b.webp";
 import aiEarth2cArt from "../assets/card-art/ai-earth-2c.webp";
@@ -22,6 +23,7 @@ import aiFire1bArt from "../assets/card-art/ai-fire-1b.webp";
 import aiFire1cArt from "../assets/card-art/ai-fire-1c.webp";
 import aiFire2Art from "../assets/card-art/ai-fire-2.webp";
 import aiFire2bArt from "../assets/card-art/ai-fire-2b.webp";
+import aiFire2cArt from "../assets/card-art/ai-fire-2c.webp";
 import aiFire3Art from "../assets/card-art/ai-fire-3.webp";
 import aiFire3bArt from "../assets/card-art/ai-fire-3b.webp";
 import aiFire4Art from "../assets/card-art/ai-fire-4.webp";
@@ -31,12 +33,14 @@ import aiWater1bArt from "../assets/card-art/ai-water-1b.webp";
 import aiWater1cArt from "../assets/card-art/ai-water-1c.webp";
 import aiWater2Art from "../assets/card-art/ai-water-2.webp";
 import aiWater2bArt from "../assets/card-art/ai-water-2b.webp";
+import aiWater2cArt from "../assets/card-art/ai-water-2c.webp";
 import aiWater3Art from "../assets/card-art/ai-water-3.webp";
 import aiWater3bArt from "../assets/card-art/ai-water-3b.webp";
 import aiWater4Art from "../assets/card-art/ai-water-4.webp";
 import aiWater4bArt from "../assets/card-art/ai-water-4b.webp";
 import aiWind1Art from "../assets/card-art/ai-wind-1.webp";
 import aiWind1bArt from "../assets/card-art/ai-wind-1b.webp";
+import aiWind1cArt from "../assets/card-art/ai-wind-1c.webp";
 import aiWind2Art from "../assets/card-art/ai-wind-2.webp";
 import aiWind2bArt from "../assets/card-art/ai-wind-2b.webp";
 import aiWind2cArt from "../assets/card-art/ai-wind-2c.webp";
@@ -59,9 +63,11 @@ import cmdWindRiteArt from "../assets/card-art/cmd-wind-rite.webp";
 import memAcceleratorArt from "../assets/card-art/mem-accelerator.webp";
 import memCacheArt from "../assets/card-art/mem-cache.webp";
 import memFirewallArt from "../assets/card-art/mem-firewall.webp";
+import memGroveArt from "../assets/card-art/mem-grove.webp";
 import memPipelineArt from "../assets/card-art/mem-pipeline.webp";
 import memRecoveryCacheArt from "../assets/card-art/mem-recovery-cache.webp";
 import memResonatorArt from "../assets/card-art/mem-resonator.webp";
+import memWarBannerArt from "../assets/card-art/mem-war-banner.webp";
 import cardIcon from "../assets/kenney/card.png";
 import cardTargetIcon from "../assets/kenney/card_target.png";
 import cardsReturnIcon from "../assets/kenney/cards_return.png";
@@ -82,6 +88,7 @@ const AI_CARD_ART: Record<string, string> = {
   "AI-FIRE-1C": aiFire1cArt,
   "AI-FIRE-2": aiFire2Art,
   "AI-FIRE-2B": aiFire2bArt,
+  "AI-FIRE-2C": aiFire2cArt,
   "AI-FIRE-3": aiFire3Art,
   "AI-FIRE-3B": aiFire3bArt,
   "AI-FIRE-4": aiFire4Art,
@@ -91,12 +98,14 @@ const AI_CARD_ART: Record<string, string> = {
   "AI-WATER-1C": aiWater1cArt,
   "AI-WATER-2": aiWater2Art,
   "AI-WATER-2B": aiWater2bArt,
+  "AI-WATER-2C": aiWater2cArt,
   "AI-WATER-3": aiWater3Art,
   "AI-WATER-3B": aiWater3bArt,
   "AI-WATER-4": aiWater4Art,
   "AI-WATER-4B": aiWater4bArt,
   "AI-WIND-1": aiWind1Art,
   "AI-WIND-1B": aiWind1bArt,
+  "AI-WIND-1C": aiWind1cArt,
   "AI-WIND-2": aiWind2Art,
   "AI-WIND-2B": aiWind2bArt,
   "AI-WIND-2C": aiWind2cArt,
@@ -106,6 +115,7 @@ const AI_CARD_ART: Record<string, string> = {
   "AI-WIND-4B": aiWind4bArt,
   "AI-EARTH-1": aiEarth1Art,
   "AI-EARTH-1B": aiEarth1bArt,
+  "AI-EARTH-1C": aiEarth1cArt,
   "AI-EARTH-2": aiEarth2Art,
   "AI-EARTH-2B": aiEarth2bArt,
   "AI-EARTH-2C": aiEarth2cArt,
@@ -134,6 +144,8 @@ const SUPPORT_CARD_ART: Record<string, string> = {
   "MEM-PIPELINE": memPipelineArt,
   "MEM-RECOVERY-CACHE": memRecoveryCacheArt,
   "MEM-RESONATOR": memResonatorArt,
+  "MEM-WAR-BANNER": memWarBannerArt,
+  "MEM-GROVE": memGroveArt,
 };
 
 export function cardColor(card: Card): string {
@@ -177,6 +189,8 @@ export function cardArtGlyph(card: Card): string {
     if (card.effect === "pipeline") return "水";
     if (card.effect === "accelerator") return "速";
     if (card.effect === "recovery_cache") return "再";
+    if (card.effect === "war_banner") return "旗";
+    if (card.effect === "grove_rest") return "眠";
     return "遺";
   }
   return ATTRIBUTES[card.attribute!].code.slice(0, 1);
@@ -241,7 +255,7 @@ export function aiBaseRuleText(card: Card): string {
 
 export function roleText(card: Card): string {
   if (card.effect === "optimize") return "1アクション。手札1枚をトラッシュへ送り、山札からカードを2枚引く";
-  if (card.effect === "patch") return "1アクション。自分の消耗召喚獣1体を回復する";
+  if (card.effect === "patch") return "1アクション。自分の消耗召喚獣1体を回復し、山札からカードを1枚引く";
   if (card.effect === "disrupt") return "1アクション。相手の未消耗召喚獣1体を消耗";
   if (card.effect === "purge") return "1アクション。相手の消耗中召喚獣1体を選び、トラッシュへ送る";
   if (card.effect === "relearn") return "1アクション。手札1枚をトラッシュへ送り、トラッシュの召喚獣1枚を回収";
@@ -258,6 +272,8 @@ export function roleText(card: Card): string {
   if (card.effect === "accelerator") return "1ターンに1回使える。場の召喚獣1体をトラッシュしてもよい。その場合、アクション+1する";
   if (card.effect === "resonator") return "自分がチャージした後、手札2枚以下なら山札からカードを1枚引く";
   if (card.effect === "recovery_cache") return "相手よりライフが少ない場合、自分のターン最初の召喚獣登場コストを1少なくする。1より少なくならない";
+  if (card.effect === "war_banner") return "1ターンに1回、自分の攻撃で相手のライフが減った時、山札からカードを1枚引く";
+  if (card.effect === "grove_rest") return "自分のターン終了時、自分のライフが相手より少なく、消耗中召喚獣が2体以上なら1体回復する";
   const trait = card.effect ? ` / ${aiEffectText(card)}` : "";
   if (card.power === 1) return `1アクション${trait}`;
   if (card.power === 2) return `2アクション${trait}`;

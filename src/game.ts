@@ -33,7 +33,11 @@ export type AiEffect =
   | "charge_pressure"
   | "charge_draw"
   | "charge_ready_ally"
-  | "charge_guard";
+  | "charge_guard"
+  | "charge_pressure_plus"
+  | "charge_surge_draw"
+  | "charge_spend_enemy"
+  | "charge_recover_discard";
 export type CommandEffect =
   | "optimize"
   | "patch"
@@ -47,7 +51,7 @@ export type CommandEffect =
   | "wind_rite"
   | "earth_rite"
   | "comeback_rite";
-export type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator" | "resonator" | "recovery_cache";
+export type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator" | "resonator" | "recovery_cache" | "war_banner" | "grove_rest";
 export type CardEffect = AiEffect | CommandEffect | MemoryEffect | "";
 export type Zone = "hand" | "field" | "memory" | "discard";
 
@@ -81,6 +85,7 @@ export type PlayerState = {
   playedAiThisTurn: boolean;
   pipelineUsed: boolean;
   acceleratorUsed: boolean;
+  warBannerUsed: boolean;
   chargeUsed: boolean;
   chargeGuardedFieldIndexes: Set<number>;
   sandboxShield: number;
@@ -136,7 +141,7 @@ export type PendingTarget =
     }
   | {
       kind: "card-select";
-      reason: "filter-discard" | "relearn-recover" | "earth-rite-recover" | "recover-on-play" | "upgrade-source" | "ready-ally" | "spend-enemy" | "block-pressure" | "accelerator-sacrifice" | "charge-guard" | "charge-ready-ally" | "wind-rite-disrupt" | "wind-rite-ready" | "comeback-rite-ready";
+      reason: "filter-discard" | "relearn-recover" | "earth-rite-recover" | "recover-on-play" | "upgrade-source" | "ready-ally" | "spend-enemy" | "block-pressure" | "accelerator-sacrifice" | "charge-guard" | "charge-ready-ally" | "charge-spend-enemy" | "charge-recover" | "wind-rite-disrupt" | "wind-rite-ready" | "comeback-rite-ready";
       zone: "hand" | "field" | "discard";
       playerIndex: number;
       title: string;
@@ -209,7 +214,7 @@ export const CONFIG = {
   exhaustedCanDefend: false,
   exactUpgradeStep: false,
   firstPlayerFirstTurnDraw: false,
-  secondPlayerFirstTurnDraw: false,
+  secondPlayerFirstTurnDraw: true,
   power1DrawsOnPlay: true,
   power2DefenseBonus: 1,
   largeAiPlayCost: 2,
@@ -261,6 +266,7 @@ export function cardPool(): Card[] {
     "AI-FIRE-4": "終火の影ヴァルガ",
     "AI-FIRE-4B": "劫火王アグニール",
     "AI-FIRE-1C": "炉芯鼠チロ",
+    "AI-FIRE-2C": "烽火狐フレンネ",
     "AI-WATER-1": "透海リュミナ",
     "AI-WATER-1B": "泡踊りのミナモ",
     "AI-WATER-2": "氷晶亀セルキー",
@@ -270,6 +276,7 @@ export function cardPool(): Card[] {
     "AI-WATER-4": "潮輪リヴァイア",
     "AI-WATER-4B": "星淵のアステル",
     "AI-WATER-1C": "雫読みミルティ",
+    "AI-WATER-2C": "渦紡ぎシェルナ",
     "AI-WIND-1": "そよぎ狐フルーフ",
     "AI-WIND-1B": "風鈴の子リュフ",
     "AI-WIND-2": "翡翠鎌マンティス",
@@ -279,6 +286,7 @@ export function cardPool(): Card[] {
     "AI-WIND-4": "雲海航路ミストラル",
     "AI-WIND-4B": "天蓋裂きヴァユ",
     "AI-WIND-2C": "追風リネット",
+    "AI-WIND-1C": "辻風雀ツムジ",
     "AI-EARTH-1": "苔掘りモール",
     "AI-EARTH-1B": "芽吹きの杖ペルナ",
     "AI-EARTH-2": "碑甲ガメル",
@@ -288,6 +296,7 @@ export function cardPool(): Card[] {
     "AI-EARTH-4": "眠れる山ガイアス",
     "AI-EARTH-4B": "地核の環バサリア",
     "AI-EARTH-2C": "石灯りノーム",
+    "AI-EARTH-1C": "種運びのクルミ",
   };
   const aiEffects = new Map<string, AiEffect>([
     ["AI-FIRE-1", "no_spend_after_attack"],
@@ -346,12 +355,16 @@ export function cardPool(): Card[] {
     { id: "AI-WATER-1C", name: monsterNames["AI-WATER-1C"], type: "ai", attribute: "水", power: 1, effect: "charge_draw" },
     { id: "AI-WIND-2C", name: monsterNames["AI-WIND-2C"], type: "ai", attribute: "風", power: 2, effect: "charge_ready_ally" },
     { id: "AI-EARTH-2C", name: monsterNames["AI-EARTH-2C"], type: "ai", attribute: "土", power: 2, effect: "charge_guard" },
+    { id: "AI-FIRE-2C", name: monsterNames["AI-FIRE-2C"], type: "ai", attribute: "火", power: 2, effect: "charge_pressure_plus" },
+    { id: "AI-WATER-2C", name: monsterNames["AI-WATER-2C"], type: "ai", attribute: "水", power: 2, effect: "charge_surge_draw" },
+    { id: "AI-WIND-1C", name: monsterNames["AI-WIND-1C"], type: "ai", attribute: "風", power: 1, effect: "charge_spend_enemy" },
+    { id: "AI-EARTH-1C", name: monsterNames["AI-EARTH-1C"], type: "ai", attribute: "土", power: 1, effect: "charge_recover_discard" },
   ];
   const cards: CardSeed[] = [
     ...aiCards,
     ...chargeCycleCards,
     { id: "CMD-OPTIMIZE", name: "陣形リライト", type: "event", effect: "optimize" },
-    { id: "CMD-PATCH", name: "若葉の息吹", type: "event", effect: "patch", status: "inactive" },
+    { id: "CMD-PATCH", name: "若葉の息吹", type: "event", effect: "patch" },
     { id: "CMD-DISRUPT", name: "黒蔦の足止め", type: "event", effect: "disrupt" },
     { id: "CMD-PURGE", name: "追撃粛清", type: "event", effect: "purge" },
     { id: "CMD-RELEARN", name: "幻獣回帰の巻", type: "event", effect: "relearn" },
@@ -368,6 +381,8 @@ export function cardPool(): Card[] {
     { id: "MEM-ACCELERATOR", name: "刻火の加速炉", type: "memory", effect: "accelerator" },
     { id: "MEM-RESONATOR", name: "蓄光の祭壇", type: "memory", effect: "resonator" },
     { id: "MEM-RECOVERY-CACHE", name: "再起の灯箱", type: "memory", effect: "recovery_cache" },
+    { id: "MEM-WAR-BANNER", name: "猛火の戦旗", type: "memory", effect: "war_banner" },
+    { id: "MEM-GROVE", name: "大樹の寝床", type: "memory", effect: "grove_rest" },
   ];
   return cards.map((card) => ({ ...card, status: card.status ?? "active" }));
 }
@@ -388,12 +403,12 @@ export const DECKS = {
     description: "火と水を混ぜた攻め寄りの基本デッキ。突破力と手札補充を両立します。",
     cards: [
       "AI-FIRE-1",
-      "AI-FIRE-1B",
       "AI-FIRE-1C",
       "AI-FIRE-2",
       "AI-FIRE-2",
       "AI-FIRE-2B",
       "AI-FIRE-2B",
+      "AI-FIRE-2C",
       "AI-WATER-2",
       "AI-WATER-2",
       "AI-WATER-2B",
@@ -409,7 +424,7 @@ export const DECKS = {
       "CMD-PURGE",
       "CMD-WATER-RITE",
       "CMD-SANDBOX",
-      "MEM-ACCELERATOR",
+      "MEM-WAR-BANNER",
       "MEM-RECOVERY-CACHE",
       "MEM-CACHE",
     ],
@@ -437,7 +452,7 @@ export const DECKS = {
       "CMD-SANDBOX",
       "CMD-EARTH-RITE",
       "CMD-WIND-RITE",
-      "CMD-PURGE",
+      "CMD-PATCH",
       "CMD-PURGE",
       "MEM-PIPELINE",
       "MEM-RECOVERY-CACHE",
@@ -458,21 +473,21 @@ export const DECKS = {
       "AI-FIRE-2",
       "AI-FIRE-2B",
       "AI-FIRE-2B",
+      "AI-FIRE-2C",
+      "AI-FIRE-2C",
       "AI-FIRE-3",
       "AI-FIRE-3B",
       "AI-FIRE-4",
       "AI-FIRE-4B",
       "CMD-FIRE-RITE",
       "CMD-FIRE-RITE",
-      "CMD-RELEARN",
       "CMD-COMEBACK-RITE",
       "CMD-OPTIMIZE",
       "CMD-DISRUPT",
       "MEM-CACHE",
-      "MEM-PIPELINE",
+      "MEM-WAR-BANNER",
       "MEM-RECOVERY-CACHE",
       "AI-FIRE-3",
-      "CMD-PURGE",
       "CMD-PURGE",
     ],
   },
@@ -488,6 +503,8 @@ export const DECKS = {
       "AI-WATER-2",
       "AI-WATER-2B",
       "AI-WATER-2B",
+      "AI-WATER-2C",
+      "AI-WATER-2C",
       "AI-WATER-1B",
       "AI-WATER-3",
       "AI-WATER-3",
@@ -499,12 +516,10 @@ export const DECKS = {
       "CMD-WATER-RITE",
       "CMD-WATER-RITE",
       "CMD-COMEBACK-RITE",
-      "CMD-RELEARN",
       "MEM-PIPELINE",
       "MEM-CACHE",
       "MEM-RECOVERY-CACHE",
       "AI-WATER-3B",
-      "AI-WATER-1B",
     ],
   },
   wind: {
@@ -512,9 +527,9 @@ export const DECKS = {
     description: "相手を消耗させ、自分の召喚獣を再行動させるテンポ型。盤面差で押します。",
     cards: [
       "AI-WIND-1",
-      "AI-WIND-1",
       "AI-WIND-1B",
       "AI-WIND-1B",
+      "AI-WIND-1C",
       "AI-WIND-2",
       "AI-WIND-2",
       "AI-WIND-2B",
@@ -543,9 +558,9 @@ export const DECKS = {
     description: "高い防御値と回収効果で耐える持久型。攻撃を受け止めて勝ち筋を作ります。",
     cards: [
       "AI-EARTH-1",
-      "AI-EARTH-1",
       "AI-EARTH-1B",
-      "AI-EARTH-1B",
+      "AI-EARTH-1C",
+      "AI-EARTH-1C",
       "AI-EARTH-2",
       "AI-EARTH-2",
       "AI-EARTH-2B",
@@ -562,10 +577,10 @@ export const DECKS = {
       "CMD-COMEBACK-RITE",
       "CMD-COMEBACK-RITE",
       "CMD-DISRUPT",
+      "CMD-PATCH",
       "CMD-PURGE",
-      "CMD-OPTIMIZE",
       "MEM-FIREWALL",
-      "MEM-PIPELINE",
+      "MEM-GROVE",
       "MEM-CACHE",
     ],
   },
@@ -662,6 +677,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     playedAiThisTurn: false,
     pipelineUsed: false,
     acceleratorUsed: false,
+    warBannerUsed: false,
     chargeUsed: false,
     chargeGuardedFieldIndexes: new Set(),
     sandboxShield: 0,
@@ -691,6 +707,7 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     playedAiThisTurn: false,
     pipelineUsed: false,
     acceleratorUsed: false,
+    warBannerUsed: false,
     chargeUsed: false,
     chargeGuardedFieldIndexes: new Set(),
     sandboxShield: 0,
@@ -831,6 +848,7 @@ export function startTurn(game: GameState): void {
   readyFieldForTurn(player);
   player.pipelineUsed = false;
   player.acceleratorUsed = false;
+  player.warBannerUsed = false;
   player.chargeUsed = false;
   player.chargeGuardedFieldIndexes.clear();
   player.sandboxShield = 0;
@@ -886,6 +904,24 @@ export function applyTurnStartMemory(player: PlayerState, handCountAtTurnStart =
   return drawCards(player, 1);
 }
 
+export function applyWarBannerDraw(attacker: PlayerState): Card[] {
+  if (attacker.memory?.effect !== "war_banner") return [];
+  if (attacker.warBannerUsed) return [];
+  attacker.warBannerUsed = true;
+  return drawCards(attacker, 1);
+}
+
+export function applyEndTurnGroveRest(player: PlayerState, opponent: PlayerState): Card | null {
+  if (player.memory?.effect !== "grove_rest") return null;
+  if (player.life >= opponent.life) return null;
+  if (player.spentFieldIndexes.size < 2) return null;
+  const targetIndex = highestPowerSpentAi(player);
+  if (targetIndex === null || !player.field[targetIndex]) return null;
+  player.spentFieldIndexes.delete(targetIndex);
+  player.power3RecoveryDelayedFieldIndexes.delete(targetIndex);
+  return player.field[targetIndex];
+}
+
 export function enforceHandLimit(player: PlayerState): Card[] {
   if (CONFIG.handLimit === null) return [];
   const discarded: Card[] = [];
@@ -904,6 +940,10 @@ export function finishTurn(game: GameState, logEnd: boolean): void {
     addLog(game, `${player.name}は手札上限で${discarded.map((card) => card.name).join("、")}をトラッシュ。`);
   }
   if (logEnd) addLog(game, `${player.name}はターン終了。`);
+  const groveRestedCard = applyEndTurnGroveRest(player, opponentPlayer(game));
+  if (groveRestedCard) {
+    addLog(game, `${player.name}は${player.memory!.name}で${groveRestedCard.name}を回復した。`);
+  }
   player.sandboxShield = 0;
   game.actionsRemaining = 0;
   game.chargedActionsRemaining = 0;
@@ -1024,6 +1064,10 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "charge_draw") return "このカードをチャージした時、山札からカードを1枚引く";
   if (card.effect === "charge_ready_ally") return "このカードをチャージした時、自分の消耗召喚獣1体を選んで回復";
   if (card.effect === "charge_guard") return "このカードをチャージした時、場の召喚獣を1体選び、その召喚獣は次の自分ターンまで場防御値 +1";
+  if (card.effect === "charge_pressure_plus") return "このカードをチャージした時、相手の手札が2枚以上なら1枚トラッシュへ送る";
+  if (card.effect === "charge_surge_draw") return "このカードをチャージした時、手札が2枚以下なら山札からカードを2枚引く";
+  if (card.effect === "charge_spend_enemy") return "このカードをチャージした時、相手の未消耗召喚獣1体を選んで消耗";
+  if (card.effect === "charge_recover_discard") return "このカードをチャージした時、手札が2枚以下ならトラッシュの召喚獣1枚を手札に戻す。このカード自身は戻せない";
   return "効果なし";
 }
 
@@ -1099,6 +1143,10 @@ export function hasChargeEffect(card: Card): boolean {
     || card.effect === "charge_draw"
     || card.effect === "charge_ready_ally"
     || card.effect === "charge_guard"
+    || card.effect === "charge_pressure_plus"
+    || card.effect === "charge_surge_draw"
+    || card.effect === "charge_spend_enemy"
+    || card.effect === "charge_recover_discard"
   );
 }
 
@@ -1533,7 +1581,7 @@ export function bestUpgrade(game: GameState, player: PlayerState): { handIndex: 
 
 export function bestMemory(player: PlayerState): number | null {
   if (player.memory) return null;
-  const priority: Record<string, number> = { cache: 4, recovery_cache: 4, resonator: 4, pipeline: 3, accelerator: 3, firewall: 2 };
+  const priority: Record<string, number> = { cache: 4, recovery_cache: 4, resonator: 4, war_banner: 3, grove_rest: 3, pipeline: 3, accelerator: 3, firewall: 2 };
   const options = player.hand
     .map((card, index) => ({ card, index }))
     .filter(({ card }) => card.type === "memory");
@@ -1879,7 +1927,7 @@ function hasCrushingFieldDefender(defender: PlayerState, attacker: Card): boolea
 
 function aiCardValue(card: Card): number {
   if (card.type === "memory") {
-    const priority: Record<string, number> = { cache: 48, resonator: 45, recovery_cache: 42, pipeline: 38, accelerator: 36, firewall: 30 };
+    const priority: Record<string, number> = { cache: 48, resonator: 45, recovery_cache: 42, war_banner: 40, pipeline: 38, accelerator: 36, grove_rest: 34, firewall: 30 };
     return priority[card.effect ?? ""] ?? 12;
   }
   if (card.type !== "ai") return 12;
@@ -1915,6 +1963,10 @@ function aiCardValue(card: Card): number {
     charge_draw: 18,
     charge_ready_ally: 18,
     charge_guard: 16,
+    charge_pressure_plus: 18,
+    charge_surge_draw: 20,
+    charge_spend_enemy: 20,
+    charge_recover_discard: 18,
   };
   return (card.power ?? 0) * 20 + (effectBonus[card.effect ?? ""] ?? 0);
 }
@@ -1943,6 +1995,7 @@ function commandAiValue(game: GameState, command: Card): number {
     return 70 + Math.max(0, ...ready.map((card) => (card.power ?? 0) * 9));
   }
   if (command.effect === "sandbox") return 84;
+  if (command.effect === "patch") return 52 + (ai.deck.length > 0 ? 8 : 0);
   if (command.effect === "relearn") return 45;
   if (command.effect === "optimize") return 36 + Math.max(0, 4 - ai.hand.length) * 4;
   return 0;
@@ -1955,6 +2008,10 @@ function chargeAiValue(game: GameState, fuel: Card): number {
   if (fuel.effect === "charge_draw") return ai.deck.length > 0 ? 42 : 0;
   if (fuel.effect === "charge_ready_ally") return highestPowerSpentAi(ai) !== null ? 62 : 8;
   if (fuel.effect === "charge_guard") return ai.field.length > 0 ? 38 : 6;
+  if (fuel.effect === "charge_pressure_plus") return opponent.hand.length >= 2 ? 48 : 8;
+  if (fuel.effect === "charge_surge_draw") return ai.hand.length <= 3 && ai.deck.length > 0 ? 56 : 6;
+  if (fuel.effect === "charge_spend_enemy") return highestPowerReadyAi(opponent) !== null ? 58 : 8;
+  if (fuel.effect === "charge_recover_discard") return ai.hand.length <= 3 && highestPowerAiInDiscard(ai) !== null ? 50 : 6;
   if (ai.memory?.effect === "resonator" && ai.hand.length <= 2) return 24;
   return 0;
 }
@@ -2009,6 +2066,10 @@ function chargeFuelHasImmediateValue(player: PlayerState, opponent: PlayerState 
   if (card.effect === "charge_draw") return player.deck.length > 0;
   if (card.effect === "charge_ready_ally") return highestPowerSpentAi(player) !== null;
   if (card.effect === "charge_guard") return player.field.length > 0;
+  if (card.effect === "charge_pressure_plus") return Boolean(opponent && opponent.hand.length >= 2);
+  if (card.effect === "charge_surge_draw") return remainingHand.length <= 2 && player.deck.length > 0;
+  if (card.effect === "charge_spend_enemy") return Boolean(opponent && highestPowerReadyAi(opponent) !== null);
+  if (card.effect === "charge_recover_discard") return remainingHand.length <= 2 && highestPowerAiInDiscard(player) !== null;
   if (player.memory?.effect === "resonator") return remainingHand.length <= 2 && player.deck.length > 0;
   return false;
 }

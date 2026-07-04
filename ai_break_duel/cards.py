@@ -38,6 +38,8 @@ class MemoryEffect(str, Enum):
     ACCELERATOR = "accelerator"
     RESONATOR = "resonator"
     RECOVERY_CACHE = "recovery_cache"
+    WAR_BANNER = "war_banner"
+    GROVE_REST = "grove_rest"
 
 
 class AiEffect(str, Enum):
@@ -72,6 +74,10 @@ class AiEffect(str, Enum):
     CHARGE_DRAW = "charge_draw"
     CHARGE_READY_ALLY = "charge_ready_ally"
     CHARGE_GUARD = "charge_guard"
+    CHARGE_PRESSURE_PLUS = "charge_pressure_plus"
+    CHARGE_SURGE_DRAW = "charge_surge_draw"
+    CHARGE_SPEND_ENEMY = "charge_spend_enemy"
+    CHARGE_RECOVER_DISCARD = "charge_recover_discard"
 
 
 class DeckArchetype(str, Enum):
@@ -273,6 +279,10 @@ def has_charge_effect(ai: Card) -> bool:
         AiEffect.CHARGE_DRAW.value,
         AiEffect.CHARGE_READY_ALLY.value,
         AiEffect.CHARGE_GUARD.value,
+        AiEffect.CHARGE_PRESSURE_PLUS.value,
+        AiEffect.CHARGE_SURGE_DRAW.value,
+        AiEffect.CHARGE_SPEND_ENEMY.value,
+        AiEffect.CHARGE_RECOVER_DISCARD.value,
     }
 
 
@@ -336,6 +346,7 @@ def build_ai_card_pool() -> list[Card]:
         "AI-FIRE-4": "終火の影ヴァルガ",
         "AI-FIRE-4B": "劫火王アグニール",
         "AI-FIRE-1C": "炉芯鼠チロ",
+        "AI-FIRE-2C": "烽火狐フレンネ",
         "AI-WATER-1": "透海リュミナ",
         "AI-WATER-1B": "泡踊りのミナモ",
         "AI-WATER-2": "氷晶亀セルキー",
@@ -345,6 +356,7 @@ def build_ai_card_pool() -> list[Card]:
         "AI-WATER-4": "潮輪リヴァイア",
         "AI-WATER-4B": "星淵のアステル",
         "AI-WATER-1C": "雫読みミルティ",
+        "AI-WATER-2C": "渦紡ぎシェルナ",
         "AI-WIND-1": "そよぎ狐フルーフ",
         "AI-WIND-1B": "風鈴の子リュフ",
         "AI-WIND-2": "翡翠鎌マンティス",
@@ -354,6 +366,7 @@ def build_ai_card_pool() -> list[Card]:
         "AI-WIND-4": "雲海航路ミストラル",
         "AI-WIND-4B": "天蓋裂きヴァユ",
         "AI-WIND-2C": "追風リネット",
+        "AI-WIND-1C": "辻風雀ツムジ",
         "AI-EARTH-1": "苔掘りモール",
         "AI-EARTH-1B": "芽吹きの杖ペルナ",
         "AI-EARTH-2": "碑甲ガメル",
@@ -363,6 +376,7 @@ def build_ai_card_pool() -> list[Card]:
         "AI-EARTH-4": "眠れる山ガイアス",
         "AI-EARTH-4B": "地核の環バサリア",
         "AI-EARTH-2C": "石灯りノーム",
+        "AI-EARTH-1C": "種運びのクルミ",
     }
     effects = {
         "AI-FIRE-1": AiEffect.NO_SPEND_AFTER_ATTACK.value,
@@ -400,6 +414,10 @@ def build_ai_card_pool() -> list[Card]:
         "AI-EARTH-4": AiEffect.RECOVER_AI_ON_PLAY.value,
         "AI-EARTH-4B": AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE.value,
         "AI-EARTH-2C": AiEffect.CHARGE_GUARD.value,
+        "AI-FIRE-2C": AiEffect.CHARGE_PRESSURE_PLUS.value,
+        "AI-WATER-2C": AiEffect.CHARGE_SURGE_DRAW.value,
+        "AI-WIND-1C": AiEffect.CHARGE_SPEND_ENEMY.value,
+        "AI-EARTH-1C": AiEffect.CHARGE_RECOVER_DISCARD.value,
     }
     cards: list[Card] = []
     for attribute, code, label in rows:
@@ -450,6 +468,38 @@ def build_ai_card_pool() -> list[Card]:
                 power=2,
                 effect=effects["AI-EARTH-2C"],
             ),
+            Card(
+                id="AI-FIRE-2C",
+                name=names_by_id["AI-FIRE-2C"],
+                type=CardType.AI,
+                attribute=Attribute.FIRE,
+                power=2,
+                effect=effects["AI-FIRE-2C"],
+            ),
+            Card(
+                id="AI-WATER-2C",
+                name=names_by_id["AI-WATER-2C"],
+                type=CardType.AI,
+                attribute=Attribute.WATER,
+                power=2,
+                effect=effects["AI-WATER-2C"],
+            ),
+            Card(
+                id="AI-WIND-1C",
+                name=names_by_id["AI-WIND-1C"],
+                type=CardType.AI,
+                attribute=Attribute.WIND,
+                power=1,
+                effect=effects["AI-WIND-1C"],
+            ),
+            Card(
+                id="AI-EARTH-1C",
+                name=names_by_id["AI-EARTH-1C"],
+                type=CardType.AI,
+                attribute=Attribute.EARTH,
+                power=1,
+                effect=effects["AI-EARTH-1C"],
+            ),
         ]
     )
     return cards
@@ -468,7 +518,6 @@ def build_command_card_pool() -> list[Card]:
             name="若葉の息吹",
             type=CardType.EVENT,
             effect=CommandEffect.PATCH.value,
-            status=CardStatus.INACTIVE.value,
         ),
         Card(
             id="CMD-DISRUPT",
@@ -571,6 +620,18 @@ def build_memory_card_pool() -> list[Card]:
             type=CardType.MEMORY,
             effect=MemoryEffect.RECOVERY_CACHE.value,
         ),
+        Card(
+            id="MEM-WAR-BANNER",
+            name="猛火の戦旗",
+            type=CardType.MEMORY,
+            effect=MemoryEffect.WAR_BANNER.value,
+        ),
+        Card(
+            id="MEM-GROVE",
+            name="大樹の寝床",
+            type=CardType.MEMORY,
+            effect=MemoryEffect.GROVE_REST.value,
+        ),
     ]
 
 
@@ -600,12 +661,12 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
         return _deck_from_ids(
             [
                 "AI-FIRE-1",
-                "AI-FIRE-1B",
                 "AI-FIRE-1C",
                 "AI-FIRE-2",
                 "AI-FIRE-2",
                 "AI-FIRE-2B",
                 "AI-FIRE-2B",
+                "AI-FIRE-2C",
                 "AI-WATER-2",
                 "AI-WATER-2",
                 "AI-WATER-2B",
@@ -621,7 +682,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-PURGE",
                 "CMD-WATER-RITE",
                 "CMD-SANDBOX",
-                "MEM-ACCELERATOR",
+                "MEM-WAR-BANNER",
                 "MEM-RECOVERY-CACHE",
                 "MEM-CACHE",
             ]
@@ -648,7 +709,7 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-SANDBOX",
                 "CMD-EARTH-RITE",
                 "CMD-WIND-RITE",
-                "CMD-PURGE",
+                "CMD-PATCH",
                 "CMD-PURGE",
                 "MEM-PIPELINE",
                 "MEM-RECOVERY-CACHE",
@@ -668,21 +729,21 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "AI-FIRE-2",
                 "AI-FIRE-2B",
                 "AI-FIRE-2B",
+                "AI-FIRE-2C",
+                "AI-FIRE-2C",
                 "AI-FIRE-3",
                 "AI-FIRE-3B",
                 "AI-FIRE-4",
                 "AI-FIRE-4B",
                 "CMD-FIRE-RITE",
                 "CMD-FIRE-RITE",
-                "CMD-RELEARN",
                 "CMD-COMEBACK-RITE",
                 "CMD-OPTIMIZE",
                 "CMD-DISRUPT",
                 "MEM-CACHE",
-                "MEM-PIPELINE",
+                "MEM-WAR-BANNER",
                 "MEM-RECOVERY-CACHE",
                 "AI-FIRE-3",
-                "CMD-PURGE",
                 "CMD-PURGE",
             ]
         )
@@ -697,6 +758,8 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "AI-WATER-2",
                 "AI-WATER-2B",
                 "AI-WATER-2B",
+                "AI-WATER-2C",
+                "AI-WATER-2C",
                 "AI-WATER-1B",
                 "AI-WATER-3",
                 "AI-WATER-3",
@@ -708,21 +771,19 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-WATER-RITE",
                 "CMD-WATER-RITE",
                 "CMD-COMEBACK-RITE",
-                "CMD-RELEARN",
                 "MEM-PIPELINE",
                 "MEM-CACHE",
                 "MEM-RECOVERY-CACHE",
                 "AI-WATER-3B",
-                "AI-WATER-1B",
             ]
         )
     if archetype == DeckArchetype.WIND:
         return _deck_from_ids(
             [
                 "AI-WIND-1",
-                "AI-WIND-1",
                 "AI-WIND-1B",
                 "AI-WIND-1B",
+                "AI-WIND-1C",
                 "AI-WIND-2",
                 "AI-WIND-2",
                 "AI-WIND-2B",
@@ -750,9 +811,9 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
         return _deck_from_ids(
             [
                 "AI-EARTH-1",
-                "AI-EARTH-1",
                 "AI-EARTH-1B",
-                "AI-EARTH-1B",
+                "AI-EARTH-1C",
+                "AI-EARTH-1C",
                 "AI-EARTH-2",
                 "AI-EARTH-2",
                 "AI-EARTH-2B",
@@ -769,10 +830,10 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-COMEBACK-RITE",
                 "CMD-COMEBACK-RITE",
                 "CMD-DISRUPT",
+                "CMD-PATCH",
                 "CMD-PURGE",
-                "CMD-OPTIMIZE",
                 "MEM-FIREWALL",
-                "MEM-PIPELINE",
+                "MEM-GROVE",
                 "MEM-CACHE",
             ]
         )

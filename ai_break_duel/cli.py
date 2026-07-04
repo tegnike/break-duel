@@ -58,7 +58,7 @@ def main() -> None:
         "--second-turn-draw",
         dest="second_turn_draw",
         action="store_true",
-        default=False,
+        default=True,
     )
     simulate.add_argument(
         "--second-turn-no-draw",
@@ -134,7 +134,7 @@ def main() -> None:
         "--second-turn-draw",
         dest="second_turn_draw",
         action="store_true",
-        default=False,
+        default=True,
     )
     match.add_argument(
         "--second-turn-no-draw",
@@ -221,7 +221,7 @@ def main() -> None:
         "--second-turn-draw",
         dest="second_turn_draw",
         action="store_true",
-        default=False,
+        default=True,
     )
     league.add_argument(
         "--second-turn-no-draw",

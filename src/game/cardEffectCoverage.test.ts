@@ -8,6 +8,7 @@ import {
   type GameState,
   activeCardPool,
   aiEffectText,
+  applyEndTurnGroveRest,
   applyTurnStartMemory,
   attackCombatValue,
   attackDamage,
@@ -97,6 +98,7 @@ function blankGame(): GameState {
     player.handDefensesUsed = 0;
     player.pipelineUsed = false;
     player.acceleratorUsed = false;
+    player.warBannerUsed = false;
     player.chargeUsed = false;
     player.playedAiThisTurn = false;
     player.chargeGuardedFieldIndexes.clear();
@@ -378,6 +380,78 @@ const CARD_EFFECT_CASES = {
       expect(game.players[0].chargeGuardedFieldIndexes.has(0)).toBe(false);
     },
   },
+  charge_pressure_plus: {
+    cardId: "AI-FIRE-2C",
+    description: "チャージ時に相手手札が2枚以上なら1枚トラッシュする。1枚なら奪わない",
+    run: () => {
+      const game = playableChargeGame("AI-FIRE-2C");
+      game.players[1].hand = [card("AI-WATER-1"), card("AI-WATER-2")];
+      chargeHandCardInDraft(game, 0, 0);
+      expect(hasChargeEffect(card("AI-FIRE-2C"))).toBe(true);
+      expect(game.players[1].hand).toHaveLength(1);
+      expect(game.players[1].discard).toHaveLength(1);
+
+      const spared = playableChargeGame("AI-FIRE-2C");
+      spared.players[1].hand = [card("AI-WATER-1")];
+      chargeHandCardInDraft(spared, 0, 0);
+      expect(spared.players[1].hand).toHaveLength(1);
+      expect(spared.players[1].discard).toHaveLength(0);
+    },
+  },
+  charge_surge_draw: {
+    cardId: "AI-WATER-2C",
+    description: "チャージ時に手札2枚以下なら2枚引く",
+    run: () => {
+      const game = playableChargeGame("AI-WATER-2C");
+      game.players[0].deck = [card("AI-FIRE-1"), card("AI-FIRE-2"), card("AI-FIRE-3")];
+      chargeHandCardInDraft(game, 0, 0);
+      expect(game.players[0].hand).toHaveLength(2);
+
+      const fullHand = playableChargeGame("AI-WATER-2C");
+      fullHand.players[0].hand = [card("AI-WATER-2C"), card("AI-WATER-1"), card("AI-WATER-2"), card("AI-WATER-3")];
+      fullHand.players[0].deck = [card("AI-FIRE-1")];
+      chargeHandCardInDraft(fullHand, 0, 0);
+      expect(fullHand.players[0].hand).toHaveLength(3);
+    },
+  },
+  charge_spend_enemy: {
+    cardId: "AI-WIND-1C",
+    description: "チャージ時に相手の未消耗召喚獣1体を消耗させる",
+    run: () => {
+      const game = playableChargeGame("AI-WIND-1C");
+      game.players[1].field = [card("AI-FIRE-2"), card("AI-FIRE-1")];
+      chargeHandCardInDraft(game, 0, 0, { spendTargetIndex: 1 });
+      expect(game.players[1].spentFieldIndexes).toEqual(new Set([1]));
+
+      const auto = playableChargeGame("AI-WIND-1C");
+      auto.players[1].field = [card("AI-FIRE-1"), card("AI-FIRE-4")];
+      chargeHandCardInDraft(auto, 0, 0);
+      expect(auto.players[1].spentFieldIndexes).toEqual(new Set([1]));
+    },
+  },
+  charge_recover_discard: {
+    cardId: "AI-EARTH-1C",
+    description: "チャージ時に手札2枚以下ならトラッシュの召喚獣1枚を回収する。自分自身は回収できない",
+    run: () => {
+      const game = playableChargeGame("AI-EARTH-1C");
+      game.players[0].discard = [card("AI-EARTH-3")];
+      chargeHandCardInDraft(game, 0, 0);
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-EARTH-3"]);
+      expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-EARTH-1C"]);
+
+      const selfOnly = playableChargeGame("AI-EARTH-1C");
+      chargeHandCardInDraft(selfOnly, 0, 0);
+      expect(selfOnly.players[0].hand).toHaveLength(0);
+      expect(selfOnly.players[0].discard.map((item) => item.id)).toEqual(["AI-EARTH-1C"]);
+
+      const fullHand = playableChargeGame("AI-EARTH-1C");
+      fullHand.players[0].hand = [card("AI-EARTH-1C"), card("AI-EARTH-1"), card("AI-EARTH-2"), card("AI-EARTH-2B")];
+      fullHand.players[0].discard = [card("AI-EARTH-3")];
+      chargeHandCardInDraft(fullHand, 0, 0);
+      expect(fullHand.players[0].hand.map((item) => item.id)).toEqual(["AI-EARTH-1", "AI-EARTH-2", "AI-EARTH-2B"]);
+      expect(fullHand.players[0].discard.map((item) => item.id)).toEqual(["AI-EARTH-3", "AI-EARTH-1C"]);
+    },
+  },
   optimize: {
     cardId: "CMD-OPTIMIZE",
     description: "手札1枚を捨てて2枚引く",
@@ -388,6 +462,21 @@ const CARD_EFFECT_CASES = {
       useCommandAtInDraft(game, 0, null, [1]);
       expectCommandUsed(game, "CMD-OPTIMIZE");
       expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-WATER-2", "AI-WATER-1"]);
+    },
+  },
+  patch: {
+    cardId: "CMD-PATCH",
+    description: "消耗中の自分召喚獣1体を回復し、1枚引く",
+    run: () => {
+      const game = blankGame();
+      game.players[0].hand = [card("CMD-PATCH")];
+      game.players[0].field = [card("AI-FIRE-2")];
+      game.players[0].spentFieldIndexes = new Set([0]);
+      game.players[0].deck = [card("AI-WATER-1")];
+      useCommandAtInDraft(game, 0, 0);
+      expectCommandUsed(game, "CMD-PATCH");
+      expect(game.players[0].spentFieldIndexes.has(0)).toBe(false);
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-WATER-1"]);
     },
   },
   disrupt: {
@@ -610,6 +699,50 @@ const CARD_EFFECT_CASES = {
       game.players[0].playedAiThisTurn = true;
       expect(playCost(card("AI-FIRE-3"), game)).toBe(3);
       expect(displayCost(card("AI-FIRE-3"), "usable", null, game)).toBe(3);
+    },
+  },
+  war_banner: {
+    cardId: "MEM-WAR-BANNER",
+    description: "自分の攻撃で相手ライフが減った時、1ターンに1回1枚引く",
+    run: () => {
+      const game = blankGame();
+      game.players[0].memory = card("MEM-WAR-BANNER");
+      game.players[0].field = [card("AI-FIRE-2")];
+      game.players[0].deck = [card("AI-FIRE-1")];
+      game.pendingAttack = { attackerIndex: 0, defenderIndex: 1, fieldIndex: 0 };
+      resolveDefenseInDraft(game, { type: "none" }, {});
+      expect(game.players[1].life).toBeLessThan(CONFIG.life);
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+      expect(game.players[0].warBannerUsed).toBe(true);
+    },
+  },
+  grove_rest: {
+    cardId: "MEM-GROVE",
+    description: "ターン終了時、ライフ劣勢で消耗中召喚獣が2体以上なら最も強い1体を回復する",
+    run: () => {
+      const game = blankGame();
+      game.players[0].memory = card("MEM-GROVE");
+      game.players[0].life = 5;
+      game.players[0].field = [card("AI-EARTH-2"), card("AI-EARTH-1")];
+      game.players[0].spentFieldIndexes = new Set([0, 1]);
+      const rested = applyEndTurnGroveRest(game.players[0], game.players[1]);
+      expect(rested?.id).toBe("AI-EARTH-2");
+      expect(game.players[0].spentFieldIndexes).toEqual(new Set([1]));
+
+      const single = blankGame();
+      single.players[0].memory = card("MEM-GROVE");
+      single.players[0].life = 5;
+      single.players[0].field = [card("AI-EARTH-2")];
+      single.players[0].spentFieldIndexes = new Set([0]);
+      expect(applyEndTurnGroveRest(single.players[0], single.players[1])).toBeNull();
+      expect(single.players[0].spentFieldIndexes).toEqual(new Set([0]));
+
+      const ahead = blankGame();
+      ahead.players[0].memory = card("MEM-GROVE");
+      ahead.players[0].field = [card("AI-EARTH-2"), card("AI-EARTH-1")];
+      ahead.players[0].spentFieldIndexes = new Set([0, 1]);
+      expect(applyEndTurnGroveRest(ahead.players[0], ahead.players[1])).toBeNull();
+      expect(ahead.players[0].spentFieldIndexes).toEqual(new Set([0, 1]));
     },
   },
 } satisfies Partial<Record<ActiveEffect, EffectCase>>;

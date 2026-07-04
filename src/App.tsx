@@ -54,6 +54,8 @@ import {
   chargeHandCardInDraft,
   confirmChargeGuardTargetInDraft,
   confirmChargeReadyAllyTargetInDraft,
+  confirmChargeRecoverTargetInDraft,
+  confirmChargeSpendEnemyTargetInDraft,
   discardHandCards,
   performAiActionInDraft,
   resolveDefenseInDraft,
@@ -2519,6 +2521,54 @@ export default function App() {
       });
       return;
     }
+    if (card.effect === "charge_spend_enemy" && highestPowerReadyAi(game.players[1]) !== null) {
+      const handIndex = game.selected.index;
+      mutate((draft) => {
+        const current = draft.players[0].hand[handIndex];
+        if (!current || current.effect !== "charge_spend_enemy") return;
+        const opponent = draft.players[1];
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "charge-spend-enemy",
+          zone: "field",
+          playerIndex: 1,
+          title: `${current.name}で消耗させる相手召喚獣を選択`,
+          prompt: "消耗させる相手の未消耗召喚獣を1体選んでください。",
+          confirmLabel: "この召喚獣を消耗",
+          min: 1,
+          max: 1,
+          excludeIndexes: opponent.field.map((_, index) => opponent.spentFieldIndexes.has(index) ? index : -1).filter((index) => index >= 0),
+          selectedIndexes: [],
+          sourceIndex: handIndex,
+          cancelable: true,
+        };
+      });
+      return;
+    }
+    if (card.effect === "charge_recover_discard" && player.hand.length <= 3 && highestPowerAiInDiscard(player) !== null) {
+      const handIndex = game.selected.index;
+      mutate((draft) => {
+        const current = draft.players[0].hand[handIndex];
+        if (!current || current.effect !== "charge_recover_discard") return;
+        const owner = draft.players[0];
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "charge-recover",
+          zone: "discard",
+          playerIndex: 0,
+          title: `${current.name}で回収するカードを選択`,
+          prompt: "トラッシュから手札に戻す召喚獣を1枚選んでください。",
+          confirmLabel: "このカードを回収",
+          min: 1,
+          max: 1,
+          excludeIndexes: owner.discard.map((item, index) => item.type === "ai" ? -1 : index).filter((index) => index >= 0),
+          selectedIndexes: [],
+          sourceIndex: handIndex,
+          cancelable: true,
+        };
+      });
+      return;
+    }
     playSfx("charge");
     suppressNextTrashSfx(0);
     launchTrashFlight(card, { ownerIndex: 0, zone: "hand", index: game.selected.index }, 0, "チャージ");
@@ -2655,6 +2705,15 @@ export default function App() {
         launchTrashFlight(charged, { ownerIndex: pending.playerIndex, zone: flightHandZone(pendingPlayer), index: pendingPlayer.isHuman ? pending.sourceIndex! : 0 }, pending.playerIndex, "チャージ");
       }
     }
+    if (pending.reason === "charge-spend-enemy" || pending.reason === "charge-recover") {
+      const chargeOwner = game.players[0];
+      const charged = chargeOwner.hand[pending.sourceIndex!];
+      if (charged) {
+        playSfx("charge");
+        suppressNextTrashSfx(0);
+        launchTrashFlight(charged, { ownerIndex: 0, zone: flightHandZone(chargeOwner), index: pending.sourceIndex! }, 0, "チャージ");
+      }
+    }
     if (pending.reason === "filter-discard" || pending.reason === "block-pressure") {
       const discarded = pendingPlayer.hand[selectedIndex];
       launchTrashFlight(
@@ -2763,6 +2822,40 @@ export default function App() {
             kind: "command",
             title: `${player.name}がチャージ`,
             detail: `${charged.name}をトラッシュへ送り、このターンのアクションを1増やしました。${player.field[targetIndex]?.name ?? "選んだ召喚獣"}の場防御値を次の自分ターンまで+1します。`,
+            fromLabel: "手札",
+            toLabel: "トラッシュ",
+            tone: player.isHuman ? "magenta" : "cyan",
+            cards: [{ card: charged, label: "チャージ", state: "trash" }],
+          });
+        }
+        return;
+      } else if (current.reason === "charge-spend-enemy") {
+        const targetIndex = current.selectedIndexes[0];
+        const opponent = draft.players[1];
+        const targetName = opponent.field[targetIndex]?.name ?? "選んだ召喚獣";
+        const charged = confirmChargeSpendEnemyTargetInDraft(draft, 0, current.sourceIndex!, targetIndex);
+        if (charged) {
+          const chargeOwner = draft.players[0];
+          queueDuelEvent({
+            kind: "command",
+            title: `${chargeOwner.name}がチャージ`,
+            detail: `${charged.name}をトラッシュへ送り、このターンのアクションを1増やしました。${opponent.name}の${targetName}を消耗させます。`,
+            fromLabel: "手札",
+            toLabel: "トラッシュ",
+            tone: chargeOwner.isHuman ? "magenta" : "cyan",
+            cards: [{ card: charged, label: "チャージ", state: "trash" }],
+          });
+        }
+        return;
+      } else if (current.reason === "charge-recover") {
+        const targetIndex = current.selectedIndexes[0];
+        const recoveredName = player.discard[targetIndex]?.name ?? "選んだカード";
+        const charged = confirmChargeRecoverTargetInDraft(draft, current.playerIndex, current.sourceIndex!, targetIndex);
+        if (charged) {
+          queueDuelEvent({
+            kind: "command",
+            title: `${player.name}がチャージ`,
+            detail: `${charged.name}をトラッシュへ送り、このターンのアクションを1増やしました。${recoveredName}をトラッシュから手札に戻します。`,
             fromLabel: "手札",
             toLabel: "トラッシュ",
             tone: player.isHuman ? "magenta" : "cyan",

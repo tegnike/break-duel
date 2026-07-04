@@ -82,6 +82,7 @@ def start_turn(state: GameState) -> None:
     _ready_active_field_ai_for_turn(state)
     state.active().pending_effects["pipeline_used"] = False
     state.active().pending_effects["accelerator_used"] = False
+    state.active().pending_effects["war_banner_used"] = False
     state.active().pending_effects["charge_used"] = False
     state.active().charge_guarded_field_ai.clear()
     state.active().pending_effects.pop("sandbox_shield", None)
@@ -106,6 +107,7 @@ def start_turn(state: GameState) -> None:
 
 def end_turn(state: GameState) -> None:
     discarded_for_limit = _enforce_hand_limit(state, state.active())
+    grove_readied_ai = _apply_end_turn_grove_rest(state)
     state.active().pending_effects.pop("sandbox_shield", None)
     state.log.append(
         {
@@ -113,6 +115,7 @@ def end_turn(state: GameState) -> None:
             "active_player": state.active().name,
             "event": "turn_end",
             "hand_limit_discarded": [card.id for card in discarded_for_limit],
+            "grove_readied_ai": grove_readied_ai,
             "life": [player.life for player in state.players],
             "field": _field_state(state),
         }
@@ -527,6 +530,7 @@ def _attack(state: GameState, action: Action) -> None:
     outcome = "blocked"
     defense_result = "undefended"
     attacker_overheated = False
+    war_banner_draw_count = 0
 
     state.stats.attacks += 1
     state.stats.record_card_usage(attack_ai.id, "attacked")
@@ -540,6 +544,7 @@ def _attack(state: GameState, action: Action) -> None:
             damage = _attack_damage(state, attack_ai)
             _deal_damage(defender, damage)
             _post_damage_draw(state, defender, damage)
+            war_banner_draw_count += _apply_war_banner_draw(state, attacker)
             state.stats.undefended_attacks += 1
             outcome = "damage"
         else:
@@ -555,6 +560,7 @@ def _attack(state: GameState, action: Action) -> None:
                 damage = 1
                 _deal_damage(defender, damage)
                 _post_damage_draw(state, defender, damage)
+                war_banner_draw_count += _apply_war_banner_draw(state, attacker)
                 outcome = "damage"
                 state.stats.record_card_usage(attack_ai.id, "pierced_hand_defense")
     else:
@@ -618,6 +624,7 @@ def _attack(state: GameState, action: Action) -> None:
             damage = _attack_damage(state, attack_ai)
             _deal_damage(defender, damage)
             _post_damage_draw(state, defender, damage)
+            war_banner_draw_count += _apply_war_banner_draw(state, attacker)
             state.stats.failed_defenses += 1
             state.stats.record_card_usage(defense_ai.id, "defended_failed")
             defense_result = "failed"
@@ -653,6 +660,7 @@ def _attack(state: GameState, action: Action) -> None:
             "blocked_attack_draw_count": blocked_attack_draw_count,
             "defense_draw_count": defense_draw_count,
             "attacker_overheated": attacker_overheated,
+            "war_banner_draw_count": war_banner_draw_count,
             "sandbox_command_used": overheat["sandbox_command_used"],
             "overheat_draw_count": overheat["overheat_draw_count"],
             "firewall_discarded_card": firewall_discarded_card.id if firewall_discarded_card else None,
@@ -736,6 +744,51 @@ def _apply_charge_effect(
             player.charge_guarded_field_ai.add(target_index)
             result["charge_guarded_ai"] = player.field_ai[target_index].id
             state.stats.record_card_usage(charged_card.id, "charge_guard")
+    if charged_card.effect == AiEffect.CHARGE_PRESSURE_PLUS.value and len(opponent.hand) >= 2:
+        discarded = _discard_low_priority_cards(opponent, 1)
+        result["opponent_discarded_card"] = discarded[0].id if discarded else None
+        state.stats.record_card_usage(charged_card.id, "charge_pressure")
+    if charged_card.effect == AiEffect.CHARGE_SURGE_DRAW.value and len(player.hand) <= 2:
+        result["draw_count"] = player.draw(2, state.rng)
+        state.stats.record_card_usage(charged_card.id, "charge_draw")
+    if charged_card.effect == AiEffect.CHARGE_SPEND_ENEMY.value:
+        target_index = ready_target_index
+        if target_index is None:
+            target_index = _highest_power_ready_ai(opponent)
+        if target_index is not None:
+            if target_index < 0 or target_index >= len(opponent.field_ai):
+                raise ValueError("Charge spend target is out of range.")
+            if target_index in opponent.spent_field_ai:
+                raise ValueError("Charge spend target must be ready.")
+            opponent.spent_field_ai.add(target_index)
+            result["spent_enemy_ai"] = opponent.field_ai[target_index].id
+            state.stats.record_card_usage(charged_card.id, "charge_spend_enemy")
+    if charged_card.effect == AiEffect.CHARGE_RECOVER_DISCARD.value and len(player.hand) <= 2:
+        charged_index = len(player.discard) - 1
+        recover_index = ready_target_index
+        if recover_index is None:
+            candidates = [
+                (index, card)
+                for index, card in enumerate(player.discard)
+                if card.type == CardType.AI and index != charged_index
+            ]
+            recover_index = (
+                max(candidates, key=lambda item: (item[1].power or 0, item[1].id))[0]
+                if candidates
+                else None
+            )
+        if recover_index is not None:
+            if recover_index < 0 or recover_index >= len(player.discard):
+                raise ValueError("Charge recover target is out of range.")
+            if recover_index == charged_index:
+                raise ValueError("Charge recover cannot return the charged card itself.")
+            recovered = player.discard[recover_index]
+            if recovered.type != CardType.AI:
+                raise ValueError("Charge recover target must be a summon.")
+            player.discard.pop(recover_index)
+            player.hand.append(recovered)
+            result["recovered_card"] = recovered.id
+            state.stats.record_card_usage(charged_card.id, "charge_recover")
     if (
         player.memory is not None
         and player.memory.effect == MemoryEffect.RESONATOR.value
@@ -786,7 +839,11 @@ def _use_command(state: GameState, action: Action) -> None:
         player.spent_field_ai.remove(ready_index)
         player.power_3_recovery_delayed_field_ai.discard(ready_index)
         player.discard.append(command)
-        result |= {"readied_ai": player.field_ai[ready_index].id}
+        drawn = player.draw(1, state.rng)
+        result |= {
+            "readied_ai": player.field_ai[ready_index].id,
+            "draw_count": drawn,
+        }
     elif command.effect == CommandEffect.DISRUPT.value:
         target_index = action.target_index
         if target_index is None:
@@ -1006,6 +1063,36 @@ def _use_command(state: GameState, action: Action) -> None:
 
 def _deal_damage(player: PlayerState, amount: int = 1) -> None:
     player.life -= amount
+
+
+def _apply_end_turn_grove_rest(state: GameState) -> str | None:
+    player = state.active()
+    opponent = state.opponent()
+    if player.memory is None or player.memory.effect != MemoryEffect.GROVE_REST.value:
+        return None
+    if player.life >= opponent.life:
+        return None
+    if len(player.spent_field_ai) < 2:
+        return None
+    target_index = _highest_power_spent_ai(player)
+    if target_index is None:
+        return None
+    player.spent_field_ai.remove(target_index)
+    player.power_3_recovery_delayed_field_ai.discard(target_index)
+    state.stats.record_card_usage(player.memory.id, "turn_end_ready")
+    return player.field_ai[target_index].id
+
+
+def _apply_war_banner_draw(state: GameState, attacker: PlayerState) -> int:
+    if attacker.memory is None or attacker.memory.effect != MemoryEffect.WAR_BANNER.value:
+        return 0
+    if attacker.pending_effects.get("war_banner_used"):
+        return 0
+    attacker.pending_effects["war_banner_used"] = True
+    drawn = attacker.draw(1, state.rng)
+    if drawn:
+        state.stats.record_card_usage(attacker.memory.id, "attack_damage_draw")
+    return drawn
 
 
 def _attack_damage(state: GameState, attack_ai) -> int:

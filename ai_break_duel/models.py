@@ -89,7 +89,7 @@ class GameConfig:
     each_player_first_turn_actions: int | None = None
     first_player_first_turn_can_attack: bool = False
     first_player_first_turn_draw: bool = False
-    second_player_first_turn_draw: bool = False
+    second_player_first_turn_draw: bool = True
     each_player_first_turn_can_attack: bool = True
     hand_defense_limit_per_turn: int | None = 1
     hand_defense_requires_empty_field: bool = False

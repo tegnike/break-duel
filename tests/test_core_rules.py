@@ -368,7 +368,8 @@ class CoreRuleTests(unittest.TestCase):
             for card in [*AI_CARD_POOL, *COMMAND_CARD_POOL, *MEMORY_CARD_POOL]
             if card.status == CardStatus.INACTIVE.value
         }
-        self.assertIn("CMD-PATCH", inactive_card_ids)
+        # 2026-07-05 のリワークで CMD-PATCH は再アクティブ化済み。
+        self.assertNotIn("CMD-PATCH", inactive_card_ids)
         for archetype in DeckArchetype:
             deck_ids = {card.id for card in build_deck(archetype)}
             self.assertFalse(inactive_card_ids & deck_ids, archetype.value)
@@ -583,7 +584,7 @@ class CoreRuleTests(unittest.TestCase):
 
     def test_ai_card_pool_has_two_base_variants_and_charge_cycle_cards(self) -> None:
         ai_ids = {item.id for item in AI_CARD_POOL}
-        self.assertEqual(len(ai_ids), 36)
+        self.assertEqual(len(ai_ids), 40)
         for code in ("FIRE", "WATER", "WIND", "EARTH"):
             for power in (1, 2, 3, 4):
                 self.assertIn(f"AI-{code}-{power}", ai_ids)
@@ -592,6 +593,161 @@ class CoreRuleTests(unittest.TestCase):
         self.assertIn("AI-WATER-1C", ai_ids)
         self.assertIn("AI-WIND-2C", ai_ids)
         self.assertIn("AI-EARTH-2C", ai_ids)
+        self.assertIn("AI-FIRE-2C", ai_ids)
+        self.assertIn("AI-WATER-2C", ai_ids)
+        self.assertIn("AI-WIND-1C", ai_ids)
+        self.assertIn("AI-EARTH-1C", ai_ids)
+
+    def test_card_pool_totals_sixty_active_cards(self) -> None:
+        from ai_break_duel.cards import ACTIVE_CARD_POOL
+
+        self.assertEqual(len(AI_CARD_POOL), 40)
+        self.assertEqual(len(COMMAND_CARD_POOL), 12)
+        self.assertEqual(len(MEMORY_CARD_POOL), 8)
+        self.assertEqual(len(ACTIVE_CARD_POOL), 60)
+
+    def test_fire_charge_plus_summon_discards_when_opponent_has_two_or_more(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-FIRE-2C")]
+        state.players[1].hand = [card("AI-WATER-1"), card("AI-WATER-2")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual(len(state.players[1].hand), 1)
+        self.assertEqual(len(state.players[1].discard), 1)
+
+    def test_fire_charge_plus_summon_spares_a_single_opponent_card(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-FIRE-2C")]
+        state.players[1].hand = [card("AI-WATER-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual(len(state.players[1].hand), 1)
+        self.assertEqual(state.players[1].discard, [])
+
+    def test_water_charge_surge_summon_draws_two_when_hand_is_low(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-WATER-2C")]
+        state.players[0].deck = [card("AI-FIRE-1"), card("AI-FIRE-2"), card("AI-FIRE-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual(len(state.players[0].hand), 2)
+
+    def test_water_charge_surge_summon_does_not_draw_with_three_or_more_in_hand(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [
+            card("AI-WATER-2C"),
+            card("AI-WATER-1"),
+            card("AI-WATER-2"),
+            card("AI-WATER-3"),
+        ]
+        state.players[0].deck = [card("AI-FIRE-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual(len(state.players[0].hand), 3)
+
+    def test_wind_charge_spend_summon_spends_strongest_ready_enemy(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-WIND-1C")]
+        state.players[1].field_ai = [card("AI-FIRE-1"), card("AI-FIRE-4")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual(state.players[1].spent_field_ai, {1})
+
+    def test_earth_charge_recover_summon_does_not_recover_with_large_hand(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [
+            card("AI-EARTH-1C"),
+            card("AI-EARTH-1"),
+            card("AI-EARTH-2"),
+            card("AI-EARTH-2B"),
+        ]
+        state.players[0].discard = [card("AI-EARTH-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual(len(state.players[0].hand), 3)
+        self.assertEqual(
+            [item.id for item in state.players[0].discard],
+            ["AI-EARTH-3", "AI-EARTH-1C"],
+        )
+
+    def test_earth_charge_recover_summon_returns_summon_but_not_itself(self) -> None:
+        state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        state.players[0].hand = [card("AI-EARTH-1C")]
+        state.players[0].discard = [card("AI-EARTH-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.CHARGE, 0))
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-EARTH-3"])
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-EARTH-1C"])
+
+        empty = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
+        empty.players[0].hand = [card("AI-EARTH-1C")]
+        start_turn(empty)
+        apply_action(empty, Action(ActionType.CHARGE, 0))
+        self.assertEqual(empty.players[0].hand, [])
+        self.assertEqual([item.id for item in empty.players[0].discard], ["AI-EARTH-1C"])
+
+    def test_patch_command_readies_summon_and_draws(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].hand = [command("CMD-PATCH")]
+        state.players[0].field_ai = [card("AI-FIRE-2")]
+        state.players[0].deck = [card("AI-WATER-1")]
+        start_turn(state)
+        state.players[0].spent_field_ai = {0}
+        apply_action(state, Action(ActionType.USE_COMMAND, 0))
+        self.assertEqual(state.players[0].spent_field_ai, set())
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-WATER-1"])
+        self.assertIn("CMD-PATCH", [item.id for item in state.players[0].discard])
+
+    def test_war_banner_draws_once_per_turn_on_attack_damage(self) -> None:
+        state = new_game(
+            1,
+            no_opening_hands(
+                first_player_first_turn_actions=3,
+                first_player_first_turn_can_attack=True,
+            ),
+        )
+        state.players[0].memory = memory("MEM-WAR-BANNER")
+        state.players[0].field_ai = [card("AI-FIRE-1"), card("AI-WIND-1")]
+        state.players[0].deck = [card("AI-FIRE-2"), card("AI-FIRE-3")]
+        state.players[1].deck = [card("AI-WATER-1"), card("AI-WATER-2"), card("AI-WATER-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(len(state.players[0].hand), 1)
+        self.assertTrue(state.players[0].pending_effects["war_banner_used"])
+        apply_action(state, Action(ActionType.ATTACK, 1))
+        self.assertEqual(len(state.players[0].hand), 1)
+
+    def test_grove_rest_readies_one_summon_at_end_of_turn_when_behind_and_two_are_spent(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].memory = memory("MEM-GROVE")
+        state.players[0].life = 5
+        state.players[0].field_ai = [card("AI-EARTH-2"), card("AI-EARTH-1")]
+        state.players[1].deck = [card("AI-WATER-1")]
+        start_turn(state)
+        state.players[0].spent_field_ai = {0, 1}
+        end_turn(state)
+        self.assertEqual(state.players[0].spent_field_ai, {1})
+
+    def test_grove_rest_does_nothing_with_a_single_spent_summon(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].memory = memory("MEM-GROVE")
+        state.players[0].life = 5
+        state.players[0].field_ai = [card("AI-EARTH-2")]
+        state.players[1].deck = [card("AI-WATER-1")]
+        start_turn(state)
+        state.players[0].spent_field_ai = {0}
+        end_turn(state)
+        self.assertEqual(state.players[0].spent_field_ai, {0})
+
+    def test_grove_rest_does_nothing_when_life_is_not_behind(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].memory = memory("MEM-GROVE")
+        state.players[0].field_ai = [card("AI-EARTH-2"), card("AI-EARTH-1")]
+        state.players[1].deck = [card("AI-WATER-1")]
+        start_turn(state)
+        state.players[0].spent_field_ai = {0, 1}
+        end_turn(state)
+        self.assertEqual(state.players[0].spent_field_ai, {0, 1})
 
     def test_block_pressure_discards_after_successful_hand_defense(self) -> None:
         state = new_game(1, no_opening_hands())
@@ -1691,8 +1847,19 @@ class CoreRuleTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             apply_action(state, Action(ActionType.ATTACK, 0))
 
-    def test_second_player_first_turn_draw_is_disabled_by_default(self) -> None:
+    def test_second_player_first_turn_draw_is_enabled_by_default(self) -> None:
+        # 2026-07-05 の60種化に伴う先攻補正: 後攻は最初の自分ターンからドローする。
         state = new_game(1, no_opening_hands())
+        start_turn(state)
+        state.actions_remaining = 0
+        from ai_break_duel.engine import end_turn
+
+        end_turn(state)
+        start_turn(state)
+        self.assertEqual(state.players[1].cards_drawn, 1)
+
+    def test_second_player_first_turn_draw_can_be_disabled_for_variants(self) -> None:
+        state = new_game(1, no_opening_hands(second_player_first_turn_draw=False))
         start_turn(state)
         state.actions_remaining = 0
         from ai_break_duel.engine import end_turn

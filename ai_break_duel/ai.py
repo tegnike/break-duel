@@ -327,6 +327,8 @@ def _best_memory_in_hand(player: PlayerState) -> int | None:
         MemoryEffect.PIPELINE.value: 3,
         MemoryEffect.ACCELERATOR.value: 3,
         MemoryEffect.RESONATOR.value: 3,
+        MemoryEffect.WAR_BANNER.value: 3,
+        MemoryEffect.GROVE_REST.value: 3,
         MemoryEffect.FIREWALL.value: 2,
     }
     return max(candidates, key=lambda item: (priority.get(item[1].effect, 0), item[1].id))[0]
@@ -724,6 +726,10 @@ def _card_value(card) -> int:
             "charge_draw": 18,
             "charge_ready_ally": 18,
             "charge_guard": 16,
+            "charge_pressure_plus": 18,
+            "charge_surge_draw": 20,
+            "charge_spend_enemy": 20,
+            "charge_recover_discard": 18,
         }
         value += effect_bonus.get(card.effect, 0)
         if draws_on_play(card):
@@ -745,8 +751,10 @@ def _memory_value(card) -> int:
         MemoryEffect.CACHE.value: 48,
         MemoryEffect.RESONATOR.value: 45,
         MemoryEffect.RECOVERY_CACHE.value: 42,
+        MemoryEffect.WAR_BANNER.value: 40,
         MemoryEffect.PIPELINE.value: 38,
         MemoryEffect.ACCELERATOR.value: 36,
+        MemoryEffect.GROVE_REST.value: 34,
         MemoryEffect.FIREWALL.value: 30,
     }
     return priority.get(card.effect, 12)
@@ -790,7 +798,7 @@ def _command_value(state: GameState, command) -> int:
     if command.effect == CommandEffect.OPTIMIZE.value:
         return 36 + max(0, 4 - len(player.hand)) * 4
     if command.effect == CommandEffect.PATCH.value:
-        return 48
+        return 52 + (8 if player.deck else 0)
     return 0
 
 
@@ -805,6 +813,18 @@ def _charge_effect_value(state: GameState, fuel) -> int:
         return 62 if _highest_power_spent_ai(player) is not None else 8
     if fuel.effect == "charge_guard":
         return 38 if player.field_ai else 6
+    if fuel.effect == "charge_pressure_plus":
+        return 48 if len(opponent.hand) >= 2 else 8
+    if fuel.effect == "charge_surge_draw":
+        return 56 if len(player.hand) <= 3 and player.deck else 6
+    if fuel.effect == "charge_spend_enemy":
+        return 58 if _highest_power_ready_ai(opponent) is not None else 8
+    if fuel.effect == "charge_recover_discard":
+        return (
+            50
+            if len(player.hand) <= 3 and any(item.type == CardType.AI for item in player.discard)
+            else 6
+        )
     if player.memory is not None and player.memory.effect == "resonator" and len(player.hand) <= 2:
         return 24
     return 0
@@ -1070,6 +1090,14 @@ def _charge_fuel_has_immediate_value(
         return bool(player.spent_field_ai)
     if card.effect == "charge_guard":
         return bool(player.field_ai)
+    if card.effect == "charge_pressure_plus":
+        return len(opponent.hand) >= 2
+    if card.effect == "charge_surge_draw":
+        return len(remaining_hand) <= 2 and bool(player.deck)
+    if card.effect == "charge_spend_enemy":
+        return _highest_power_ready_ai(opponent) is not None
+    if card.effect == "charge_recover_discard":
+        return len(remaining_hand) <= 2 and any(item.type == CardType.AI for item in player.discard)
     if player.memory is not None and player.memory.effect == "resonator":
         return len(remaining_hand) <= 2 and bool(player.deck)
     return False
