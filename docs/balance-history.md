@@ -4,6 +4,53 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
+## 2026-07-05 apex（覇王結束）デッキ再探索: 据え置き
+
+### 背景
+
+同日のカードプール60種化（C系統補完4種・遺物2種・若葉の息吹復活、コミット `f7213d5`）でカードプールとデッキ構成が大きく動いたため、`docs/work-packages.md` 由来のフォローアップとして apex が最強候補のままかを `scripts/tune_apex_deck.py` で再探索しました（前回エントリで「未実施のフォローアップ」と記載）。
+
+### 変更内容
+
+なし。探索の結果、現行 apex を明確に上回る候補が見つからなかったため据え置きます。
+
+### 検証
+
+`tune_apex_deck.py --pool-size 120 --top 4 --screen-games 4 --league-games 100` を 2 シードで実行（各回: 変異候補60+ランダム候補60から screen 4 でトップ4を選抜し、現行apexを含む5デッキで100 games/ordered pair のミニリーグ）:
+
+| seed | 5デッキリーグでの current_apex 順位・勝率 | 現行apexとの直接対決（vs 各候補、200 games/pair） |
+| --- | --- | --- |
+| 2026070501 | 1位 / 57.5%（全体） | 対 mutation_013 53.5% / mutation_043 52.5% / mutation_017 60.0% / candidate_118 63.0%（全勝ち越し） |
+| 2026070602 | 3位 / 50.9%（全体） | 対 mutation_038 53.5% / mutation_037 51.5% / mutation_043 53.0%（勝ち越し）、対 **mutation_016 43.5%（負け越し）** |
+
+seed 2026070602 で現行apexに直接対決で勝ち越した唯一の候補 `apex_mutation_016` を精査したところ、現行apexから `AI-WATER-2B` を1枚減らし新規カード `CMD-PATCH`（若葉の息吹）を1枚加えただけの1枚差分でした。この候補単体を固定し、challenger同士・先後入替の直接対決を独立3シード×600戦（先後300戦ずつ）で追加検証:
+
+| base seed | candidate（CMD-PATCH入り）勝率 | current_apex 勝率 | 引分 |
+| --- | ---: | ---: | ---: |
+| 900001 | 53.7% | 45.5% | 0.8% |
+| 950001 | 48.5% | 50.2% | 1.3% |
+| 20260710 | 51.8% | 47.3% | 0.8% |
+| 合計 1800戦 | 51.3% | 47.7% | 1.0% |
+
+3バッチ中1本で候補が負け越しており方向が一致せず、合計でも候補優位はおよそ+3.6ptと1800戦の標本誤差（±2SE ≈ 2.3pt換算のノイズ帯）に収まる差でした。「複数シードの直接対決で明確に勝ち越す」水準には届いていません。
+
+### 判断
+
+据え置きます。60種化・後攻ドロー補正後も apex は最強候補として妥当であり、`CMD-PATCH` 1枚差し替え案を含め、これを覆す明確な候補は見つかりませんでした（WP2 と同型の「候補が明確に勝ち越せない → 現行維持」判断）。`CMD-PATCH` 差し替え案は再提案しないこと、として却下済みリストに準ずる扱いとします。
+
+### 検証コマンド
+
+```bash
+python3 scripts/tune_apex_deck.py --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 2026070501 --out tmp/apex-tuning-2026070501.json
+python3 scripts/tune_apex_deck.py --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 2026070602 --out tmp/apex-tuning-2026070602.json
+# 上記2シードでの直接対決内訳は league.pairs から current_apex 絡みの行を集計
+# mutation_016（current_apex から AI-WATER-2B 1枚→CMD-PATCH 1枚）単体の追加直接対決検証:
+CAND="AI-FIRE-2,AI-FIRE-2,AI-FIRE-2B,AI-FIRE-1C,AI-WATER-1,AI-WATER-2,AI-WATER-2B,AI-EARTH-2,AI-EARTH-2,AI-EARTH-2C,AI-WIND-2,AI-WIND-2,AI-WIND-3,AI-WIND-3B,AI-FIRE-3,AI-FIRE-4,AI-WATER-4,CMD-SANDBOX,CMD-WATER-RITE,CMD-WIND-RITE,CMD-DISRUPT,CMD-PURGE,MEM-FIREWALL,MEM-RECOVERY-CACHE,CMD-PATCH"
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/apex_direct_h2h.py --candidate-ids "$CAND" --games-per-order 300 --seed 900001
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/apex_direct_h2h.py --candidate-ids "$CAND" --games-per-order 300 --seed 950001
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/apex_direct_h2h.py --candidate-ids "$CAND" --games-per-order 300 --seed 20260710
+```
+
 ## 2026-07-05 カードプール60種化（C系統補完4種・遺物2種・若葉の息吹復活）と後攻ドロー補正
 
 ### 背景

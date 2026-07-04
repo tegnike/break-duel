@@ -1,0 +1,47 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "break-duel-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "127.0.0.1"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "break-duel-dev-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5199",
+        "--strictPort"
+      ],
+      "port": 5199
+    },
+    {
+      "name": "break-duel-dev-tutorial-check",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5217",
+        "--strictPort"
+      ],
+      "port": 5217
+    }
+  ]
+}
