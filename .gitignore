@@ -1,6 +1,7 @@
 node_modules/
 web/
 tmp/
+output/
 *.log
 
 __pycache__/

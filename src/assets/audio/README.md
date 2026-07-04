@@ -8,6 +8,15 @@
 - License: CC0
 - Notes: The source page states the loop is free to use without attribution.
 
+## `battle_music_final_loop.mp3`
+
+- Title: JRPG Epic Rock Battle Theme #1
+- Author: HydroGene
+- Source: https://opengameart.org/content/jrpg-epic-rock-battle-theme-1
+- Source file: `jrpg_battle_loop.mp3`
+- License: CC0
+- Notes: Final phase BGM used when either player reaches 1 life.
+
 ## `menu_music_loop.ogg`
 
 - Title: Menu Music
