@@ -1,9 +1,15 @@
 ---
 name: ai-break-duel-balance-regression
-description: Run and interpret AI Break Duel preset-deck and biased-cost stress-deck balance regression checks. Use when Codex needs to test existing deck round-robin balance, first-player win rate, one-sided game rate, resource-exhaustion pressure, or whether power-band stress decks such as p1, p2, p3 cap, p4 cap, p1-2, p2-3, or p3-4 cap outperform the existing six decks after card, rule, AI, or action-cost changes in the ai-break-duel repository.
+description: Run and interpret AI Break Duel preset-deck and biased-cost stress-deck balance regression checks. Use when you need to test existing deck round-robin balance, first-player win rate, one-sided game rate, resource-exhaustion pressure, or whether power-band stress decks such as p1, p2, p3 cap, p4 cap, p1-2, p2-3, or p3-4 cap outperform the existing six decks after card, rule, AI, or action-cost changes in the ai-break-duel repository.
 ---
 
 # AI Break Duel Balance Regression
+
+> Note: This skill covers the biased-cost stress-deck regression check only. For the full
+> balance-tuning workflow (league verification, excitement metrics, dual-implementation sync,
+> adoption criteria, and `docs/balance-history.md` recording), see
+> `.agents/skills/ai-break-duel-balance-tuning/SKILL.md`, which uses this skill as one of its
+> verification steps.
 
 ## Workflow
 
@@ -34,7 +40,7 @@ CPU profile.
 python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --games-per-order 1000 --seed 3000000
 ```
 
-Use lower `--games-per-order` values such as `100` only for quick smoke checks. Use `1000` or more for user-facing balance reports. Candidates use the deck-builder template: 14 summon slots from the target band, plus 4 generic commands and 2 generic relics. Candidate generation also applies the current high-power construction rules: power 3 or higher summons are singleton by card ID and power 3+ summons are capped at 4 total, with remaining summon slots filled by legal low-power summons when a target band cannot supply 14 legal summons.
+Use lower `--games-per-order` values such as `100` only for quick smoke checks. Use `1000` or more for user-facing balance reports. Candidates use the deck-builder template (updated 2026-07-04 for the 25-card deck rules): 19 summon slots from the target band, plus 4 generic commands and 2 generic relics, 25 cards total. Candidate generation also applies the current construction rules: at most 2 copies per card ID, and power 3+ summons are capped at 5 total under `--rule-set current`, with remaining summon slots filled by legal low-power summons when a target band cannot supply 19 legal summons.
 
 5. Report `candidate_win_rate` against all six existing decks combined, but do
    not use that number alone as the final risk call when the loss is mostly
@@ -48,7 +54,7 @@ Use lower `--games-per-order` values such as `100` only for quick smoke checks. 
    per-existing-deck rates.
 6. When `--include-preset-league` is used, report existing-deck standings, first-player win rate, average turns, one-sided game rate, and resource-exhaustion rate before candidate stress-deck results.
 7. If the user asks to preserve the guard in tests, keep `tests/test_cost_balance.py` aligned with the script's candidate definitions and threshold.
-8. After implementation changes, run:
+8. After implementation changes, run `npm run check`. If `npm` is not on PATH (Codex runtime), use:
 
 ```bash
 PATH="/Users/user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH" npm run check

@@ -250,7 +250,8 @@ class DeckRuleSet:
 
 
 RULE_SETS: dict[str, DeckRuleSet] = {
-    "current": DeckRuleSet("current high-power cap 4", max_high_power_summons=4),
+    # 2026-07-03 改訂の現行構築ルール: 25枚デッキ / power 3+ は 5 枚まで
+    "current": DeckRuleSet("current high-power cap 5", max_high_power_summons=5),
     "proposed_action_cost": DeckRuleSet(
         "summon cost equals power; upgrade cost equals target minus source power",
         max_high_power_summons=4,
@@ -613,16 +614,22 @@ RULE_SETS: dict[str, DeckRuleSet] = {
 }
 
 
-def twenty_cards(card_ids: tuple[str, ...], rule_set: DeckRuleSet) -> tuple[str, ...]:
+# 2026-07-03 改訂に合わせたストレスデッキの召喚獣枚数。
+# 25枚デッキ = 召喚獣 19 枚 + サポート 6 枚（SUPPORT_CARD_IDS）。
+STRESS_DECK_SUMMON_COUNT = 25 - len(SUPPORT_CARD_IDS)
+
+
+def stress_deck_cards(card_ids: tuple[str, ...], rule_set: DeckRuleSet) -> tuple[str, ...]:
     summon_ids: list[str] = []
-    high_power_seen: set[str] = set()
+    high_power_counts: Counter[str] = Counter()
     low_power_counts: Counter[str] = Counter()
     power_3_count = 0
     high_power_count = 0
     for card_id in (*card_ids, *FILLER_SUMMON_CARD_IDS):
         card = CARD_BY_ID[card_id]
         if (card.power or 0) >= 3:
-            if card_id in high_power_seen:
+            # 現行構築ルールと同じく同名 2 枚まで許容しつつ、power 3+ の総数上限を守る
+            if high_power_counts[card_id] >= 2:
                 continue
             if (
                 card.power == 3
@@ -635,7 +642,7 @@ def twenty_cards(card_ids: tuple[str, ...], rule_set: DeckRuleSet) -> tuple[str,
                 and high_power_count >= rule_set.max_high_power_summons
             ):
                 continue
-            high_power_seen.add(card_id)
+            high_power_counts[card_id] += 1
             high_power_count += 1
             if card.power == 3:
                 power_3_count += 1
@@ -644,9 +651,11 @@ def twenty_cards(card_ids: tuple[str, ...], rule_set: DeckRuleSet) -> tuple[str,
                 continue
             low_power_counts[card_id] += 1
         summon_ids.append(card_id)
-        if len(summon_ids) == 14:
+        if len(summon_ids) == STRESS_DECK_SUMMON_COUNT:
             return tuple(summon_ids) + SUPPORT_CARD_IDS
-    raise ValueError("Unable to build a 14 summon stress deck.")
+    raise ValueError(
+        f"Unable to build a {STRESS_DECK_SUMMON_COUNT} summon stress deck."
+    )
 
 
 def cards_from_ids(card_ids: tuple[str, ...]):
@@ -996,7 +1005,7 @@ def evaluate_candidate(
 ) -> dict[str, Any]:
     rule_set = RULE_SETS[eval_config.rule_set]
     config = game_config_for_rule_set(rule_set, eval_config)
-    candidate_ids = twenty_cards(card_ids, rule_set)
+    candidate_ids = stress_deck_cards(card_ids, rule_set)
     candidate_deck = add_comeback_memory(cards_from_ids(candidate_ids), rule_set)
     current_seed = eval_config.seed
     wins = Counter()

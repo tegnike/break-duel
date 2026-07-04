@@ -34,6 +34,16 @@ Use this file when adding or modifying cards in `ai-break-duel`.
 - `src/styles.css`
   - Layout changes, log/sidebar changes, and card art presentation styles
 
+- `src/game/cardEffectCoverage.test.ts`
+  - **Mandatory registration for every card effect.** The suite fails when an effect is unregistered.
+
+- `src/tutorial.ts` and `src/game/tutorial.test.ts`
+  - Fixed tutorial script. Depends on specific card IDs, costs, effects, and draw order; verify it
+    still completes when those change.
+
+- `src/duelEvents.ts` and `src/components/Overlays.tsx`
+  - Duel event payloads and emphasis levels (`low`/`high`/`peak`) for battle presentation.
+
 ## Python Simulator
 
 - `ai_break_duel/cards.py`
@@ -55,6 +65,9 @@ Use this file when adding or modifying cards in `ai-break-duel`.
 
 - `docs/game-spec.md`
   - Current authoritative rules, card tables, deck tables, action rules, AI priority
+
+- `docs/balance-history.md`
+  - Adoption decisions with verification numbers. Add an entry for any balance-relevant card change.
 
 - `docs/evolution-design.md`
   - Design history and near-future planning. Update only if a table or statement would mislead future work.
