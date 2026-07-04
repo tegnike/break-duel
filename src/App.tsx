@@ -22,9 +22,11 @@ import {
   canHumanEndTurn,
   canUseAcceleratorMemory,
   canUseCharge,
+  canUseFirewall,
   canUpgrade,
   cloneGame,
   commandUsable,
+  strikeTargets,
   createGame,
   chooseAiAction,
   chooseAiDefense,
@@ -57,6 +59,7 @@ import {
   resolveDefenseInDraft,
   useAcceleratorMemoryInDraft,
   useCommandAtInDraft,
+  strikeInDraft,
 } from "./game/actions";
 import { selectedCardForDetail, selectedHandCardName } from "./game/selectors";
 import {
@@ -79,9 +82,10 @@ import { CardArtPreview, CardView } from "./components/CardView";
 import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
 import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
-import type { DuelEvent, DuelEventPayload } from "./duelEvents";
+import { duelEventDurationMs, type DuelEvent, type DuelEventPayload } from "./duelEvents";
 import { RIVAL_VOICE_LINES, type RivalVoiceLineId } from "./rivalVoiceLines";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
+import finalBattleBgm from "./assets/audio/battle_music_final_loop.mp3";
 import menuBgm from "./assets/audio/menu_music_loop.ogg";
 import sfxAttack from "./assets/audio/sfx-attack.ogg";
 import sfxBlock from "./assets/audio/sfx-block.ogg";
@@ -103,9 +107,8 @@ import brandMark from "./assets/mark.svg";
 
 let eventId = 1;
 const INITIAL_SEED = randomSeed();
-const BGM_NORMAL_PLAYBACK_RATE = 1;
-const BGM_LOW_LIFE_PLAYBACK_RATE = 1.2;
 const BATTLE_BGM_VOLUME = 0.32;
+const FINAL_BATTLE_BGM_VOLUME = 0.36;
 const MENU_BGM_VOLUME = 0.26;
 const BGM_FADE_OUT_MS = 360;
 const BGM_TRACK_SWITCH_PAUSE_MS = 160;
@@ -122,12 +125,6 @@ type DeckSelection =
 type ResolvedDeckSelection =
   | { kind: "preset"; deckId: DeckId }
   | { kind: "saved"; deck: SavedDeck };
-
-type PitchPreservingAudioElement = HTMLAudioElement & {
-  preservesPitch?: boolean;
-  mozPreservesPitch?: boolean;
-  webkitPreservesPitch?: boolean;
-};
 
 const PAGE_PATHS: Record<AppPage, string> = {
   duel: "/duel",
@@ -170,6 +167,43 @@ type LifeImpact = {
   sourceIndex: PlayerIndex | null;
   amount: number;
 };
+
+type BreakDrawPulse = {
+  id: number;
+  targetIndex: PlayerIndex;
+  count: number;
+};
+
+const AUTO_DISMISS_STORAGE_KEY = "break-duel:auto-dismiss-duel-events";
+
+function loadAutoDismissPreference(): boolean {
+  if (typeof localStorage === "undefined") return true;
+  try {
+    const stored = localStorage.getItem(AUTO_DISMISS_STORAGE_KEY);
+    if (stored === null) return true;
+    return stored === "true";
+  } catch {
+    return true;
+  }
+}
+
+function hasStoredAutoDismissPreference(): boolean {
+  if (typeof localStorage === "undefined") return true;
+  try {
+    return localStorage.getItem(AUTO_DISMISS_STORAGE_KEY) !== null;
+  } catch {
+    return true;
+  }
+}
+
+function saveAutoDismissPreference(value: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(AUTO_DISMISS_STORAGE_KEY, value ? "true" : "false");
+  } catch {
+    // storage unavailable
+  }
+}
 
 type LeaderReaction = {
   id: number;
@@ -241,6 +275,7 @@ const SFX_ASSETS: Record<string, { src: string; volume: number }> = {
   attack: { src: sfxAttack, volume: 0.62 },
   block: { src: sfxBlock, volume: 0.58 },
   damage: { src: sfxDamage, volume: 0.66 },
+  "damage-heavy": { src: sfxDamage, volume: 0.96 },
   command: { src: sfxCommand, volume: 0.48 },
   trash: { src: sfxTrash, volume: 0.52 },
   end: { src: sfxTurnEnd, volume: 0.46 },
@@ -254,7 +289,7 @@ const TRASH_SFX_PRIMARY_GRACE_MS = 450;
 const RIVAL_LINE_REPEAT_COOLDOWN_MS = 6000;
 const RIVAL_ACTION_VOICE_GROUP_SIZE = RIVAL_ACTION_VOICE_LINE_IDS.length / 2;
 const RIVAL_HIGH_FREQUENCY_ACTION_LINES: readonly [RivalActionVoiceLineId, RivalActionVoiceLineId] = ["play_summon", "attack"];
-const PRIMARY_SFX_KINDS = new Set(["play", "block", "damage", "charge"]);
+const PRIMARY_SFX_KINDS = new Set(["play", "block", "damage", "damage-heavy", "charge"]);
 const SFX_PRIORITY: Record<string, number> = {
   hover: 0,
   select: 1,
@@ -267,6 +302,7 @@ const SFX_PRIORITY: Record<string, number> = {
   charge: 4,
   block: 4,
   damage: 4,
+  "damage-heavy": 5,
 };
 const LOW_PRIORITY_SFX_KINDS = new Set(["hover", "select", "trash", "draw"]);
 
@@ -398,6 +434,7 @@ function tutorialAllowsAction(
   if (action === "select-hand") {
     if (step.id === "select-summon" || step.id === "play-summon") return handCard?.id === "AI-FIRE-2";
     if (step.id === "command") return handCard?.id === "CMD-FIRE-RITE";
+    if (step.id === "purge-command") return handCard?.id === "CMD-PURGE";
     if (step.id === "select-charge" || step.id === "charge") return handCard?.id === "AI-FIRE-1C";
     if (step.id === "select-post-charge-memory" || step.id === "play-post-charge-memory") return handCard?.id === "MEM-CACHE";
     if (step.id === "select-upgrade" || step.id === "upgrade") return handCard?.id === "AI-FIRE-3B";
@@ -405,28 +442,36 @@ function tutorialAllowsAction(
     return false;
   }
   if (action === "select-field") {
+    if (options.fieldOwnerIndex === 1 && typeof options.fieldIndex === "number") {
+      if (step.id === "purge-command") return game.pendingTarget?.kind === "purge" && game.players[1].spentFieldIndexes.has(options.fieldIndex);
+      if (step.id === "strike-monster") return game.pendingTarget?.kind === "strike";
+      return false;
+    }
     if (options.fieldOwnerIndex !== 0 || typeof options.fieldIndex !== "number" || game.players[0].spentFieldIndexes.has(options.fieldIndex)) return false;
     const fieldCard = game.players[0].field[options.fieldIndex];
     if (step.id === "saved-action-attack") return fieldCard?.id === "AI-FIRE-2";
+    if (step.id === "strike-monster") return fieldCard?.id === "AI-FIRE-2";
     if (step.id === "power4-attack") return fieldCard?.id === "AI-FIRE-4";
     return step.id === "attack";
   }
-  if (action === "play") return step.id === "play-summon" || step.id === "command" || step.id === "upgrade" || step.id === "play-post-charge-memory";
-  if (action === "command") return step.id === "command";
+  if (action === "play") return step.id === "play-summon" || step.id === "command" || step.id === "purge-command" || step.id === "upgrade" || step.id === "play-post-charge-memory";
+  if (action === "command") return step.id === "command" || step.id === "purge-command";
   if (action === "upgrade") return step.id === "upgrade-power4";
   if (action === "attack") {
     const selected = game.selected?.zone === "field" && (game.selected.ownerIndex ?? 0) === 0
       ? game.players[0].field[game.selected.index]
       : null;
     if (step.id === "saved-action-attack") return selected?.id === "AI-FIRE-2";
+    if (step.id === "strike-monster") return selected?.id === "AI-FIRE-2";
     if (step.id === "power4-attack") return selected?.id === "AI-FIRE-4";
     return step.id === "attack";
   }
   if (action === "charge") return step.id === "charge";
-  if (action === "end") return step.id === "end-first-turn" || step.id === "end-after-memory" || step.id === "end-after-power3-upgrade" || step.id === "end-after-upgrade";
+  if (action === "end") return step.id === "end-first-turn" || step.id === "end-after-memory" || step.id === "end-after-power3-upgrade" || step.id === "end-after-upgrade" || step.id === "end-after-power4";
   if (action === "defend") {
     if (step.id === "defend") return options.defenseChoice?.type === "hand";
     if (step.id === "field-defend") return options.defenseChoice?.type === "field";
+    if (step.id === "take-break-draw") return options.defenseChoice?.type === "none";
   }
   return false;
 }
@@ -452,7 +497,11 @@ function tutorialActionHint(step: TutorialStep): string {
   if (step.id === "saved-action-attack") return "『炉殻バサルトン』で攻撃してください";
   if (step.id === "end-after-upgrade") return "ターン終了で手札防御へ進みます";
   if (step.id === "field-defend") return "場の防御候補を選んでください";
+  if (step.id === "purge-command") return "『追撃粛清』を選んで、消耗中の相手召喚獣に発動してください";
+  if (step.id === "strike-monster") return "『炉殻バサルトン』を選び、攻撃ボタンから相手の召喚獣を対象にしてください";
   if (step.id === "power4-attack") return "『終火の影ヴァルガ』で攻撃してください";
+  if (step.id === "end-after-power4") return "ターン終了を押してください";
+  if (step.id === "take-break-draw") return "「防御しない」を選んでブレイクドローを確認してください";
   return "チュートリアルは完了しています";
 }
 
@@ -485,12 +534,13 @@ function tutorialFixedSelection(step: TutorialStep | null, game: GameState): Tut
       || step?.id === "upgrade"
       || step?.id === "select-power4-upgrade"
       || step?.id === "upgrade-power4"
+      || step?.id === "purge-command"
     ) return null;
     const index = game.players[focus.ownerIndex].hand.findIndex((card) => card.id === focus.cardId);
     return index >= 0 ? { zone: "hand", ownerIndex: focus.ownerIndex, index } : null;
   }
   if (focus.kind === "field-card") {
-    if (step?.id === "attack" || step?.id === "saved-action-attack" || step?.id === "power4-attack") return null;
+    if (step?.id === "attack" || step?.id === "saved-action-attack" || step?.id === "strike-monster" || step?.id === "power4-attack") return null;
     return { zone: "field", ownerIndex: focus.ownerIndex, index: focus.index };
   }
   return null;
@@ -503,6 +553,7 @@ function tutorialForcedDefenseChoice(step: TutorialStep | null, game: GameState)
     const fieldIndex = defender.field.findIndex((card, index) => card.id === "AI-FIRE-2" && !defender.spentFieldIndexes.has(index));
     return fieldIndex >= 0 ? { type: "field", index: fieldIndex } : null;
   }
+  if (step?.id === "take-break-draw") return { type: "none" };
   if (step?.id !== "defend") return null;
   const defender = game.players[game.pendingAttack.defenderIndex];
   const handIndex = defender.hand.findIndex((card) => card.id === "AI-FIRE-2B");
@@ -532,6 +583,7 @@ export default function App() {
   const [tutorialActive, setTutorialActive] = useState(false);
   const [tutorialAiAdvanceKey, setTutorialAiAdvanceKey] = useState<string | null>(null);
   const [tutorialAiAdvancePending, setTutorialAiAdvancePending] = useState(false);
+  const [aiGateRetryTick, setAiGateRetryTick] = useState(0);
   const [toast, setToast] = useState<Toast>(null);
   const [duelEvent, setDuelEvent] = useState<DuelEvent | null>(null);
   const [cardFlights, setCardFlights] = useState<CardFlight[]>([]);
@@ -540,7 +592,8 @@ export default function App() {
   const [leaderReactions, setLeaderReactions] = useState<LeaderReactionState>({ 0: null, 1: null });
   const [rivalSpeech, setRivalSpeech] = useState<RivalSpeech | null>(null);
   const [aiAnimating, setAiAnimating] = useState(false);
-  const [autoDismissDuelEvents, setAutoDismissDuelEvents] = useState(false);
+  const [autoDismissDuelEvents, setAutoDismissDuelEvents] = useState(() => loadAutoDismissPreference());
+  const [breakDrawPulse, setBreakDrawPulse] = useState<BreakDrawPulse | null>(null);
   const [banner, setBanner] = useState<Banner>(() => ({
     kind: "start",
     title: "BREAK DUEL",
@@ -559,6 +612,7 @@ export default function App() {
   const lastSfxPlayedAt = useRef<Record<string, number>>({});
   const lastPrimarySfxPlayedAt = useRef(0);
   const activeSfxSources = useRef<{ kind: string; priority: number; source: AudioBufferSourceNode }[]>([]);
+  const breakDrawPulseTimer = useRef<number | null>(null);
   const duelEventQueue = useRef<DuelEventPayload[]>([]);
   const duelEventPlaying = useRef(false);
   const duelEventScheduler = useRef<number | null>(null);
@@ -577,6 +631,7 @@ export default function App() {
   const gameResolvedRef = useRef(false);
   const announcedResultKey = useRef<string | null>(null);
   const rivalActionVoiceTurnGroups = useRef(createRivalActionVoiceTurnGroups(INITIAL_SEED));
+  const announcedAutoDismissDefault = useRef(false);
   const recentLifeDamageImpact = useRef<DuelEventPayload["impact"] | null>(null);
   const suppressedTrashSfxOwners = useRef<Partial<Record<number, number>>>({});
   const previousDiscardCounts = useRef<[number, number]>([
@@ -628,6 +683,8 @@ export default function App() {
     setTutorialAiAdvancePending(false);
     setStarterDeckSetupOpen(true);
     resetDuelEvents();
+    // チュートリアル中は手動確認へ固定しているため、保存済みの演出設定に戻す
+    setAutoDismissDuelEvents(loadAutoDismissPreference());
     showToast("チュートリアル完了", "通常対戦を始められます");
   }
 
@@ -758,7 +815,13 @@ export default function App() {
       recentLifeDamageImpact.current = queuedEvent.impact;
       scheduleLifeDamageImpact(queuedEvent.impact, { suppressRivalDamageVoice: Boolean(queuedEvent.rivalVoiceLine) });
     }
-    if ((queuedEvent.kind === "play" || queuedEvent.kind === "memory" || queuedEvent.kind === "upgrade" || queuedEvent.kind === "command") && !hasTrashSurge && !queuedEvent.impact) {
+    if (queuedEvent.breakDraw) scheduleBreakDrawPulse(queuedEvent.breakDraw);
+    if (
+      (queuedEvent.kind === "play" || queuedEvent.kind === "memory" || queuedEvent.kind === "upgrade" || queuedEvent.kind === "command")
+      && !hasTrashSurge
+      && !queuedEvent.impact
+      && queuedEvent.emphasis !== "peak"
+    ) {
       if (queuedEvent.rivalVoiceLine) showRivalVoiceLine(queuedEvent.rivalVoiceLine, { skipTurnEligibility: true });
       return;
     }
@@ -781,7 +844,7 @@ export default function App() {
     if (!autoDismissDuelEvents) return;
     duelEventTimer.current = window.setTimeout(() => {
       dismissDuelEvent();
-    }, event.durationMs ?? duelEventDuration(event));
+    }, duelEventDurationMs(event));
   }
 
   function dismissDuelEvent() {
@@ -792,11 +855,20 @@ export default function App() {
     playNextDuelEvent();
   }
 
-  function duelEventDuration(event: DuelEventPayload) {
-    if (event.kind === "battle") return 3200;
-    if (event.kind === "damage") return 2900;
-    if (event.kind === "play" || event.kind === "upgrade") return 2600;
-    return 2400;
+  function updateAutoDismissDuelEvents(next: boolean) {
+    saveAutoDismissPreference(next);
+    setAutoDismissDuelEvents(next);
+  }
+
+  function scheduleBreakDrawPulse(breakDraw: NonNullable<DuelEventPayload["breakDraw"]>) {
+    const targetIndex = normalizePlayerIndex(breakDraw.targetPlayerIndex);
+    if (targetIndex === null) return;
+    if (breakDrawPulseTimer.current !== null) window.clearTimeout(breakDrawPulseTimer.current);
+    setBreakDrawPulse({ id: eventId++, targetIndex, count: breakDraw.count });
+    breakDrawPulseTimer.current = window.setTimeout(() => {
+      setBreakDrawPulse(null);
+      breakDrawPulseTimer.current = null;
+    }, 1700);
   }
 
   function rivalVoiceLineEligibleForEvent(event: DuelEventPayload): DuelEventPayload {
@@ -832,6 +904,8 @@ export default function App() {
     clearLifeImpactScheduleTimers();
     if (lifeImpactTimer.current !== null) window.clearTimeout(lifeImpactTimer.current);
     lifeImpactTimer.current = null;
+    if (breakDrawPulseTimer.current !== null) window.clearTimeout(breakDrawPulseTimer.current);
+    breakDrawPulseTimer.current = null;
     Object.values(leaderReactionTimers.current).forEach((timer) => {
       if (typeof timer === "number") window.clearTimeout(timer);
     });
@@ -841,6 +915,7 @@ export default function App() {
     setCardFlights([]);
     setTrashFlash(null);
     setLifeImpact(null);
+    setBreakDrawPulse(null);
     setLeaderReactions({ 0: null, 1: null });
   }
 
@@ -1376,7 +1451,7 @@ export default function App() {
     if (duelEventTimer.current !== null) return undefined;
     duelEventTimer.current = window.setTimeout(() => {
       dismissDuelEvent();
-    }, duelEvent.durationMs ?? duelEventDuration(duelEvent));
+    }, duelEventDurationMs(duelEvent));
     return undefined;
   }, [autoDismissDuelEvents, duelEvent?.id]);
 
@@ -1474,6 +1549,16 @@ export default function App() {
   ]);
 
   useEffect(() => {
+    if (page !== "duel" || starterDeckSetupOpen) return;
+    if (announcedAutoDismissDefault.current) return;
+    announcedAutoDismissDefault.current = true;
+    if (!hasStoredAutoDismissPreference()) {
+      showToast("演出は自動送りです", "じっくり確認したい場合は右下の「手動確認」へ切り替えられます");
+      saveAutoDismissPreference(true);
+    }
+  }, [page, starterDeckSetupOpen]);
+
+  useEffect(() => {
     if (page !== "duel") return;
     if (game.winner !== null || game.draw) return;
     showBanner({
@@ -1506,13 +1591,9 @@ export default function App() {
   }, [page, seed, game.turn, game.winner, game.draw, human.life, ai.life]);
 
   useEffect(() => {
-    updateBgmPlaybackRate();
-  }, [page, starterDeckSetupOpen, game.winner, game.draw, game.players[0].life, game.players[1].life]);
-
-  useEffect(() => {
     if (!audioEnabled) return;
     startBgm();
-  }, [audioEnabled, page, starterDeckSetupOpen, game.winner, game.draw]);
+  }, [audioEnabled, page, starterDeckSetupOpen, game.winner, game.draw, game.players[0].life, game.players[1].life]);
 
   useEffect(() => {
     if (page !== "duel") return undefined;
@@ -1521,8 +1602,23 @@ export default function App() {
     if (tutorialStep?.id === "complete") return undefined;
     if (tutorialActive && tutorialStep?.id === "watch-rival" && tutorialAiAdvanceKey !== tutorialAiTurnKey(game, tutorialStep)) return undefined;
     if (active.isHuman || (game.actionsRemaining <= 0 && !canUseCharge(game, active))) return undefined;
-    if (aiAnimating) return undefined;
-    if (duelEvent || duelEventPlaying.current || duelEventQueue.current.length > 0 || duelEventScheduler.current !== null) return undefined;
+    if (aiAnimating) {
+      // コミット遅延の最大値(約1700ms)を超えても aiAnimating が立ったままなら、
+      // タイマーが失われた(HMR等)とみなして回収する。正常時はコミットが先に完了して
+      // aiAnimating が false になり、このウォッチドッグはクリーンアップで消える。
+      const watchdog = window.setTimeout(() => {
+        if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
+        aiCommitTimer.current = null;
+        setAiAnimating(false);
+      }, 2600);
+      return () => window.clearTimeout(watchdog);
+    }
+    if (duelEvent || duelEventPlaying.current || duelEventQueue.current.length > 0 || duelEventScheduler.current !== null) {
+      // duelEvent 系の ref は依存配列に入らないため、ref だけが赤信号の場合は
+      // 依存が変わらず再評価されずに CPU ターンが止まり得る。短いリトライで再評価を促す。
+      const retryTimer = window.setTimeout(() => setAiGateRetryTick((tick) => tick + 1), 200);
+      return () => window.clearTimeout(retryTimer);
+    }
     const tutorialManualAdvance = tutorialActive && tutorialStep?.id === "watch-rival";
     const timer = window.setTimeout(() => {
       const action = tutorialActive ? tutorialForcedAiAction(game) ?? chooseAiAction(game, active.aiProfile) : chooseAiAction(game, active.aiProfile);
@@ -1536,7 +1632,7 @@ export default function App() {
       }, commitDelay);
     }, tutorialManualAdvance ? 80 : 720);
     return () => window.clearTimeout(timer);
-  }, [page, game, duelEvent, aiAnimating, tutorialActive, tutorialStep?.id, tutorialStep?.kicker, tutorialStep?.title, tutorialAiAdvanceKey, starterDeckSetupOpen]);
+  }, [page, game, duelEvent, aiAnimating, tutorialActive, tutorialStep?.id, tutorialStep?.kicker, tutorialStep?.title, tutorialAiAdvanceKey, starterDeckSetupOpen, aiGateRetryTick]);
 
   useEffect(() => {
     return () => {
@@ -1546,9 +1642,11 @@ export default function App() {
       cardFlightTimers.current.forEach((timer) => window.clearTimeout(timer));
       cardFlightTimers.current = [];
       if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
+      aiCommitTimer.current = null;
       if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
       clearLifeImpactScheduleTimers();
       if (lifeImpactTimer.current !== null) window.clearTimeout(lifeImpactTimer.current);
+      if (breakDrawPulseTimer.current !== null) window.clearTimeout(breakDrawPulseTimer.current);
       if (rivalSpeechTimer.current !== null) window.clearTimeout(rivalSpeechTimer.current);
       stopRivalVoiceLine();
       Object.values(leaderReactionTimers.current).forEach((timer) => {
@@ -1704,31 +1802,15 @@ export default function App() {
       && !nextGame.draw;
   }
 
+  function duelIsInFinalPhase(nextGame = game) {
+    return nextGame.players.some((player) => player.life === 1);
+  }
+
   function bgmTrackForCurrentView(): BgmTrack {
-    return activeDuelUsesBattleBgm()
-      ? { src: battleBgm, volume: BATTLE_BGM_VOLUME }
-      : { src: menuBgm, volume: MENU_BGM_VOLUME };
-  }
-
-  function bgmPlaybackRateForGame(nextGame: GameState) {
-    if (!activeDuelUsesBattleBgm(page, nextGame, starterDeckSetupOpen)) return BGM_NORMAL_PLAYBACK_RATE;
-    return nextGame.players.some((player) => player.life === 1)
-      ? BGM_LOW_LIFE_PLAYBACK_RATE
-      : BGM_NORMAL_PLAYBACK_RATE;
-  }
-
-  function preserveBgmPitch(audio: PitchPreservingAudioElement) {
-    audio.preservesPitch = true;
-    audio.mozPreservesPitch = true;
-    audio.webkitPreservesPitch = true;
-  }
-
-  function updateBgmPlaybackRate(nextRate = bgmPlaybackRateForGame(game)) {
-    if (!bgmAudio.current) return;
-    const audio = bgmAudio.current as PitchPreservingAudioElement;
-    preserveBgmPitch(audio);
-    audio.defaultPlaybackRate = nextRate;
-    audio.playbackRate = nextRate;
+    if (!activeDuelUsesBattleBgm()) return { src: menuBgm, volume: MENU_BGM_VOLUME };
+    return duelIsInFinalPhase()
+      ? { src: finalBattleBgm, volume: FINAL_BATTLE_BGM_VOLUME }
+      : { src: battleBgm, volume: BATTLE_BGM_VOLUME };
   }
 
   function createBgmAudio(track: BgmTrack, initialVolume: number) {
@@ -1736,7 +1818,6 @@ export default function App() {
     audio.loop = true;
     audio.preload = "auto";
     audio.volume = initialVolume;
-    preserveBgmPitch(audio);
     bgmAudio.current = audio;
     bgmSrc.current = track.src;
     return audio;
@@ -1777,7 +1858,6 @@ export default function App() {
     const changed = !existing || bgmSrc.current !== track.src;
     if (!changed) {
       const audio = existing;
-      updateBgmPlaybackRate();
       if (options.restart) {
         clearBgmTransitionTimers();
         audio.currentTime = 0;
@@ -1795,7 +1875,6 @@ export default function App() {
     const startNextTrack = () => {
       if (!audioEnabledRef.current) return;
       const nextAudio = createBgmAudio(track, 0);
-      updateBgmPlaybackRate();
       if (options.restart) nextAudio.currentTime = 0;
       playBgmAudio(nextAudio);
       fadeBgmVolume(nextAudio, track.volume, BGM_FADE_IN_MS);
@@ -1857,6 +1936,26 @@ export default function App() {
       const targetPlayer = game.players[ownerIndex];
       if (!targetPlayer.field[index] || targetPlayer.spentFieldIndexes.has(index)) return;
       useCommandAt(pending.sourceIndex, index);
+      return;
+    }
+    if (pending?.kind === "purge" && ownerIndex === 1 - game.active) {
+      const targetPlayer = game.players[ownerIndex];
+      if (!targetPlayer.field[index] || !targetPlayer.spentFieldIndexes.has(index)) return;
+      useCommandAt(pending.sourceIndex, index);
+      return;
+    }
+    if (pending?.kind === "strike") {
+      if (ownerIndex === 0) {
+        mutate((draft) => {
+          draft.pendingTarget = null;
+          draft.selected = { zone: "field", ownerIndex, index };
+        });
+        return;
+      }
+      const attacker = game.players[0].field[pending.sourceIndex];
+      if (!attacker) return;
+      if (!strikeTargets(attacker, game.players[1]).some((target) => target.index === index)) return;
+      performStrike(pending.sourceIndex, index);
       return;
     }
     if (tutorialBlocks("select-field", { fieldOwnerIndex: ownerIndex, fieldIndex: index })) return;
@@ -1956,6 +2055,18 @@ export default function App() {
       draft.selected = null;
       if (!draft.pendingTarget) afterAction(draft, cost);
     });
+    if (card.power === 4) {
+      queueDuelEvent({
+        kind: "play",
+        title: "切札登場!!",
+        detail: `${card.name}が戦線に降臨。攻撃後は退場する一撃必殺の切札です。`,
+        fromLabel: "手札",
+        toLabel: "場",
+        tone: "magenta",
+        emphasis: "peak",
+        cards: [{ card, label: "切札", state: "winner" }],
+      });
+    }
     showToast("場に出す", selectedHandCardName(game));
     playSfx("play");
   }
@@ -2064,6 +2175,21 @@ export default function App() {
       draft.selected = null;
       if (!draft.pendingTarget) afterAction(draft, cost);
     });
+    if (target.power === 4) {
+      queueDuelEvent({
+        kind: "upgrade",
+        title: "切札へアップグレード!!",
+        detail: `${source.name}を元に${target.name}へ。一撃必殺の切札が戦線に立ちます。`,
+        fromLabel: "手札 + 場",
+        toLabel: "場",
+        tone: "magenta",
+        emphasis: "peak",
+        cards: [
+          { card: source, label: "元", state: "neutral" },
+          { card: target, label: "切札", state: "winner" },
+        ],
+      });
+    }
     showToast("アップグレード", target.name);
     playSfx("play");
   }
@@ -2078,6 +2204,12 @@ export default function App() {
     if (command.effect === "disrupt") {
       mutate((draft) => {
         draft.pendingTarget = { kind: "disrupt", sourceIndex };
+      });
+      return;
+    }
+    if (command.effect === "purge") {
+      mutate((draft) => {
+        draft.pendingTarget = { kind: "purge", sourceIndex };
       });
       return;
     }
@@ -2277,7 +2409,37 @@ export default function App() {
   function attackWithSelectedAi() {
     if (!canHumanAct(game) || game.selected?.zone !== "field") return;
     if (tutorialBlocks("attack")) return;
-    beginAttack(0, game.selected.index);
+    const fieldIndex = game.selected.index;
+    const attackCard = game.players[0].field[fieldIndex];
+    if ((!tutorialStep || tutorialStep.id === "strike-monster") && CONFIG.monsterCombat && attackCard && strikeTargets(attackCard, game.players[1]).length > 0) {
+      mutate((draft) => {
+        draft.pendingTarget = { kind: "strike", sourceIndex: fieldIndex };
+      });
+      showToast("攻撃対象を選択", "相手プレイヤーか、光っている相手の召喚獣を選んでください");
+      return;
+    }
+    beginAttack(0, fieldIndex);
+  }
+
+  function performStrike(fieldIndex: number, targetIndex: number) {
+    mutate((draft) => {
+      draft.pendingTarget = null;
+      strikeInDraft(draft, 0, fieldIndex, targetIndex, { playSfx, showDuelEvent: queueDuelEvent });
+    });
+    showToast("攻撃", "相手の召喚獣を攻撃しました");
+  }
+
+  function confirmFaceAttack() {
+    const pending = game.pendingTarget;
+    if (pending?.kind !== "strike") return;
+    if (tutorialStep?.id === "strike-monster") {
+      showToast("チュートリアル進行中", "相手の召喚獣を選んで討伐してください");
+      return;
+    }
+    mutate((draft) => {
+      draft.pendingTarget = null;
+    });
+    beginAttack(0, pending.sourceIndex);
   }
 
   function beginAttack(attackerIndex: number, fieldIndex: number) {
@@ -2285,10 +2447,12 @@ export default function App() {
     const defender = game.players[1 - attackerIndex];
     const attackCard = attacker.field[fieldIndex];
     const resolvesImmediately = Boolean(attackCard && defender && !defender.isHuman);
+    // チュートリアル中はライバルの防御を固定進行に合わせて「防御しない」に固定する
+    const tutorialRivalDefense: DefenseChoice | undefined = tutorialActive && defender && !defender.isHuman ? { type: "none" } : undefined;
     if (attackCard && defender && !defender.isHuman) {
-      launchDefenseTrashFlights(attackerIndex, fieldIndex, chooseAiDefense(defender, attackCard, defender.aiProfile));
+      launchDefenseTrashFlights(attackerIndex, fieldIndex, tutorialRivalDefense ?? chooseAiDefense(defender, attackCard, defender.aiProfile));
     }
-    mutate((draft) => beginAttackInDraft(draft, attackerIndex, fieldIndex, { playSfx, showDuelEvent: queueDuelEvent }));
+    mutate((draft) => beginAttackInDraft(draft, attackerIndex, fieldIndex, { playSfx, showDuelEvent: queueDuelEvent }, tutorialRivalDefense));
     showToast("攻撃", "攻撃を宣言しました");
     if (!resolvesImmediately) playSfx("attack");
   }
@@ -2762,6 +2926,8 @@ export default function App() {
       onTogglePendingCard={togglePendingCardIndex}
       onConfirmPending={confirmPendingTarget}
       onConfirmCardSelection={confirmCardSelectionTarget}
+      onConfirmFaceAttack={confirmFaceAttack}
+      onStrikeTarget={performStrike}
       forcedDefenseChoice={tutorialForcedDefenseChoice(tutorialStep, game)}
     />
   );
@@ -2776,7 +2942,7 @@ export default function App() {
   const shellClassName = [
     "stitch-shell",
     allowBoardTargetSelection ? "field-targeting" : "",
-    lifeImpact ? `life-impact life-impact-target-${lifeImpact.targetIndex}` : "",
+    lifeImpact ? `life-impact life-impact-target-${lifeImpact.targetIndex} life-impact-amount-${Math.min(lifeImpact.amount, 3)}` : "",
   ].filter(Boolean).join(" ");
 
   if (page !== "duel") {
@@ -2859,7 +3025,7 @@ export default function App() {
             <span className="meter-label">相手AP</span>
             <span className="meter-value">{opponentActionsRemaining}</span>
             <span className="action-tokens" aria-hidden="true">
-              {Array.from({ length: 3 }).map((_, index) => (
+              {Array.from({ length: CONFIG.actionsPerTurn + 1 }).map((_, index) => (
                 <span key={index} className={actionTokenClass(index, opponentActionsRemaining)} />
               ))}
             </span>
@@ -2964,7 +3130,7 @@ export default function App() {
               <span className="meter-label">{actionMeterLabel}</span>
               <span className="meter-value">{humanActionsRemaining}</span>
               <span className="action-tokens" aria-hidden="true">
-                {Array.from({ length: 3 }).map((_, index) => (
+                {Array.from({ length: CONFIG.actionsPerTurn + 1 }).map((_, index) => (
                   <span key={index} className={actionTokenClass(index, humanActionsRemaining)} />
                 ))}
               </span>
@@ -2977,7 +3143,7 @@ export default function App() {
                 type="button"
                 className={!autoDismissDuelEvents ? "active" : ""}
                 aria-pressed={!autoDismissDuelEvents}
-                onClick={() => setAutoDismissDuelEvents(false)}
+                onClick={() => updateAutoDismissDuelEvents(false)}
               >
                 手動確認
               </button>
@@ -2985,7 +3151,7 @@ export default function App() {
                 type="button"
                 className={autoDismissDuelEvents ? "active" : ""}
                 aria-pressed={autoDismissDuelEvents}
-                onClick={() => setAutoDismissDuelEvents(true)}
+                onClick={() => updateAutoDismissDuelEvents(true)}
               >
                 自動送り
               </button>
@@ -3011,6 +3177,7 @@ export default function App() {
               setTutorialActive(false);
               setTutorialAiAdvanceKey(null);
               setTutorialAiAdvancePending(false);
+              setAutoDismissDuelEvents(loadAutoDismissPreference());
               showToast("チュートリアル中断", "通常の対戦として続行できます");
             }}
             onComplete={finishTutorial}
@@ -3028,6 +3195,7 @@ export default function App() {
       <EventToast toast={toast} />
       {cardFlights.map((flight) => <CardFlightLayer key={flight.id} flight={flight} />)}
       {lifeImpact && <DamageImpactLayer impact={lifeImpact} />}
+      {breakDrawPulse && <BreakDrawLayer pulse={breakDrawPulse} />}
       {trashSurge && <TrashSurgeLayer surge={trashSurge} eventId={duelEvent?.id ?? trashFlash?.id ?? 0} />}
       <DuelActionReel event={duelEvent} autoDismiss={autoDismissDuelEvents} onClose={dismissDuelEvent}>
         {showDefenseInDuelEvent ? defensePanel : null}
@@ -3475,10 +3643,17 @@ function combatPreviewForSelection(game: GameState): CombatPreview | null {
   const attackValue = attackCombatValue(attacker);
   const fieldDefenses = new Map<number, { result: "trade" | "hold"; label: string }>();
   legalFieldDefenders(defender, attacker).forEach(({ card, index }) => {
-    const defenseValue = defenseCombatValue(attacker, card, defender, { fieldDefense: true, fieldIndex: index });
+    const defenseOptions = { fieldDefense: true, fieldIndex: index };
+    const baseDefenseValue = defenseCombatValue(attacker, card, defender, defenseOptions);
+    const paidDefenseValue = canUseFirewall(defender, card, attacker)
+      ? defenseCombatValue(attacker, card, defender, { ...defenseOptions, firewallPaid: true })
+      : baseDefenseValue;
+    const usesFirewall = baseDefenseValue < attackValue && paidDefenseValue >= attackValue;
+    const defenseValue = usesFirewall ? paidDefenseValue : baseDefenseValue;
+    const defenseLabel = usesFirewall ? `竜盾 ${defenseValue}` : `DEF ${defenseValue}`;
     fieldDefenses.set(index, {
       result: defenseValue > attackValue ? "hold" : "trade",
-      label: defenseValue > attackValue ? `DEF ${defenseValue} / 残る` : `DEF ${defenseValue} / 相打ち`,
+      label: defenseValue > attackValue ? `${defenseLabel} / 残る` : `${defenseLabel} / 相打ち`,
     });
   });
 
@@ -3525,6 +3700,17 @@ function FieldGrid({
         const isDisruptTarget = game.pendingTarget?.kind === "disrupt"
           && ownerIndex === 1 - game.active
           && !player.spentFieldIndexes.has(index);
+        const isPurgeTarget = game.pendingTarget?.kind === "purge"
+          && ownerIndex === 1 - game.active
+          && player.spentFieldIndexes.has(index);
+        const strikePending = game.pendingTarget?.kind === "strike" ? game.pendingTarget : null;
+        const strikeAttacker = strikePending ? game.players[game.active]?.field[strikePending.sourceIndex] : null;
+        const isStrikeTarget = Boolean(
+          strikePending
+            && ownerIndex === 1 - game.active
+            && strikeAttacker
+            && strikeTargets(strikeAttacker, player).some((target) => target.index === index),
+        );
         const pendingCardTarget = pendingTargetCardState(game, ownerIndex, "field", index);
         const isSelected = game.selected?.zone === "field"
           && (game.selected.ownerIndex ?? 0) === ownerIndex
@@ -3537,7 +3723,7 @@ function FieldGrid({
             && tutorialAllowsAction(tutorialStep, "select-field", game, { fieldOwnerIndex: ownerIndex, fieldIndex: index }),
         );
         const fieldSelectable = !tutorialLocked || tutorialCanSelectField;
-        const baseActionState = pendingCardTarget === "target" || pendingCardTarget === "selected" ? "usable" : isDisruptTarget ? "usable" : ownerIndex === 0 ? fieldActionState(game, player, index) : "idle";
+        const baseActionState = pendingCardTarget === "target" || pendingCardTarget === "selected" ? "usable" : isDisruptTarget || isPurgeTarget || isStrikeTarget ? "usable" : ownerIndex === 0 ? fieldActionState(game, player, index) : "idle";
         return (
           <CardView
             key={`${card.id}-${index}`}
@@ -3637,13 +3823,29 @@ function LeaderPortrait({
 
 function DamageImpactLayer({ impact }: { impact: LifeImpact }) {
   const sourceClass = impact.sourceIndex === null ? "source-unknown" : `source-${impact.sourceIndex}`;
+  const amountClass = `amount-${Math.min(impact.amount, 3)}`;
+  const sparkCount = impact.amount >= 3 ? 22 : impact.amount === 2 ? 18 : 14;
   return (
-    <div className={`damage-impact-layer target-${impact.targetIndex} ${sourceClass}`} key={impact.id} aria-hidden="true">
+    <div className={`damage-impact-layer target-${impact.targetIndex} ${sourceClass} ${amountClass}`} key={impact.id} aria-hidden="true">
       <div className="damage-impact-core">
         <span>-{impact.amount}</span>
       </div>
-      {Array.from({ length: 14 }).map((_, index) => (
+      {Array.from({ length: sparkCount }).map((_, index) => (
         <i key={`${impact.id}-${index}`} style={{ "--spark-index": index } as CSSProperties} />
+      ))}
+    </div>
+  );
+}
+
+function BreakDrawLayer({ pulse }: { pulse: BreakDrawPulse }) {
+  return (
+    <div className={`break-draw-layer target-${pulse.targetIndex}`} key={pulse.id} aria-hidden="true">
+      <div className="break-draw-label">
+        <strong>ブレイクドロー</strong>
+        <span>+{pulse.count} ドロー</span>
+      </div>
+      {Array.from({ length: Math.min(pulse.count, 3) }).map((_, index) => (
+        <i key={`${pulse.id}-${index}`} style={{ "--break-card-index": index } as CSSProperties} />
       ))}
     </div>
   );

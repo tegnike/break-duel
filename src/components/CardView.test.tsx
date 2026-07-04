@@ -16,7 +16,7 @@ describe("CardView", () => {
       <CardView card={attacker} ownerIndex={0} zone="field" index={0} showCost={false} />,
     );
 
-    expect(html).toContain("aria-label=\"攻撃値 +1\"");
+    expect(html).toContain("aria-label=\"戦闘時、攻撃値 +1\"");
     expect(html).toContain("<b>+1</b>");
   });
 

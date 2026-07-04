@@ -42,6 +42,13 @@ CHALLENGER_WEIGHTS = {
     "opponent_ready": 1,
     "low_life_pressure": 28,
     "classic_prior": 60,
+    "strike_base": 26,
+    "strike_target_power": 34,
+    "strike_ready_target": 14,
+    "strike_trade_penalty": 30,
+    "strike_power4_penalty": 46,
+    "purge_base": 40,
+    "purge_target_power": 28,
 }
 CHALLENGER_SELF_DEFEAT_ATTACK_SCORE = -10000
 
@@ -91,6 +98,11 @@ def _choose_classic_action(state: GameState) -> Action:
         if damaging_attack is not None:
             return Action(ActionType.ATTACK, damaging_attack)
 
+        if state.config.monster_combat:
+            strike = _best_classic_strike(state, player, opponent)
+            if strike is not None:
+                return Action(ActionType.STRIKE, strike[0], strike[1])
+
     if len(player.field_ai) < state.config.field_ai_limit:
         index = _best_ai_in_hand(player, state)
         if index is not None:
@@ -127,7 +139,22 @@ def _choose_beginner_action(state: GameState) -> Action:
     if state.actions_remaining <= 0:
         return Action(ActionType.END_TURN)
 
-    if not player.field_ai:
+    if _can_active_player_attack(state):
+        attack_index = _best_damaging_attacker(
+            player,
+            state.opponent(),
+            advantage_bonus=state.config.defense_advantage_bonus,
+            disadvantage_penalty=state.config.defense_disadvantage_penalty,
+            same_attribute_strict=state.config.same_attribute_strict_defense,
+            exhausted_ai_can_defend=state.config.exhausted_ai_can_defend,
+            power_2_defense_bonus=state.config.power_2_defense_bonus,
+            power_3_cannot_field_defend=state.config.power_3_cannot_field_defend,
+            power_3_defense_modifier=state.config.power_3_defense_modifier,
+        )
+        if attack_index is not None:
+            return Action(ActionType.ATTACK, attack_index)
+
+    if len(player.field_ai) < state.config.field_ai_limit:
         index = _weakest_ai_in_hand(player, state)
         if index is not None:
             return Action(ActionType.PLAY_AI, index)
@@ -418,6 +445,17 @@ def _legal_actions(state: GameState) -> list[Action]:
                 Action(ActionType.ATTACK, index)
                 for index, _ in _attackable_field_ai(player)
             )
+            if state.config.monster_combat:
+                from .engine import strike_values
+
+                strike_opponent = state.opponent()
+                for index, attacker_card in _attackable_field_ai(player):
+                    for t_index in range(len(strike_opponent.field_ai)):
+                        attack_value, defense_value = strike_values(
+                            state, attacker_card, strike_opponent, t_index
+                        )
+                        if attack_value >= defense_value:
+                            actions.append(Action(ActionType.STRIKE, index, t_index))
 
     actions.append(Action(ActionType.END_TURN))
     return actions
@@ -455,7 +493,7 @@ def _score_action(state: GameState, action: Action, weights: dict[str, int]) -> 
     if action.type == ActionType.USE_MEMORY and action.target_index is not None:
         sacrificed = player.field_ai[action.target_index]
         enables = any(
-            card.type == CardType.AI and _play_cost(card, state) <= min(3, state.actions_remaining + 1)
+            card.type == CardType.AI and _play_cost(card, state) <= min(state.config.actions_per_turn + 1, state.actions_remaining + 1)
             for card in player.hand
         )
         if not enables:
@@ -469,7 +507,7 @@ def _score_action(state: GameState, action: Action, weights: dict[str, int]) -> 
     if action.type == ActionType.CHARGE and action.source_index is not None:
         fuel = player.hand[action.source_index]
         before = state.actions_remaining
-        after = min(3, before + 1)
+        after = min(state.config.actions_per_turn + 1, before + 1)
         remaining = [card for index, card in enumerate(player.hand) if index != action.source_index]
         field_has_room = len(player.field_ai) < state.config.field_ai_limit
         enables_play = any(
@@ -501,6 +539,26 @@ def _score_action(state: GameState, action: Action, weights: dict[str, int]) -> 
     if action.type == ActionType.ATTACK and action.source_index is not None:
         attacker = player.field_ai[action.source_index]
         return score + _attack_value(state, attacker, weights)
+
+    if (
+        action.type == ActionType.STRIKE
+        and action.source_index is not None
+        and action.target_index is not None
+    ):
+        from .engine import strike_values
+
+        attacker = player.field_ai[action.source_index]
+        target = opponent.field_ai[action.target_index]
+        attack_value, defense_value = strike_values(state, attacker, opponent, action.target_index)
+        trade = attack_value == defense_value
+        value = weights["strike_base"] + weights["strike_target_power"] * (target.power or 0)
+        if action.target_index not in opponent.spent_field_ai:
+            value += weights["strike_ready_target"]
+        if trade:
+            value -= weights["strike_trade_penalty"] * (attacker.power or 0)
+        elif (attacker.power or 0) >= 4:
+            value -= weights["strike_power4_penalty"]
+        return score + value
 
     return score
 
@@ -544,7 +602,7 @@ def _attack_value(state: GameState, attacker, weights: dict[str, int]) -> float:
     value = weights["attack_power"] * (attack_combat_value(attacker) or 0)
     if field_defense is None and hand_defense is None:
         value += weights["damage"]
-        if opponent.life <= 1:
+        if opponent.life <= _expected_attack_damage(state, attacker):
             value += weights["lethal"]
         if blocks_low_life_hand_defense(attacker) and opponent.life <= 2:
             value += 70
@@ -709,8 +767,20 @@ def _command_value(state: GameState, command) -> int:
         return 62
     if command.effect == CommandEffect.COMEBACK_RITE.value:
         ready_bonus = 40 if player.spent_field_ai else 0
-        draw_bonus = 34 if player.deck else 0
+        draw_bonus = 48 if player.deck else 0
         return 48 + ready_bonus + draw_bonus
+    if command.effect == CommandEffect.PURGE.value:
+        powers = [
+            (opponent.field_ai[i].power or 0)
+            for i in opponent.spent_field_ai
+            if i < len(opponent.field_ai)
+        ]
+        return (
+            CHALLENGER_WEIGHTS["purge_base"]
+            + CHALLENGER_WEIGHTS["purge_target_power"] * max(powers)
+            if powers
+            else 0
+        )
     if command.effect == CommandEffect.DISRUPT.value:
         return 70 + max((card.power or 0) * 9 for index, card in enumerate(opponent.field_ai) if index not in opponent.spent_field_ai)
     if command.effect == CommandEffect.SANDBOX.value:
@@ -844,6 +914,7 @@ def _best_command_in_hand(state: GameState) -> int | None:
         CommandEffect.EARTH_RITE.value: 4,
         CommandEffect.COMEBACK_RITE.value: 4,
         CommandEffect.DISRUPT.value: 4,
+        CommandEffect.PURGE.value: 5,
         CommandEffect.PATCH.value: 3,
         CommandEffect.RELEARN.value: 2,
         CommandEffect.SANDBOX.value: 2,
@@ -862,6 +933,8 @@ def _command_is_usable(state: GameState, source_index: int) -> bool:
         return bool(player.spent_field_ai)
     if card.effect == CommandEffect.DISRUPT.value:
         return any(index not in opponent.spent_field_ai for index, _ in enumerate(opponent.field_ai))
+    if card.effect == CommandEffect.PURGE.value:
+        return any(index < len(opponent.field_ai) for index in opponent.spent_field_ai)
     if card.effect == CommandEffect.RELEARN.value:
         return len(player.hand) > 1 and any(item.type == CardType.AI for item in player.discard)
     if card.effect == CommandEffect.SANDBOX.value:
@@ -927,7 +1000,7 @@ def _can_use_accelerator_memory(state: GameState) -> bool:
         and not player.pending_effects.get("accelerator_used")
         and bool(player.field_ai)
         and state.actions_remaining > 0
-        and state.actions_remaining < 3
+        and state.actions_remaining < state.config.actions_per_turn + 1
     )
 
 
@@ -936,7 +1009,7 @@ def can_use_charge(state: GameState) -> bool:
     return (
         not player.pending_effects.get("charge_used")
         and any(_can_charge_card(card) for card in player.hand)
-        and state.actions_remaining < 3
+        and state.actions_remaining < state.config.actions_per_turn + 1
     )
 
 
@@ -947,7 +1020,7 @@ def _best_charge_fuel(state: GameState) -> int | None:
         return None
     player = state.active()
     before = state.actions_remaining
-    after = min(3, before + 1)
+    after = min(state.config.actions_per_turn + 1, before + 1)
     field_has_room = len(player.field_ai) < state.config.field_ai_limit
     candidates = sorted(
         (
@@ -1098,3 +1171,36 @@ def _can_upgrade_with_config(state: GameState, source, target) -> bool:
     if state.config.exact_upgrade_step:
         return target.power == source.power + 1
     return True
+
+def _expected_attack_damage(state: GameState, attacker) -> int:
+    if not state.config.power_scaled_damage:
+        return 1
+    return int(attacker.power or 1)
+
+
+def _best_classic_strike(state: GameState, player: PlayerState, opponent: PlayerState):
+    from .engine import strike_values
+
+    best = None
+    for a_index, attacker in _attackable_field_ai(player):
+        for t_index, target in enumerate(opponent.field_ai):
+            attack_value, defense_value = strike_values(state, attacker, opponent, t_index)
+            if attack_value < defense_value:
+                continue
+            trade = attack_value == defense_value
+            a_power = attacker.power or 0
+            t_power = target.power or 0
+            if trade:
+                if t_power <= a_power:
+                    continue
+                key = (0, t_power - a_power, t_power, -a_power)
+            else:
+                if t_power < a_power:
+                    continue
+                key = (1, t_power - a_power, t_power, -a_power)
+            if best is None or key > best[0]:
+                best = (key, a_index, t_index)
+    if best is None:
+        return None
+    return best[1], best[2]
+

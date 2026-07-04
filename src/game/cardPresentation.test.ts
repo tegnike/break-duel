@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CARD_BY_ID, cloneCard, type Card } from "../game";
-import { cardArtClass, roleText, selectedText } from "../components/cardPresentation";
+import { cardArtClass, cardArtGlyph, roleText, selectedText } from "../components/cardPresentation";
 
 function card(id: string): Card {
   const found = CARD_BY_ID.get(id);
@@ -13,9 +13,18 @@ describe("card presentation", () => {
     const comebackRite = card("CMD-COMEBACK-RITE");
 
     expect(roleText(comebackRite)).toContain("相手よりライフが少ない場合、");
-    expect(roleText(comebackRite)).toContain("山札からカードを1枚引き");
+    expect(roleText(comebackRite)).toContain("山札からカードを2枚引き");
     expect(roleText(comebackRite)).toContain("消耗召喚獣1体を選んで回復する");
     expect(selectedText(comebackRite)).toContain("逆転再起術");
     expect(cardArtClass(comebackRite)).toContain("art-generated");
+  });
+
+  it("shows purge effect text instead of the summon fallback", () => {
+    const purge = card("CMD-PURGE");
+
+    expect(roleText(purge)).toBe("1アクション。相手の消耗中召喚獣1体を選び、トラッシュへ送る");
+    expect(roleText(purge)).not.toBe("召喚獣");
+    expect(selectedText(purge)).toContain("追撃粛清 / 術式 / 1アクション");
+    expect(cardArtGlyph(purge)).toBe("粛");
   });
 });

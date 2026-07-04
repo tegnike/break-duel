@@ -10,6 +10,7 @@ import {
   activePlayer,
   aiEffectText,
   attackCombatValue,
+  attackDamage,
   bestUpgradeSource,
   canActivePlayerAttack,
   canChargeCard,
@@ -27,6 +28,7 @@ import {
   legalHandDefenders,
   opponentPlayer,
   playCost,
+  strikeTargets,
   upgradeCost,
 } from "../game";
 import { CardView } from "./CardView";
@@ -41,7 +43,8 @@ export function SelectedCardDetail({ card, zone, game }: { card: Card | null; zo
       </div>
     );
   }
-  const canShowUpgradeCost = zone === "hand" && card.type === "ai" && bestUpgradeSource(game.players[0], card) !== null;
+  const upgradeSourceIndex = zone === "hand" && card.type === "ai" ? bestUpgradeSource(game.players[0], card) : null;
+  const upgradeSourceCard = upgradeSourceIndex !== null ? game.players[0].field[upgradeSourceIndex] : null;
   const selectedOwnerIndex = game.selected?.ownerIndex ?? 0;
   const selectedOwner = game.players[selectedOwnerIndex] ?? game.players[0];
   const parts = [
@@ -49,7 +52,7 @@ export function SelectedCardDetail({ card, zone, game }: { card: Card | null; zo
     card.attribute ? `${card.attribute}属性` : null,
     card.power ? `power ${card.power}` : null,
     `${playCost(card)}アクション`,
-    canShowUpgradeCost ? `アップグレード ${upgradeCost(card)}アクション` : null,
+    upgradeSourceCard ? `${upgradeSourceCard.name}からアップグレード ${upgradeCost(card, upgradeSourceCard)}アクション` : null,
     zone === "field" && selectedOwner.spentFieldIndexes.has(game.selected?.index ?? -1) ? "消耗中" : null,
   ].filter(Boolean);
   const baseRuleText = card.type === "ai"
@@ -124,6 +127,8 @@ export function DefensePanel({
   onTogglePendingCard,
   onConfirmPending,
   onConfirmCardSelection,
+  onConfirmFaceAttack,
+  onStrikeTarget,
   forcedDefenseChoice,
 }: {
   game: GameState;
@@ -134,6 +139,8 @@ export function DefensePanel({
   onTogglePendingCard: (index: number) => void;
   onConfirmPending: () => void;
   onConfirmCardSelection: () => void;
+  onConfirmFaceAttack: () => void;
+  onStrikeTarget: (sourceIndex: number, targetIndex: number) => void;
   forcedDefenseChoice?: DefenseChoice | null;
 }) {
   if (game.pendingTarget) {
@@ -205,22 +212,59 @@ export function DefensePanel({
         </div>
       );
     }
+    if (game.pendingTarget.kind === "strike") {
+      const pending = game.pendingTarget;
+      const attacker = activePlayer(game);
+      const opponent = opponentPlayer(game);
+      const attackCard = attacker.field[pending.sourceIndex];
+      if (!attackCard) return null;
+      const targets = strikeTargets(attackCard, opponent);
+      return (
+        <div className="defense-panel pending-strike" role="dialog" aria-modal="true" aria-labelledby="strike-target-title">
+          <h3 id="strike-target-title">{attackCard.name}の攻撃対象を選択</h3>
+          <p className="choice-prompt">相手プレイヤーへ攻撃するか、討伐できる相手召喚獣を選んでください。</p>
+          <div className="defense-context">攻撃値 {attackCombatValue(attackCard)} / プレイヤーへ通れば {attackDamage(attackCard)} ダメージ。召喚獣攻撃は同値なら相打ち、上回れば対象を討伐します。</div>
+          <div className="pending-card-grid strike-target-grid">
+            {targets.map(({ card, index, attackValue, defenseValue, trade }) => (
+              <PendingCardChoice
+                key={`${card.id}-${index}`}
+                card={card}
+                ownerIndex={1 - game.active}
+                zone="field"
+                index={index}
+                spent={opponent.spentFieldIndexes.has(index)}
+                resultText={`攻撃値 ${attackValue} vs 防御値 ${defenseValue} / ${trade ? "相打ち" : "討伐"}`}
+                onClick={() => onStrikeTarget(pending.sourceIndex, index)}
+              />
+            ))}
+          </div>
+          <div className="defense-actions pending-actions">
+            <button type="button" onClick={onConfirmFaceAttack}>相手プレイヤーに攻撃</button>
+            <button type="button" onClick={onCancelTarget}>キャンセル</button>
+          </div>
+        </div>
+      );
+    }
     const pendingTarget = game.pendingTarget;
     const player = activePlayer(game);
     const opponent = opponentPlayer(game);
     const command = player.hand[pendingTarget.sourceIndex];
+    if (!command) return null;
+    // purge は消耗中の召喚獣、disrupt は未消耗の召喚獣が対象
+    const isPurge = pendingTarget.kind === "purge";
     return (
       <div className="defense-panel">
         <h3>{command.name}の対象を選択</h3>
-        <p className="choice-prompt">消耗させる相手の未消耗召喚獣を選んでください。</p>
+        <p className="choice-prompt">{isPurge ? "トラッシュへ送る相手の消耗中召喚獣を選んでください。" : "消耗させる相手の未消耗召喚獣を選んでください。"}</p>
         <div className="pending-card-grid">
-          {opponent.field.map((card, index) => opponent.spentFieldIndexes.has(index) ? null : (
+          {opponent.field.map((card, index) => (isPurge ? !opponent.spentFieldIndexes.has(index) : opponent.spentFieldIndexes.has(index)) ? null : (
             <PendingCardChoice
               key={`${card.id}-${index}`}
               card={card}
               ownerIndex={1 - game.active}
               zone="field"
               index={index}
+              spent={opponent.spentFieldIndexes.has(index)}
               onClick={() => onUseCommand(pendingTarget.sourceIndex, index)}
             />
           ))}
@@ -244,19 +288,20 @@ export function DefensePanel({
   const forcedHandOptions = forcedDefenseChoice?.type === "hand"
     ? handOptions.filter(({ index }) => index === forcedDefenseChoice.index)
     : [];
-  const effectiveForcedDefenseChoice = forcedDefenseChoice && (forcedFieldOptions.length > 0 || forcedHandOptions.length > 0) ? forcedDefenseChoice : null;
-  const visibleFieldOptions = effectiveForcedDefenseChoice?.type === "field" ? forcedFieldOptions : fieldOptions;
-  const visibleHandOptions = effectiveForcedDefenseChoice?.type === "hand" ? forcedHandOptions : handOptions;
+  const effectiveForcedDefenseChoice = forcedDefenseChoice && (forcedDefenseChoice.type === "none" || forcedFieldOptions.length > 0 || forcedHandOptions.length > 0) ? forcedDefenseChoice : null;
+  const forcedNoDefense = effectiveForcedDefenseChoice?.type === "none";
+  const visibleFieldOptions = forcedNoDefense ? [] : effectiveForcedDefenseChoice?.type === "field" ? forcedFieldOptions : fieldOptions;
+  const visibleHandOptions = forcedNoDefense ? [] : effectiveForcedDefenseChoice?.type === "hand" ? forcedHandOptions : handOptions;
   const hasVisibleOptions = visibleFieldOptions.length > 0 || visibleHandOptions.length > 0;
   return (
     <div className="defense-panel">
       <h3>{attackCard.name}への防御を選択</h3>
-      <div className="defense-context">攻撃値 {attackCombatValue(attackCard)} / 場ブロックは同値なら相打ち、上回れば防御側が残ります。手札ブロックは使い切りです。</div>
+      <div className="defense-context">攻撃値 {attackCombatValue(attackCard)} / 通れば {attackDamage(attackCard)} ダメージ(power分)。場ブロックは同値なら相打ち、上回れば防御側が残ります。手札ブロックは使い切りです。</div>
       <div className="defense-choice-grid">
         {visibleFieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} cardIndex={index} attackCard={attackCard} defender={defender} fieldIndex={index} onClick={() => onResolve({ type: "field", index })} />)}
         {visibleHandOptions.map(({ card, index }) => <DefenseChoiceButton key={`hand-${index}`} source="手札" card={card} cardIndex={index} attackCard={attackCard} defender={defender} hand onClick={() => onResolve({ type: "hand", index })} />)}
-        {!hasVisibleOptions && <div className="defense-context">防御できるカードはありません。</div>}
-        {!effectiveForcedDefenseChoice && <button type="button" className="defense-pass" onClick={() => onResolve({ type: "none" })}>防御しない</button>}
+        {!hasVisibleOptions && !forcedNoDefense && <div className="defense-context">防御できるカードはありません。</div>}
+        {(!effectiveForcedDefenseChoice || forcedNoDefense) && <button type="button" className="defense-pass" onClick={() => onResolve({ type: "none" })}>防御しない</button>}
       </div>
     </div>
   );
@@ -269,6 +314,7 @@ function PendingCardChoice({
   index,
   selected = false,
   spent = false,
+  resultText,
   onClick,
 }: {
   card: Card;
@@ -277,6 +323,7 @@ function PendingCardChoice({
   index: number;
   selected?: boolean;
   spent?: boolean;
+  resultText?: string;
   onClick: () => void;
 }) {
   const meta = [
@@ -304,6 +351,7 @@ function PendingCardChoice({
       <span className="pending-card-copy">
         <span className="pending-card-title">{card.name}</span>
         <span className="pending-card-meta">{meta.join(" / ")}</span>
+        {resultText && <span className="pending-card-meta">{resultText}</span>}
         <span className="pending-card-effect">{selectedText(card)}</span>
       </span>
     </button>

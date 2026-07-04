@@ -10,7 +10,9 @@ import {
   aiEffectText,
   applyTurnStartMemory,
   attackCombatValue,
+  attackDamage,
   blocksLowLifeHandDefense,
+  canDefend,
   canUseFirewall,
   cannotHandDefend,
   cloneCard,
@@ -124,11 +126,19 @@ const CARD_EFFECT_CASES = {
   },
   reckless_attack_plus_1: {
     cardId: "AI-FIRE-3B",
-    description: "攻撃値+1かつ手札防御不可",
+    description: "攻撃値+1で防御突破・討伐判定に強い。ダメージはpower通り3点。手札防御不可",
     run: () => {
       const target = card("AI-FIRE-3B");
       expect(attackCombatValue(target)).toBe(4);
       expect(cannotHandDefend(target)).toBe(true);
+      expect(attackDamage(target)).toBe(3);
+      expect(canDefend(target, card("AI-WIND-3"))).toBe(false);
+
+      const game = blankGame();
+      game.players[0].field = [card("AI-FIRE-3B")];
+      game.pendingAttack = { attackerIndex: 0, defenderIndex: 1, fieldIndex: 0 };
+      resolveDefenseInDraft(game, { type: "none" }, {});
+      expect(game.players[1].life).toBe(CONFIG.life - 3);
     },
   },
   draw_after_overheat: {
@@ -392,6 +402,20 @@ const CARD_EFFECT_CASES = {
       expect(game.players[1].spentFieldIndexes).toEqual(new Set([0]));
     },
   },
+  purge: {
+    cardId: "CMD-PURGE",
+    description: "相手の消耗中召喚獣をスタックごとトラッシュへ送る",
+    run: () => {
+      const game = blankGame();
+      game.players[0].hand = [card("CMD-PURGE")];
+      game.players[1].field = [card("AI-WIND-3")];
+      game.players[1].spentFieldIndexes = new Set([0]);
+      useCommandAtInDraft(game, 0, 0);
+      expectCommandUsed(game, "CMD-PURGE");
+      expect(game.players[1].field).toHaveLength(0);
+      expect(game.players[1].discard.some((item) => item.id === "AI-WIND-3")).toBe(true);
+    },
+  },
   relearn: {
     cardId: "CMD-RELEARN",
     description: "手札1枚を代償にトラッシュの召喚獣を回収する",
@@ -487,7 +511,7 @@ const CARD_EFFECT_CASES = {
   },
   comeback_rite: {
     cardId: "CMD-COMEBACK-RITE",
-    description: "劣勢時に1枚引き、自分の消耗召喚獣を回復する",
+    description: "劣勢時に2枚引き、自分の消耗召喚獣を回復する",
     run: () => {
       const game = blankGame();
       game.players[0].life = 3;
@@ -495,12 +519,12 @@ const CARD_EFFECT_CASES = {
       game.players[0].hand = [card("CMD-COMEBACK-RITE")];
       game.players[0].field = [card("AI-FIRE-2"), card("AI-WATER-4")];
       game.players[0].spentFieldIndexes = new Set([0, 1]);
-      game.players[0].deck = [card("AI-FIRE-1")];
+      game.players[0].deck = [card("AI-FIRE-1"), card("AI-FIRE-1B")];
       useCommandAtInDraft(game, 0, 0);
       expectCommandUsed(game, "CMD-COMEBACK-RITE");
       expect(game.players[0].spentFieldIndexes.has(0)).toBe(false);
       expect(game.players[0].spentFieldIndexes.has(1)).toBe(true);
-      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+      expect(game.players[0].hand.map((item) => item.id).sort()).toEqual(["AI-FIRE-1", "AI-FIRE-1B"]);
     },
   },
   firewall: {

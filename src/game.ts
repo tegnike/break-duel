@@ -38,6 +38,7 @@ export type CommandEffect =
   | "optimize"
   | "patch"
   | "disrupt"
+  | "purge"
   | "relearn"
   | "sandbox"
   | "trinity"
@@ -106,6 +107,14 @@ export type PendingAttack = {
 export type PendingTarget =
   | {
       kind: "disrupt";
+      sourceIndex: number;
+    }
+  | {
+      kind: "purge";
+      sourceIndex: number;
+    }
+  | {
+      kind: "strike";
       sourceIndex: number;
     }
   | {
@@ -182,18 +191,18 @@ export const COMMAND_COLOR = "#8b5cf6";
 export const MEMORY_COLOR = "#f59e0b";
 
 export const CONFIG = {
-  life: 5,
+  life: 8,
   initialHand: 5,
   firstPlayerInitialHand: 5,
   secondPlayerInitialHand: 5,
-  actionsPerTurn: 2,
+  actionsPerTurn: 3,
   fieldLimit: 3,
   maxTurns: 60,
   advantageBonus: 1,
   disadvantagePenalty: 1,
   firstPlayerFirstTurnActions: 1,
   firstPlayerFirstTurnCanAttack: false,
-  eachPlayerFirstTurnActions: 2,
+  eachPlayerFirstTurnActions: null as number | null,
   handDefenseLimit: 1 as number | null,
   handDefenseEmptyOnly: false,
   exhaustAfterAttack: true,
@@ -217,7 +226,16 @@ export const CONFIG = {
   power4EntersSpent: false,
   power4OverheatsAfterAttack: true,
   handLimit: null as number | null,
+  powerScaledDamage: true,
+  drawOnAttackDamage: "point" as "none" | "event" | "point",
+  monsterCombat: true,
 };
+
+export const DECK_RULES = {
+  size: 25,
+  sameNameLimit: 2,
+  highPowerLimit: 5,
+} as const;
 
 export function makeRng(seed: number): () => number {
   let value = seed >>> 0;
@@ -335,6 +353,7 @@ export function cardPool(): Card[] {
     { id: "CMD-OPTIMIZE", name: "陣形リライト", type: "event", effect: "optimize" },
     { id: "CMD-PATCH", name: "若葉の息吹", type: "event", effect: "patch", status: "inactive" },
     { id: "CMD-DISRUPT", name: "黒蔦の足止め", type: "event", effect: "disrupt" },
+    { id: "CMD-PURGE", name: "追撃粛清", type: "event", effect: "purge" },
     { id: "CMD-RELEARN", name: "幻獣回帰の巻", type: "event", effect: "relearn" },
     { id: "CMD-SANDBOX", name: "蒼殻バリア", type: "event", effect: "sandbox" },
     { id: "CMD-TRINITY", name: "三相崩壊術", type: "event", effect: "trinity" },
@@ -368,26 +387,31 @@ export const DECKS = {
     name: "紅蓮突破デッキ",
     description: "火と水を混ぜた攻め寄りの基本デッキ。突破力と手札補充を両立します。",
     cards: [
+      "AI-FIRE-1",
       "AI-FIRE-1B",
       "AI-FIRE-1C",
       "AI-FIRE-2",
+      "AI-FIRE-2",
       "AI-FIRE-2B",
       "AI-FIRE-2B",
+      "AI-WATER-2",
+      "AI-WATER-2",
+      "AI-WATER-2B",
+      "AI-WATER-2B",
       "AI-FIRE-3B",
       "AI-FIRE-4",
       "AI-FIRE-4B",
-      "AI-FIRE-2",
-      "AI-WATER-2B",
-      "AI-WATER-2",
-      "AI-WATER-2",
-      "AI-WATER-2B",
       "AI-WATER-4B",
       "CMD-DISRUPT",
       "CMD-OPTIMIZE",
       "CMD-FIRE-RITE",
       "CMD-FIRE-RITE",
+      "CMD-PURGE",
+      "CMD-WATER-RITE",
+      "CMD-SANDBOX",
       "MEM-ACCELERATOR",
       "MEM-RECOVERY-CACHE",
+      "MEM-CACHE",
     ],
   },
   control: {
@@ -395,25 +419,30 @@ export const DECKS = {
     description: "土と風で守りながら盤面を整える基本デッキ。粘り強く反撃します。",
     cards: [
       "AI-EARTH-2",
-      "AI-EARTH-1B",
       "AI-EARTH-2",
+      "AI-EARTH-1B",
       "AI-EARTH-2C",
       "AI-EARTH-2B",
       "AI-WIND-2",
-      "AI-WIND-1B",
       "AI-WIND-2",
+      "AI-WIND-1B",
       "AI-WIND-2C",
       "AI-WIND-2B",
       "AI-WIND-3",
       "AI-WIND-3B",
+      "AI-EARTH-3",
       "AI-EARTH-4",
-      "AI-EARTH-4B",
       "CMD-DISRUPT",
       "CMD-RELEARN",
       "CMD-SANDBOX",
       "CMD-EARTH-RITE",
+      "CMD-WIND-RITE",
+      "CMD-PURGE",
+      "CMD-PURGE",
       "MEM-PIPELINE",
       "MEM-RECOVERY-CACHE",
+      "MEM-FIREWALL",
+      "AI-EARTH-1",
     ],
   },
   fire: {
@@ -436,10 +465,15 @@ export const DECKS = {
       "CMD-FIRE-RITE",
       "CMD-FIRE-RITE",
       "CMD-RELEARN",
-      "CMD-RELEARN",
       "CMD-COMEBACK-RITE",
+      "CMD-OPTIMIZE",
+      "CMD-DISRUPT",
       "MEM-CACHE",
       "MEM-PIPELINE",
+      "MEM-RECOVERY-CACHE",
+      "AI-FIRE-3",
+      "CMD-PURGE",
+      "CMD-PURGE",
     ],
   },
   water: {
@@ -448,30 +482,36 @@ export const DECKS = {
     cards: [
       "AI-WATER-1",
       "AI-WATER-1",
-      "AI-WATER-1B",
-      "AI-WATER-1B",
       "AI-WATER-1C",
       "AI-WATER-1C",
       "AI-WATER-2",
       "AI-WATER-2",
       "AI-WATER-2B",
       "AI-WATER-2B",
+      "AI-WATER-1B",
       "AI-WATER-3",
       "AI-WATER-3",
       "AI-WATER-3B",
-      "AI-WATER-3B",
+      "AI-WATER-4",
+      "CMD-PURGE",
       "CMD-DISRUPT",
-      "CMD-RELEARN",
-      "CMD-WATER-RITE",
       "CMD-OPTIMIZE",
+      "CMD-WATER-RITE",
+      "CMD-WATER-RITE",
+      "CMD-COMEBACK-RITE",
+      "CMD-RELEARN",
+      "MEM-PIPELINE",
       "MEM-CACHE",
       "MEM-RECOVERY-CACHE",
+      "AI-WATER-3B",
+      "AI-WATER-1B",
     ],
   },
   wind: {
     name: "風単色デッキ",
     description: "相手を消耗させ、自分の召喚獣を再行動させるテンポ型。盤面差で押します。",
     cards: [
+      "AI-WIND-1",
       "AI-WIND-1",
       "AI-WIND-1B",
       "AI-WIND-1B",
@@ -482,16 +522,20 @@ export const DECKS = {
       "AI-WIND-2C",
       "AI-WIND-2C",
       "AI-WIND-3",
-      "AI-WIND-3",
       "AI-WIND-3B",
       "AI-WIND-3B",
-      "CMD-OPTIMIZE",
-      "CMD-RELEARN",
+      "AI-WIND-4",
+      "AI-WIND-4B",
+      "CMD-COMEBACK-RITE",
+      "CMD-WIND-RITE",
+      "CMD-WIND-RITE",
       "CMD-DISRUPT",
-      "CMD-WIND-RITE",
-      "CMD-WIND-RITE",
+      "CMD-RELEARN",
+      "CMD-PURGE",
+      "CMD-PURGE",
       "MEM-CACHE",
       "MEM-RECOVERY-CACHE",
+      "MEM-PIPELINE",
     ],
   },
   earth: {
@@ -506,18 +550,23 @@ export const DECKS = {
       "AI-EARTH-2",
       "AI-EARTH-2B",
       "AI-EARTH-2B",
+      "AI-EARTH-2C",
+      "AI-EARTH-2C",
       "AI-EARTH-3",
       "AI-EARTH-3B",
       "AI-EARTH-3B",
       "AI-EARTH-4",
-      "AI-EARTH-2C",
-      "AI-EARTH-2C",
+      "AI-EARTH-4B",
       "CMD-EARTH-RITE",
       "CMD-EARTH-RITE",
       "CMD-COMEBACK-RITE",
       "CMD-COMEBACK-RITE",
+      "CMD-DISRUPT",
+      "CMD-PURGE",
+      "CMD-OPTIMIZE",
       "MEM-FIREWALL",
       "MEM-PIPELINE",
+      "MEM-CACHE",
     ],
   },
   apex: {
@@ -525,23 +574,28 @@ export const DECKS = {
     description: "挑戦者CPUリーグで選ばれた最強候補。火力、防御貫通、チャージ補助をまとめて押し付けます。",
     cards: [
       "AI-FIRE-2",
-      "AI-WIND-3",
-      "AI-WIND-3B",
-      "AI-EARTH-2",
+      "AI-FIRE-2",
+      "AI-FIRE-2B",
+      "AI-FIRE-1C",
+      "AI-WATER-1",
       "AI-WATER-2",
-      "AI-FIRE-4",
-      "AI-FIRE-3",
+      "AI-WATER-2B",
+      "AI-WATER-2B",
+      "AI-EARTH-2",
+      "AI-EARTH-2",
       "AI-EARTH-2C",
       "AI-WIND-2",
-      "AI-FIRE-2B",
-      "AI-WATER-1",
-      "AI-WATER-2B",
-      "AI-WATER-2B",
-      "AI-FIRE-1C",
+      "AI-WIND-2",
+      "AI-WIND-3",
+      "AI-WIND-3B",
+      "AI-FIRE-3",
+      "AI-FIRE-4",
+      "AI-WATER-4",
       "CMD-SANDBOX",
       "CMD-WATER-RITE",
       "CMD-WIND-RITE",
       "CMD-DISRUPT",
+      "CMD-PURGE",
       "MEM-FIREWALL",
       "MEM-RECOVERY-CACHE",
     ],
@@ -939,8 +993,8 @@ export function attackCombatValue(card: Card): number {
 }
 
 export function aiEffectText(card: Card): string {
-  if (card.effect === "attack_plus_1") return "攻撃値 +1";
-  if (card.effect === "reckless_attack_plus_1") return "攻撃値 +1。手札防御に使えない";
+  if (card.effect === "attack_plus_1") return "戦闘時、攻撃値 +1";
+  if (card.effect === "reckless_attack_plus_1") return "戦闘時、攻撃値 +1。手札防御に使えない";
   if (card.effect === "draw_after_overheat") return "攻撃後退場時、山札からカードを1枚引く";
   if (card.effect === "draw_after_overheat_opponent_draw") return "攻撃後退場時、山札からカードを1枚引く。登場時、相手は山札からカードを1枚引く";
   if (card.effect === "draw_two_after_overheat") return "攻撃後退場時、山札からカードを2枚引く";
@@ -1294,11 +1348,62 @@ export function lowestPriorityHand(player: PlayerState): number {
     .sort((a, b) => cardPriority(a.card) - cardPriority(b.card) || a.card.id.localeCompare(b.card.id))[0].index;
 }
 
+export function attackDamage(attackCard: Card): number {
+  if (!CONFIG.powerScaledDamage) return 1;
+  return attackCard.power ?? 1;
+}
+
+export function strikeValues(attackCard: Card, defender: PlayerState, targetIndex: number): { attackValue: number; defenseValue: number } {
+  const target = defender.field[targetIndex];
+  const attackValue = attackCombatValue(attackCard);
+  const defenseValue = defenseCombatValue(attackCard, target, defender, { fieldIndex: targetIndex });
+  return { attackValue, defenseValue };
+}
+
+export function strikeTargets(attackCard: Card, defender: PlayerState): { index: number; card: Card; attackValue: number; defenseValue: number; trade: boolean }[] {
+  if (!CONFIG.monsterCombat) return [];
+  return defender.field
+    .map((card, index) => {
+      const { attackValue, defenseValue } = strikeValues(attackCard, defender, index);
+      return { index, card, attackValue, defenseValue, trade: attackValue === defenseValue };
+    })
+    .filter((option) => option.attackValue >= option.defenseValue);
+}
+
+export function bestClassicStrike(attacker: PlayerState, defender: PlayerState): { index: number; targetIndex: number } | null {
+  let best: { key: [number, number, number, number]; index: number; targetIndex: number } | null = null;
+  attackableField(attacker).forEach(({ card, index }) => {
+    strikeTargets(card, defender).forEach((option) => {
+      const attackerPower = card.power ?? 0;
+      const targetPower = option.card.power ?? 0;
+      let key: [number, number, number, number];
+      if (option.trade) {
+        if (targetPower <= attackerPower) return;
+        key = [0, targetPower - attackerPower, targetPower, -attackerPower];
+      } else {
+        if (targetPower < attackerPower) return;
+        key = [1, targetPower - attackerPower, targetPower, -attackerPower];
+      }
+      if (
+        best === null
+        || key[0] > best.key[0]
+        || (key[0] === best.key[0] && (key[1] > best.key[1]
+          || (key[1] === best.key[1] && (key[2] > best.key[2]
+            || (key[2] === best.key[2] && key[3] > best.key[3])))))
+      ) {
+        best = { key, index, targetIndex: option.index };
+      }
+    });
+  });
+  return best === null ? null : { index: (best as { index: number }).index, targetIndex: (best as { targetIndex: number }).targetIndex };
+}
+
 export function commandUsable(game: GameState, command: Card | null | undefined, player: PlayerState, opponent: PlayerState): boolean {
   if (!command || command.type !== "event") return false;
   if (command.effect === "optimize") return player.hand.length > 1;
   if (command.effect === "patch") return highestPowerSpentAi(player) !== null;
   if (command.effect === "disrupt") return highestPowerReadyAi(opponent) !== null;
+  if (command.effect === "purge") return highestPowerSpentAi(opponent) !== null;
   if (command.effect === "relearn") return player.hand.length > 1 && highestPowerAiInDiscard(player) !== null;
   if (command.effect === "sandbox") return sandboxCommandReady(game, player);
   if (command.effect === "trinity") return player.field.length >= CONFIG.fieldLimit;
@@ -1334,7 +1439,7 @@ export function canUseAcceleratorMemory(game: GameState, player: PlayerState): b
       && !player.acceleratorUsed
       && player.field.length > 0
       && game.actionsRemaining > 0
-      && game.actionsRemaining < 3,
+      && game.actionsRemaining < CONFIG.actionsPerTurn + 1,
   );
 }
 
@@ -1347,7 +1452,7 @@ export function canUseCharge(game: GameState, player: PlayerState): boolean {
       && activePlayer(game) === player
       && !player.chargeUsed
       && player.hand.some(canChargeCard)
-      && game.actionsRemaining < 3,
+      && game.actionsRemaining < CONFIG.actionsPerTurn + 1,
   );
 }
 
@@ -1363,7 +1468,7 @@ export function acceleratorSacrificeTarget(player: PlayerState): number | null {
 }
 
 export function chooseAiDefense(defender: PlayerState, attackCard: Card, profile: AiProfile = defender.aiProfile): DefenseChoice {
-  if (profile === "beginner") return { type: "none" };
+  void profile;
   const fieldOptions = legalFieldDefenders(defender, attackCard);
   const handOptions = legalHandDefenders(defender, attackCard);
   if (fieldOptions.length > 0) {
@@ -1444,6 +1549,7 @@ export function bestCommand(game: GameState, player: PlayerState, opponent: Play
   if (options.length === 0) return null;
   const priority: Record<string, number> = {
     trinity: 5,
+    purge: 5,
     fire_rite: 4,
     water_rite: 4,
     wind_rite: 4,
@@ -1481,6 +1587,7 @@ export type AiAction =
   | { type: "memory"; index: number }
   | { type: "memory-effect"; fieldIndex: number }
   | { type: "attack"; index: number }
+  | { type: "strike"; index: number; targetIndex: number }
   | { type: "command"; index: number }
   | { type: "charge"; index: number }
   | { type: "end" };
@@ -1505,6 +1612,10 @@ function chooseClassicAiAction(game: GameState): AiAction {
     if (sandboxCommand !== null) return { type: "command", index: sandboxCommand };
     const damaging = bestDamagingAttacker(ai, human);
     if (damaging !== null) return { type: "attack", index: damaging };
+    if (CONFIG.monsterCombat) {
+      const strike = bestClassicStrike(ai, human);
+      if (strike !== null) return { type: "strike", index: strike.index, targetIndex: strike.targetIndex };
+    }
   }
   if (ai.field.length < CONFIG.fieldLimit) {
     const index = bestHandAi(game, ai);
@@ -1527,10 +1638,22 @@ function chooseClassicAiAction(game: GameState): AiAction {
   return { type: "end" };
 }
 
+function beginnerDamagingAttack(attacker: PlayerState, defender: PlayerState): number | null {
+  const options = attackableField(attacker)
+    .filter(({ card }) => legalFieldDefenders(defender, card).length === 0);
+  if (options.length === 0) return null;
+  options.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
+  return options[0].index;
+}
+
 function chooseBeginnerAiAction(game: GameState): AiAction {
   const ai = activePlayer(game);
   if (game.actionsRemaining <= 0) return { type: "end" };
-  if (ai.field.length === 0) {
+  if (canActivePlayerAttack(game)) {
+    const attack = beginnerDamagingAttack(ai, opponentPlayer(game));
+    if (attack !== null) return { type: "attack", index: attack };
+  }
+  if (ai.field.length < CONFIG.fieldLimit) {
     const options = ai.hand
       .map((card, index) => ({ card, index }))
       .filter(({ card }) => card.type === "ai" && playCost(card, game) <= game.actionsRemaining)
@@ -1590,6 +1713,11 @@ function legalAiActions(game: GameState): AiAction[] {
     });
     if (canActivePlayerAttack(game)) {
       attackableField(ai).forEach(({ index }) => actions.push({ type: "attack", index }));
+      if (CONFIG.monsterCombat) {
+        attackableField(ai).forEach(({ card, index }) => {
+          strikeTargets(card, human).forEach((target) => actions.push({ type: "strike", index, targetIndex: target.index }));
+        });
+      }
     }
   }
   actions.push({ type: "end" });
@@ -1616,6 +1744,13 @@ const CHALLENGER_WEIGHTS = {
   opponentReady: 1,
   lowLifePressure: 28,
   classicPrior: 60,
+  strikeBase: 26,
+  strikeTargetPower: 34,
+  strikeReadyTarget: 14,
+  strikeTradePenalty: 30,
+  strikePower4Penalty: 46,
+  purgeBase: 40,
+  purgeTargetPower: 28,
 };
 const CHALLENGER_SELF_DEFEAT_ATTACK_SCORE = -10000;
 
@@ -1645,7 +1780,7 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
   if (action.type === "memory-effect") {
     const sacrificed = ai.field[action.fieldIndex];
     if (!sacrificed) return -9999;
-    const enables = ai.hand.some((card) => card.type === "ai" && playCost(card, game) <= Math.min(3, game.actionsRemaining + 1));
+    const enables = ai.hand.some((card) => card.type === "ai" && playCost(card, game) <= Math.min(CONFIG.actionsPerTurn + 1, game.actionsRemaining + 1));
     if (!enables) return score - 130;
     return score + 58 + (enables ? 42 : 0) - aiCardValue(sacrificed) * 0.55;
   }
@@ -1658,7 +1793,7 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
     const fuel = ai.hand[action.index];
     if (!fuel) return -9999;
     const before = game.actionsRemaining;
-    const after = Math.min(3, before + 1);
+    const after = Math.min(CONFIG.actionsPerTurn + 1, before + 1);
     const remaining = ai.hand.filter((_, index) => index !== action.index);
     const fieldHasRoom = ai.field.length < CONFIG.fieldLimit;
     const enablesPlay = fieldHasRoom && remaining.some((card) => card.type === "ai" && playCost(card, game) > before && playCost(card, game) <= after);
@@ -1672,6 +1807,19 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
     const attacker = ai.field[action.index];
     if (!attacker) return -9999;
     return score + attackAiValue(game, attacker);
+  }
+  if (action.type === "strike") {
+    const attacker = ai.field[action.index];
+    const target = opponent.field[action.targetIndex];
+    if (!attacker || !target) return -9999;
+    const { attackValue, defenseValue } = strikeValues(attacker, opponent, action.targetIndex);
+    if (attackValue < defenseValue) return -9999;
+    const trade = attackValue === defenseValue;
+    let value = CHALLENGER_WEIGHTS.strikeBase + CHALLENGER_WEIGHTS.strikeTargetPower * (target.power ?? 0);
+    if (!opponent.spentFieldIndexes.has(action.targetIndex)) value += CHALLENGER_WEIGHTS.strikeReadyTarget;
+    if (trade) value -= CHALLENGER_WEIGHTS.strikeTradePenalty * (attacker.power ?? 0);
+    else if ((attacker.power ?? 0) >= 4) value -= CHALLENGER_WEIGHTS.strikePower4Penalty;
+    return score + value;
   }
   return score;
 }
@@ -1698,7 +1846,7 @@ function attackAiValue(game: GameState, attacker: Card): number {
   let value = CHALLENGER_WEIGHTS.attackPower * attackCombatValue(attacker);
   if (defense.type === "none") {
     value += CHALLENGER_WEIGHTS.damage;
-    if (defender.life <= 1) value += CHALLENGER_WEIGHTS.lethal;
+    if (defender.life <= attackDamage(attacker)) value += CHALLENGER_WEIGHTS.lethal;
     if (blocksLowLifeHandDefense(attacker, defender) && defender.life <= 2) value += 70;
     return value;
   }
@@ -1780,7 +1928,15 @@ function commandAiValue(game: GameState, command: Card): number {
   if (command.effect === "water_rite") return ai.deck.length > 0 ? 68 : 0;
   if (command.effect === "earth_rite") return 62;
   if (command.effect === "comeback_rite") {
-    return 48 + (highestPowerSpentAi(ai) !== null ? 40 : 0) + (ai.deck.length > 0 ? 34 : 0);
+    return 48 + (highestPowerSpentAi(ai) !== null ? 40 : 0) + (ai.deck.length > 0 ? 48 : 0);
+  }
+  if (command.effect === "purge") {
+    const spentPowers = opponent.field
+      .filter((_, index) => opponent.spentFieldIndexes.has(index))
+      .map((card) => card.power ?? 0);
+    return spentPowers.length > 0
+      ? CHALLENGER_WEIGHTS.purgeBase + CHALLENGER_WEIGHTS.purgeTargetPower * Math.max(...spentPowers)
+      : 0;
   }
   if (command.effect === "disrupt") {
     const ready = opponent.field.filter((_, index) => !opponent.spentFieldIndexes.has(index));
@@ -1805,6 +1961,7 @@ function chargeAiValue(game: GameState, fuel: Card): number {
 
 function sameAiAction(left: AiAction, right: AiAction): boolean {
   if (left.type !== right.type) return false;
+  if (left.type === "strike" && right.type === "strike") return left.index === right.index && left.targetIndex === right.targetIndex;
   if ("index" in left || "index" in right) return ("index" in left ? left.index : null) === ("index" in right ? right.index : null);
   if (left.type === "upgrade" && right.type === "upgrade") return left.handIndex === right.handIndex && left.fieldIndex === right.fieldIndex;
   if (left.type === "memory-effect" && right.type === "memory-effect") return left.fieldIndex === right.fieldIndex;
@@ -1814,6 +1971,7 @@ function sameAiAction(left: AiAction, right: AiAction): boolean {
 function aiActionTieBreak(action: AiAction): number {
   const priority: Record<AiAction["type"], number> = {
     attack: 7,
+    strike: 7,
     command: 6,
     upgrade: 5,
     play: 4,

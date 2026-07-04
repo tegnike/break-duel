@@ -13,9 +13,9 @@ import {
 import { CardArtPreview, CardView } from "./CardView";
 import { cardArtAsset, cardArtClass, cardArtGlyph, cardColor, roleText, selectedText } from "./cardPresentation";
 
-const DECK_SIZE = 20;
+const DECK_SIZE = 25;
 const SAME_NAME_LIMIT = 2;
-const HIGH_POWER_LIMIT = 4;
+const HIGH_POWER_LIMIT = 5;
 export const SAVED_DECKS_STORAGE_KEY = "break-duel:saved-decks";
 
 type TypeFilter = CardType | "all";
@@ -218,7 +218,7 @@ export function DeckBuilderPage() {
       <div className="workshop-heading">
         <div>
           <h2>デッキ制作</h2>
-          <p>20枚ちょうど / 同名2枚まで / P3+召喚獣は合計4枚まで / JSON保存</p>
+          <p>25枚ちょうど / 同名2枚まで / P3+召喚獣は合計5枚まで / JSON保存</p>
         </div>
         <div className="workshop-actions">
           {(Object.keys(DECKS) as (keyof typeof DECKS)[]).map((deckId) => (

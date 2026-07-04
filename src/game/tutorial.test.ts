@@ -18,7 +18,7 @@ describe("tutorial duel setup", () => {
     expect(game.seed).toBe(20260630);
     expect(game.active).toBe(0);
     expect(game.turn).toBe(1);
-    expect(game.actionsRemaining).toBe(1);
+    expect(game.actionsRemaining).toBe(2);
     expect(game.players[0].hand.map((card) => card.id)).toEqual([
       "AI-FIRE-2",
       "MEM-CACHE",
@@ -142,6 +142,10 @@ describe("tutorial duel setup", () => {
 
     game.turn = 8;
     expect(currentTutorialStep(game).kicker).toBe("STEP 14");
+    game.players[1].hand.push(takeCardById(game.players[1].deck, "AI-EARTH-1"));
+    const wallIndex = game.players[1].hand.findIndex((card) => card.id === "AI-EARTH-1");
+    expect(tutorialForcedAiAction(game)).toEqual({ type: "play", index: wallIndex });
+    game.players[1].field.push(takeCardById(game.players[1].hand, "AI-EARTH-1"));
     expect(tutorialForcedAiAction(game)).toEqual({ type: "attack", index: 0 });
 
     game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
@@ -155,6 +159,84 @@ describe("tutorial duel setup", () => {
     expect(currentTutorialStep(game).id).toBe("power4-attack");
 
     game.players[0].discard.push(game.players[0].field.splice(1, 1)[0]);
+    expect(currentTutorialStep(game).id).toBe("end-after-power4");
+
+    game.players[0].life -= 1;
     expect(currentTutorialStep(game).id).toBe("complete");
+  });
+
+  it("teaches purge, monster strike and break draw on turns 9-10", () => {
+    const game = createTutorialGame();
+    const player = game.players[0];
+    const rival = game.players[1];
+    game.turn = 9;
+    game.active = 0;
+    game.actionsRemaining = 3;
+    player.discard.push(takeCardById(player.hand, "CMD-FIRE-RITE"));
+    player.discard.push(takeCardById(player.hand, "AI-FIRE-1C"));
+    player.field.push(takeCardById(player.hand, "AI-FIRE-2"));
+    player.hand.push(takeCardById(player.deck, "CMD-PURGE"));
+    player.hand.push(takeCardById(player.deck, "AI-FIRE-4"));
+    player.field.push(player.hand.splice(player.hand.findIndex((card) => card.id === "AI-FIRE-4"), 1)[0]);
+    rival.field.push(takeCardById(rival.hand, "AI-EARTH-2"));
+    rival.field.push(takeCardById(rival.deck, "AI-EARTH-1"));
+    rival.spentFieldIndexes.add(0);
+    rival.life = 4;
+
+    // ④ 追撃粛清: 消耗中の相手召喚獣がいる間は粛清ステップ
+    expect(currentTutorialStep(game).id).toBe("purge-command");
+    game.selected = { zone: "hand", ownerIndex: 0, index: player.hand.findIndex((card) => card.id === "CMD-PURGE") };
+    expect(currentTutorialStep(game).focus).toEqual({ kind: "action", action: "command" });
+    game.selected = null;
+
+    // 粛清後: ③ モンスター攻撃ステップ
+    player.discard.push(takeCardById(player.hand, "CMD-PURGE"));
+    rival.discard.push(rival.field.splice(0, 1)[0]);
+    rival.spentFieldIndexes.clear();
+    expect(currentTutorialStep(game).id).toBe("strike-monster");
+
+    // 討伐後: ① 切札の4点パンチステップ
+    rival.discard.push(rival.field.splice(0, 1)[0]);
+    player.spentFieldIndexes.add(0);
+    expect(currentTutorialStep(game).id).toBe("power4-attack");
+    expect(currentTutorialStep(game).detail).toContain("4点");
+
+    // 攻撃後: ターンを渡すステップ
+    const power4Index = player.field.findIndex((card) => card.id === "AI-FIRE-4");
+    player.discard.push(player.field.splice(power4Index, 1)[0]);
+    game.actionsRemaining = 0;
+    expect(currentTutorialStep(game).id).toBe("end-after-power4");
+
+    // ② ターン10: ライバルの最後の攻撃を防御せず受ける
+    game.turn = 10;
+    game.active = 1;
+    game.actionsRemaining = 3;
+    expect(currentTutorialStep(game).kicker).toBe("STEP 18");
+    expect(tutorialForcedAiAction(game)).toEqual({ type: "play", index: rival.hand.findIndex((card) => card.id === "AI-EARTH-2C") });
+    rival.field.push(takeCardById(rival.hand, "AI-EARTH-2C"));
+    game.actionsRemaining = 1;
+    expect(tutorialForcedAiAction(game)).toEqual({ type: "attack", index: 0 });
+    game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
+    expect(currentTutorialStep(game).id).toBe("take-break-draw");
+    game.pendingAttack = null;
+
+    // 被弾してブレイクドローを確認したら完了
+    game.players[0].life -= 1;
+    expect(currentTutorialStep(game).id).toBe("complete");
+  });
+
+  it("plays the strike-target wall before the turn-8 attack", () => {
+    const game = createTutorialGame();
+    const rival = game.players[1];
+    game.turn = 8;
+    game.active = 1;
+    game.actionsRemaining = 3;
+    rival.field.push(takeCardById(rival.hand, "AI-EARTH-2"));
+    rival.hand.push(takeCardById(rival.deck, "AI-EARTH-1"));
+
+    const wallIndex = rival.hand.findIndex((card) => card.id === "AI-EARTH-1");
+    expect(tutorialForcedAiAction(game)).toEqual({ type: "play", index: wallIndex });
+    rival.field.push(takeCardById(rival.hand, "AI-EARTH-1"));
+    expect(tutorialForcedAiAction(game)).toEqual({ type: "attack", index: 0 });
   });
 });

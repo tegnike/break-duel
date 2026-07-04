@@ -1,4 +1,6 @@
 import {
+  attackDamage,
+  strikeValues,
   CONFIG,
   type AiAction,
   type Card,
@@ -101,7 +103,7 @@ export function useAcceleratorMemoryInDraft(draft: GameState, playerIndex: numbe
   player.discard.push(...removedCards);
   player.acceleratorUsed = true;
   const before = draft.actionsRemaining;
-  draft.actionsRemaining = Math.min(3, draft.actionsRemaining + 1);
+  draft.actionsRemaining = Math.min(CONFIG.actionsPerTurn + 1, draft.actionsRemaining + 1);
   addLog(draft, `${player.name}は${player.memory!.name}で${sacrificed.name}をトラッシュし、残りアクションを${before}から${draft.actionsRemaining}に増やした。`);
   draft.selected = null;
   draft.pendingTarget = null;
@@ -124,7 +126,7 @@ export function chargeHandCardInDraft(
   player.discard.push(charged);
   player.chargeUsed = true;
   const before = draft.actionsRemaining;
-  draft.actionsRemaining = Math.min(3, draft.actionsRemaining + 1);
+  draft.actionsRemaining = Math.min(CONFIG.actionsPerTurn + 1, draft.actionsRemaining + 1);
   draft.chargedActionsRemaining += draft.actionsRemaining > before ? 1 : 0;
   const effectText = applyChargeEffects(draft, playerIndex, charged, chargeTargets);
   addLog(draft, `${player.name}は${charged.name}をチャージし、残りアクションを${before}から${draft.actionsRemaining}に増やした。${effectText}`);
@@ -381,6 +383,11 @@ export function useCommandAtInDraft(
   const command = player.hand[sourceIndex];
   if (!command || command.type !== "event") return;
   if (!commandUsable(draft, command, player, opponent)) return;
+  if (command.effect === "purge") {
+    // 対象が不正（未消耗・範囲外）の場合はカードを消費せず中断する
+    const purgeTarget = targetIndex ?? highestPowerSpentAi(opponent);
+    if (purgeTarget === null || !opponent.field[purgeTarget] || !opponent.spentFieldIndexes.has(purgeTarget)) return;
+  }
   const relearnTarget = command.effect === "relearn" ? targetIndex ?? highestPowerAiInDiscard(player) : null;
   const selectedDiscardCards = discardIndexes.length > 0
     ? discardHandCards(draft, draft.active, discardIndexes)
@@ -412,6 +419,13 @@ export function useCommandAtInDraft(
     if (resolvedTarget !== null) {
       opponent.spentFieldIndexes.add(resolvedTarget);
       text += ` ${opponent.name}の${opponent.field[resolvedTarget].name}を消耗。`;
+    }
+  } else if (used.effect === "purge") {
+    const resolvedTarget = targetIndex ?? highestPowerSpentAi(opponent);
+    if (resolvedTarget !== null && opponent.field[resolvedTarget] && opponent.spentFieldIndexes.has(resolvedTarget)) {
+      const purged = removeFieldStack(opponent, resolvedTarget);
+      opponent.discard.push(...purged);
+      text += ` ${opponent.name}の${purged[0].name}を${purged.length > 1 ? "重ねたカードごと" : ""}トラッシュへ送った。`;
     }
   } else if (used.effect === "relearn") {
     if (relearnTarget !== null) {
@@ -476,7 +490,7 @@ export function useCommandAtInDraft(
       player.power3RecoveryDelayedFieldIndexes.delete(readyIndex);
       text += ` ${player.field[readyIndex].name}を回復した。`;
     }
-    const drawnCards = drawCards(player, 1);
+    const drawnCards = drawCards(player, 2);
     text += ` ${visibleDrawText(player, drawnCards)}。`;
   }
   addLog(draft, text);
@@ -505,6 +519,7 @@ export function beginAttackInDraft(
   attackerIndex: number,
   fieldIndex: number,
   effects: GameActionEffects = {},
+  aiDefenseOverride?: DefenseChoice,
 ): void {
   const attacker = draft.players[attackerIndex];
   const defenderIndex = 1 - attackerIndex;
@@ -534,7 +549,7 @@ export function beginAttackInDraft(
   }
   draft.pendingAttack = { attackerIndex, defenderIndex, fieldIndex };
   draft.selected = null;
-  if (!defender.isHuman) resolveDefenseInDraft(draft, chooseAiDefense(defender, attackCard, defender.aiProfile), effects);
+  if (!defender.isHuman) resolveDefenseInDraft(draft, aiDefenseOverride ?? chooseAiDefense(defender, attackCard, defender.aiProfile), effects);
 }
 
 export function resolveDefenseInDraft(
@@ -608,6 +623,7 @@ export function resolveDefenseInDraft(
       toLabel: isTrade ? "両方トラッシュ" : `${attackCard.name}はトラッシュ`,
       resultLabel: isTrade ? "相打ち" : "防御側が残る",
       tone: isTrade ? "warning" : defender.isHuman ? "magenta" : "cyan",
+      emphasis: isTrade ? "high" : undefined,
       rivalVoiceLine: defender.isHuman ? undefined : "field_defense",
       cards: [
         { card: attackCard, label: "攻撃", state: "trash" },
@@ -648,6 +664,7 @@ export function resolveDefenseInDraft(
     defender.discard.push(defenseCard);
     const pierced = piercesHandDefense(attackCard);
     if (pierced) defender.life -= 1;
+    const pierceBreakDrawnCards = pierced && CONFIG.drawOnAttackDamage !== "none" ? drawCards(defender, 1) : [];
     const shouldChoosePressureDiscard = !pierced && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
     const pressureDiscarded = !pierced && pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
       ? discardLowPriorityCards(defender, 1)[0] ?? null
@@ -655,6 +672,7 @@ export function resolveDefenseInDraft(
     const blockedDrawnCards = !pierced && drawsOnBlockedAttack(attackCard) ? drawCards(attacker, 1) : [];
     const extraText = [
       pierced ? `${attackCard.name}の効果で防御されても1ダメージ。` : "",
+      pierceBreakDrawnCards.length > 0 ? `ブレイクドローで${defender.name}は${visibleDrawText(defender, pierceBreakDrawnCards)}。` : "",
       pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}をトラッシュへ送った。` : "",
       blockedDrawnCards.length > 0 ? `${attackCard.name}の効果で${attacker.name}は${visibleDrawText(attacker, blockedDrawnCards)}。` : "",
     ].filter(Boolean).join(" ");
@@ -667,6 +685,7 @@ export function resolveDefenseInDraft(
       toLabel: "トラッシュ",
       resultLabel: "攻撃を防御",
       tone: defender.isHuman ? "magenta" : "cyan",
+      emphasis: pierced ? undefined : "low",
       impact: pierced ? {
         kind: "life-damage",
         sourcePlayerIndex: attackerIndex,
@@ -674,6 +693,7 @@ export function resolveDefenseInDraft(
         amount: 1,
         fatal: defender.life <= 0,
       } : undefined,
+      breakDraw: pierceBreakDrawnCards.length > 0 ? { targetPlayerIndex: defenderIndex, count: pierceBreakDrawnCards.length } : undefined,
       rivalVoiceLine: defender.isHuman ? undefined : "hand_defense",
       cards: [
         { card: attackCard, label: "攻撃", state: "neutral" },
@@ -701,26 +721,33 @@ export function resolveDefenseInDraft(
     effects.playSfx?.("block");
   } else {
     draft.pendingTarget = null;
-    defender.life -= 1;
-    addLog(draft, `${defender.name}は防御せず1ダメージ。`);
+    const damage = attackDamage(attackCard);
+    defender.life -= damage;
+    const breakDrawnCards = CONFIG.drawOnAttackDamage === "none"
+      ? []
+      : drawCards(defender, CONFIG.drawOnAttackDamage === "event" ? 1 : damage);
+    const breakText = breakDrawnCards.length > 0 ? ` ブレイクドローで${defender.name}は${visibleDrawText(defender, breakDrawnCards)}。` : "";
+    addLog(draft, `${defender.name}は防御せず${damage}ダメージ。${breakText}`);
     effects.showDuelEvent?.({
       kind: "damage",
-      title: `${defender.name}に1ダメージ`,
-      detail: `${attackCard.name}の攻撃が通りました。`,
+      title: damage >= 3 ? `${defender.name}に強烈な${damage}ダメージ!!` : `${defender.name}に${damage}ダメージ`,
+      detail: `${attackCard.name}の攻撃が通りました。${breakText}`,
       fromLabel: `${attacker.name}の場`,
       toLabel: `${defender.name}のライフ`,
       resultLabel: "ダメージ",
       tone: "danger",
+      emphasis: damage >= 3 ? "peak" : damage === 2 ? "high" : "low",
       impact: {
         kind: "life-damage",
         sourcePlayerIndex: attackerIndex,
         targetPlayerIndex: defenderIndex,
-        amount: 1,
+        amount: damage,
         fatal: defender.life <= 0,
       },
+      breakDraw: breakDrawnCards.length > 0 ? { targetPlayerIndex: defenderIndex, count: breakDrawnCards.length } : undefined,
       cards: [{ card: attackCard, label: "攻撃", state: "winner" }],
     });
-    effects.playSfx?.("damage");
+    effects.playSfx?.(damage >= 2 ? "damage-heavy" : "damage");
   }
 
   overheatAttackerIfNeeded(draft, attacker, fieldIndex, attackCard, effects);
@@ -776,6 +803,65 @@ function overheatAttackerIfNeeded(
   });
 }
 
+export function strikeInDraft(
+  draft: GameState,
+  attackerIndex: number,
+  fieldIndex: number,
+  targetIndex: number,
+  effects: GameActionEffects = {},
+): void {
+  if (!CONFIG.monsterCombat) return;
+  const attacker = draft.players[attackerIndex];
+  const defenderIndex = 1 - attackerIndex;
+  const defender = draft.players[defenderIndex];
+  const attackCard = attacker.field[fieldIndex];
+  const targetCard = defender.field[targetIndex];
+  if (attackerIndex === draft.active && !canActivePlayerAttack(draft)) return;
+  if (!attackCard || !targetCard || attacker.spentFieldIndexes.has(fieldIndex)) return;
+  const { attackValue, defenseValue } = strikeValues(attackCard, defender, targetIndex);
+  if (attackValue < defenseValue) return;
+  if (CONFIG.exhaustAfterAttack && !keepsReadyAfterAttack(attackCard)) {
+    attacker.spentFieldIndexes.add(fieldIndex);
+    if (CONFIG.power3AttackRecoveryDelay && attackCard.power === 3) {
+      attacker.power3RecoveryDelayedFieldIndexes.add(fieldIndex);
+    }
+  }
+  const trade = attackValue === defenseValue;
+  defender.discard.push(...removeFieldStack(defender, targetIndex));
+  if (trade) {
+    attacker.discard.push(...removeFieldStack(attacker, fieldIndex));
+  }
+  addLog(
+    draft,
+    trade
+      ? `${attacker.name}は${attackCard.name}で${defender.name}の${targetCard.name}を攻撃。攻撃値${attackValue}と防御値${defenseValue}が同値で相打ち。両方トラッシュ。`
+      : `${attacker.name}は${attackCard.name}で${defender.name}の${targetCard.name}を攻撃。攻撃値${attackValue}が防御値${defenseValue}を上回り、${targetCard.name}は退場。`,
+  );
+  effects.showDuelEvent?.({
+    kind: "battle",
+    title: trade ? "相打ち" : `${targetCard.name}を討ち取った`,
+    detail: `${attackCard.name} 攻撃値${attackValue} vs ${targetCard.name} 防御値${defenseValue}。${trade ? "同値なので両方トラッシュ。" : `${targetCard.name}はトラッシュへ。`}`,
+    fromLabel: `${attacker.name}の場`,
+    toLabel: trade ? "両方トラッシュ" : `${targetCard.name}はトラッシュ`,
+    resultLabel: trade ? "相打ち" : "討伐",
+    tone: trade ? "warning" : attacker.isHuman ? "magenta" : "cyan",
+    emphasis: "high",
+    rivalVoiceLine: attacker.isHuman ? undefined : "attack",
+    cards: [
+      { card: attackCard, label: "攻撃", state: trade ? "trash" : "winner" },
+      { card: targetCard, label: "対象", state: "trash" },
+    ],
+  });
+  effects.playSfx?.("attack");
+  if (!trade) overheatAttackerIfNeeded(draft, attacker, fieldIndex, attackCard, effects);
+  draft.selected = null;
+  checkWinner(draft);
+  checkResourceExhaustion(draft);
+  if (draft.winner === null && !draft.draw) {
+    afterAction(draft, 1, "attack");
+  }
+}
+
 export function performAiActionInDraft(
   draft: GameState,
   action: AiAction,
@@ -800,13 +886,14 @@ export function performAiActionInDraft(
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "play",
-      title: `${player.name}が場に出す`,
+      title: card.power === 4 ? `${player.name}の切札登場!!` : `${player.name}が場に出す`,
       detail: text,
       fromLabel: "手札",
       toLabel: "場",
       tone: player.isHuman ? "magenta" : "cyan",
+      emphasis: card.power === 4 ? "peak" : undefined,
       rivalVoiceLine: player.isHuman ? undefined : "play_summon",
-      cards: [{ card, label: "登場", state: "neutral" }],
+      cards: [{ card, label: card.power === 4 ? "切札" : "登場", state: card.power === 4 ? "winner" : "neutral" }],
     });
     if (!draft.pendingTarget) afterAction(draft, cost);
   } else if (action.type === "upgrade") {
@@ -825,11 +912,12 @@ export function performAiActionInDraft(
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "upgrade",
-      title: `${player.name}がアップグレード`,
+      title: card.power === 4 ? `${player.name}の切札へアップグレード!!` : `${player.name}がアップグレード`,
       detail: `${source.name}を元に${card.name}へ。元カードは下に重ねます。`,
       fromLabel: "手札 + 場",
       toLabel: "場",
       tone: player.isHuman ? "magenta" : "cyan",
+      emphasis: card.power === 4 ? "peak" : undefined,
       rivalVoiceLine: player.isHuman ? undefined : "upgrade",
       cards: [
         { card: source, label: "元", state: "neutral" },
@@ -866,6 +954,8 @@ export function performAiActionInDraft(
     const attackCard = player.field[action.index];
     if (!attackCard || player.spentFieldIndexes.has(action.index) || !canActivePlayerAttack(draft)) return;
     beginAttackInDraft(draft, attackerIndex, action.index, effects);
+  } else if (action.type === "strike") {
+    strikeInDraft(draft, draft.active, action.index, action.targetIndex, effects);
   } else if (action.type === "command") {
     draft.selected = { zone: "hand", index: action.index };
     useCommandAtInDraft(draft, action.index, null, [], effects);

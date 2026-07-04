@@ -107,7 +107,7 @@ export function CardView({
 function CardStatusBadge({ badge }: { badge: string }) {
   if (badge === "攻撃+1") {
     return (
-      <span className="stat-badge sword-badge" aria-label="攻撃値 +1" title="攻撃値 +1">
+      <span className="stat-badge sword-badge" aria-label="戦闘時、攻撃値 +1" title="戦闘時、攻撃値 +1(ダメージは power のまま)">
         <span>攻</span>
         <b>+1</b>
       </span>

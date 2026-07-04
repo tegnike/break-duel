@@ -42,7 +42,7 @@ describe("turn action state", () => {
 
     expect(charged?.id).toBe("AI-WATER-1");
     expect(game.active).toBe(1);
-    expect(game.actionsRemaining).toBe(Math.min(3, actionsBeforeCharge + 1));
+    expect(game.actionsRemaining).toBe(Math.min(CONFIG.actionsPerTurn + 1, actionsBeforeCharge + 1));
 
     finishTurn(game, true);
 

@@ -164,12 +164,18 @@ def apply_action(state: GameState, action: Action) -> None:
         if not _can_active_player_attack(state):
             raise ValueError("The active player cannot attack now.")
         _attack(state, action)
+    elif action.type == ActionType.STRIKE:
+        if not state.config.monster_combat:
+            raise ValueError("Monster combat is disabled.")
+        if not _can_active_player_attack(state):
+            raise ValueError("The active player cannot attack now.")
+        _strike(state, action)
     elif action.type == ActionType.CHARGE:
         _charge(state, action)
     else:
         raise ValueError(f"Unsupported action: {action.type}")
 
-    _spend_actions(state, action_cost, attack=action.type == ActionType.ATTACK)
+    _spend_actions(state, action_cost, attack=action.type in (ActionType.ATTACK, ActionType.STRIKE))
     _check_winner(state)
     _check_resource_exhaustion(state)
 
@@ -347,7 +353,7 @@ def _use_memory(state: GameState, action: Action) -> None:
         raise ValueError("Accelerator relic is already used this turn.")
     if state.actions_remaining <= 0:
         raise ValueError("Accelerator relic requires an active action window.")
-    if state.actions_remaining >= 3:
+    if state.actions_remaining >= state.config.actions_per_turn + 1:
         raise ValueError("Accelerator relic cannot increase actions beyond 3.")
     if action.target_index < 0 or action.target_index >= len(player.field_ai):
         raise ValueError("Accelerator target is out of range.")
@@ -356,7 +362,7 @@ def _use_memory(state: GameState, action: Action) -> None:
     player.discard.extend(sacrificed_cards)
     player.ai_lost += len(sacrificed_cards)
     player.pending_effects["accelerator_used"] = True
-    state.actions_remaining = min(3, state.actions_remaining + 1)
+    state.actions_remaining = min(state.config.actions_per_turn + 1, state.actions_remaining + 1)
     state.stats.record_card_usage(player.memory.id, "used")
     state.log.append(
         _action_log_base(state, action)
@@ -428,6 +434,74 @@ def _upgrade_ai(state: GameState, action: Action) -> None:
     )
 
 
+def strike_values(state: GameState, attack_ai, defender: PlayerState, target_index: int):
+    target = defender.field_ai[target_index]
+    attack_value = attack_combat_value(attack_ai)
+    defense_value = defense_combat_value(
+        attack_ai,
+        target,
+        advantage_bonus=state.config.defense_advantage_bonus,
+        disadvantage_penalty=state.config.defense_disadvantage_penalty,
+        defense_power_bonus=_defense_power_bonus(
+            state, defender, target, attack_ai, field_index=target_index
+        ),
+    )
+    return attack_value, defense_value
+
+
+def _strike(state: GameState, action: Action) -> None:
+    attacker = state.active()
+    defender = state.opponent()
+    if action.source_index is None or action.target_index is None:
+        raise ValueError("STRIKE requires attacker and target field indexes.")
+    if action.source_index in attacker.spent_field_ai:
+        raise ValueError("This summon has already acted this turn.")
+    if action.target_index < 0 or action.target_index >= len(defender.field_ai):
+        raise ValueError("Strike target is out of range.")
+    attack_ai = attacker.field_ai[action.source_index]
+    target = defender.field_ai[action.target_index]
+    attack_value, defense_value = strike_values(state, attack_ai, defender, action.target_index)
+    if attack_value < defense_value:
+        raise ValueError("Strike target is too sturdy.")
+
+    state.stats.attacks += 1
+    state.stats.record_card_usage(attack_ai.id, "struck")
+    if state.config.exhaust_after_attack and not keeps_ready_after_attack(attack_ai):
+        attacker.spent_field_ai.add(action.source_index)
+        if state.config.power_3_attack_recovery_delay and attack_ai.power == 3:
+            attacker.power_3_recovery_delayed_field_ai.add(action.source_index)
+
+    trade = attack_value == defense_value
+    lost = _remove_field_stack(defender, action.target_index)
+    defender.discard.extend(lost)
+    defender.ai_lost += len(lost)
+    attacker_lost_ids = []
+    if trade:
+        lost_own = _remove_field_stack(attacker, action.source_index)
+        attacker.discard.extend(lost_own)
+        attacker.ai_lost += len(lost_own)
+        attacker_lost_ids = [card.id for card in lost_own]
+        overheat = {"overheated": False, "sandbox_command_used": None, "overheat_draw_count": 0}
+    else:
+        overheat = _overheat_attacker_after_attack(
+            state, attacker, action.source_index, attack_ai
+        )
+
+    state.log.append(
+        _action_log_base(state, action)
+        | {
+            "result": "strike",
+            "attack_ai": attack_ai.id,
+            "strike_target": target.id,
+            "trade": trade,
+            "attacker_lost": attacker_lost_ids,
+            "attacker_overheated": overheat["overheated"],
+            "life": [player.life for player in state.players],
+            "field": _field_state(state),
+        }
+    )
+
+
 def _attack(state: GameState, action: Action) -> None:
     attacker = state.active()
     defender = state.opponent()
@@ -463,8 +537,9 @@ def _attack(state: GameState, action: Action) -> None:
 
     if defense_index is None:
         if hand_defense_index is None:
-            damage = 1
-            _deal_damage(defender)
+            damage = _attack_damage(state, attack_ai)
+            _deal_damage(defender, damage)
+            _post_damage_draw(state, defender, damage)
             state.stats.undefended_attacks += 1
             outcome = "damage"
         else:
@@ -478,7 +553,8 @@ def _attack(state: GameState, action: Action) -> None:
             defender.ai_lost += 1
             if pierces_hand_defense(attack_ai):
                 damage = 1
-                _deal_damage(defender)
+                _deal_damage(defender, damage)
+                _post_damage_draw(state, defender, damage)
                 outcome = "damage"
                 state.stats.record_card_usage(attack_ai.id, "pierced_hand_defense")
     else:
@@ -539,8 +615,9 @@ def _attack(state: GameState, action: Action) -> None:
             lost_ai = lost_cards[0]
             defender.discard.extend(lost_cards)
             defender.ai_lost += len(lost_cards)
-            damage = 1
-            _deal_damage(defender)
+            damage = _attack_damage(state, attack_ai)
+            _deal_damage(defender, damage)
+            _post_damage_draw(state, defender, damage)
             state.stats.failed_defenses += 1
             state.stats.record_card_usage(defense_ai.id, "defended_failed")
             defense_result = "failed"
@@ -594,12 +671,12 @@ def _charge(state: GameState, action: Action) -> None:
         raise ValueError("Charge source is out of range.")
     if player.pending_effects.get("charge_used"):
         raise ValueError("Charge is already used this turn.")
-    if state.actions_remaining >= 3:
+    if state.actions_remaining >= state.config.actions_per_turn + 1:
         raise ValueError("Charge cannot increase actions beyond 3.")
     card = player.hand.pop(action.source_index)
     player.discard.append(card)
     before = state.actions_remaining
-    state.actions_remaining = min(3, state.actions_remaining + 1)
+    state.actions_remaining = min(state.config.actions_per_turn + 1, state.actions_remaining + 1)
     if state.actions_remaining > before:
         state.charged_actions_remaining += 1
     player.pending_effects["charge_used"] = True
@@ -726,6 +803,18 @@ def _use_command(state: GameState, action: Action) -> None:
         opponent.spent_field_ai.add(target_index)
         player.discard.append(command)
         result |= {"disrupted_ai": opponent.field_ai[target_index].id}
+    elif command.effect == CommandEffect.PURGE.value:
+        target_index = action.target_index
+        if target_index is None:
+            target_index = _highest_power_spent_ai(opponent)
+        if target_index is None or target_index not in opponent.spent_field_ai:
+            player.hand.insert(action.source_index, command)
+            raise ValueError("Purge requires a spent opposing summon.")
+        lost = _remove_field_stack(opponent, target_index)
+        opponent.discard.extend(lost)
+        opponent.ai_lost += len(lost)
+        player.discard.append(command)
+        result |= {"purged_ai": lost[0].id}
     elif command.effect == CommandEffect.RELEARN.value:
         if not player.hand:
             player.hand.insert(action.source_index, command)
@@ -901,7 +990,7 @@ def _use_command(state: GameState, action: Action) -> None:
             player.spent_field_ai.remove(ready_index)
             player.power_3_recovery_delayed_field_ai.discard(ready_index)
             readied_ai = player.field_ai[ready_index].id
-        drawn = player.draw(1, state.rng) if player.deck else 0
+        drawn = player.draw(2, state.rng) if player.deck else 0
         player.discard.append(command)
         result |= {
             "readied_ai": readied_ai,
@@ -915,8 +1004,24 @@ def _use_command(state: GameState, action: Action) -> None:
     state.log.append(_action_log_base(state, action) | result)
 
 
-def _deal_damage(player: PlayerState) -> None:
-    player.life -= 1
+def _deal_damage(player: PlayerState, amount: int = 1) -> None:
+    player.life -= amount
+
+
+def _attack_damage(state: GameState, attack_ai) -> int:
+    if not state.config.power_scaled_damage:
+        return 1
+    return int(attack_ai.power or 1)
+
+
+def _post_damage_draw(state: GameState, defender: PlayerState, damage: int) -> None:
+    if damage <= 0:
+        return
+    mode = state.config.draw_on_attack_damage
+    if mode == "event":
+        defender.draw(1, state.rng)
+    elif mode == "point":
+        defender.draw(damage, state.rng)
 
 
 def _choose_field_defender(
@@ -925,8 +1030,7 @@ def _choose_field_defender(
     defender: PlayerState,
     defender_index: int,
 ) -> int | None:
-    if state.config.ai_profiles[defender_index] == "beginner":
-        return None
+    _ = defender_index
     return choose_defender(
         attack_ai,
         defender,
@@ -941,8 +1045,6 @@ def _choose_field_defender(
 
 
 def _choose_hand_defender(state: GameState, attack_ai, defender: PlayerState) -> int | None:
-    if state.config.ai_profiles[state.non_active_player] == "beginner":
-        return None
     if blocks_low_life_hand_defense(attack_ai) and defender.life <= 2:
         return None
     if state.config.hand_defense_requires_empty_field and defender.field_ai:
@@ -1188,6 +1290,10 @@ def _spend_actions(state: GameState, cost: int, *, attack: bool = False) -> None
 def _play_cost(state: GameState, card) -> int:
     if card.type == CardType.AI:
         cost = int(card.power or 1)
+        if card.power == 4 and state.config.power_4_play_cost is not None:
+            cost = state.config.power_4_play_cost
+        elif card.power == 3 and state.config.power_3_play_cost is not None:
+            cost = state.config.power_3_play_cost
         player = state.active()
         if (
             player.memory is not None
@@ -1268,6 +1374,8 @@ def command_is_usable(state: GameState, source_index: int) -> bool:
         return bool(player.spent_field_ai)
     if command.effect == CommandEffect.DISRUPT.value:
         return _highest_power_ready_ai(state.opponent()) is not None
+    if command.effect == CommandEffect.PURGE.value:
+        return _highest_power_spent_ai(state.opponent()) is not None
     if command.effect == CommandEffect.RELEARN.value:
         return _highest_power_ai_in_discard(player) is not None
     if command.effect == CommandEffect.SANDBOX.value:

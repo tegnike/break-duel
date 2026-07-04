@@ -10,6 +10,7 @@ import {
   canUseCharge,
   cloneCard,
   createGame,
+  playCost,
 } from "./game";
 
 export const TUTORIAL_COMPLETED_STORAGE_KEY = "break-duel:tutorial-completed";
@@ -36,7 +37,11 @@ export type TutorialStepId =
   | "saved-action-attack"
   | "end-after-upgrade"
   | "field-defend"
+  | "purge-command"
+  | "strike-monster"
   | "power4-attack"
+  | "end-after-power4"
+  | "take-break-draw"
   | "complete";
 
 export type TutorialStep = {
@@ -76,12 +81,16 @@ const PLAYER_TUTORIAL_DECK = [
   "CMD-FIRE-RITE",
   "AI-WATER-3",
   "AI-FIRE-1B",
+  "CMD-PURGE",
   "AI-FIRE-4",
   "AI-FIRE-3B",
 ];
 
+// 先頭の攻撃役は block_pressure を持たないカードにする。
+// （防御成功時に人間へ手札トラッシュ選択を強いると、MEM-CACHE 等の教材カードを
+//   捨てられて固定進行が崩れるため。2026-07-04 WP6）
 const RIVAL_TUTORIAL_HAND = [
-  "AI-EARTH-1",
+  "AI-EARTH-1B",
   "AI-EARTH-2",
   "AI-WIND-1",
   "AI-EARTH-2C",
@@ -154,7 +163,13 @@ export function createTutorialGame(): GameState {
   rival.spentFieldIndexes = new Set();
   game.selected = null;
   game.log = [];
-  addLog(game, "チュートリアル対戦を開始。まずは召喚獣を場に出しましょう。");
+  // 通常対戦の先攻1ターン目は1アクションだが、最初の教材『炉殻バサルトン』はコスト2。
+  // チュートリアルに限り練習用に2アクションでスタートする。
+  game.actionsRemaining = 2;
+  // 固定進行の与ダメージ合計(2+1... バサルトン2 + バサルトン2 + ヴァルガ4 = 8)でライバルが
+  // 最終教習(STEP 18 被弾ブレイクドロー)の前に倒れてしまうため、練習用にライフを1点だけ増やす。
+  rival.life = CONFIG.life + 1;
+  addLog(game, "チュートリアル対戦を開始。練習用に先攻1ターン目は2アクション、ライバルのライフは9です。まずは召喚獣を場に出しましょう。");
   return game;
 }
 
@@ -165,6 +180,15 @@ export function currentTutorialStep(game: GameState): TutorialStep {
   if (tutorialPracticeComplete(game)) return completeStep();
 
   if (game.pendingAttack?.defenderIndex === 0) {
+    if (game.turn >= 10) {
+      return {
+        id: "take-break-draw",
+        kicker: "STEP 18",
+        title: "防御せず受ける",
+        detail: "今回はあえて防御しません。「防御しない」を選ぶと攻撃が通り、受けたダメージ1点につき手札を1枚引けます（ブレイクドロー）。劣勢側の巻き返しの資源になります。",
+        focus: { kind: "defense" },
+      };
+    }
     if (game.turn <= 2) {
       return {
         id: "field-defend",
@@ -194,7 +218,7 @@ export function currentTutorialStep(game: GameState): TutorialStep {
         id: "play-summon",
         kicker: "STEP 1",
         title: "場に出す",
-        detail: "選択した召喚獣を場に出します。先攻1ターン目は1アクションだけ使えます。",
+        detail: "選択した召喚獣を場に出します。召喚コストは power と同じで、『炉殻バサルトン』はコスト2です（このチュートリアルは練習用に2アクションで開始しています。通常の先攻1ターン目は1アクションです）。",
         focus: { kind: "action", action: "play" },
       };
     }
@@ -294,7 +318,7 @@ export function currentTutorialStep(game: GameState): TutorialStep {
         id: "upgrade",
         kicker: "STEP 9",
         title: "2Aで直接召喚",
-        detail: "まずは『噴角イグナロス』を通常どおり2アクションで場に出します。次のターンに大型へアップグレードした時との差を確認します。",
+        detail: "まずは『噴角イグナロス』を通常どおり3アクションで場に出します。次のターンに大型へアップグレードした時との差を確認します。",
         focus: { kind: "action", action: "play" },
       };
     }
@@ -302,7 +326,7 @@ export function currentTutorialStep(game: GameState): TutorialStep {
       id: "select-upgrade",
       kicker: "STEP 9",
       title: "中型を直接出す",
-      detail: "ターン開始時に『灯火の旅嚢』が手札を補充しました。『噴角イグナロス』を選び、2アクションで直接場に出します。",
+      detail: "ターン開始時に『灯火の旅嚢』が手札を補充しました。『噴角イグナロス』を選び、3アクションで直接場に出します。",
       focus: { kind: "hand-card", ownerIndex: 0, cardId: "AI-FIRE-3B" },
     };
   }
@@ -312,7 +336,7 @@ export function currentTutorialStep(game: GameState): TutorialStep {
       id: "end-after-power3-upgrade",
       kicker: "STEP 10",
       title: "直接召喚を終える",
-      detail: "『噴角イグナロス』を直接出すと2アクションを使い切ります。ターンを渡し、次の自分ターンで大型アップグレードの軽さを確認します。",
+      detail: "『噴角イグナロス』を直接出すと3アクションを使い切ります。ターンを渡し、次の自分ターンで大型アップグレードの軽さを確認します。",
       focus: { kind: "action", action: "end" },
     };
   }
@@ -324,7 +348,7 @@ export function currentTutorialStep(game: GameState): TutorialStep {
         id: "upgrade-power4",
         kicker: "STEP 12",
         title: "大型へアップグレード",
-        detail: "前のターンに『噴角イグナロス』を場に出していたので、『終火の影ヴァルガ』へ1アクションでアップグレードできます。直接出す2アクションとの差を確認します。",
+        detail: "前のターンに『噴角イグナロス』を場に出していたので、『終火の影ヴァルガ』へ1アクションでアップグレードできます。直接出す3アクションとの差を確認します。",
         focus: { kind: "action", action: "upgrade" },
       };
     }
@@ -360,14 +384,66 @@ export function currentTutorialStep(game: GameState): TutorialStep {
     };
   }
 
+  if (
+    game.turn >= 9
+    && game.active === 0
+    && player.hand.some((card) => card.id === "CMD-PURGE")
+    && rival.field.some((_, index) => rival.spentFieldIndexes.has(index))
+  ) {
+    const selected = selectedHumanHandCard(game);
+    if (selected?.id === "CMD-PURGE") {
+      return {
+        id: "purge-command",
+        kicker: "STEP 15",
+        title: "追撃粛清を放つ",
+        detail: "『追撃粛清』は消耗中（横向き）の相手召喚獣1体を、重ねたカードごとトラッシュへ送る術式です。攻撃してきた『碑甲ガメル』を粛清しましょう。",
+        focus: { kind: "action", action: "command" },
+      };
+    }
+    return {
+      id: "purge-command",
+      kicker: "STEP 15",
+      title: "追撃粛清を確認",
+      detail: "前のターンに攻撃してきた相手の召喚獣は消耗しています。手札の『追撃粛清』を選んでください。消耗した召喚獣を追撃で討ち取れます。",
+      focus: { kind: "hand-card", ownerIndex: 0, cardId: "CMD-PURGE" },
+    };
+  }
+
+  if (
+    game.turn >= 9
+    && game.active === 0
+    && canActivePlayerAttack(game)
+    && rival.field.length > 0
+    && player.field.some((card, index) => card.id === "AI-FIRE-2" && !player.spentFieldIndexes.has(index))
+  ) {
+    const strikerIndex = player.field.findIndex((card, index) => card.id === "AI-FIRE-2" && !player.spentFieldIndexes.has(index));
+    return {
+      id: "strike-monster",
+      kicker: "STEP 16",
+      title: "モンスター攻撃",
+      detail: "攻撃対象には相手プレイヤーだけでなく相手の召喚獣も選べます。攻撃値が相手の防御値を上回れば討伐、同値なら相打ちです。『炉殻バサルトン』で相手の壁を討伐しましょう。",
+      focus: selectedHumanFieldCardByIdReady(game, "AI-FIRE-2") ? { kind: "action", action: "attack" } : { kind: "field-card", ownerIndex: 0, index: strikerIndex },
+    };
+  }
+
   if (canActivePlayerAttack(game) && player.field.some((card) => card.id === "AI-FIRE-4")) {
     const power4Index = player.field.findIndex((card) => card.id === "AI-FIRE-4");
     return {
       id: "power4-attack",
-      kicker: "STEP 15",
-      title: "power 4 の攻撃",
-      detail: "power 4 は強力ですが、攻撃後に力を使い切って退場します。『終火の影ヴァルガ』で攻撃して確認します。",
+      kicker: "STEP 17",
+      title: "切札の4点パンチ",
+      detail: "防がれなかった攻撃のダメージは、攻撃した召喚獣の power と同じです。『終火の影ヴァルガ』は power 4 なので4点ダメージ。受けた側はその点数だけドローし（ブレイクドロー）、power 4 は攻撃後に退場します。",
       focus: selectedHumanFieldCardReady(game) ? { kind: "action", action: "attack" } : { kind: "field-card", ownerIndex: 0, index: power4Index },
+    };
+  }
+
+  if (game.turn >= 9 && game.active === 0 && player.discard.some((card) => card.id === "AI-FIRE-4")) {
+    return {
+      id: "end-after-power4",
+      kicker: "STEP 17",
+      title: "ターンを渡す",
+      detail: "4点パンチとブレイクドローを確認しました。最後に、自分が防御せずに攻撃を受けたときのブレイクドローを体験します。ターンを終了してください。",
+      focus: { kind: "action", action: "end" },
     };
   }
 
@@ -382,23 +458,34 @@ export function currentTutorialStep(game: GameState): TutorialStep {
 
 export function tutorialForcedAiAction(game: GameState): AiAction | null {
   if (game.active !== 1 || game.pendingAttack || game.pendingTarget || game.winner !== null || game.draw) return null;
+  const rival = game.players[1];
+  const canAffordPlay = (handIndex: number) => {
+    const card = rival.hand[handIndex];
+    return Boolean(card) && playCost(card, game) <= game.actionsRemaining;
+  };
   if (game.turn === 2 && game.actionsRemaining > 0) {
-    const firstAttackerIndex = game.players[1].field.findIndex((card) => card.id === "AI-EARTH-1");
-    if (firstAttackerIndex >= 0 && canActivePlayerAttack(game) && !game.players[1].spentFieldIndexes.has(firstAttackerIndex)) {
+    const firstAttackerIndex = rival.field.findIndex((card) => card.id === "AI-EARTH-1B");
+    if (firstAttackerIndex >= 0 && canActivePlayerAttack(game) && !rival.spentFieldIndexes.has(firstAttackerIndex)) {
       return { type: "attack", index: firstAttackerIndex };
     }
-    const firstAttackerInHand = game.players[1].hand.findIndex((card) => card.id === "AI-EARTH-1");
-    if (firstAttackerInHand >= 0 && !game.players[1].discard.some((card) => card.id === "AI-EARTH-1")) {
+    const firstAttackerInHand = rival.hand.findIndex((card) => card.id === "AI-EARTH-1B");
+    if (firstAttackerInHand >= 0 && !rival.discard.some((card) => card.id === "AI-EARTH-1B") && canAffordPlay(firstAttackerInHand)) {
       return { type: "play", index: firstAttackerInHand };
     }
-    const nextAttackerInHand = game.players[1].hand.findIndex((card) => card.id === "AI-EARTH-2");
-    if (nextAttackerInHand >= 0 && !game.players[1].field.some((card) => card.id === "AI-EARTH-2")) {
+    const nextAttackerInHand = rival.hand.findIndex((card) => card.id === "AI-EARTH-2");
+    if (nextAttackerInHand >= 0 && !rival.field.some((card) => card.id === "AI-EARTH-2") && canAffordPlay(nextAttackerInHand)) {
       return { type: "play", index: nextAttackerInHand };
     }
   }
-  if (game.turn === 4 && game.actionsRemaining > 0 && !game.players[1].field.some((card) => card.id === "AI-EARTH-2")) {
-    const nextAttackerInHand = game.players[1].hand.findIndex((card) => card.id === "AI-EARTH-2");
-    if (nextAttackerInHand >= 0) return { type: "play", index: nextAttackerInHand };
+  if (game.turn === 4 && game.actionsRemaining > 0 && !rival.field.some((card) => card.id === "AI-EARTH-2")) {
+    const nextAttackerInHand = rival.hand.findIndex((card) => card.id === "AI-EARTH-2");
+    if (nextAttackerInHand >= 0 && canAffordPlay(nextAttackerInHand)) return { type: "play", index: nextAttackerInHand };
+  }
+  if (game.turn === 8 && game.actionsRemaining > 0) {
+    const wallInHand = rival.hand.findIndex((card) => card.id === "AI-EARTH-1");
+    if (wallInHand >= 0 && !rival.field.some((card) => card.id === "AI-EARTH-1") && canAffordPlay(wallInHand)) {
+      return { type: "play", index: wallInHand };
+    }
   }
   if (
     game.turn === 8
@@ -408,6 +495,18 @@ export function tutorialForcedAiAction(game: GameState): AiAction | null {
     && !game.players[1].spentFieldIndexes.has(0)
   ) {
     return { type: "attack", index: 0 };
+  }
+  if (game.turn === 10 && game.actionsRemaining > 0) {
+    const gnomeInHand = rival.hand.findIndex((card) => card.id === "AI-EARTH-2C");
+    if (gnomeInHand >= 0 && !rival.field.some((card) => card.id === "AI-EARTH-2C") && canAffordPlay(gnomeInHand)) {
+      return { type: "play", index: gnomeInHand };
+    }
+    const attackerIndex = game.players[1].field.findIndex(
+      (card, index) => card.id === "AI-EARTH-2C" && !game.players[1].spentFieldIndexes.has(index),
+    );
+    if (attackerIndex >= 0 && canActivePlayerAttack(game)) {
+      return { type: "attack", index: attackerIndex };
+    }
   }
   return { type: "end" };
 }
@@ -429,7 +528,7 @@ function selectedHumanFieldCardByIdReady(game: GameState, cardId: string): boole
 
 function tutorialPracticeComplete(game: GameState): boolean {
   const player = game.players[0];
-  return player.discard.some((card) => card.id === "AI-FIRE-4");
+  return player.discard.some((card) => card.id === "AI-FIRE-4") && player.life < CONFIG.life;
 }
 
 function cloneCards(cardIds: string[]): Card[] {
@@ -452,14 +551,14 @@ function completeStep(): TutorialStep {
     id: "complete",
     kicker: "COMPLETE",
     title: "チュートリアル完了",
-    detail: "『終火の影ヴァルガ』の攻撃まで確認しました。内容を確認したら完了して、通常の対戦準備へ戻ります。",
+    detail: "追撃粛清、モンスター攻撃、切札の4点パンチ、ブレイクドローまで確認しました。内容を確認したら完了して、通常の対戦準備へ戻ります。",
   };
 }
 
 function rivalTurnStep(game: GameState): TutorialStep {
   const turn = game.turn;
   if (turn <= 2) {
-    if (!game.players[1].field.some((card) => card.id === "AI-EARTH-1") && !game.players[1].discard.some((card) => card.id === "AI-EARTH-1")) {
+    if (!game.players[1].field.some((card) => card.id === "AI-EARTH-1B") && !game.players[1].discard.some((card) => card.id === "AI-EARTH-1B")) {
       return {
         id: "watch-rival",
         kicker: "STEP 2",
@@ -467,7 +566,7 @@ function rivalTurnStep(game: GameState): TutorialStep {
         detail: "ライバルも最初は場が空です。まず召喚獣を場に出し、その後の攻撃を場で防御します。",
       };
     }
-    if (game.players[1].discard.some((card) => card.id === "AI-EARTH-1")) {
+    if (game.players[1].discard.some((card) => card.id === "AI-EARTH-1B")) {
       if (!game.players[1].field.some((card) => card.id === "AI-EARTH-2")) {
         return {
           id: "watch-rival",
@@ -514,10 +613,18 @@ function rivalTurnStep(game: GameState): TutorialStep {
       detail: "『噴角イグナロス』を場に置けました。次の自分ターンで大型アップグレードの効率を確認します。",
     };
   }
+  if (turn <= 8) {
+    return {
+      id: "watch-rival",
+      kicker: "STEP 14",
+      title: "手札防御を待つ",
+      detail: "大型召喚獣を場に出し、浮いた行動も使いました。今度はライバルの攻撃を手札の召喚獣で受け止めます。",
+    };
+  }
   return {
     id: "watch-rival",
-    kicker: "STEP 14",
-    title: "手札防御を待つ",
-    detail: "大型召喚獣を場に出し、浮いた行動も使いました。今度はライバルの攻撃を手札の召喚獣で受け止めます。",
+    kicker: "STEP 18",
+    title: "最後の攻撃を受ける",
+    detail: "ライバルが最後の攻撃を仕掛けてきます。今回は防御せずに受けて、被弾時のブレイクドローを確認します。",
   };
 }

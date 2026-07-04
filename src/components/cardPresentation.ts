@@ -50,6 +50,7 @@ import cmdEarthRiteArt from "../assets/card-art/cmd-earth-rite.webp";
 import cmdFireRiteArt from "../assets/card-art/cmd-fire-rite.webp";
 import cmdOptimizeArt from "../assets/card-art/cmd-optimize.webp";
 import cmdPatchArt from "../assets/card-art/cmd-patch.webp";
+import cmdPurgeArt from "../assets/card-art/cmd-purge.webp";
 import cmdRelearnArt from "../assets/card-art/cmd-relearn.webp";
 import cmdSandboxArt from "../assets/card-art/cmd-sandbox.webp";
 import cmdTrinityArt from "../assets/card-art/cmd-trinity.webp";
@@ -118,6 +119,7 @@ const SUPPORT_CARD_ART: Record<string, string> = {
   "CMD-OPTIMIZE": cmdOptimizeArt,
   "CMD-PATCH": cmdPatchArt,
   "CMD-DISRUPT": cmdDisruptArt,
+  "CMD-PURGE": cmdPurgeArt,
   "CMD-RELEARN": cmdRelearnArt,
   "CMD-SANDBOX": cmdSandboxArt,
   "CMD-TRINITY": cmdTrinityArt,
@@ -158,6 +160,7 @@ export function cardArtGlyph(card: Card): string {
     if (card.effect === "optimize") return "整";
     if (card.effect === "patch") return "癒";
     if (card.effect === "disrupt") return "縛";
+    if (card.effect === "purge") return "粛";
     if (card.effect === "relearn") return "巻";
     if (card.effect === "sandbox") return "結";
     if (card.effect === "trinity") return "崩";
@@ -240,6 +243,7 @@ export function roleText(card: Card): string {
   if (card.effect === "optimize") return "1アクション。手札1枚をトラッシュへ送り、山札からカードを2枚引く";
   if (card.effect === "patch") return "1アクション。自分の消耗召喚獣1体を回復する";
   if (card.effect === "disrupt") return "1アクション。相手の未消耗召喚獣1体を消耗";
+  if (card.effect === "purge") return "1アクション。相手の消耗中召喚獣1体を選び、トラッシュへ送る";
   if (card.effect === "relearn") return "1アクション。手札1枚をトラッシュへ送り、トラッシュの召喚獣1枚を回収";
   if (card.effect === "sandbox") return "1アクション。このターン、次のpower 4攻撃後退場を1回防ぐ";
   if (card.effect === "trinity") return "1アクション。場が3枚なら全てトラッシュし、相手ライフ-1";
@@ -247,7 +251,7 @@ export function roleText(card: Card): string {
   if (card.effect === "water_rite") return "1アクション。場に水の召喚獣がいる時、山札からカードを1枚引く";
   if (card.effect === "wind_rite") return "1アクション。場に風の召喚獣がいる時、相手1体を選んで消耗し、自分の風1体を選んで回復する";
   if (card.effect === "earth_rite") return "1アクション。場に土の召喚獣がいる時、トラッシュの召喚獣1枚を回収";
-  if (card.effect === "comeback_rite") return "1アクション。相手よりライフが少ない場合、山札からカードを1枚引き、自分の消耗召喚獣1体を選んで回復する";
+  if (card.effect === "comeback_rite") return "1アクション。相手よりライフが少ない場合、山札からカードを2枚引き、自分の消耗召喚獣1体を選んで回復する";
   if (card.effect === "firewall") return "他属性召喚獣の攻撃を場防御する時、手札を1枚トラッシュへ送るなら power +1";
   if (card.effect === "cache") return "ターン開始時、手札2枚以下なら山札からカードを1枚引く";
   if (card.effect === "pipeline") return "1ターンに1回、power 1登場時、山札からカードを1枚引く";
@@ -257,8 +261,8 @@ export function roleText(card: Card): string {
   const trait = card.effect ? ` / ${aiEffectText(card)}` : "";
   if (card.power === 1) return `1アクション${trait}`;
   if (card.power === 2) return `2アクション${trait}`;
-  if (card.power === 3) return `${playCost(card)}アクション / アップグレード${upgradeCost(card)}アクション。${aiBaseRuleText(card)}${trait}`;
-  if (card.power === 4) return `${playCost(card)}アクション / アップグレード${upgradeCost(card)}アクション。${aiBaseRuleText(card)}${trait}`;
+  if (card.power === 3) return `${playCost(card)}アクション。${aiBaseRuleText(card)}${trait}`;
+  if (card.power === 4) return `${playCost(card)}アクション。${aiBaseRuleText(card)}${trait}`;
   return "召喚獣";
 }
 

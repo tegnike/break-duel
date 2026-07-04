@@ -2080,6 +2080,14 @@ h2 {
   color: #ffabf3;
 }
 
+.duel-action-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 34;
+  background: rgba(3, 7, 12, 0.36);
+  pointer-events: auto;
+}
+
 .duel-action-reel {
   position: fixed;
   left: 50%;
@@ -5252,7 +5260,7 @@ h1 {
   --arena-gold: #f8c35a;
   position: relative;
   display: grid;
-  grid-template-rows: 68px minmax(260px, 1fr) 40px 176px 184px;
+  grid-template-rows: 68px minmax(260px, 1fr) 40px 176px minmax(184px, auto);
   width: 100%;
   min-width: 0;
   height: 100vh;
@@ -5291,7 +5299,7 @@ h1 {
   backdrop-filter: blur(2px);
 }
 
-.stitch-shell > :not(.event-toast):not(.duel-overlay):not(.duel-action-reel):not(.card-flight):not(.modal-backdrop):not(.match-result-spotlight):not(.tutorial-guide-panel) {
+.stitch-shell > :not(.event-toast):not(.duel-overlay):not(.duel-action-backdrop):not(.duel-action-reel):not(.card-flight):not(.modal-backdrop):not(.match-result-spotlight):not(.tutorial-guide-panel) {
   position: relative;
   z-index: 1;
 }
@@ -7311,7 +7319,7 @@ h1 {
 
 @media (min-width: 921px) and (max-width: 1179px) {
   .stitch-shell {
-    grid-template-rows: 64px minmax(340px, 1fr) 42px 162px 184px 260px;
+    grid-template-rows: 64px minmax(340px, 1fr) 42px 162px minmax(184px, auto) 260px;
     min-height: 100vh;
     height: auto;
     overflow: auto;
@@ -7962,7 +7970,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   --arena-ruby: #d94b64;
   --arena-violet: #8f6cff;
 
-  grid-template-rows: 78px minmax(320px, 1fr) 48px 190px 210px;
+  grid-template-rows: 78px minmax(320px, 1fr) 48px 190px minmax(210px, auto);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 11%, transparent 72%, rgba(255, 255, 255, 0.025)),
     radial-gradient(ellipse at 50% 42%, rgba(82, 228, 255, 0.16), transparent 36%),
@@ -8481,7 +8489,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 @media (min-width: 921px) and (max-width: 1179px) {
   .stitch-shell {
-    grid-template-rows: 74px minmax(380px, 1fr) 48px 186px 224px 280px;
+    grid-template-rows: 74px minmax(380px, 1fr) 48px 186px minmax(224px, auto) 280px;
   }
 
   .stitch-command-dock {
@@ -8495,7 +8503,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 @media (min-width: 921px) and (max-height: 760px) {
   .stitch-shell {
-    grid-template-rows: 78px minmax(300px, 1fr) 44px 150px 148px;
+    grid-template-rows: 78px minmax(300px, 1fr) 44px 150px minmax(148px, auto);
   }
 
   .stitch-opponent-bar,
@@ -8817,7 +8825,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   --arena-ruby: #d84f66;
   --arena-ink: #070711;
 
-  grid-template-rows: 76px minmax(330px, 1fr) 46px 178px 206px;
+  grid-template-rows: 76px minmax(330px, 1fr) 46px 178px minmax(206px, auto);
   background:
     radial-gradient(ellipse at 50% 46%, rgba(245, 207, 120, 0.22), transparent 38%),
     radial-gradient(ellipse at 18% 18%, rgba(125, 220, 255, 0.18), transparent 34%),
@@ -9539,7 +9547,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 @media (min-width: 921px) and (max-height: 760px) {
   .stitch-shell {
-    grid-template-rows: 70px minmax(292px, 1fr) 42px 142px 148px;
+    grid-template-rows: 70px minmax(292px, 1fr) 42px 142px minmax(148px, auto);
   }
 
   .stitch-status-left::before {
@@ -10103,6 +10111,262 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   }
 }
 
+/* WP5: ダメージ量に応じた段階強調。amount-1 は控えめ、amount-2 でフラッシュ、amount-3 は最大の山場。 */
+.damage-impact-layer.amount-1 {
+  animation-duration: 900ms;
+}
+
+.damage-impact-layer.amount-1 .damage-impact-core {
+  width: 104px;
+  height: 104px;
+  animation-duration: 900ms;
+}
+
+.damage-impact-layer.amount-2 {
+  background:
+    radial-gradient(circle at var(--impact-x) var(--impact-y), var(--impact-soft), transparent 34%),
+    radial-gradient(circle at 50% 50%, rgba(255, 245, 200, 0.2), transparent 66%);
+}
+
+.damage-impact-layer.amount-2::before,
+.damage-impact-layer.amount-3::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 236, 200, 0.5);
+  animation: damage-screen-flash 620ms ease-out both;
+  pointer-events: none;
+}
+
+.damage-impact-layer.amount-3 {
+  animation-duration: 1500ms;
+  background:
+    radial-gradient(circle at var(--impact-x) var(--impact-y), var(--impact-soft), transparent 46%),
+    radial-gradient(circle at 50% 50%, rgba(255, 236, 180, 0.3), transparent 78%);
+}
+
+.damage-impact-layer.amount-3::before {
+  background: rgba(255, 244, 214, 0.72);
+  animation-duration: 780ms;
+}
+
+.damage-impact-layer.amount-3 .damage-impact-core {
+  width: 176px;
+  height: 176px;
+  animation-duration: 1500ms;
+}
+
+.damage-impact-layer.amount-3 .damage-impact-core span {
+  font-size: 48px;
+}
+
+.stitch-shell.life-impact-amount-2 {
+  animation-name: duel-screen-shake-heavy;
+}
+
+.stitch-shell.life-impact-amount-3 {
+  animation-name: duel-screen-shake-peak;
+  animation-duration: 940ms;
+}
+
+@keyframes damage-screen-flash {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes duel-screen-shake-heavy {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  14% {
+    transform: translate3d(-10px, 6px, 0);
+  }
+  30% {
+    transform: translate3d(9px, -5px, 0);
+  }
+  48% {
+    transform: translate3d(-6px, 3px, 0);
+  }
+  66% {
+    transform: translate3d(4px, -2px, 0);
+  }
+}
+
+@keyframes duel-screen-shake-peak {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  10% {
+    transform: translate3d(-16px, 9px, 0) rotate(-0.4deg);
+  }
+  24% {
+    transform: translate3d(14px, -8px, 0) rotate(0.35deg);
+  }
+  40% {
+    transform: translate3d(-10px, 5px, 0) rotate(-0.25deg);
+  }
+  58% {
+    transform: translate3d(7px, -4px, 0);
+  }
+  76% {
+    transform: translate3d(-3px, 2px, 0);
+  }
+}
+
+/* WP5: 山場イベントのリール強調（peak = 切札/3点、high = 討伐/相打ち/2点、low = 1点や軽い防御） */
+.duel-action-reel.emphasis-low {
+  transform: translate(-50%, -50%) scale(0.94);
+  opacity: 0.98;
+}
+
+.duel-action-reel.emphasis-high {
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.6),
+    0 0 46px rgba(255, 176, 92, 0.34);
+}
+
+.duel-action-reel.emphasis-peak {
+  transform: translate(-50%, -50%) scale(1.05);
+  box-shadow:
+    0 34px 92px rgba(0, 0, 0, 0.66),
+    0 0 66px rgba(255, 214, 120, 0.5),
+    inset 0 0 0 1px rgba(255, 226, 150, 0.5);
+  animation: duel-reel-peak-pulse 1400ms ease-in-out infinite;
+}
+
+.duel-action-reel.emphasis-peak .duel-action-head strong {
+  text-shadow:
+    0 0 18px rgba(255, 214, 120, 0.85),
+    0 2px 0 rgba(70, 30, 0, 0.8);
+}
+
+@keyframes duel-reel-peak-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.14);
+  }
+}
+
+/* WP5: ブレイクドローの視覚表現。被弾側の手札方向へカードが流れ込む。 */
+.break-draw-layer {
+  --break-x: 24vw;
+  --break-y: 72vh;
+  --break-tone: #64e0ff;
+
+  position: fixed;
+  inset: 0;
+  z-index: 34;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.break-draw-layer.target-1 {
+  --break-x: 72vw;
+  --break-y: 22vh;
+  --break-tone: #6ff0c8;
+}
+
+.break-draw-label {
+  position: absolute;
+  left: var(--break-x);
+  top: var(--break-y);
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 8px 18px;
+  border: 1px solid color-mix(in srgb, var(--break-tone) 70%, white);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--break-tone) 18%, rgba(8, 14, 26, 0.9));
+  color: #eafcff;
+  font-family: var(--duel-ui);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--break-tone) 55%, transparent);
+  animation: break-draw-label 1650ms ease-out both;
+}
+
+.break-draw-label strong {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-shadow: 0 0 14px var(--break-tone);
+}
+
+.break-draw-label span {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.92;
+}
+
+.break-draw-layer i {
+  position: absolute;
+  left: calc(var(--break-x) + (var(--break-card-index) - 1) * 26px);
+  top: calc(var(--break-y) - 120px);
+  width: 34px;
+  height: 48px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--break-tone) 78%, white);
+  background:
+    linear-gradient(155deg, color-mix(in srgb, var(--break-tone) 42%, rgba(10, 18, 32, 0.94)), rgba(10, 18, 32, 0.94));
+  box-shadow: 0 0 20px color-mix(in srgb, var(--break-tone) 46%, transparent);
+  transform: translate(-50%, -50%);
+  animation: break-draw-card 1250ms cubic-bezier(0.2, 0.8, 0.24, 1) both;
+  animation-delay: calc(var(--break-card-index) * 110ms);
+}
+
+.break-draw-layer.target-1 i {
+  top: calc(var(--break-y) + 120px);
+}
+
+@keyframes break-draw-label {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  18%,
+  72% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -62%) scale(0.94);
+  }
+}
+
+@keyframes break-draw-card {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(-8deg);
+  }
+  22% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + var(--break-fall, 150px))) rotate(6deg);
+  }
+}
+
+.break-draw-layer.target-0 i {
+  --break-fall: 150px;
+}
+
+.break-draw-layer.target-1 i {
+  --break-fall: -150px;
+}
+
 @keyframes leader-hurt-recoil {
   0%,
   100% {
@@ -10176,8 +10440,13 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   .stitch-life.life-hit::after,
   .stitch-life.life-hit span:not(.empty),
   .damage-impact-layer,
+  .damage-impact-layer::before,
   .damage-impact-core,
   .damage-impact-layer i,
+  .break-draw-layer,
+  .break-draw-label,
+  .break-draw-layer i,
+  .duel-action-reel.emphasis-peak,
   .leader-portrait.reaction-hurt,
   .leader-portrait.reaction-delight,
   .leader-portrait.reaction-hurt img,
@@ -10752,7 +11021,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 @media (min-width: 1025px) {
   .stitch-shell {
-    grid-template-rows: 78px minmax(320px, 1fr) 48px 176px 150px;
+    grid-template-rows: 78px minmax(320px, 1fr) 48px 176px minmax(150px, auto);
   }
 
   .stitch-shell > .dock-detail-rail {

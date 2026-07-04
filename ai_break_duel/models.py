@@ -18,6 +18,7 @@ class ActionType(str, Enum):
     UPGRADE_AI = "upgrade_ai"
     USE_COMMAND = "use_command"
     ATTACK = "attack"
+    STRIKE = "strike"
     CHARGE = "charge"
     END_TURN = "end_turn"
 
@@ -33,7 +34,7 @@ class Action:
 @dataclass
 class PlayerState:
     name: str
-    life: int = 5
+    life: int = 8
     deck: list[Card] = field(default_factory=list)
     hand: list[Card] = field(default_factory=list)
     field_ai: list[Card] = field(default_factory=list)
@@ -74,18 +75,18 @@ class PlayerState:
 
 @dataclass
 class GameConfig:
-    life: int = 5
+    life: int = 8
     initial_hand: int = 5
     first_player_initial_hand: int | None = 5
     second_player_initial_hand: int | None = 5
-    actions_per_turn: int = 2
+    actions_per_turn: int = 3
     field_ai_limit: int = 3
     max_turns: int = 60
     defense_advantage_bonus: int = 1
     defense_disadvantage_penalty: int = 1
     same_attribute_strict_defense: bool = True
     first_player_first_turn_actions: int | None = 1
-    each_player_first_turn_actions: int | None = 2
+    each_player_first_turn_actions: int | None = None
     first_player_first_turn_can_attack: bool = False
     first_player_first_turn_draw: bool = False
     second_player_first_turn_draw: bool = False
@@ -112,6 +113,9 @@ class GameConfig:
     power_4_enters_spent: bool = False
     power_4_overheats_after_attack: bool = True
     hand_limit: int | None = None
+    power_scaled_damage: bool = True
+    draw_on_attack_damage: str = "point"  # none / event / point
+    monster_combat: bool = True
     ai_profiles: tuple[AiProfile, AiProfile] = ("classic", "classic")
 
 

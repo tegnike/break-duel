@@ -166,15 +166,19 @@ ADOPTED_COST_BUCKET_WIN_RATE_LIMITS = {
 }
 
 
-def legal_stress_deck(card_ids: tuple[str, ...]) -> tuple[str, ...]:
-    """Build a legal 20-card stress deck from one cost bucket.
+STRESS_DECK_SUMMON_COUNT = 25 - len(SUPPORT_CARD_IDS)
 
-    The deck mirrors the balance-regression script template: 14 summons, 4
-    commands, 2 relics, no high-power duplicates, and at most 4 power 3+ summons.
+
+def legal_stress_deck(card_ids: tuple[str, ...]) -> tuple[str, ...]:
+    """Build a legal 25-card stress deck from one cost bucket.
+
+    The deck mirrors the balance-regression script template (2026-07-04 の
+    25 枚デッキルール追随後): 19 summons, 4 commands, 2 relics, at most 2
+    copies per card ID, and at most 5 power 3+ summons.
     """
 
     summon_ids: list[str] = []
-    high_power_seen: set[str] = set()
+    high_power_counts: dict[str, int] = {}
     low_power_counts: dict[str, int] = {}
     high_power_count = 0
     for card_id in (*card_ids, *FILLER_SUMMON_CARD_IDS):
@@ -182,16 +186,16 @@ def legal_stress_deck(card_ids: tuple[str, ...]) -> tuple[str, ...]:
         if card.type != CardType.AI:
             continue
         if (card.power or 0) >= 3:
-            if card_id in high_power_seen or high_power_count >= 4:
+            if high_power_counts.get(card_id, 0) >= 2 or high_power_count >= 5:
                 continue
-            high_power_seen.add(card_id)
+            high_power_counts[card_id] = high_power_counts.get(card_id, 0) + 1
             high_power_count += 1
         else:
             if low_power_counts.get(card_id, 0) >= 2:
                 continue
             low_power_counts[card_id] = low_power_counts.get(card_id, 0) + 1
         summon_ids.append(card_id)
-        if len(summon_ids) == 14:
+        if len(summon_ids) == STRESS_DECK_SUMMON_COUNT:
             return tuple(summon_ids) + SUPPORT_CARD_IDS
     raise ValueError("Unable to build a legal stress deck.")
 

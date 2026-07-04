@@ -32,11 +32,11 @@ from ai_break_duel.engine import (
 from ai_break_duel.models import GameConfig, GameState, PlayerState
 
 
-AI_SLOTS = 14
-EVENT_SLOTS = 4
-MEMORY_SLOTS = 2
-HIGH_POWER_LIMIT = 4
-CARD_COUNT = 20
+AI_SLOT_RANGE = (14, 18)
+MEMORY_SLOT_RANGE = (2, 3)
+EVENT_SLOT_MIN = 4
+HIGH_POWER_LIMIT = 5
+CARD_COUNT = 25
 EXISTING_OPPONENTS = (
     DeckArchetype.BREAK,
     DeckArchetype.CONTROL,
@@ -109,42 +109,86 @@ def generate_candidates(pool_size: int, rng: random.Random, current_apex: tuple[
         CardType.MEMORY: [card for card in cards if card.type == CardType.MEMORY],
     }
     candidates: list[Candidate] = []
-    seen = {current_apex}
+    seen = {tuple(sorted(current_apex))}
+
+    mutation_target = pool_size // 2
     attempts = 0
-    while len(candidates) < pool_size and attempts < pool_size * 300:
+    while len(candidates) < mutation_target and attempts < pool_size * 300:
         attempts += 1
-        card_ids = (
-            weighted_slots(by_type[CardType.AI], AI_SLOTS, rng)
-            + weighted_slots(by_type[CardType.EVENT], EVENT_SLOTS, rng)
-            + weighted_slots(by_type[CardType.MEMORY], MEMORY_SLOTS, rng)
-        )
-        if "MEM-RESONATOR" not in card_ids:
+        card_ids = mutate_deck(current_apex, cards, rng)
+        if card_ids is None or not deck_is_legal(card_ids):
             continue
-        if not deck_is_legal(card_ids):
-            continue
-        canonical = tuple(card_ids)
+        canonical = tuple(sorted(card_ids))
         if canonical in seen:
             continue
         seen.add(canonical)
-        candidates.append(Candidate(f"apex_candidate_{len(candidates) + 1:03d}", canonical, "weighted_random"))
+        candidates.append(
+            Candidate(f"apex_mutation_{len(candidates) + 1:03d}", tuple(card_ids), "mutation")
+        )
+
+    attempts = 0
+    while len(candidates) < pool_size and attempts < pool_size * 300:
+        attempts += 1
+        ai_slots = rng.randint(*AI_SLOT_RANGE)
+        memory_slots = rng.randint(*MEMORY_SLOT_RANGE)
+        event_slots = CARD_COUNT - ai_slots - memory_slots
+        if event_slots < EVENT_SLOT_MIN:
+            continue
+        card_ids = (
+            weighted_slots(by_type[CardType.AI], ai_slots, rng)
+            + weighted_slots(by_type[CardType.EVENT], event_slots, rng)
+            + weighted_slots(by_type[CardType.MEMORY], memory_slots, rng)
+        )
+        if not deck_is_legal(card_ids):
+            continue
+        canonical = tuple(sorted(card_ids))
+        if canonical in seen:
+            continue
+        seen.add(canonical)
+        candidates.append(Candidate(f"apex_candidate_{len(candidates) + 1:03d}", tuple(card_ids), "weighted_random"))
     if len(candidates) < pool_size:
         raise RuntimeError(f"only generated {len(candidates)} legal candidates")
     return candidates
 
 
+def mutate_deck(base: tuple[str, ...], pool: list[Card], rng: random.Random) -> list[str] | None:
+    card_ids = list(base)
+    swaps = rng.randint(1, 4)
+    for _ in range(swaps):
+        remove_index = rng.randrange(len(card_ids))
+        removed = card_ids.pop(remove_index)
+        counts = Counter(card_ids)
+        replacements = [
+            card for card in pool
+            if card.id != removed and counts[card.id] < 2
+        ]
+        if not replacements:
+            return None
+        weights = [max(1.0, _sampling_value(card)) for card in replacements]
+        card_ids.append(rng.choices(replacements, weights=weights, k=1)[0].id)
+    return card_ids
+
+
 def weighted_slots(cards: list[Card], slots: int, rng: random.Random) -> list[str]:
     selected: list[str] = []
     counts: Counter[str] = Counter()
+    high_power_total = 0
     while len(selected) < slots:
         available = [
             card for card in cards
             if counts[card.id] < 2
-            and (card.type != CardType.AI or (card.power or 0) < 3 or counts[card.id] == 0)
+            and (
+                card.type != CardType.AI
+                or (card.power or 0) < 3
+                or high_power_total < HIGH_POWER_LIMIT
+            )
         ]
         weights = [max(1.0, _sampling_value(card)) for card in available]
         card = rng.choices(available, weights=weights, k=1)[0]
         selected.append(card.id)
         counts[card.id] += 1
+        if card.type == CardType.AI and (card.power or 0) >= 3:
+            high_power_total += 1
     return selected
 
 
@@ -161,6 +205,8 @@ def _sampling_value(card: Card) -> float:
             "sandbox": 80,
             "optimize": 36,
             "relearn": 40,
+            "purge": 72,
+            "comeback_rite": 48,
         }.get(card.effect, 0)
     if card.type == CardType.MEMORY:
         value += 35
@@ -176,16 +222,17 @@ def deck_is_legal(card_ids: tuple[str, ...] | list[str]) -> bool:
     if any(count > 2 for count in counts.values()):
         return False
     cards = [card_by_id(card_id) for card_id in card_ids]
-    if sum(1 for card in cards if card.type == CardType.AI) != AI_SLOTS:
+    ai_count = sum(1 for card in cards if card.type == CardType.AI)
+    memory_count = sum(1 for card in cards if card.type == CardType.MEMORY)
+    event_count = sum(1 for card in cards if card.type == CardType.EVENT)
+    if not (AI_SLOT_RANGE[0] <= ai_count <= AI_SLOT_RANGE[1]):
         return False
-    if sum(1 for card in cards if card.type == CardType.EVENT) != EVENT_SLOTS:
+    if not (MEMORY_SLOT_RANGE[0] <= memory_count <= MEMORY_SLOT_RANGE[1]):
         return False
-    if sum(1 for card in cards if card.type == CardType.MEMORY) != MEMORY_SLOTS:
+    if event_count < EVENT_SLOT_MIN:
         return False
     high_power = [card.id for card in cards if card.type == CardType.AI and (card.power or 0) >= 3]
     if len(high_power) > HIGH_POWER_LIMIT:
-        return False
-    if len(high_power) != len(set(high_power)):
         return False
     validate_same_name_limit(cards)
     return True
