@@ -42,6 +42,21 @@
         "--strictPort"
       ],
       "port": 5217
+    },
+    {
+      "name": "break-duel-dev-5174",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5174",
+        "--strictPort"
+      ],
+      "port": 5174
     }
   ]
 }
