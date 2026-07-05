@@ -1,0 +1,65 @@
+name: Balance Regression
+
+on:
+  schedule:
+    # 毎週土曜 06:00 JST（金曜 21:00 UTC）。定期実行は軽め（200戦/順）で傾向監視する
+    - cron: "0 21 * * 5"
+  workflow_dispatch:
+    inputs:
+      games_per_order:
+        description: "1候補・1対戦順あたりの試合数。正式レポートは1000以上"
+        required: false
+        default: "1000"
+      seed:
+        description: "シミュレーションのシード"
+        required: false
+        default: "3000000"
+      rule_set:
+        description: "ルールセット（通常は current）"
+        required: false
+        default: "current"
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run balance regression
+        run: |
+          GAMES="${{ github.event.inputs.games_per_order || '200' }}"
+          SEED="${{ github.event.inputs.seed || '3000000' }}"
+          RULE_SET="${{ github.event.inputs.rule_set || 'current' }}"
+          mkdir -p tmp
+          python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py \
+            --rule-set "$RULE_SET" \
+            --include-preset-league \
+            --games-per-order "$GAMES" \
+            --seed "$SEED" \
+            --out tmp/balance-regression.json | tee tmp/balance-regression.txt
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## バランス回帰結果"
+            echo ""
+            echo '```'
+            cat tmp/balance-regression.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload raw results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: balance-regression-${{ github.run_number }}
+          path: |
+            tmp/balance-regression.json
+            tmp/balance-regression.txt
+          retention-days: 90

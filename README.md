@@ -223,6 +223,49 @@ npm run check
 カード効果を追加・変更した場合は、TypeScript 側の `src/game/cardEffectCoverage.test.ts` に効果ケースを追加してください。
 このテストは有効カードプールに存在する効果 ID とテスト登録表の差分を検知するため、効果を実装してテスト登録を忘れると `npm run test:unit` が失敗します。
 
+## CI
+
+GitHub Actions で 3 つのワークフローが動きます。
+
+| ワークフロー | トリガー | 内容 |
+| --- | --- | --- |
+| `CI` | push / PR | `npm run check`（typecheck + TS unit + build + Python unittest） |
+| `Balance Regression` | 毎週土曜朝 JST + 手動実行 | ストレスデッキ回帰 + 6 デッキリーグ。結果はジョブサマリーとアーティファクトに保存 |
+| `Deploy` | main の CI 成功後 + 手動実行 | ビルドして Cloudflare Pages へデプロイ |
+
+定期実行のバランス回帰は 200 戦/順の軽量版です。正式なバランスレポートが必要なときは、Actions から `Balance Regression` を `games_per_order=1000` で手動実行してください。
+
+## デプロイ（Cloudflare Pages）
+
+初回のみ、次のセットアップが必要です。
+
+1. Cloudflare ダッシュボードでアカウント ID を控え、`Cloudflare Pages: Edit` 権限の API トークンを作成する。
+2. Pages プロジェクトを作成する:
+
+   ```bash
+   npx wrangler pages project create break-duel --production-branch=main
+   ```
+
+3. GitHub リポジトリにシークレットを設定する:
+
+   ```bash
+   gh secret set CLOUDFLARE_API_TOKEN
+   gh secret set CLOUDFLARE_ACCOUNT_ID
+   ```
+
+以後、main への push で CI が green になると自動デプロイされます。シークレットが未設定の間、`Deploy` ワークフローは何もせずスキップします。
+
+## ドキュメント構成
+
+| 文書 | 役割 |
+| --- | --- |
+| [docs/game-spec.md](docs/game-spec.md) | ルールの正本。ルール変更時は必ずここを先に更新する |
+| [docs/balance-history.md](docs/balance-history.md) | バランス変更の採用判断と検証数値の記録（追記専用） |
+| [docs/design-principles.md](docs/design-principles.md) | 守るべき設計原則、却下済みの案、検証の合格基準 |
+| [docs/architecture.md](docs/architecture.md) | 実装構成と変更時の手順 |
+| [docs/evolution-design.md](docs/evolution-design.md) | 将来の進化候補の設計メモ |
+| [docs/archive/](docs/archive/) | 完了済み作業の記録（原則更新しない） |
+
 ## プロジェクト構成
 
 ```text
@@ -248,9 +291,10 @@ tests/
 docs/
   game-spec.md
   balance-history.md
-  work-packages.md
+  design-principles.md
   architecture.md
   evolution-design.md
+  archive/
 
 web/
   Vite のビルド出力

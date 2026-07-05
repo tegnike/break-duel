@@ -5,7 +5,7 @@
     python3 league_report.py tmp/league-A-42001 tmp/league-A-42002 ...
 
 複数ディレクトリ（= 複数シード）を渡すと平均も表示する。
-合格基準（docs/work-packages.md 1.3 節）:
+合格基準（docs/design-principles.md 3 節）:
     - 単色 4 デッキ（fire/water/wind/earth）が 45-55%
     - 先攻勝率 48-52%
 """

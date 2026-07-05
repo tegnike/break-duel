@@ -72,8 +72,11 @@ Use this file when adding or modifying cards in `ai-break-duel`.
 - `docs/evolution-design.md`
   - Design history and near-future planning. Update only if a table or statement would mislead future work.
 
-- `docs/typescript-migration-plan.md`
-  - Update only when type examples or status notes become stale.
+- `docs/design-principles.md`
+  - Standing design principles, rejected proposals, and verification pass criteria. Read before balance-relevant changes.
+
+- `docs/archive/`
+  - Completed historical records (migration log, finished work packages). Do not update except to fix broken links.
 
 ## Assets
 

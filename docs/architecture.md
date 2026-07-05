@@ -50,15 +50,16 @@ tests/
   test_core_rules.py Python 側ルールテスト
 
 docs/
-  game-spec.md      現行ゲーム仕様
-  balance-history.md バランス検証履歴
+  game-spec.md      現行ゲーム仕様（正本）
+  balance-history.md バランス検証履歴（追記専用）
+  design-principles.md 設計原則・却下案・検証合格基準
   architecture.md   この文書
   evolution-design.md 次期進化設計
-  typescript-migration-plan.md React + TypeScript 移行記録
+  archive/          完了済み作業の記録（移行記録、作業パッケージ）
 
 web/
-  index.html        Vite ビルド成果物
-  assets/           Vite ビルド成果物と静的画像
+  index.html        Vite ビルド成果物（git 管理外、ビルドごとにクリーン）
+  assets/           Vite ビルド成果物
 ```
 
 ## 実行方法
@@ -68,6 +69,8 @@ web/
 ```bash
 npm run check
 ```
+
+GitHub Actions の `CI` ワークフローが push / PR ごとに同じチェックを実行します。バランス回帰は `Balance Regression` ワークフロー（週次 + 手動）、本番反映は `Deploy` ワークフロー（main の CI 成功後に Cloudflare Pages へ）が担当します。
 
 内訳:
 
@@ -194,7 +197,6 @@ UIだけを変える場合:
 - Python と TypeScript のカード定義が二重管理。
 - TypeScript 側は `useReducer` ではなく `useState + cloneGame` で状態更新している。
 - アニメーションは旧 JavaScript 版より簡略化されている。
-- `web/` はビルド成果物だが、画像アセットも同居している。
 
 ## 将来の整理候補
 

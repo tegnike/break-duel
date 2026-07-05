@@ -35,7 +35,7 @@
 - 新規指令カード
 - カード定義の共通 JSON 化
 - ブラウザE2Eスモークテスト
-- 対人戦（`docs/work-packages.md` WP8。ホットシート→ネットワークの段階実施案）
+- 対人戦（`docs/archive/work-packages.md` WP8。ホットシート→ネットワークの段階実施案）
 
 ## 目的
 
