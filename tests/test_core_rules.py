@@ -1321,6 +1321,23 @@ class CoreRuleTests(unittest.TestCase):
         self.assertIn(1, state.players[0].spent_field_ai)
         self.assertEqual(state.log[-1]["readied_ai"], "AI-FIRE-2")
 
+    def test_comeback_rite_only_requires_lower_life(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].life = 3
+        state.players[1].life = 5
+        state.players[0].hand = [command("CMD-COMEBACK-RITE")]
+        state.players[0].field_ai = [card("AI-FIRE-2")]
+        state.players[0].deck = []
+        start_turn(state)
+        state.players[0].spent_field_ai = set()
+
+        apply_action(state, Action(ActionType.USE_COMMAND, 0))
+
+        self.assertEqual(state.players[0].hand, [])
+        self.assertEqual(state.players[0].discard[-1].id, "CMD-COMEBACK-RITE")
+        self.assertEqual(state.log[-1]["readied_ai"], None)
+        self.assertEqual(state.log[-1]["draw_count"], 0)
+
     def test_memory_card_enters_memory_slot_and_replaces_existing_memory(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=2))
         state.players[0].hand = [memory("MEM-CACHE"), memory("MEM-FIREWALL")]

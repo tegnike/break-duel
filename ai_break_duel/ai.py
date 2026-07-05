@@ -975,7 +975,7 @@ def _command_is_usable(state: GameState, source_index: int) -> bool:
             item.type == CardType.AI for item in player.discard
         )
     if card.effect == CommandEffect.COMEBACK_RITE.value:
-        return player.life < opponent.life and (bool(player.deck) or bool(player.spent_field_ai))
+        return player.life < opponent.life
     return False
 
 

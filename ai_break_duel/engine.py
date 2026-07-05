@@ -1033,9 +1033,6 @@ def _use_command(state: GameState, action: Action) -> None:
         ready_index = action.target_index
         if ready_index is None:
             ready_index = _highest_power_spent_ai(player)
-        if ready_index is None and not player.deck:
-            player.hand.insert(action.source_index, command)
-            raise ValueError("Comeback rite requires a spent summon or deck card.")
         readied_ai = None
         if ready_index is not None:
             if ready_index < 0 or ready_index >= len(player.field_ai):
@@ -1488,9 +1485,7 @@ def command_is_usable(state: GameState, source_index: int) -> bool:
             and _highest_power_ai_in_discard(player) is not None
         )
     if command.effect == CommandEffect.COMEBACK_RITE.value:
-        return player.life < state.opponent().life and (
-            bool(player.deck) or bool(player.spent_field_ai)
-        )
+        return player.life < state.opponent().life
     return False
 
 

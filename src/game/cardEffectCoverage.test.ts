@@ -16,6 +16,8 @@ import {
   canDefend,
   canUseFirewall,
   cannotHandDefend,
+  commandBlockedReason,
+  commandUsable,
   cloneCard,
   createGame,
   defenseCombatValue,
@@ -780,6 +782,28 @@ describe("registered card effect behavior", () => {
     it(`${effect}: ${testCase.description}`, () => {
       testCase.run();
     });
+  });
+});
+
+describe("command usability reasons", () => {
+  it("allows comeback rite when life is behind even without a deck or spent summon", () => {
+    const game = blankGame();
+    const player = game.players[0];
+    const opponent = game.players[1];
+    player.life = 3;
+    opponent.life = 5;
+    player.hand = [card("CMD-COMEBACK-RITE")];
+    player.deck = [];
+    player.field = [card("AI-FIRE-2")];
+    player.spentFieldIndexes.clear();
+
+    expect(commandUsable(game, player.hand[0], player, opponent)).toBe(true);
+    expect(commandBlockedReason(game, player.hand[0], player, opponent)).toBe("");
+
+    useCommandAtInDraft(game, 0, null);
+    expectCommandUsed(game, "CMD-COMEBACK-RITE");
+    expect(game.players[0].hand).toHaveLength(0);
+    expect(game.players[0].spentFieldIndexes.size).toBe(0);
   });
 });
 

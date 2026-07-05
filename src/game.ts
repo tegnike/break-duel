@@ -1467,9 +1467,42 @@ export function commandUsable(game: GameState, command: Card | null | undefined,
     return hasAttributeAi(player, "土") && highestPowerAiInDiscard(player) !== null;
   }
   if (command.effect === "comeback_rite") {
-    return player.life < opponent.life && (player.deck.length > 0 || highestPowerSpentAi(player) !== null);
+    return player.life < opponent.life;
   }
   return false;
+}
+
+export function commandBlockedReason(game: GameState, command: Card | null | undefined, player: PlayerState, opponent: PlayerState): string {
+  if (!command || command.type !== "event") return "術式カードではありません。";
+  if (commandUsable(game, command, player, opponent)) return "";
+  if (command.effect === "optimize") return "手札にトラッシュへ送るカードがもう1枚必要です。";
+  if (command.effect === "patch") return "自分の消耗中召喚獣が必要です。";
+  if (command.effect === "disrupt") return "相手の未消耗召喚獣が必要です。";
+  if (command.effect === "purge") return "相手の消耗中召喚獣が必要です。";
+  if (command.effect === "relearn") {
+    if (player.hand.length <= 1) return "手札にトラッシュへ送るカードがもう1枚必要です。";
+    return "自分のトラッシュに召喚獣が必要です。";
+  }
+  if (command.effect === "sandbox") return "残り2アクション以上、攻撃可能、未消耗power 4が必要です。";
+  if (command.effect === "trinity") return "自分の場に召喚獣が3体必要です。";
+  if (command.effect === "fire_rite") return "自分の場に火の召喚獣が必要です。";
+  if (command.effect === "water_rite") {
+    if (!hasAttributeAi(player, "水")) return "自分の場に水の召喚獣が必要です。";
+    return "山札が必要です。";
+  }
+  if (command.effect === "wind_rite") {
+    if (!hasAttributeAi(player, "風")) return "自分の場に風の召喚獣が必要です。";
+    return "相手の未消耗召喚獣、または自分の消耗中風召喚獣が必要です。";
+  }
+  if (command.effect === "earth_rite") {
+    if (!hasAttributeAi(player, "土")) return "自分の場に土の召喚獣が必要です。";
+    return "自分のトラッシュに召喚獣が必要です。";
+  }
+  if (command.effect === "comeback_rite") {
+    if (player.life >= opponent.life) return "相手よりライフが少ない時だけ発動できます。";
+    return "";
+  }
+  return "条件を満たしていません。";
 }
 
 export function sandboxCommandReady(game: GameState, player: PlayerState): boolean {

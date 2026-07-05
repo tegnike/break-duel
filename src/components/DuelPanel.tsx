@@ -20,6 +20,7 @@ import {
   canUseCharge,
   canUseFirewall,
   chooseAiDefense,
+  commandBlockedReason,
   commandUsable,
   defenseCombatValue,
   defenseMathText,
@@ -433,7 +434,11 @@ export function actionHintText(game: GameState, card: Card | null, zone: string 
   const human = game.players[0];
   const opponent = game.players[1];
   if (zone === "hand") {
-    if (card.type === "event") return commandUsable(game, card, human, opponent) ? `${card.name}を発動できます。` : `${card.name}は条件を満たすと発動できます。`;
+    if (card.type === "event") {
+      return commandUsable(game, card, human, opponent)
+        ? `${card.name}を発動できます。`
+        : `${card.name}はまだ発動できません。${commandBlockedReason(game, card, human, opponent)}`;
+    }
     if (card.type === "memory") return human.memory ? "配置すると現在の遺物はトラッシュされます。" : "遺物枠に配置できます。";
     if (canUseCharge(game, human) && canChargeCard(card)) return "チャージで手札からトラッシュし、このターンのアクションを1増やせます。このターンは攻撃できません。";
     const sourceIndex = bestUpgradeSource(human, card);
