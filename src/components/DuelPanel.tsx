@@ -27,6 +27,7 @@ import {
   defensePowerBonus,
   legalFieldDefenders,
   legalHandDefenders,
+  strikeValues,
   opponentPlayer,
   playCost,
   strikeTargets,
@@ -281,7 +282,11 @@ export function DefensePanel({
   if (!pending || !game.players[pending.defenderIndex].isHuman) return null;
   const attackCard = game.players[pending.attackerIndex].field[pending.fieldIndex];
   const defender = game.players[pending.defenderIndex];
-  const fieldOptions = legalFieldDefenders(defender, attackCard);
+  const strikeTarget = pending.strikeTargetIndex !== undefined ? defender.field[pending.strikeTargetIndex] : null;
+  const strikeInfo = pending.strikeTargetIndex !== undefined && strikeTarget
+    ? strikeValues(attackCard, defender, pending.strikeTargetIndex)
+    : null;
+  const fieldOptions = strikeTarget ? [] : legalFieldDefenders(defender, attackCard);
   const handOptions = legalHandDefenders(defender, attackCard);
   const forcedFieldOptions = forcedDefenseChoice?.type === "field"
     ? fieldOptions.filter(({ index }) => index === forcedDefenseChoice.index)
@@ -296,8 +301,12 @@ export function DefensePanel({
   const hasVisibleOptions = visibleFieldOptions.length > 0 || visibleHandOptions.length > 0;
   return (
     <div className="defense-panel">
-      <h3>{attackCard.name}への防御を選択</h3>
-      <div className="defense-context">攻撃値 {attackCombatValue(attackCard)} / 通れば {attackDamage(attackCard)} ダメージ(power分)。場ブロックは同値なら相打ち、上回れば防御側が残ります。手札ブロックは使い切りです。</div>
+      <h3>{strikeTarget ? `${attackCard.name}のモンスター攻撃への防御を選択` : `${attackCard.name}への防御を選択`}</h3>
+      <div className="defense-context">
+        {strikeTarget && strikeInfo
+          ? `攻撃値 ${strikeInfo.attackValue} vs ${strikeTarget.name} 防御値 ${strikeInfo.defenseValue}。防御しなければ${strikeInfo.attackValue === strikeInfo.defenseValue ? "相打ちで両方トラッシュ" : `${strikeTarget.name}は退場`}。手札ブロックで止めれば${strikeTarget.name}は場に残ります（防御カードは使い切り）。`
+          : `攻撃値 ${attackCombatValue(attackCard)} / 通れば ${attackDamage(attackCard)} ダメージ(power分)。場ブロックは同値なら相打ち、上回れば防御側が残ります。手札ブロックは使い切りです。`}
+      </div>
       <div className="defense-choice-grid">
         {visibleFieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} cardIndex={index} attackCard={attackCard} defender={defender} fieldIndex={index} onClick={() => onResolve({ type: "field", index })} />)}
         {visibleHandOptions.map(({ card, index }) => <DefenseChoiceButton key={`hand-${index}`} source="手札" card={card} cardIndex={index} attackCard={attackCard} defender={defender} hand onClick={() => onResolve({ type: "hand", index })} />)}

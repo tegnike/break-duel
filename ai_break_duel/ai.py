@@ -547,11 +547,18 @@ def _score_action(state: GameState, action: Action, weights: dict[str, int]) -> 
         and action.source_index is not None
         and action.target_index is not None
     ):
-        from .engine import strike_values
+        from .engine import choose_strike_hand_defender, strike_values
 
         attacker = player.field_ai[action.source_index]
         target = opponent.field_ai[action.target_index]
         attack_value, defense_value = strike_values(state, attacker, opponent, action.target_index)
+        if state.config.hand_defense_vs_strike != "off":
+            hand_defense = choose_strike_hand_defender(
+                state, attacker, opponent, action.target_index
+            )
+            if hand_defense is not None:
+                blocker = opponent.hand[hand_defense]
+                return score + weights["hand_trade_attack"] + _card_value(blocker) * 0.35
         trade = attack_value == defense_value
         value = weights["strike_base"] + weights["strike_target_power"] * (target.power or 0)
         if action.target_index not in opponent.spent_field_ai:
@@ -1231,4 +1238,3 @@ def _best_classic_strike(state: GameState, player: PlayerState, opponent: Player
     if best is None:
         return None
     return best[1], best[2]
-

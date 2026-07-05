@@ -116,6 +116,7 @@ class GameConfig:
     power_scaled_damage: bool = True
     draw_on_attack_damage: str = "point"  # none / event / point
     monster_combat: bool = True
+    hand_defense_vs_strike: str = "value"  # off / eager / value（標準: value）
     ai_profiles: tuple[AiProfile, AiProfile] = ("classic", "classic")
 
 

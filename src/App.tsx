@@ -2424,9 +2424,11 @@ export default function App() {
   }
 
   function performStrike(fieldIndex: number, targetIndex: number) {
+    // チュートリアル中はライバルの防御を固定進行に合わせて「防御しない」に固定する
+    const tutorialRivalDefense: DefenseChoice | undefined = tutorialActive ? { type: "none" } : undefined;
     mutate((draft) => {
       draft.pendingTarget = null;
-      strikeInDraft(draft, 0, fieldIndex, targetIndex, { playSfx, showDuelEvent: queueDuelEvent });
+      strikeInDraft(draft, 0, fieldIndex, targetIndex, { playSfx, showDuelEvent: queueDuelEvent }, tutorialRivalDefense);
     });
     showToast("攻撃", "相手の召喚獣を攻撃しました");
   }

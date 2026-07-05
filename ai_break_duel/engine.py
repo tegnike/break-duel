@@ -248,6 +248,7 @@ def result_summary(state: GameState) -> dict[str, Any]:
                 state.config.power_4_overheats_after_attack
             ),
             "hand_limit": state.config.hand_limit,
+            "hand_defense_vs_strike": state.config.hand_defense_vs_strike,
             "ai_profiles": list(state.config.ai_profiles),
         },
         "winner": None if state.winner is None else state.players[state.winner].name,
@@ -452,6 +453,37 @@ def strike_values(state: GameState, attack_ai, defender: PlayerState, target_ind
     return attack_value, defense_value
 
 
+def choose_strike_hand_defender(
+    state: GameState,
+    attack_ai,
+    defender: PlayerState,
+    target_index: int,
+) -> int | None:
+    """検証用: モンスター攻撃への手札防御（hand_defense_vs_strike）の自動防御判断。
+
+    通常の手札防御条件（1ターン上限・防御値>=攻撃値・防御不可効果）は両モード共通。
+    相打ちは両モードとも防御しない（放置すれば攻撃側も落ちるため）。
+    eager: 防御可能なら常に防御する（vs プレイヤー攻撃の既存方針と同じ）。
+    value: 救う対象スタックの power 合計が防御に使う手札の power 以上の時だけ防御する。
+    """
+    mode = state.config.hand_defense_vs_strike
+    if mode not in ("eager", "value"):
+        return None
+    index = _choose_hand_defender(state, attack_ai, defender)
+    if index is None:
+        return None
+    attack_value, defense_value = strike_values(state, attack_ai, defender, target_index)
+    if attack_value == defense_value:
+        return None
+    if mode == "value":
+        stacks = _ensure_field_stacks(defender)
+        stack_cards = [defender.field_ai[target_index], *stacks[target_index]]
+        saved_power = sum(int(card.power or 1) for card in stack_cards)
+        if saved_power < int(defender.hand[index].power or 1):
+            return None
+    return index
+
+
 def _strike(state: GameState, action: Action) -> None:
     attacker = state.active()
     defender = state.opponent()
@@ -467,12 +499,59 @@ def _strike(state: GameState, action: Action) -> None:
     if attack_value < defense_value:
         raise ValueError("Strike target is too sturdy.")
 
+    hand_defense_index = choose_strike_hand_defender(
+        state, attack_ai, defender, action.target_index
+    )
+
     state.stats.attacks += 1
     state.stats.record_card_usage(attack_ai.id, "struck")
     if state.config.exhaust_after_attack and not keeps_ready_after_attack(attack_ai):
         attacker.spent_field_ai.add(action.source_index)
         if state.config.power_3_attack_recovery_delay and attack_ai.power == 3:
             attacker.power_3_recovery_delayed_field_ai.add(action.source_index)
+
+    if hand_defense_index is not None:
+        defense_ai = defender.hand.pop(hand_defense_index)
+        defender.hand_defenses_used_this_turn += 1
+        defender.discard.append(defense_ai)
+        defender.ai_lost += 1
+        state.stats.successful_defenses += 1
+        state.stats.record_card_usage(defense_ai.id, "hand_defended_strike")
+        state.stats.record_card_usage(attack_ai.id, "strike_hand_defended")
+        damage = 0
+        if pierces_hand_defense(attack_ai):
+            damage = 1
+            _deal_damage(defender, damage)
+            _post_damage_draw(state, defender, damage)
+            _apply_war_banner_draw(state, attacker)
+            state.stats.record_card_usage(attack_ai.id, "pierced_hand_defense")
+        else:
+            if pressures_on_block(attack_ai):
+                discarded = _discard_low_priority_cards(defender, 1)
+                if discarded:
+                    state.stats.record_card_usage(attack_ai.id, "block_pressure")
+            if draws_on_blocked_attack(attack_ai):
+                attacker.draw(1, state.rng)
+                state.stats.record_card_usage(attack_ai.id, "blocked_attack_draw")
+        overheat = _overheat_attacker_after_attack(
+            state, attacker, action.source_index, attack_ai
+        )
+        state.log.append(
+            _action_log_base(state, action)
+            | {
+                "result": "strike",
+                "attack_ai": attack_ai.id,
+                "strike_target": target.id,
+                "trade": False,
+                "hand_defense_ai": defense_ai.id,
+                "damage": damage,
+                "attacker_lost": [],
+                "attacker_overheated": overheat["overheated"],
+                "life": [player.life for player in state.players],
+                "field": _field_state(state),
+            }
+        )
+        return
 
     trade = attack_value == defense_value
     lost = _remove_field_stack(defender, action.target_index)

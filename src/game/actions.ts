@@ -22,6 +22,7 @@ import {
   checkTurnLimit,
   checkWinner,
   chooseAiDefense,
+  chooseStrikeHandDefense,
   cardNameList,
   commandUsable,
   defenseCombatValue,
@@ -606,6 +607,21 @@ export function resolveDefenseInDraft(
 ): void {
   const pending = draft.pendingAttack;
   if (!pending) return;
+  if (pending.strikeTargetIndex !== undefined) {
+    const strikeAttackCard = draft.players[pending.attackerIndex].field[pending.fieldIndex];
+    const strikeDefender = draft.players[pending.defenderIndex];
+    if (!strikeAttackCard) return;
+    if (choice.type === "hand") {
+      if (!legalHandDefenders(strikeDefender, strikeAttackCard).some((option) => option.index === choice.index)) return;
+      resolveStrikeHandDefenseInDraft(draft, pending.attackerIndex, pending.fieldIndex, pending.strikeTargetIndex, choice.index, effects);
+    } else if (choice.type === "none") {
+      resolveStrikeOutcomeInDraft(draft, pending.attackerIndex, pending.fieldIndex, pending.strikeTargetIndex, effects);
+      if (draft.winner === null && !draft.draw) {
+        draft.active = pending.attackerIndex;
+      }
+    }
+    return;
+  }
   const { attackerIndex, defenderIndex, fieldIndex } = pending;
   const attacker = draft.players[attackerIndex];
   const defender = draft.players[defenderIndex];
@@ -860,6 +876,7 @@ export function strikeInDraft(
   fieldIndex: number,
   targetIndex: number,
   effects: GameActionEffects = {},
+  aiDefenseOverride?: DefenseChoice,
 ): void {
   if (!CONFIG.monsterCombat) return;
   const attacker = draft.players[attackerIndex];
@@ -877,6 +894,146 @@ export function strikeInDraft(
       attacker.power3RecoveryDelayedFieldIndexes.add(fieldIndex);
     }
   }
+  if (CONFIG.handDefenseVsStrike !== "off" && aiDefenseOverride?.type !== "none") {
+    if (defender.isHuman) {
+      if (legalHandDefenders(defender, attackCard).length > 0) {
+        addLog(draft, `${attacker.name}は${attackCard.name}で${defender.name}の${targetCard.name}を攻撃。`);
+        effects.showDuelEvent?.({
+          kind: "battle",
+          title: `${attacker.name}がモンスター攻撃`,
+          detail: `${attackCard.name}が${targetCard.name}を攻撃。手札防御で守るか選択してください。`,
+          fromLabel: "場",
+          toLabel: "防御選択",
+          resultLabel: "モンスター攻撃宣言",
+          tone: "warning",
+          rivalVoiceLine: attacker.isHuman ? undefined : "attack",
+          cards: [
+            { card: attackCard, label: "攻撃", state: "neutral" },
+            { card: targetCard, label: "対象", state: "neutral" },
+          ],
+        });
+        draft.pendingAttack = { attackerIndex, defenderIndex, fieldIndex, strikeTargetIndex: targetIndex };
+        draft.selected = null;
+        return;
+      }
+    } else {
+      const interceptIndex = aiDefenseOverride?.type === "hand"
+        ? aiDefenseOverride.index
+        : chooseStrikeHandDefense(defender, attackCard, targetIndex);
+      if (interceptIndex !== null) {
+        resolveStrikeHandDefenseInDraft(draft, attackerIndex, fieldIndex, targetIndex, interceptIndex, effects);
+        return;
+      }
+    }
+  }
+  resolveStrikeOutcomeInDraft(draft, attackerIndex, fieldIndex, targetIndex, effects);
+}
+
+export function resolveStrikeHandDefenseInDraft(
+  draft: GameState,
+  attackerIndex: number,
+  fieldIndex: number,
+  targetIndex: number,
+  handIndex: number,
+  effects: GameActionEffects = {},
+): void {
+  const attacker = draft.players[attackerIndex];
+  const defenderIndex = 1 - attackerIndex;
+  const defender = draft.players[defenderIndex];
+  const attackCard = attacker.field[fieldIndex];
+  const targetCard = defender.field[targetIndex];
+  const defenseCard = defender.hand[handIndex];
+  if (!attackCard || !targetCard || !defenseCard) return;
+  draft.pendingAttack = null;
+  draft.pendingTarget = null;
+  defender.hand.splice(handIndex, 1);
+  defender.handDefensesUsed += 1;
+  defender.discard.push(defenseCard);
+  const pierced = piercesHandDefense(attackCard);
+  if (pierced) defender.life -= 1;
+  const pierceBreakDrawnCards = pierced && CONFIG.drawOnAttackDamage !== "none" ? drawCards(defender, 1) : [];
+  const pierceBannerDrawnCards = pierced ? applyWarBannerDraw(attacker) : [];
+  const shouldChoosePressureDiscard = !pierced && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
+  const pressureDiscarded = !pierced && pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
+    ? discardLowPriorityCards(defender, 1)[0] ?? null
+    : null;
+  const blockedDrawnCards = !pierced && drawsOnBlockedAttack(attackCard) ? drawCards(attacker, 1) : [];
+  const extraText = [
+    pierced ? `${attackCard.name}の効果で防御されても1ダメージ。` : "",
+    pierceBreakDrawnCards.length > 0 ? `ブレイクドローで${defender.name}は${visibleDrawText(defender, pierceBreakDrawnCards)}。` : "",
+    pierceBannerDrawnCards.length > 0 ? `${attacker.memory?.name ?? "遺物"}で${attacker.name}は${visibleDrawText(attacker, pierceBannerDrawnCards)}。` : "",
+    pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}をトラッシュへ送った。` : "",
+    blockedDrawnCards.length > 0 ? `${attackCard.name}の効果で${attacker.name}は${visibleDrawText(attacker, blockedDrawnCards)}。` : "",
+  ].filter(Boolean).join(" ");
+  addLog(draft, `${defender.name}は手札の${defenseCard.name}で${targetCard.name}への攻撃を止めた。${defenseCard.name}はトラッシュへ。${extraText ? ` ${extraText}` : ""}`);
+  effects.showDuelEvent?.({
+    kind: "battle",
+    title: pierced ? "手札防御を貫通" : `${defender.name}の手札防御`,
+    detail: `${attackCard.name}の${targetCard.name}への攻撃を手札の${defenseCard.name}で止めました。${targetCard.name}は場に残ります。防御カードはトラッシュへ。${extraText ? ` ${extraText}` : ""}`,
+    fromLabel: "手札",
+    toLabel: "トラッシュ",
+    resultLabel: "モンスター攻撃を防御",
+    tone: defender.isHuman ? "magenta" : "cyan",
+    emphasis: pierced ? undefined : "low",
+    impact: pierced ? {
+      kind: "life-damage",
+      sourcePlayerIndex: attackerIndex,
+      targetPlayerIndex: defenderIndex,
+      amount: 1,
+      fatal: defender.life <= 0,
+    } : undefined,
+    breakDraw: pierceBreakDrawnCards.length > 0 ? { targetPlayerIndex: defenderIndex, count: pierceBreakDrawnCards.length } : undefined,
+    rivalVoiceLine: defender.isHuman ? undefined : "hand_defense",
+    cards: [
+      { card: attackCard, label: "攻撃", state: "neutral" },
+      { card: targetCard, label: "対象", state: "winner" },
+      { card: defenseCard, label: "防御", state: "trash" },
+    ],
+  });
+  if (shouldChoosePressureDiscard) {
+    draft.pendingTarget = {
+      kind: "card-select",
+      reason: "block-pressure",
+      zone: "hand",
+      playerIndex: defenderIndex,
+      title: `${attackCard.name}の圧でトラッシュへ送るカードを選択`,
+      prompt: "攻撃を防いだため、手札からトラッシュへ送るカードを1枚選んでください。",
+      confirmLabel: "このカードを送る",
+      min: 1,
+      max: 1,
+      excludeIndexes: [],
+      selectedIndexes: [],
+      actionCost: 1,
+      actionKind: "attack",
+      cancelable: false,
+    };
+  }
+  effects.playSfx?.("block");
+  overheatAttackerIfNeeded(draft, attacker, fieldIndex, attackCard, effects);
+  draft.selected = null;
+  checkWinner(draft);
+  checkResourceExhaustion(draft);
+  if (draft.winner === null && !draft.draw) {
+    draft.active = attackerIndex;
+    if (!draft.pendingTarget) afterAction(draft, 1, "attack");
+  }
+}
+
+export function resolveStrikeOutcomeInDraft(
+  draft: GameState,
+  attackerIndex: number,
+  fieldIndex: number,
+  targetIndex: number,
+  effects: GameActionEffects = {},
+): void {
+  const attacker = draft.players[attackerIndex];
+  const defenderIndex = 1 - attackerIndex;
+  const defender = draft.players[defenderIndex];
+  const attackCard = attacker.field[fieldIndex];
+  const targetCard = defender.field[targetIndex];
+  if (!attackCard || !targetCard) return;
+  draft.pendingAttack = null;
+  const { attackValue, defenseValue } = strikeValues(attackCard, defender, targetIndex);
   const trade = attackValue === defenseValue;
   defender.discard.push(...removeFieldStack(defender, targetIndex));
   if (trade) {

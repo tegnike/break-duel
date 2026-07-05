@@ -4,6 +4,105 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
+## 2026-07-05 モンスター攻撃への手札防御割り込み: 採用
+
+### 背景
+
+直下のエントリ（同日）で「モンスター攻撃にも手札防御で割り込めるルールはバランスを崩さない」ことを確認済み。プレイヤーから「本体への攻撃は手札防御できるのに召喚獣への攻撃は守れないのが直感的でない」という指摘があり、ルールの一貫性（体感）を理由に標準ルールへ採用しました。
+
+### 変更内容（Python / TypeScript 両実装に同期）
+
+- ルール: モンスター攻撃に対しても手札防御で割り込める。条件は通常の手札防御と同じ（1 ターン 1 回の共通上限・防御値 >= 攻撃値・手札防御不可効果・低ライフ手札防御不可）。成功時は手札カードをトラッシュ、対象は生存、攻撃側は消耗のまま場に残り、power 4 の攻撃後退場・`手札防御されても1ダメージ`（貫通 1 点 + ブレイクドロー）・`攻撃が防御された時` 系効果もプレイヤーへの攻撃と同様に適用する。
+- Python: `GameConfig.hand_defense_vs_strike` の標準値を `value` に変更（`off` / `eager` は検証用に残置）。`value` = 相打ちは防御しない + 救う対象スタックの power 合計 >= 消費する手札 power の時だけ防御、が自動プレイヤーの判断基準。挑戦者 CPU は攻撃側としてこの基準で読み、防御されるストライクを手札トレード相当（`hand_trade_attack`）で評価する。
+- TypeScript: `CONFIG.handDefenseVsStrike = "value"`。CPU が人間の召喚獣へモンスター攻撃する時、人間に手札防御があれば防御選択（手札防御 / 防御しない）モーダルを表示（`pendingAttack.strikeTargetIndex`）。人間が CPU の召喚獣を攻撃する時は CPU が value 基準で即時判断する。challenger の strike 評価も Python と同期。
+- チュートリアル: ライバルの防御なし方針をモンスター攻撃の手札防御にも適用（`performStrike` で `{type:"none"}` 固定）。tutorial.test 5 件 green、固定進行への影響なし。
+- テスト: Python 5 件（価値スタック防御 / 低価値見送り / 相打ち不防御 / 上限共有 / off 無効化）、TypeScript 8 件（`src/game/strikeHandDefense.test.ts`）を追加。
+- ドキュメント: `docs/game-spec.md` 10.6 / 11 / 12 節を更新。
+
+### 検証
+
+採用構成（value 標準）でのリーグ（100 games/ordered pair × 6 デッキ × 2 シード、計 12000 戦、seed 2026070521 / 2026070522）: break 47.4% / control 45.8% / fire 47.6% / water 53.4% / wind 53.3% / earth 52.5%、先攻 49.3%。league_report 判定 **PASS**。旧標準（off、同シード）との差は全デッキ 0.1pt 以内で実質同一です。
+
+盛り上がり指標（simulate 1000 戦、seed 2026070531）: 平均ターン 14.4、リード交代あり 64.4%、2点ビハインド逆転 51.5%、先2点差側勝率 58.8%、リソース切れ 0.8% — 旧標準と同値です。value 基準の CPU 発火は 984 ストライク中 2 回で、CPU 同士の対戦はほぼ不変（この変更の実質的な受益者は選択肢を得る人間プレイヤー）。影響上限側の `eager`（防御可能なら常に防御、ストライクの約 12% を防御）でも PASS であることは直下のエントリで確認済み。
+
+ストレスデッキ回帰（run_cost_balance.py 1000 games/order、seed 2026070481、各 12000 戦）: 全 7 帯 OK。p1 0.0% / p1-2 3.7% / p2 9.4% / p2-3 38.4% / p3 33.0% / p3-4 41.9% / p4 44.9% で、採用前（同シードの 2026-07-05 60種化エントリ）と全帯一致です。
+
+ブラウザ実機確認: 対戦フローで防御モーダル表示・手札防御実行・1 ターン 1 回上限の UI 反映を確認。配信コード上で strike 宣言 → `pendingAttack.strikeTargetIndex` 設定 → 手札防御解決（対象生存・power 4 攻撃後退場）を確認。
+
+`npm run check` green。
+
+### 判断
+
+採用します。CPU 同士の勝率・試合展開は実質不変で、ルールの一貫性（本体攻撃と同じ防御手段）と人間プレイヤーの選択肢が増えました。監視点: 人間プレイでは手札（=逆転資源）を盤面保護に回せるため、体感面で「守れるが手札が痩せる」トレードオフが機能しているかを今後のプレイテストで見ること。
+
+### 検証コマンド
+
+```bash
+npm run check
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070521 --decks break control fire water wind earth --out tmp/hdstrike-league-value-2026070521
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070522 --decks break control fire water wind earth --out tmp/hdstrike-league-value-2026070522
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/hdstrike-league-value-2026070521 tmp/hdstrike-league-value-2026070522
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070531 --out tmp/hdstrike-sim-value
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/hdstrike-sim-value
+python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --games-per-order 1000 --seed 2026070481 --rule-set current
+```
+
+## 2026-07-05 モンスター攻撃への手札防御割り込み: 検証（標準ルールには未採用、バランス上は問題なし）
+
+### 背景
+
+「場の召喚獣は攻撃され放題で止める手立てがない」というプレイフィールの指摘を受け、モンスター攻撃（相手の場の召喚獣への攻撃）に対しても手札防御で割り込めるルール変更がバランスを崩すかを検証しました。現行仕様ではモンスター攻撃は防御選択を挟まず即時解決です（`docs/game-spec.md` 10.6）。設計原則では「手札は逆転の資源、盤面は優勢側の資源」の相殺のため、モンスター攻撃は優勢側の決着装置として意図的に防御不可で採用されています（`docs/design-principles.md` 1 節）。
+
+### 変更内容
+
+標準ルールは変更していません。Python シミュレータのみに検証用 `GameConfig.hand_defense_vs_strike`（`off` / `eager` / `value`、デフォルト `off`）と CLI `--hand-defense-vs-strike` を追加しました（TypeScript 側は未実装。標準挙動が変わらないため二重実装同期の対象外）。挙動は次の通りです。
+
+- 割り込み条件は通常の手札防御と同じ（1 ターン 1 回の共通上限・防御値 >= 攻撃値・手札防御不可効果・低ライフ手札防御不可）。防御成功時は手札カードをトラッシュし、対象は生存、攻撃側は消耗のまま場に残り、power 4 の攻撃後退場はプレイヤーへの攻撃と同様に適用。`手札防御されても1ダメージ` も同様に適用。
+- 自動防御ポリシー: 相打ちになるモンスター攻撃は両モードとも防御しない（放置すれば攻撃側も落ちるため）。`eager` は防御可能なら常に防御、`value` は救う対象スタックの power 合計が消費する手札の power 以上の時だけ防御。
+- 挑戦者 CPU は攻撃側として割り込みを読み、防御されるストライクは手札トレード相当で評価する。
+- `off` 時の無影響はビット一致で確認済み（simulate 300 戦 seed 777、変更前後の matches.jsonl が新 config キー以外で全一致）。
+
+### 検証
+
+リーグ（100 games/ordered pair × 6 デッキ × 2 シード、各アーム計 12000 戦、seed 2026070521 / 2026070522）。`value` はスモークテスト（300 戦）で発火が 288 ストライク中 1 回とほぼ無影響のためリーグは `eager`（影響の上限側）のみ:
+
+| デッキ | off（現行） | eager（割り込みあり） |
+| --- | ---: | ---: |
+| break | 47.5% | 48.9% |
+| control | 45.8% | 45.5% |
+| fire | 47.6% | 46.9% |
+| water | 53.4% | 53.7% |
+| wind | 53.2% | 52.6% |
+| earth | 52.4% | 52.4% |
+| 先攻勝率 | 49.3% | 49.7% |
+
+両アームとも league_report 判定 **PASS**。最大変動は break の +1.4pt で、単色 4 デッキと先攻勝率はすべて基準内です。
+
+盛り上がり指標（simulate 1000 戦、seed 2026070531、break vs control）: 平均ターン 14.4 → 14.4、リード交代あり 64.4% → 63.9%、2点ビハインド逆転 51.5% → 50.3%、先2点差側勝率 58.7% → 60.1%、リソース切れ決着 0.8% → 0.8%。いずれも 1000 戦のノイズ帯内ですが、逆転率はむしろ僅かに下がる方向でした（手札＝逆転資源を盤面保護に回すため、劣勢側の反撃資源が減る構図）。
+
+発火頻度（同 simulate）: ストライク 986 → 976 回/1000 戦とストライク総数はほぼ不変、`eager` でそのうち 121 回（約 12%）が手札防御され、対プレイヤー手札防御は 2799 → 2780 回とほぼ食い合いなし。
+
+`npm run check` green（TS unit 71 件 + Python unittest 179 件）。
+
+### 判断
+
+**バランスは崩れません**（勝率・先攻・決着形態・試合長すべて基準内、変動は誤差圏）。一方で「劣勢側を守る」効果も統計上は確認できず、逆転率はむしろ微減方向でした。モンスター攻撃が決着装置として機能する頻度（約 1 回/試合）と、手札防御に高 power 手札と 1 ターン 1 回の共通枠を要求するコストが、自然な歯止めになっています。標準ルールへの採用はバランスではなく体感（プレイヤーのエージェンシー）の判断であり、採用する場合は TypeScript 側の防御選択 UI・チュートリアル確認・仕様書更新が必要なため、本エントリでは検証用フラグの追加までとし標準ルールは据え置きます。
+
+### 検証コマンド
+
+```bash
+python3 -m ai_break_duel.cli simulate --games 300 --seed 777 --out tmp/hdstrike-bitcheck-after   # off のビット一致確認
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070521 --decks break control fire water wind earth --out tmp/hdstrike-league-off-2026070521
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070521 --hand-defense-vs-strike eager --decks break control fire water wind earth --out tmp/hdstrike-league-eager-2026070521
+# seed 2026070522 も同様に off / eager を実行
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/hdstrike-league-off-2026070521 tmp/hdstrike-league-off-2026070522
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/hdstrike-league-eager-2026070521 tmp/hdstrike-league-eager-2026070522
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070531 --out tmp/hdstrike-sim-off
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070531 --hand-defense-vs-strike eager --out tmp/hdstrike-sim-eager
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/hdstrike-sim-off
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/hdstrike-sim-eager
+```
+
 ## 2026-07-05 apex（覇王結束）デッキ再探索: 据え置き
 
 ### 背景

@@ -2019,6 +2019,69 @@ class BreakthroughRevisionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "too sturdy"):
             apply_action(state, Action(ActionType.STRIKE, 0, 0))
 
+    def test_strike_hand_defense_saves_valuable_stack(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[1].field_ai = [card("AI-WIND-3")]
+        state.players[1].field_stacks = [[card("AI-WIND-2")]]
+        state.players[1].hand = [card("AI-WATER-4")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.STRIKE, 0, 0))
+        self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-WIND-3"])
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-WATER-4"])
+        self.assertEqual(state.players[1].hand, [])
+        self.assertEqual(state.players[1].hand_defenses_used_this_turn, 1)
+        self.assertEqual(state.players[1].life, 8)
+        # power 4 の攻撃後退場はプレイヤーへの攻撃と同様に適用される
+        # （AI-WATER-4 は攻撃後退場時に手札へ戻る個別効果を持つ）
+        self.assertEqual(state.players[0].field_ai, [])
+        self.assertEqual([item.id for item in state.players[0].hand], ["AI-WATER-4"])
+
+    def test_strike_hand_defense_skips_low_value_target(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-3")]
+        state.players[1].field_ai = [card("AI-WIND-1")]
+        state.players[1].hand = [card("AI-WIND-3")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.STRIKE, 0, 0))
+        self.assertEqual(state.players[1].field_ai, [])
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-WIND-3"])
+        self.assertEqual(state.players[1].hand_defenses_used_this_turn, 0)
+
+    def test_strike_hand_defense_never_blocks_trades(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-3")]
+        state.players[1].field_ai = [card("AI-WIND-3")]
+        state.players[1].hand = [card("AI-WATER-4")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.STRIKE, 0, 0))
+        self.assertEqual(state.players[0].field_ai, [])
+        self.assertEqual(state.players[1].field_ai, [])
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-WATER-4"])
+
+    def test_strike_hand_defense_shares_per_turn_limit(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[1].field_ai = [card("AI-WIND-3")]
+        state.players[1].field_stacks = [[card("AI-WIND-2")]]
+        state.players[1].hand = [card("AI-WATER-4")]
+        start_turn(state)
+        state.players[1].hand_defenses_used_this_turn = 1
+        apply_action(state, Action(ActionType.STRIKE, 0, 0))
+        self.assertEqual(state.players[1].field_ai, [])
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-WATER-4"])
+
+    def test_strike_hand_defense_can_be_disabled(self) -> None:
+        state = new_game(1, no_opening_hands(hand_defense_vs_strike="off"))
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[1].field_ai = [card("AI-WIND-3")]
+        state.players[1].field_stacks = [[card("AI-WIND-2")]]
+        state.players[1].hand = [card("AI-WATER-4")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.STRIKE, 0, 0))
+        self.assertEqual(state.players[1].field_ai, [])
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-WATER-4"])
+
     def test_strike_requires_monster_combat_enabled(self) -> None:
         state = new_game(1, no_opening_hands(monster_combat=False))
         state.players[0].field_ai = [card("AI-WATER-3")]

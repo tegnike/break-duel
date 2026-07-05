@@ -107,6 +107,7 @@ export type PendingAttack = {
   attackerIndex: number;
   defenderIndex: number;
   fieldIndex: number;
+  strikeTargetIndex?: number;
 } | null;
 
 export type PendingTarget =
@@ -234,6 +235,7 @@ export const CONFIG = {
   powerScaledDamage: true,
   drawOnAttackDamage: "point" as "none" | "event" | "point",
   monsterCombat: true,
+  handDefenseVsStrike: "value" as "off" | "eager" | "value",
 };
 
 export const DECK_RULES = {
@@ -1418,6 +1420,26 @@ export function strikeTargets(attackCard: Card, defender: PlayerState): { index:
     .filter((option) => option.attackValue >= option.defenseValue);
 }
 
+export function chooseStrikeHandDefense(defender: PlayerState, attackCard: Card, targetIndex: number): number | null {
+  const mode = CONFIG.handDefenseVsStrike;
+  if (mode !== "eager" && mode !== "value") return null;
+  const options = legalHandDefenders(defender, attackCard);
+  if (options.length === 0) return null;
+  const best = [...options].sort((a, b) => (
+    (a.card.power ?? 0) - (b.card.power ?? 0)
+    || a.card.id.localeCompare(b.card.id)
+  ))[0];
+  const { attackValue, defenseValue } = strikeValues(attackCard, defender, targetIndex);
+  if (attackValue === defenseValue) return null;
+  if (mode === "value") {
+    const stack = defender.fieldStacks?.[targetIndex] ?? [];
+    const savedPower = (defender.field[targetIndex]?.power || 1)
+      + stack.reduce((sum, card) => sum + (card.power || 1), 0);
+    if (savedPower < (best.card.power || 1)) return null;
+  }
+  return best.index;
+}
+
 export function bestClassicStrike(attacker: PlayerState, defender: PlayerState): { index: number; targetIndex: number } | null {
   let best: { key: [number, number, number, number]; index: number; targetIndex: number } | null = null;
   attackableField(attacker).forEach(({ card, index }) => {
@@ -1895,6 +1917,13 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
     if (!attacker || !target) return -9999;
     const { attackValue, defenseValue } = strikeValues(attacker, opponent, action.targetIndex);
     if (attackValue < defenseValue) return -9999;
+    if (CONFIG.handDefenseVsStrike !== "off") {
+      const blockerIndex = chooseStrikeHandDefense(opponent, attacker, action.targetIndex);
+      if (blockerIndex !== null) {
+        const blocker = opponent.hand[blockerIndex];
+        return score + CHALLENGER_WEIGHTS.handTradeAttack + (blocker ? aiCardValue(blocker) * 0.35 : 0);
+      }
+    }
     const trade = attackValue === defenseValue;
     let value = CHALLENGER_WEIGHTS.strikeBase + CHALLENGER_WEIGHTS.strikeTargetPower * (target.power ?? 0);
     if (!opponent.spentFieldIndexes.has(action.targetIndex)) value += CHALLENGER_WEIGHTS.strikeReadyTarget;

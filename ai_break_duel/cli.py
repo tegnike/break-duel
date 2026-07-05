@@ -67,6 +67,7 @@ def main() -> None:
     )
     simulate.add_argument("--each-player-first-turn-no-attack", action="store_true")
     simulate.add_argument("--hand-defense-limit", type=int, default=1)
+    simulate.add_argument("--hand-defense-vs-strike", choices=["off", "eager", "value"], default="value")
     simulate.add_argument("--hand-limit", type=int, default=None)
     simulate.add_argument("--no-exhaust-after-attack", action="store_true")
     simulate.add_argument("--exhausted-ai-can-defend", action="store_true")
@@ -143,6 +144,7 @@ def main() -> None:
     )
     match.add_argument("--each-player-first-turn-no-attack", action="store_true")
     match.add_argument("--hand-defense-limit", type=int, default=1)
+    match.add_argument("--hand-defense-vs-strike", choices=["off", "eager", "value"], default="value")
     match.add_argument("--hand-limit", type=int, default=None)
     match.add_argument("--no-exhaust-after-attack", action="store_true")
     match.add_argument("--exhausted-ai-can-defend", action="store_true")
@@ -230,6 +232,7 @@ def main() -> None:
     )
     league.add_argument("--each-player-first-turn-no-attack", action="store_true")
     league.add_argument("--hand-defense-limit", type=int, default=1)
+    league.add_argument("--hand-defense-vs-strike", choices=["off", "eager", "value"], default="value")
     league.add_argument("--hand-limit", type=int, default=None)
     league.add_argument("--no-exhaust-after-attack", action="store_true")
     league.add_argument("--exhausted-ai-can-defend", action="store_true")
@@ -275,6 +278,7 @@ def main() -> None:
         hand_defense_limit_per_turn=args.hand_defense_limit,
         hand_limit=args.hand_limit,
         hand_defense_requires_empty_field=args.hand_defense_empty_field_only,
+        hand_defense_vs_strike=args.hand_defense_vs_strike,
         exhaust_after_attack=not args.no_exhaust_after_attack,
         exhausted_ai_can_defend=args.exhausted_ai_can_defend,
         successful_defense_discards_both=not args.no_successful_defense_discard,
