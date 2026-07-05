@@ -434,7 +434,8 @@ function tutorialAllowsAction(
 ): boolean {
   const handCard = typeof options.handIndex === "number" ? game.players[0].hand[options.handIndex] : null;
   if (action === "select-hand") {
-    if (step.id === "select-summon" || step.id === "play-summon") return handCard?.id === "AI-FIRE-2";
+    if (step.id === "select-summon" || step.id === "play-summon") return handCard?.id === "AI-FIRE-1B";
+    if (step.id === "select-second-summon" || step.id === "play-second-summon") return handCard?.id === "AI-FIRE-2";
     if (step.id === "command") return handCard?.id === "CMD-FIRE-RITE";
     if (step.id === "purge-command") return handCard?.id === "CMD-PURGE";
     if (step.id === "select-charge" || step.id === "charge") return handCard?.id === "AI-FIRE-1C";
@@ -454,9 +455,9 @@ function tutorialAllowsAction(
     if (step.id === "saved-action-attack") return fieldCard?.id === "AI-FIRE-2";
     if (step.id === "strike-monster") return fieldCard?.id === "AI-FIRE-2";
     if (step.id === "power4-attack") return fieldCard?.id === "AI-FIRE-4";
-    return step.id === "attack";
+    return step.id === "attack" && fieldCard?.id === "AI-FIRE-2";
   }
-  if (action === "play") return step.id === "play-summon" || step.id === "command" || step.id === "purge-command" || step.id === "upgrade" || step.id === "play-post-charge-memory";
+  if (action === "play") return step.id === "play-summon" || step.id === "play-second-summon" || step.id === "command" || step.id === "purge-command" || step.id === "upgrade" || step.id === "play-post-charge-memory";
   if (action === "command") return step.id === "command" || step.id === "purge-command";
   if (action === "upgrade") return step.id === "upgrade-power4";
   if (action === "attack") {
@@ -466,10 +467,10 @@ function tutorialAllowsAction(
     if (step.id === "saved-action-attack") return selected?.id === "AI-FIRE-2";
     if (step.id === "strike-monster") return selected?.id === "AI-FIRE-2";
     if (step.id === "power4-attack") return selected?.id === "AI-FIRE-4";
-    return step.id === "attack";
+    return step.id === "attack" && selected?.id === "AI-FIRE-2";
   }
   if (action === "charge") return step.id === "charge";
-  if (action === "end") return step.id === "end-first-turn" || step.id === "end-after-memory" || step.id === "end-after-power3-upgrade" || step.id === "end-after-upgrade" || step.id === "end-after-power4";
+  if (action === "end") return step.id === "end-first-turn" || step.id === "end-after-memory" || step.id === "end-after-attack" || step.id === "end-after-power3-upgrade" || step.id === "end-after-upgrade";
   if (action === "defend") {
     if (step.id === "defend") return options.defenseChoice?.type === "hand";
     if (step.id === "field-defend") return options.defenseChoice?.type === "field";
@@ -479,18 +480,21 @@ function tutorialAllowsAction(
 }
 
 function tutorialActionHint(step: TutorialStep): string {
-  if (step.id === "select-summon") return "『炉殻バサルトン』を選んでください";
+  if (step.id === "select-summon") return "『火花一番ピリカ』を選んでください";
   if (step.id === "play-summon") return "場に出すボタンを押してください";
   if (step.id === "end-first-turn") return "ターン終了を押してください";
   if (step.id === "watch-rival") return "ライバルの行動を確認してください";
+  if (step.id === "select-second-summon") return "『炉殻バサルトン』を選んでください";
+  if (step.id === "play-second-summon") return "場に出すボタンを押してください";
   if (step.id === "defend") return "手札の防御候補を選んでください";
-  if (step.id === "attack") return "場の召喚獣を選んで攻撃してください";
+  if (step.id === "attack") return "『炉殻バサルトン』を選んで攻撃してください";
   if (step.id === "command") return "『紅蓮圧壊術』を選んで発動してください";
   if (step.id === "select-charge") return "チャージできるカードを選んでください";
   if (step.id === "charge") return "チャージボタンを押してください";
   if (step.id === "select-post-charge-memory") return "『灯火の旅嚢』を選んでください";
   if (step.id === "play-post-charge-memory") return "場に出すボタンを押してください";
   if (step.id === "end-after-memory") return "ターン終了で遺物の継続効果を確認します";
+  if (step.id === "end-after-attack") return "ターン終了を押してください";
   if (step.id === "select-upgrade") return "『噴角イグナロス』を選んでください";
   if (step.id === "upgrade") return "場に出すボタンを押してください";
   if (step.id === "end-after-power3-upgrade") return "ターン終了で大型アップグレードへ進みます";
@@ -502,7 +506,6 @@ function tutorialActionHint(step: TutorialStep): string {
   if (step.id === "purge-command") return "『追撃粛清』を選んで、消耗中の相手召喚獣に発動してください";
   if (step.id === "strike-monster") return "『炉殻バサルトン』を選び、攻撃ボタンから相手の召喚獣を対象にしてください";
   if (step.id === "power4-attack") return "『終火の影ヴァルガ』で攻撃してください";
-  if (step.id === "end-after-power4") return "ターン終了を押してください";
   if (step.id === "take-break-draw") return "「防御しない」を選んでブレイクドローを確認してください";
   return "チュートリアルは完了しています";
 }
@@ -527,6 +530,8 @@ function tutorialFixedSelection(step: TutorialStep | null, game: GameState): Tut
     if (
       step?.id === "select-summon"
       || step?.id === "play-summon"
+      || step?.id === "select-second-summon"
+      || step?.id === "play-second-summon"
       || step?.id === "command"
       || step?.id === "select-charge"
       || step?.id === "charge"
