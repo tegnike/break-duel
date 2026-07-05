@@ -3,7 +3,9 @@
 `Break Duel` は、25 枚デッキで遊ぶ 2 人対戦の小型オリジナルカードゲームです。
 React + TypeScript のブラウザ UI で実際に対戦でき、Python シミュレータで自動対戦とバランス検証を回せます。
 
-![Break Duel battle board](docs/assets/break-duel-board.png)
+**▶ ブラウザですぐ遊べます: https://break-duel.pages.dev/duel**
+
+[![Break Duel battle board](docs/assets/break-duel-board.png)](https://break-duel.pages.dev/duel)
 
 ## 特徴
 
