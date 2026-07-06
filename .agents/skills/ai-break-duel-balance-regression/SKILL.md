@@ -113,7 +113,12 @@ Include:
 - the exact validation command run
 
 Useful experimental rule sets include `p3_cap_6`, `p3_cap_4`, `p3_cap_2`,
-`p3_cap_1`, `high_cap_6`, `high_cap_4`, `p3_enters_spent`, `p3_cost_3`,
+`p3_cap_1`, `high_cap_1`, `high_cap_2`, `high_cap_3`, `high_cap_4`, `high_cap_6`,
+`high_cap_7`, `high_cap_8`, `high_cap_9`, `high_cap_10`, `high_cap_12`,
+`high_cap_14`, `high_cap_16`, `high_cap_19` (the `high_cap_*` family with `p3_4`
+sweeps the whole power 3+ cap curve from 1 to 19 — see the 2026-07-06 entry in
+`docs/balance-history.md` for the full curve and where it plateaus),
+`p3_enters_spent`, `p3_cost_3`,
 `p3_overheats`, `p3_discards_on_play`, `p3_cannot_hand_defend`,
 `p3_defense_minus_1`, `p3_cap_2_defense_minus_1`, `p4_no_overheat`,
 `high_direct_3_upgrade_1`, `p3_slow_recovery`,

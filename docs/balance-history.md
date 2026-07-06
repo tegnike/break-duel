@@ -1,8 +1,62 @@
 # Break Duel バランス履歴
 
-最終更新: 2026-07-05
+最終更新: 2026-07-06
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
+
+## 2026-07-06 power 3+ 合計 5 枚上限の再検証: ルールは現状維持（変更なし）
+
+### 背景
+
+「power 3-4 の投入枚数制限は過去の名残では」という疑問を受け、現行ルール（コスト=power、モンスター攻撃への手札防御割り込み込み）の下でも、power 3+ 召喚獣を積めば積むほど単調に強くなり続けるのか、上限を動かした場合にどこで頭打ちになるのか、5 枚という現行値が数ある選択肢の中で最良かどうかを検証した。ルール変更は行わず、検証のみ。
+
+### 変更内容
+
+なし（ゲーム本体のルール・カードは無変更）。検証のため、`.agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py` の `RULE_SETS` に実験用の `high_cap_1` / `high_cap_7` / `high_cap_8` / `high_cap_9` / `high_cap_10` / `high_cap_12` / `high_cap_14` / `high_cap_16` / `high_cap_19` を追加した（既存の `high_cap_2` / `high_cap_3` / `high_cap_4` / `high_cap_6` / `current`(5) と合わせて 1〜19 枚を一通り試せるようにするための追加。`.agents/skills/ai-break-duel-balance-regression/SKILL.md` の「Useful experimental rule sets」にも追記）。
+
+### 検証
+
+`p3_4`（power 3-4 cap stress deck; low-power filler may be added）を、power 3+ 上限 1/2/3/4/5(現行)/6/7/8/9/10/12/14/16/19 枚でそれぞれ構築し、既存 6 デッキ（break/control/fire/water/wind/earth）と 1000 games/ordered pair（計 12000 戦/条件）で総当たり。2 シード（4200001 / 5300001）で実施し、両シードはほぼ一致（誤差 1pt 未満）。
+
+| power3+上限 | 総合勝率 | 判定 |
+| ---: | ---: | --- |
+| 1 | 6.3% | OK |
+| 2 | 11.5% | OK |
+| 3 | 21.6% | OK |
+| 4 | 32.7% | OK |
+| **5（現行）** | **42.3%** | OK（break 単体は 49.2%/50.0% とほぼ互角） |
+| 6 | 54.0% | RISK |
+| 7 | 67.3% | RISK |
+| 8 | 74.1% | RISK |
+| 9 | 80.9% | RISK |
+| 10 | 85.4% | RISK |
+| 12 | 91.4% | RISK |
+| 14 | 95.2% | RISK |
+| 16 | 95.4% | RISK |
+| 19（実質無制限） | 95.8% | RISK |
+
+上限 1〜10 枚のあたりでは頭打ちの気配がなく、1 枚刻みで +7〜13pt という急勾配で単調増加し続ける。頭打ち（飽和）が始まるのは 12〜14 枚あたりからで、14 枚以降はおよそ 95% 前後でほぼ横ばい（19 枚まで測っても 95.8% が上限）。95% で頭打ちになるのは、相手側の防御・除去・引き分け・先攻補正などの下振れ要素が残るため。
+
+`npm run check` はゲーム本体に変更がないため実行不要（今回変更したのは検証スクリプトの実験用ルールセット定義のみ）。
+
+### 判断
+
+**現状維持。ルール変更は行わない。**
+
+- power 3+ の投入枚数は「過去の名残」ではなく、現行ルール下でも実効性のある制限。上限を外す・緩めるほど単調に、かつ 10 枚程度までは頭打ちなく強くなり続けるため、緩和は確実にバランスを崩す。
+- 5 枚未満（4 枚以下）に絞ると、大型偏重戦略そのものが競技ベースライン（break/control）に対して明確に見劣りする（4 枚で総合 32.7%）ため、戦略として成立しなくなる。
+- 6 枚以上にすると即座に RISK 判定（54%）に転化し、7 枚以降は加速度的に悪化する。
+- **現行の 5 枚は、「大型偏重戦略として成立するが支配はしない」という境界にちょうど位置する最適点**。5 枚未満・5 枚超過のどちらの方向にも、現行より良いバランスの選択肢はない。
+- この検証により、`docs/design-principles.md` の「power 3+ 上限の 6 枚以上への緩和 → 大型偏重で消化試合度が悪化（検証済み）」という却下済み事項は、より広い範囲（1〜19 枚）のデータで裏付けられた。今後 power 3+ の投入枚数制限を変更する提案がある場合は、本エントリの単調増加カーブを踏まえた新しい検証データを添えること。
+
+### 検証コマンド
+
+```bash
+python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --candidate p3_4 --rule-set high_cap_2 --rule-set high_cap_3 --rule-set high_cap_4 --rule-set current --rule-set high_cap_6 --games-per-order 1000 --seed 4200001 --out tmp/p34-capcurve-4200001.json
+python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --candidate p3_4 --rule-set high_cap_2 --rule-set high_cap_3 --rule-set high_cap_4 --rule-set current --rule-set high_cap_6 --games-per-order 1000 --seed 5300001 --out tmp/p34-capcurve-5300001.json
+python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --candidate p3_4 --rule-set high_cap_1 --rule-set high_cap_7 --rule-set high_cap_8 --rule-set high_cap_9 --rule-set high_cap_10 --rule-set high_cap_12 --rule-set high_cap_14 --rule-set high_cap_16 --rule-set high_cap_19 --games-per-order 1000 --seed 4200001 --out tmp/p34-capcurve-ext-4200001.json
+python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --candidate p3_4 --rule-set high_cap_1 --rule-set high_cap_7 --rule-set high_cap_8 --rule-set high_cap_9 --rule-set high_cap_10 --rule-set high_cap_12 --rule-set high_cap_14 --rule-set high_cap_16 --rule-set high_cap_19 --games-per-order 1000 --seed 5300001 --out tmp/p34-capcurve-ext-5300001.json
+```
 
 ## 2026-07-05 モンスター攻撃への手札防御割り込み: 採用
 
