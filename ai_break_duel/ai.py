@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .cards import (
+    AiEffect,
     Attribute,
     CardType,
     CommandEffect,
@@ -14,10 +15,12 @@ from .cards import (
     draws_on_play,
     draws_on_successful_defense,
     filters_on_play,
+    has_attribute,
     keeps_ready_after_attack,
     opponent_draws_on_play,
     pierces_hand_defense,
     pressures_on_block,
+    shares_attribute,
 )
 from .models import Action, ActionType, AiProfile, GameState, PlayerState
 
@@ -209,8 +212,9 @@ def choose_defender(
     power_2_defense_bonus: int = 0,
     power_3_cannot_field_defend: bool = False,
     power_3_defense_modifier: int = 0,
+    attack_power_bonus: int = 0,
 ) -> int | None:
-    attack_value = attack_combat_value(attack_ai)
+    attack_value = attack_combat_value(attack_ai, attack_power_bonus=attack_power_bonus)
     successful = [
         (
             index,
@@ -227,6 +231,7 @@ def choose_defender(
                     attack_ai,
                     field_index=index,
                     power_3_defense_modifier=power_3_defense_modifier,
+                    attack_power_bonus=attack_power_bonus,
                 ),
             ),
         )
@@ -246,7 +251,9 @@ def choose_defender(
                 attack_ai,
                 field_index=index,
                 power_3_defense_modifier=power_3_defense_modifier,
+                attack_power_bonus=attack_power_bonus,
             ),
+            attack_power_bonus=attack_power_bonus,
         )
     ]
     if not successful:
@@ -271,6 +278,7 @@ def choose_hand_defender(
     power_2_defense_bonus: int = 0,
     power_3_cannot_hand_defend: bool = False,
     power_3_defense_modifier: int = 0,
+    attack_power_bonus: int = 0,
 ) -> int | None:
     if blocks_low_life_hand_defense(attack_ai) and defender.life <= 2:
         return None
@@ -292,6 +300,7 @@ def choose_hand_defender(
                 power_3_defense_modifier=power_3_defense_modifier,
             ),
             include_defense_effect_bonus=False,
+            attack_power_bonus=attack_power_bonus,
         )
     ]
     if not successful:
@@ -324,11 +333,15 @@ def _best_memory_in_hand(player: PlayerState) -> int | None:
     priority = {
         MemoryEffect.CACHE.value: 4,
         MemoryEffect.RECOVERY_CACHE.value: 4,
+        MemoryEffect.ECHO_URN.value: 4,
+        MemoryEffect.TIDAL_MIRROR.value: 4,
         MemoryEffect.PIPELINE.value: 3,
         MemoryEffect.ACCELERATOR.value: 3,
         MemoryEffect.RESONATOR.value: 3,
         MemoryEffect.WAR_BANNER.value: 3,
         MemoryEffect.GROVE_REST.value: 3,
+        MemoryEffect.STORM_CORE.value: 3,
+        MemoryEffect.DUAL_BANNER.value: 3,
         MemoryEffect.FIREWALL.value: 2,
     }
     return max(candidates, key=lambda item: (priority.get(item[1].effect, 0), item[1].id))[0]
@@ -737,6 +750,23 @@ def _card_value(card) -> int:
             "charge_surge_draw": 20,
             "charge_spend_enemy": 20,
             "charge_recover_discard": 18,
+            "trash_enemy_memory_on_play": 14,
+            "draw_on_play_if_discard_4": 16,
+            "charge_draw_if_discard_ai": 16,
+            "recover_ai_on_successful_defense": 18,
+            "discard_commands_attack_plus_1": 14,
+            "draw_on_play_defense_draw": 26,
+            "ready_ally_on_play_enters_spent": 14,
+            "defense_plus_1_with_memory": 12,
+            "blocked_attack_draw": 18,
+            "charge_spend_enemy_ready_ally": 24,
+            "charge_recover_discard_any": 20,
+            "charge_filter_draw": 20,
+            "charge_pressure_any": 20,
+            "return_after_overheat_opponent_draw_on_play": 14,
+            "discard_ai_attack_plus_1": 18,
+            "charge_spend_all_enemies": 26,
+            "recover_memory_on_play_defense_plus_1": 20,
         }
         value += effect_bonus.get(card.effect, 0)
         if draws_on_play(card):
@@ -758,8 +788,12 @@ def _memory_value(card) -> int:
         MemoryEffect.CACHE.value: 48,
         MemoryEffect.RESONATOR.value: 45,
         MemoryEffect.RECOVERY_CACHE.value: 42,
+        MemoryEffect.ECHO_URN.value: 42,
+        MemoryEffect.TIDAL_MIRROR.value: 40,
         MemoryEffect.WAR_BANNER.value: 40,
         MemoryEffect.PIPELINE.value: 38,
+        MemoryEffect.STORM_CORE.value: 38,
+        MemoryEffect.DUAL_BANNER.value: 36,
         MemoryEffect.ACCELERATOR.value: 36,
         MemoryEffect.GROVE_REST.value: 34,
         MemoryEffect.FIREWALL.value: 30,
@@ -806,6 +840,22 @@ def _command_value(state: GameState, command) -> int:
         return 36 + max(0, 4 - len(player.hand)) * 4
     if command.effect == CommandEffect.PATCH.value:
         return 52 + (8 if player.deck else 0)
+    if command.effect == CommandEffect.WAR_CRY.value:
+        return 40 if _can_active_player_attack(state) else 0
+    if command.effect == CommandEffect.TIDE_EDGE.value:
+        return 42 if _can_active_player_attack(state) else 0
+    if command.effect == CommandEffect.PIERCE_SIGHT.value:
+        return 38 if _can_active_player_attack(state) and opponent.hand else 0
+    if command.effect == CommandEffect.GRAVE_CALL.value:
+        return 58
+    if command.effect == CommandEffect.SALVAGE.value:
+        return 40
+    if command.effect == CommandEffect.OVERDRIVE.value:
+        return 64
+    if command.effect == CommandEffect.RELIC_CRUSH.value:
+        return 66 if opponent.memory is not None else 34
+    if command.effect == CommandEffect.DEEP_CURRENT.value:
+        return 70
     return 0
 
 
@@ -832,6 +882,35 @@ def _charge_effect_value(state: GameState, fuel) -> int:
             if len(player.hand) <= 3 and any(item.type == CardType.AI for item in player.discard)
             else 6
         )
+    if fuel.effect == "charge_draw_if_discard_ai":
+        return (
+            44
+            if any(item.type == CardType.AI for item in player.discard) and player.deck
+            else 6
+        )
+    if fuel.effect == "charge_filter_draw":
+        return 48 if player.deck else 6
+    if fuel.effect == "charge_pressure_any":
+        return 46 if len(opponent.hand) >= 1 else 8
+    if fuel.effect == "charge_spend_all_enemies":
+        ready_count = sum(
+            1
+            for index, _ in enumerate(opponent.field_ai)
+            if index not in opponent.spent_field_ai
+        )
+        return 70 if ready_count >= 2 else 40 if ready_count == 1 else 8
+    if fuel.effect == "charge_spend_enemy_ready_ally":
+        can_spend = _highest_power_ready_ai(opponent) is not None
+        can_ready = _highest_power_spent_ai(player) is not None
+        if can_spend and can_ready:
+            return 72
+        if can_spend:
+            return 58
+        if can_ready:
+            return 62
+        return 8
+    if fuel.effect == "charge_recover_discard_any":
+        return 52 if any(item.type == CardType.AI for item in player.discard) else 6
     if player.memory is not None and player.memory.effect == "resonator" and len(player.hand) <= 2:
         return 24
     return 0
@@ -946,6 +1025,14 @@ def _best_command_in_hand(state: GameState) -> int | None:
         CommandEffect.RELEARN.value: 2,
         CommandEffect.SANDBOX.value: 2,
         CommandEffect.OPTIMIZE.value: 1,
+        CommandEffect.GRAVE_CALL.value: 4,
+        CommandEffect.DEEP_CURRENT.value: 4,
+        CommandEffect.OVERDRIVE.value: 3,
+        CommandEffect.RELIC_CRUSH.value: 3,
+        CommandEffect.WAR_CRY.value: 3,
+        CommandEffect.TIDE_EDGE.value: 3,
+        CommandEffect.PIERCE_SIGHT.value: 2,
+        CommandEffect.SALVAGE.value: 2,
     }
     return max(candidates, key=lambda item: (priority.get(item[1].effect, 0), item[1].id))[0]
 
@@ -955,15 +1042,15 @@ def _command_is_usable(state: GameState, source_index: int) -> bool:
     opponent = state.opponent()
     card = player.hand[source_index]
     if card.effect == CommandEffect.OPTIMIZE.value:
-        return len(player.hand) > 1
+        return True
     if card.effect == CommandEffect.PATCH.value:
-        return bool(player.spent_field_ai)
+        return True
     if card.effect == CommandEffect.DISRUPT.value:
         return any(index not in opponent.spent_field_ai for index, _ in enumerate(opponent.field_ai))
     if card.effect == CommandEffect.PURGE.value:
         return any(index < len(opponent.field_ai) for index in opponent.spent_field_ai)
     if card.effect == CommandEffect.RELEARN.value:
-        return len(player.hand) > 1 and any(item.type == CardType.AI for item in player.discard)
+        return any(item.type == CardType.AI for item in player.discard)
     if card.effect == CommandEffect.SANDBOX.value:
         return _sandbox_command_ready(state)
     if card.effect == CommandEffect.TRINITY.value:
@@ -983,6 +1070,30 @@ def _command_is_usable(state: GameState, source_index: int) -> bool:
         )
     if card.effect == CommandEffect.COMEBACK_RITE.value:
         return player.life < opponent.life
+    if card.effect == CommandEffect.WAR_CRY.value:
+        return _highest_power_ready_ai(player) is not None
+    if card.effect == CommandEffect.TIDE_EDGE.value:
+        return _has_attribute_ai(player, Attribute.WATER) and bool(player.field_ai)
+    if card.effect == CommandEffect.PIERCE_SIGHT.value:
+        return _highest_power_ready_ai(player) is not None
+    if card.effect == CommandEffect.GRAVE_CALL.value:
+        return len(player.field_ai) < state.config.field_ai_limit and any(
+            item.type == CardType.AI and (item.power or 0) <= 3 for item in player.discard
+        )
+    if card.effect == CommandEffect.SALVAGE.value:
+        return any(
+            item.type == CardType.EVENT and item.effect != CommandEffect.SALVAGE.value
+            for item in player.discard
+        )
+    if card.effect == CommandEffect.OVERDRIVE.value:
+        return bool(player.pending_effects.get("charge_used")) and bool(player.deck)
+    if card.effect == CommandEffect.RELIC_CRUSH.value:
+        return opponent.memory is not None
+    if card.effect == CommandEffect.DEEP_CURRENT.value:
+        water_count = sum(
+            1 for item in player.field_ai if has_attribute(item, Attribute.WATER)
+        )
+        return water_count >= 2 and bool(player.deck)
     return False
 
 
@@ -1008,13 +1119,13 @@ def _sandbox_command_ready(state: GameState) -> bool:
 
 
 def _has_attribute_ai(player: PlayerState, attribute: Attribute) -> bool:
-    return any(card.attribute == attribute for card in player.field_ai)
+    return any(has_attribute(card, attribute) for card in player.field_ai)
 
 
 def _has_spent_attribute_ai(player: PlayerState, attribute: Attribute) -> bool:
     return any(
         0 <= index < len(player.field_ai)
-        and player.field_ai[index].attribute == attribute
+        and has_attribute(player.field_ai[index], attribute)
         for index in player.spent_field_ai
     )
 
@@ -1105,6 +1216,18 @@ def _charge_fuel_has_immediate_value(
         return _highest_power_ready_ai(opponent) is not None
     if card.effect == "charge_recover_discard":
         return len(remaining_hand) <= 2 and any(item.type == CardType.AI for item in player.discard)
+    if card.effect == "charge_draw_if_discard_ai":
+        return any(item.type == CardType.AI for item in player.discard) and bool(player.deck)
+    if card.effect == "charge_filter_draw":
+        return bool(player.deck)
+    if card.effect == "charge_pressure_any":
+        return len(opponent.hand) >= 1
+    if card.effect == "charge_spend_all_enemies":
+        return _highest_power_ready_ai(opponent) is not None
+    if card.effect == "charge_spend_enemy_ready_ally":
+        return _highest_power_ready_ai(opponent) is not None or bool(player.spent_field_ai)
+    if card.effect == "charge_recover_discard_any":
+        return any(item.type == CardType.AI for item in player.discard)
     if player.memory is not None and player.memory.effect == "resonator":
         return len(remaining_hand) <= 2 and bool(player.deck)
     return False
@@ -1150,10 +1273,17 @@ def _defense_power_bonus(
     attack_ai=None,
     field_index: int | None = None,
     power_3_defense_modifier: int = 0,
+    attack_power_bonus: int = 0,
 ) -> int:
     bonus = 0
     if card.power == 3:
         bonus += power_3_defense_modifier
+    if (
+        defender is not None
+        and card.effect == AiEffect.DEFENSE_PLUS_1_WITH_MEMORY.value
+        and defender.memory is not None
+    ):
+        bonus += 2
     if (
         defender is not None
         and attack_ai is not None
@@ -1161,8 +1291,8 @@ def _defense_power_bonus(
         and defender.memory.effect == MemoryEffect.FIREWALL.value
         and bool(defender.hand)
         and card.type == CardType.AI
-        and card.attribute != attack_ai.attribute
-        and _firewall_should_pay(card, defender, attack_ai)
+        and not shares_attribute(card, attack_ai)
+        and _firewall_should_pay(card, defender, attack_ai, attack_power_bonus=attack_power_bonus)
     ):
         bonus += 1
     if defender is not None and field_index is not None and field_index in defender.charge_guarded_field_ai:
@@ -1170,15 +1300,20 @@ def _defense_power_bonus(
     return bonus
 
 
-def _firewall_should_pay(card, defender: PlayerState, attack_ai) -> bool:
+def _firewall_should_pay(
+    card,
+    defender: PlayerState,
+    attack_ai,
+    attack_power_bonus: int = 0,
+) -> bool:
     if (
         defender.memory is None
         or defender.memory.effect != MemoryEffect.FIREWALL.value
-        or card.attribute == attack_ai.attribute
+        or shares_attribute(card, attack_ai)
         or not defender.hand
     ):
         return False
-    attack_value = attack_combat_value(attack_ai)
+    attack_value = attack_combat_value(attack_ai, attack_power_bonus=attack_power_bonus)
     base_value = defense_combat_value(attack_ai, card, defense_power_bonus=0)
     paid_value = base_value + 1
     return base_value < attack_value or (base_value == attack_value and paid_value > attack_value)
@@ -1193,7 +1328,7 @@ def _card_priority(card) -> int:
 def _can_upgrade(source, target) -> bool:
     if source.type != CardType.AI or target.type != CardType.AI:
         return False
-    if source.attribute != target.attribute:
+    if not shares_attribute(source, target):
         return False
     if source.power is None or target.power is None:
         return False

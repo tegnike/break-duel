@@ -2,16 +2,19 @@ import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import {
   ATTRIBUTES,
   CARD_BY_ID,
+  CARD_SET_LABELS,
   DECKS,
   type Attribute,
   type Card,
   type CardType,
   activeCardPool,
+  cardSet,
   isCardActive,
   playCost,
 } from "../game";
 import { CardArtPreview, CardView } from "./CardView";
 import { cardArtAsset, cardArtClass, cardArtGlyph, cardColor, roleText, selectedText } from "./cardPresentation";
+import { collectionLimitMessages, loadCollection } from "../collection";
 
 const DECK_SIZE = 25;
 const SAME_NAME_LIMIT = 2;
@@ -43,15 +46,19 @@ function allCards(): Card[] {
 
 const CARD_LIST = allCards();
 
+const CARD_SETS = [...new Set(CARD_LIST.map((card) => cardSet(card)))].sort((a, b) => a - b);
+
 export function CardLibraryPage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [attributeFilter, setAttributeFilter] = useState<AttributeFilter>("all");
+  const [setFilter, setSetFilter] = useState<number | "all">("all");
   const [selectedId, setSelectedId] = useState(CARD_LIST[0]?.id ?? "");
   const selectedCard = CARD_BY_ID.get(selectedId) ?? CARD_LIST[0] ?? null;
-  const aiCount = CARD_LIST.filter((card) => card.type === "ai").length;
-  const eventCount = CARD_LIST.filter((card) => card.type === "event").length;
-  const memoryCount = CARD_LIST.filter((card) => card.type === "memory").length;
-  const visibleCards = CARD_LIST.filter((card) => {
+  const setCards = setFilter === "all" ? CARD_LIST : CARD_LIST.filter((card) => cardSet(card) === setFilter);
+  const aiCount = setCards.filter((card) => card.type === "ai").length;
+  const eventCount = setCards.filter((card) => card.type === "event").length;
+  const memoryCount = setCards.filter((card) => card.type === "memory").length;
+  const visibleCards = setCards.filter((card) => {
     if (typeFilter !== "all" && card.type !== typeFilter) return false;
     if (attributeFilter !== "all" && card.attribute !== attributeFilter) return false;
     return true;
@@ -62,7 +69,22 @@ export function CardLibraryPage() {
       <div className="workshop-heading">
         <div>
           <h2>カード一覧</h2>
-          <p>{CARD_LIST.length}種類 / 召喚獣{aiCount}種 / 術式{eventCount}種 / 遺物{memoryCount}種</p>
+          <p>{setCards.length}種類 / 召喚獣{aiCount}種 / 術式{eventCount}種 / 遺物{memoryCount}種</p>
+          <nav className="set-tabs" aria-label="弾で絞り込み">
+            <button type="button" className={setFilter === "all" ? "active" : ""} onClick={() => setSetFilter("all")}>
+              全カード
+            </button>
+            {CARD_SETS.map((setNumber) => (
+              <button
+                type="button"
+                key={setNumber}
+                className={setFilter === setNumber ? "active" : ""}
+                onClick={() => setSetFilter(setNumber)}
+              >
+                {CARD_SET_LABELS[setNumber] ?? `第${setNumber}弾`}
+              </button>
+            ))}
+          </nav>
         </div>
         <div className="workshop-filters">
           <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}>
@@ -412,6 +434,7 @@ export function validateDeck(cardIds: string[]): { valid: boolean; messages: str
     return card && !isCardActive(card);
   });
   if (inactive.length > 0) messages.push("現在使えないカードが含まれています");
+  messages.push(...collectionLimitMessages(knownCards, loadCollection()));
   return { valid: messages.length === 0, messages };
 }
 

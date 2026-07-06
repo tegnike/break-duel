@@ -1,8 +1,258 @@
 # Break Duel バランス履歴
 
-最終更新: 2026-07-05
+最終更新: 2026-07-06
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
+
+## 2026-07-06 ユーザーレビュー反映13件のカード効果修正後の再検証: 採用（現状維持）
+
+### 背景
+
+第2弾30種の初回バランス調整（echoes 55.4%達成、直下エントリ）後、ユーザーレビューを受けて13件のカード効果修正を実施済み（`npm run check` は全て通過済みだが、修正後のバランス検証は未実施の状態からの着手）。
+
+修正のうち、ゲームバランスに影響するもの6件:
+
+1. `CMD-RELIC-CRUSH` 遺物砕き: 「相手に遺物がなければドロー」を削除し「相手の遺物があるときしか使用できない」に変更（弱体化）
+2. `MEM-DUAL-BANNER` 双色の軍旗: ドロー1→2枚（強化）
+3. `AI-FIRE-2D` 焔喰いガルル: 条件付き攻撃値ボーナス +1→+2（強化）
+4. `AI-EARTH-2D` 苔纏いドルモ: 条件付き防御値ボーナス +1→+2（強化）
+5. `AI-FIRE-3D` 焔角のグレンド: 攻撃値+1を削除、貫通1ダメージのみに（弱体化）
+6. `AI-FIRE-4D` 灰滅竜ヴァレン: 退場時ドローを削除、条件付き攻撃値+1のみに（弱体化）
+7. `AI-WATER-3D` 深響のセレナ: 登場時ドローを削除、防御された時ドローのみに（弱体化）
+8. `AI-WATER-4D` 海淵帝グランマーレ: 登場時ドローに「相手も1枚引く」代償を追加（弱体化）
+
+残り（強制発動→任意発動、自己言及テキスト削除、術式条件文統一、名称変更等）は文言・UX 調整でロジック不変。
+
+`echoes` は水属性の弱体化4枚（グランマーレ×2・セレナ×1・水渦のシラス経由の水軸強化含む）を主力に据えているため、前回 55.4% だった echoes の勝率が下がる懸念があった。
+
+### 変更内容
+
+このエントリでは**コード変更なし**（対象の13件修正はセッション開始前に実装済み）。Python/TypeScript 両実装の同期を diff で個別確認（`ai_break_duel/cards.py`・`engine.py` と `src/game.ts`・`src/game/actions.ts` の該当箇所を突合）し、以下が両側で一致していることを確認:
+
+- `relic_crush`: 発動条件に `opponent.memory is not None` / `Boolean(opponent.memory)` を追加、条件を満たさない場合はドロー分岐なし
+- `dual_banner`: `player.draw(2, ...)` / `drawCards(player, 2)` に統一
+- `discard_commands_attack_plus_1`（焔喰いガルル）: bonus += 2 に統一
+- `defense_plus_1_with_memory`（苔纏いドルモ）: bonus += 2 に統一
+- `hand_defense_pierce`（焔角のグレンド）: 攻撃値ボーナスなし、貫通のみ
+- `discard_ai_attack_plus_1`（灰滅竜ヴァレン）: bonus += 1 のみ、`draws_on_play` 系リストに含まれない（退場時ドロー廃止済み）
+- `return_after_overheat_opponent_draw_on_play`（海淵帝グランマーレ）: 登場時に自分と相手が両方ドローする効果文言で両側一致
+
+`npx vitest run src/game/tutorial.test.ts` も pass（チュートリアル破損なし）。
+
+### 検証
+
+**リーグ**（8 デッキ総当たり、100 games/ordered pair × 3 シード = 16800 戦、seed 2026070701 / 2026070702 / 907771。league_report 判定 **PASS**）:
+
+| デッキ | 前回（2026-07-06 デュアル差し替え後・3シード平均） | 今回（13件修正後・3シード平均） |
+| --- | ---: | ---: |
+| echoes | 55.4% | **54.1%** |
+| apex | 68.0% | 68.0% |
+| water | 50.5% | **50.0%** |
+| earth | 49.6% | 49.9% |
+| wind | 47.7% | 47.2% |
+| fire | 45.5% | 45.3% |
+| break | 43.5% | 44.1% |
+| control | 39.5% | 41.1% |
+| 先攻勝率 | 49.0% | 48.8% |
+
+echoes の弱体化6枚（グランマーレ×2・セレナ×1 を含む）の影響は軽微（-1.3pt）で、50% 台・目安レンジ（52〜56%）の下限付近に留まった。水単も 50.0% で 50% 台前半を維持。
+
+echoes の相手別勝率（3シード合算、各600戦）: apex 37.5% / break 51.2% / control 59.7% / earth 62.0% / fire 51.2% / water 60.8% / wind 56.2%。先手時 51.9% / 後手時 56.2%（先後で 4pt 程度の差はあるが前回エントリと同水準の傾向で新規の偏りではない）。ワンサイド率（one_sided_game_rate 加重平均）は全体 48.7%、echoes 絡み 53.6%（前回 48.1% / 52.9%）で、僅かな上振れはあるが既存基準から悪化とは言えない範囲。
+
+**盛り上がり指標**（simulate 1000 戦ずつ、seed 2026070741/742/743）:
+
+| 指標 | 前回基準（2026-07-05 / 07-06 エントリ） | 今回 |
+| --- | ---: | ---: |
+| 標準対戦 平均ターン | 14.4 | 14.4 |
+| 標準対戦 リード交代あり | 64.4-64.5% | 64.9% |
+| 標準対戦 2点ビハインド逆転 | 51.5-52.0% | 52.6% |
+| 標準対戦 先2点差側勝率 | 58.7-58.8% | 57.7% |
+| echoes vs water 平均ターン | 15.6-16.5 | 17.8 |
+| echoes vs water 逆転率 | 52.4-52.5% | 50.3% |
+| echoes vs water 先2点差側勝率 | 57.5-58.4% | 57.4% |
+| echoes vs apex 平均ターン | 17.6 | 20.2 |
+| echoes vs apex 逆転率 | 49.8-52.4% | 47.0% |
+| echoes vs apex 先2点差側勝率 | 56.9-59.7% | 62.2% |
+
+水単・echoes 絡みの対戦がやや長引く傾向（弱体化カードにより決着が伸びる方向）が見られるが、ワンサイド化の悪化は確認されず、決着形態も lifeout 主体で健全。
+
+**弱体化カードの実戦での機能確認**（echoes vs water simulate 1000 戦の card_usage）: 海淵帝グランマーレは登場時ドロー（相手ドローとセット）1563 回・攻撃後手札帰還 1350 回・攻撃 1482 回で主力フィニッシャーとして機能継続。深響のセレナは防御された時ドロー 253 回・攻撃 544 回で運用継続。潮渦のシラス・古磐熊ゴロン・苔纏いドルモも通常運用範囲内でプレイされている。弱体化後もデッキの勝ち筋として機能しており、単に採用率が落ちた形跡はない。
+
+**壊れ監視**: `貫きの眼光` / `天嵐王ジェイル` は今回の13件修正の対象外（未変更）。前回エントリ（2026-07-06）で「壊れとは逆方向（むしろ弱い）」の判定済みであり、今回の変更が影響する経路もないため再検証は不要と判断。
+
+**ストレスデッキ回帰**（`run_cost_balance.py` --games-per-order 1000、seed 2026070751、各帯 12000 戦）: 全7帯 **OK**。p1 0.03% / p1-2 3.43% / p2 9.37% / p2-3 37.57% / p3 32.66% / p3-4 41.41% / p4 43.36%。前回（seed 2026070481: 0.0 / 3.7 / 9.4 / 38.4 / 33.0 / 41.9 / 44.9）とほぼ同水準で、コストカーブの破綻はなし。13件の修正は攻撃値・防御値・ドロー条件のみでコスト構造に触れていないため、この結果は想定通り。
+
+`npm run check` green（typecheck + TS unit + build + Python unittest 228 件）。
+
+### 判断
+
+**現行構成のまま採用（デッキ調整不要）**。13件の効果修正後も echoes 54.1%・water 50.0% は合格基準（echoes 50%台で既存よりやや強い水準、目安52-56%／water 50%台前半）を満たしており、60%を超えるケースも発生していない。弱体化6枚の影響は事前に懸念したほど大きくなく、echoes は目安レンジの下限付近（54.1%）に着地した。先攻勝率・ワンサイド率・盛り上がり指標も既存基準から悪化なし。ストレスデッキ回帰も全帯OKでコストカーブの破綻なし。したがって `docs/set2-design.md` のバランス目標に照らして echoes の再構成（第1弾カード混合等）は不要と判断した。
+
+監視点・残課題:
+
+- echoes vs water / echoes vs apex の平均ターンがやや伸びる傾向（17.8 / 20.2 ターン）が見られる。弱体化カードにより決着が長引く方向のため、次回の弾で水軸をさらに強化する際はこの傾向の再拡大に注意する
+- apex 68.0% の突出は継続の残課題（前回エントリから変化なし、今回の13件修正はapexの構成カードに影響しないため未再探索）
+- control 41.1% / break 44.1% は前回からわずかに上昇（echoes・water の相対弱体化に伴う自然な変動、対応不要）
+
+### 検証コマンド
+
+```bash
+npm run check
+npx vitest run src/game/tutorial.test.ts
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070701 --decks break control fire water wind earth apex echoes --out tmp/postfix-2026070701
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070702 --decks break control fire water wind earth apex echoes --out tmp/postfix-2026070702
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 907771 --decks break control fire water wind earth apex echoes --out tmp/postfix-907771
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/postfix-2026070701 tmp/postfix-2026070702 tmp/postfix-907771
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070741 --out tmp/postfix-sim-default
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070742 --first-deck echoes --second-deck water --out tmp/postfix-sim-ew
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070743 --first-deck echoes --second-deck apex --out tmp/postfix-sim-ea
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/postfix-sim-default
+python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --games-per-order 1000 --seed 2026070751 --rule-set current --out tmp/postfix-stress-regression.json
+```
+
+## 2026-07-06 第2弾デュアル属性4種を単属性代替4種に差し替え: 採用
+
+### 背景
+
+第2弾 30 種は同日のバランス調整（直下エントリ）で検証済みだったが、**ユーザー判断で「デュアル属性（2属性持ちカード）は第2弾では時期尚早」となり将来の弾に延期**が決定。デュアル属性カード4種を削除し、単属性の power 3 代替4種に差し替えた。デュアル以外の第2弾新要素（ターン限定バフ・蘇生・遺物破壊回収・術式回収・チャージ p3/p4 拡張）は承認済みで変更なし。エンジンのデュアル属性基盤（`subAttribute` / `hasAttribute` 等、TS+Python）は使用カードゼロの予約仕様として残置。遺物 `双色の軍旗`（MEM-DUAL-BANNER）はデュアル機構を使わないため変更なしで続投。
+
+### 変更内容（Python / TypeScript 両実装に同期）
+
+| OUT（削除） | IN（追加・すべて単属性 power 3 / set 2 / 既存効果語彙の合成） |
+| --- | --- |
+| `AI-MAGMA-3` 溶岩甲ヴァルカ（火土） | `AI-FIRE-3D` 焔角のグレンド（火）: 戦闘時、攻撃値 +1。手札防御されても相手に1ダメージ |
+| `AI-STEAM-3` 蒸気竜スチマー（火水） | `AI-WATER-3D` 深響のセレナ（水）: 登場時に1枚引く。攻撃が防御された時に1枚引く |
+| `AI-MIST-3` 霧幻蝶ルウ（水風） | `AI-WIND-3C` 翠嵐鷹ハヤテ（風・チャージ対応）: チャージ時、相手の未消耗召喚獣1体を消耗させ、自分の消耗中召喚獣1体を回復（旋風転身術と同じ自動対象規則） |
+| `AI-DUST-3` 砂嵐狼ザラン（風土） | `AI-EARTH-3C` 古磐熊ゴロン（土・チャージ対応）: チャージ時、トラッシュの召喚獣1枚を手札に戻す（手札枚数条件なし。チャージした自分自身は対象外 = AI-EARTH-1C 裁定に準拠） |
+
+- 効果 ID も差し替え: `attack_plus_1_defense_plus_1` / `draw_on_blocked_attack_pierce` / `draw_spend_enemy_on_play` / `ready_ally_on_play_defense_draw` → `attack_plus_1_hand_defense_pierce` / `draw_on_play_blocked_attack_draw` / `charge_spend_enemy_ready_ally` / `charge_recover_discard_any`
+- `echoes` デッキ: 霧幻蝶ルウ×1 → 深響のセレナ×1、蒸気竜スチマー×1 → 古磐熊ゴロン×1（25枚 / 同名2枚 / power 3+ 5枚を維持。他プリセットにデュアルは未投入で変更なし）
+- CPU 評価値（TS `aiCardValue`・`chargeAiValue` / Python `_card_value`・`_charge_effect_value`、両側同値）と代表テスト（`cardEffectCoverage.test.ts` 4件差し替え + `tests/test_core_rules.py` 4件差し替え）を同期更新
+- ルール数値・第1弾カード・遺物・術式の変更はなし
+
+### 検証
+
+**リーグ**（8 デッキ総当たり、100 games/ordered pair × 3 シード = 16800 戦、seed 2026070651 / 2026070652 / 907771。league_report 判定 **PASS**）:
+
+| デッキ | 差し替え前（同日直下エントリ・3シード平均） | 差し替え後（3シード平均） |
+| --- | ---: | ---: |
+| echoes | 56.8% | **55.4%** |
+| apex | 68.2% | 68.0% |
+| water | 50.6% | 50.5% |
+| earth | 50.3% | 49.6% |
+| wind | 47.8% | 47.7% |
+| fire | 45.1% | 45.5% |
+| break | 41.5% | 43.5% |
+| control | 39.5% | 39.5% |
+| 先攻勝率 | 49.3% | **49.0%** |
+
+echoes の相手別勝率（3シード合算、各 600 戦）: apex 39.3% / break 54.7% / control 65.5% / earth 59.7% / fire 53.2% / water 58.8% / wind 56.8%。先手時 54.2% / 後手時 56.7% で先後依存なし。ワンサイド率（one_sided_game_rate 加重平均）は全体 48.1%（差し替え前 49.0%）、echoes 絡み 52.9%（同 54.6%）で悪化なし。
+
+**盛り上がり指標**（simulate 1000 戦ずつ）: echoes vs water（seed 2026070662）は平均ターン 16.5 / 2点ビハインド逆転 52.4% / 先2点差側勝率 57.5%（差し替え前 58.4%）、echoes vs apex（seed 2026070663）は平均ターン 17.6 / 逆転 52.4% / 先2点差側 56.9%（同 59.7%）。ワンサイド度は同水準〜微改善。
+
+**新カードが機能している確認**（echoes vs water simulate 1000 戦の card_usage）: 深響のセレナは登場 535 回・防御された時ドロー 224 回、古磐熊ゴロンはチャージ 285 回中トラッシュ回収 282 回（登場 315 回・攻撃 483 回）。どちらもデッキの動きに組み込まれている。翠嵐鷹ハヤテ・焔角のグレンドはプリセット未投入（コレクション/カスタムデッキ向け）。
+
+`npm run check` green（typecheck + TS unit 140 件 + build + Python unittest 226 件）。
+
+### 判断
+
+採用します。echoes 55.4% は目標（50% 台・60% 以下）に収まり、先攻勝率 48-52% 帯・ワンサイド率も既存基準から悪化なし。差し替えはデッキパワーをほぼ中立に保ったまま（echoes -1.4pt）デュアル機構だけを外せています。監視点・残課題:
+
+- デュアル属性基盤（`subAttribute` / `hasAttribute` / `dualCard` テスト群）は使用カードゼロで残置。将来の弾で再利用する
+- `翠嵐鷹ハヤテ` / `焔角のグレンド` はプリセット未投入のため対戦データが薄い。パック実装後のカスタムデッキ環境で観察する
+- apex 68.0% の突出と第2弾プール込みの apex 再探索未実施は前エントリから継続の残課題
+- 第2弾カードアート生成・パック抽選の第2弾プール接続も継続の残タスク（`docs/set2-design.md`）
+
+### 検証コマンド
+
+```bash
+npm run check
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070651 --decks break control fire water wind earth apex echoes --out tmp/dualswap-2026070651
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070652 --decks break control fire water wind earth apex echoes --out tmp/dualswap-2026070652
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 907771 --decks break control fire water wind earth apex echoes --out tmp/dualswap-907771
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/dualswap-2026070651 tmp/dualswap-2026070652 tmp/dualswap-907771
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070662 --first-deck echoes --second-deck water --out tmp/dualswap-sim-ew
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070663 --first-deck echoes --second-deck apex --out tmp/dualswap-sim-ea
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/dualswap-sim-ew
+```
+
+## 2026-07-06 第2弾「残響の胎動」バランス調整（echoes 再構成 + 残響召喚緩和 + 水単強化）: 採用
+
+### 背景
+
+第2弾 30 種と第2弾主体プリセット `echoes`（残響胎動デッキ）の実装後、初のリーグ検証。調整前ベースライン（8 デッキ総当たり、100 games/ordered pair × 2 シード = 11200 戦、seed 2026070611 / 2026070612）は echoes **34.8%**（対 apex 20.0% / 対 water 32.0% など全デッキに負け越し）、water 51.6%、apex 71.4%、先攻 50.1%。目標は `docs/set2-design.md` バランス目標（2026-07-06 緩和改訂）: echoes が 50% 台（既存よりやや強い水準、60% 超は要ユーザー確認）、水単は 50% 台前半へ上方修正、先攻勝率・ワンサイド率は既存基準を維持、`貫きの眼光` / `天嵐王ジェイル` が壊れていないこと。
+
+敗因分析: 旧 echoes は power 1 が 6 枚（うち風信子スゥ×2 は挑戦者 CPU がほぼ活かせないチャージ依存）で盤面が軽すぎ、除去術式が 0 枚（ドロー系術式 8 枚）でカードアドバンテージが勝ち筋に変換できていなかった。
+
+### 採用変更（Python / TypeScript 両実装に同期）
+
+1. **echoes デッキ再構成**（25 枚、第2弾 23 枚 + 第1弾 2 枚。power 3+ は 5 枚のまま）
+   - OUT: 風信子スゥ×2 / 氷晶亀セルキー×1 / 深層のオルカ×1（2→1）/ 遺灰回収×1 / 過負荷解放×1 / 遺物砕き×1 / 残響の骨壺×1（2→1）
+   - IN: 旋律鳥カナタ×2 / 苔纏いドルモ×2 / 霧幻蝶ルウ×1 / 追撃粛清×1 / 黒蔦の足止め×1 / 潮鏡の祭具×1（1→2）
+   - 狙い: power 2 帯の実体を 3→9 枚に増やして盤面を作れる形にし、第1弾の汎用除去 2 枚（追撃粛清・黒蔦の足止め）で勝ち筋への変換を補助。勝ち筋は第2弾コア（海淵帝グランマーレ×2・潮汲みモネ×2・残響召喚×2・深流呼び×2・潮鏡の祭具×2）のまま
+2. **カード変更: `CMD-GRAVE-CALL` 残響召喚（第2弾）** — 蘇生対象を power 2 以下 → **power 3 以下** に緩和（消耗状態で出す・登場時効果なしは従来通り）。engine/ai（Python）、game.ts/actions.ts/App.tsx/cardPresentation.ts（TS）、tests/test_core_rules.py、cardEffectCoverage.test.ts、docs を同期更新
+3. **water デッキ**: 透海リュミナ（`AI-WATER-1`）×2 → 潮汲みモネ（`AI-WATER-2D`）×2
+4. AI プロファイル変更なし（挑戦者 CPU は第2弾効果の評価値を実装済みで、蘇生・ドロー系は活用できている。チャージ依存カードの活用度が低いのは残課題）
+
+第1弾カードの効果変更・ルール数値変更はなし。
+
+### 検証
+
+**リーグ**（8 デッキ総当たり、100 games/ordered pair × 3 シード = 16800 戦、seed 2026070621 / 2026070622 / 907771。league_report 判定 **PASS**）:
+
+| デッキ | 調整前（2シード平均） | 調整後（3シード平均） |
+| --- | ---: | ---: |
+| echoes | 34.8% | **56.8%** |
+| water | 51.6% | **50.6%** |
+| apex | 71.4% | 68.2% |
+| earth | 54.6% | 50.3% |
+| wind | 50.4% | 47.8% |
+| fire | 48.9% | 45.1% |
+| break | 46.1% | 41.5% |
+| control | 42.1% | 39.5% |
+| 先攻勝率 | 50.1% | 49.3% |
+
+echoes の相手別勝率（seed 2026070621+622 合算、各 400 戦）: apex 43.2% / break 58.2% / control 68.5% / earth 54.2% / fire 54.2% / water 59.8% / wind 58.0%。先手時 54.6% / 後手時 59.0%（3 シード合算）で先後依存なし。単色 4 デッキは 45-55% 帯、先攻勝率 48-52% 帯に収まっています。
+
+**盛り上がり指標**（simulate 1000 戦ずつ）: 標準対戦 break vs control（seed 2026070641）は平均ターン 14.4 / リード交代あり 64.5% / 2点ビハインド逆転 52.0% / 先2点差側勝率 58.7% / resource 0.6% で、2026-07-05 採用エントリの基準値（14.4 / 64.4% / 51.5% / 58.8% / 0.8%）と同水準（第1弾のみの対戦は今回の変更の影響を受けない）。echoes vs water（seed 2026070642）は 15.6 ターン / 逆転 52.5% / 先2点差側 58.4%、echoes vs apex（seed 2026070643）は 17.0 ターン / 逆転 49.8% / 先2点差側 59.7% で、新デッキ絡みの対戦もワンサイド度（先2点差側勝率）は既存基準と同水準です。
+
+**第2弾が勝ち筋である確認**（echoes vs water simulate 1000 戦の card_usage）: 海淵帝グランマーレは攻撃 1653 回・手札帰還 1580 回（1 試合平均 1.6 回攻撃する主フィニッシャー）、潮汲みモネ登場 2150 回・防御ドロー 232 回、残響召喚 377 回・深流呼び 378 回使用、潮鏡の祭具の防御ドロー 319 回。第2弾コアが試合を動かしています。
+
+**壊れ監視**（固定デッキ h2h、60 games/order × 7 相手 = 840 戦、seed 9200）: `貫きの眼光`×2 を echoes の除去 2 枚と入れ替えた構成は 47.0%（現行 echoes より弱い）、`天嵐王ジェイル`×2 を wind の power 4 と入れ替えた構成は 33.2%（現行 wind 47.8% より大幅に弱い）。どちらも壊れとは逆方向で、極端な勝率・ワンサイド化は確認されませんでした。
+
+**ストレスデッキ回帰**（run_cost_balance.py 1000 games/order、seed 2026070481、各帯 12000 戦）: 全 7 帯 **OK**。p1 0.0% / p1-2 3.5% / p2 9.0% / p2-3 37.7% / p3 32.3% / p3-4 41.1% / p4 43.5% で、2026-07-05 採用エントリの同シード値（0.0 / 3.7 / 9.4 / 38.4 / 33.0 / 41.9 / 44.9）と同等かわずかに低下（water への潮汲みモネ投入でプリセット側が微強化された方向）。コストカーブの破綻はありません。
+
+`npm run check` green（typecheck + TS unit + build + Python unittest 223 件）。
+
+### 判断
+
+採用します。echoes 56.8% は緩和後の目標（50% 台・既存よりやや強い・60% 以下）に収まり、水単 50.6% も 50% 台前半を維持。ワンサイド指標・先攻勝率は既存基準と同水準です。監視点・残課題:
+
+- apex 68.2% は調整前（71.4%）から微減したものの引き続き突出。第2弾プールを含めた apex 再探索（`scripts/tune_apex_deck.py`）は未実施のフォローアップ
+- `天嵐王ジェイル` と `貫きの眼光` はむしろ弱い側（チャージ依存・単発バフを挑戦者 CPU が活かしきれない）。壊れ監視は不要だが、将来の上方修正候補
+- control 39.5% / break 41.5% は echoes 追加で相対的に低下（多色 2 デッキは単色基準の対象外）。次回の第1弾側調整で見直し候補
+- 旧 echoes 構成（power 1 × 6 枚・除去 0 枚）は「ドロー枚数だけでは勝率に変換されない」実例として記録する
+
+### 検証コマンド
+
+```bash
+npm run check
+# ベースライン
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070611 --decks break control fire water wind earth apex echoes --out tmp/echoes-base-2026070611
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070612 --decks break control fire water wind earth apex echoes --out tmp/echoes-base-2026070612
+# 採用構成
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070621 --decks break control fire water wind earth apex echoes --out tmp/echoes-v2-2026070621
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070622 --decks break control fire water wind earth apex echoes --out tmp/echoes-v2-2026070622
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 907771 --decks break control fire water wind earth apex echoes --out tmp/echoes-v2-907771
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/echoes-v2-2026070621 tmp/echoes-v2-2026070622 tmp/echoes-v2-907771
+# 盛り上がり指標
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070641 --out tmp/echoes-sim-default
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070642 --first-deck echoes --second-deck water --out tmp/echoes-sim-ew
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070643 --first-deck echoes --second-deck apex --out tmp/echoes-sim-ea
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/echoes-sim-default
+# ストレスデッキ回帰
+python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py --games-per-order 1000 --seed 2026070481 --rule-set current --out tmp/set2-stress-regression.json
+```
 
 ## 2026-07-05 モンスター攻撃への手札防御割り込み: 採用
 

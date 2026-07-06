@@ -129,6 +129,7 @@ export function DefensePanel({
   onTogglePendingCard,
   onConfirmPending,
   onConfirmCardSelection,
+  onConfirmRelicThiefTrash,
   onConfirmFaceAttack,
   onStrikeTarget,
   forcedDefenseChoice,
@@ -141,11 +142,25 @@ export function DefensePanel({
   onTogglePendingCard: (index: number) => void;
   onConfirmPending: () => void;
   onConfirmCardSelection: () => void;
+  onConfirmRelicThiefTrash: () => void;
   onConfirmFaceAttack: () => void;
   onStrikeTarget: (sourceIndex: number, targetIndex: number) => void;
   forcedDefenseChoice?: DefenseChoice | null;
 }) {
   if (game.pendingTarget) {
+    if (game.pendingTarget.kind === "confirm") {
+      const pending = game.pendingTarget;
+      return (
+        <div className={`defense-panel pending-${pending.reason}`}>
+          <h3>{pending.title}</h3>
+          <p className="choice-prompt">{pending.prompt}</p>
+          <div className="defense-actions pending-actions">
+            <button type="button" onClick={onConfirmRelicThiefTrash}>{pending.confirmLabel}</button>
+            {pending.cancelable !== false && <button type="button" onClick={onCancelTarget}>{pending.cancelLabel}</button>}
+          </div>
+        </div>
+      );
+    }
     if (game.pendingTarget.kind === "hand-discard") {
       const pending = game.pendingTarget;
       const player = game.players[pending.playerIndex];
@@ -375,7 +390,12 @@ function DefenseChoiceButton({ source, card, cardIndex, attackCard, defender, ha
     ? defenseCombatValue(attackCard, card, defender, { firewallPaid: true, ...defenseOptions })
     : baseDefenseValue;
   const defenseValue = baseDefenseValue >= attackCombatValue(attackCard) ? baseDefenseValue : paidDefenseValue;
-  const traitBonus = !hand && (card.effect === "defense_plus_1" || card.effect === "defense_plus_1_enters_spent") ? 1 : 0;
+  const traitBonus = !hand && (
+    card.effect === "defense_plus_1"
+    || card.effect === "defense_plus_1_enters_spent"
+    || card.effect === "recover_memory_on_play_defense_plus_1"
+    || (card.effect === "defense_plus_1_with_memory" && defender.memory)
+  ) ? 1 : 0;
   const attackValue = attackCombatValue(attackCard);
   const result = hand
     ? "防御成功 / このカードをトラッシュ"
