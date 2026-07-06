@@ -80,6 +80,7 @@ import {
   actionHintText,
 } from "./components/DuelPanel";
 import { CardLibraryPage, DeckBuilderPage, loadSavedDecks, validateDeck, type SavedDeck } from "./components/DeckWorkshop";
+import { PackOpeningPage } from "./components/PackOpening";
 import { CardArtPreview, CardView } from "./components/CardView";
 import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
@@ -117,7 +118,7 @@ const BGM_TRACK_SWITCH_PAUSE_MS = 160;
 const BGM_FADE_IN_MS = 900;
 const BGM_FADE_STEP_MS = 40;
 
-type AppPage = "duel" | "cards" | "builder";
+type AppPage = "duel" | "cards" | "builder" | "packs";
 
 type DeckSelection =
   | { kind: "random" }
@@ -132,6 +133,7 @@ const PAGE_PATHS: Record<AppPage, string> = {
   duel: "/duel",
   cards: "/cards",
   builder: "/builder",
+  packs: "/packs",
 };
 
 type CardFlight = {
@@ -363,6 +365,7 @@ function previewMatchResult(tone: MatchResultTone): MatchResultView {
 function pageFromPath(pathname: string): AppPage {
   if (pathname === PAGE_PATHS.cards) return "cards";
   if (pathname === PAGE_PATHS.builder) return "builder";
+  if (pathname === PAGE_PATHS.packs) return "packs";
   return "duel";
 }
 
@@ -3058,7 +3061,7 @@ export default function App() {
           audioEnabled={audioEnabled}
           onToggleAudio={toggleAudio}
         />
-        {page === "cards" ? <CardLibraryPage /> : <DeckBuilderPage />}
+        {page === "cards" ? <CardLibraryPage /> : page === "packs" ? <PackOpeningPage /> : <DeckBuilderPage />}
         <EventToast toast={toast} />
         {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
       </main>
@@ -3634,6 +3637,7 @@ function PageTabs({ page, onChange }: { page: AppPage; onChange: (page: AppPage)
       <button type="button" className={page === "duel" ? "active" : ""} onClick={() => onChange("duel")}>対戦</button>
       <button type="button" className={page === "cards" ? "active" : ""} onClick={() => onChange("cards")}>カード一覧</button>
       <button type="button" className={page === "builder" ? "active" : ""} onClick={() => onChange("builder")}>デッキ制作</button>
+      <button type="button" className={page === "packs" ? "active" : ""} onClick={() => onChange("packs")}>パック開封</button>
     </nav>
   );
 }

@@ -11284,3 +11284,651 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     flex-basis: 82px;
   }
 }
+
+/* ---- パック開封（テスト実装） ---- */
+
+.pack-page {
+  min-height: calc(100vh - 76px);
+}
+
+.pack-heading-actions button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: var(--text);
+  background: var(--surface-2);
+  font-family: var(--app-font);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pack-heading-actions button:hover {
+  border-color: var(--accent);
+}
+
+.pack-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 560px;
+  padding: 24px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 38%, rgba(45, 212, 191, 0.08), transparent 70%),
+    linear-gradient(180deg, #0a1017, #0c141d);
+  overflow: hidden;
+}
+
+/* --- 未開封パック --- */
+
+.booster-pack {
+  position: relative;
+  width: 264px;
+  filter: drop-shadow(0 26px 40px rgba(0, 0, 0, 0.55));
+  animation: pack-float 3.4s ease-in-out infinite;
+}
+
+.booster-pack.dragging,
+.booster-pack.torn {
+  animation: none;
+}
+
+@keyframes pack-float {
+  0%, 100% { transform: translateY(0) rotate(-0.4deg); }
+  50% { transform: translateY(-9px) rotate(0.5deg); }
+}
+
+.pack-lid {
+  position: relative;
+  z-index: 2;
+  height: 64px;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(120deg, #1f3242, #2d4a5e 45%, #1c2c3a);
+  border: 1px solid rgba(120, 200, 220, 0.35);
+  border-bottom: none;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  transform: translateX(calc(var(--tear, 0) * 118%)) rotate(calc(var(--tear, 0) * 7deg));
+  transition: transform 0.28s ease;
+  clip-path: polygon(0 0, 100% 0, 100% 82%, 96% 100%, 88% 84%, 79% 100%, 68% 85%, 57% 100%, 46% 84%, 35% 100%, 24% 86%, 13% 100%, 4% 84%, 0 96%);
+}
+
+.booster-pack.dragging .pack-lid {
+  transition: none;
+  cursor: grabbing;
+}
+
+.booster-pack.torn .pack-lid {
+  animation: pack-lid-tear 0.68s cubic-bezier(0.3, 0.4, 0.6, 1) forwards;
+}
+
+@keyframes pack-lid-tear {
+  0% { transform: translateX(118%) rotate(7deg); opacity: 1; }
+  100% { transform: translate(210%, -110px) rotate(38deg); opacity: 0; }
+}
+
+.pack-lid-foil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(180, 240, 255, 0.35) 46%, rgba(255, 220, 250, 0.28) 52%, transparent 68%);
+  background-size: 260% 100%;
+  animation: pack-foil-sheen 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pack-foil-sheen {
+  0%, 100% { background-position: 130% 0; }
+  50% { background-position: -30% 0; }
+}
+
+.pack-tear-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  border-top: 2px dashed rgba(220, 245, 255, 0.55);
+  pointer-events: none;
+}
+
+.pack-lid-hint {
+  position: absolute;
+  left: 14px;
+  top: 16px;
+  color: rgba(226, 244, 250, 0.88);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  animation: pack-hint-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pack-hint-pulse {
+  0%, 100% { opacity: 0.55; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(6px); }
+}
+
+.pack-body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 10px;
+  padding: 16px 16px 20px;
+  border: 1px solid rgba(120, 200, 220, 0.35);
+  border-top: 1px dashed rgba(150, 210, 230, 0.4);
+  border-radius: 0 0 12px 12px;
+  background: linear-gradient(165deg, #16222e 0%, #101a24 55%, #0d1620 100%);
+  transition: transform 0.6s ease, opacity 0.6s ease;
+}
+
+.booster-pack.torn .pack-body {
+  transform: translateY(46px) scale(0.94);
+  opacity: 0;
+  transition-delay: 0.16s;
+}
+
+.pack-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #dcedf5;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.pack-brand img {
+  width: 26px;
+  height: 26px;
+}
+
+.pack-art {
+  border: 1px solid rgba(120, 200, 220, 0.3);
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+}
+
+.pack-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pack-set-name {
+  color: #f2f8fb;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.pack-set-count {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+  letter-spacing: 0.12em;
+}
+
+/* --- 開封後のカード列 --- */
+
+.pack-reveal {
+  display: grid;
+  gap: 18px;
+  justify-items: center;
+  width: 100%;
+}
+
+.pack-card-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pack-card-row li {
+  perspective: 900px;
+  animation: pack-card-deal 0.55s cubic-bezier(0.22, 0.9, 0.36, 1.1) both;
+  animation-delay: calc(var(--deal-index, 0) * 110ms);
+}
+
+@keyframes pack-card-deal {
+  from {
+    opacity: 0;
+    transform: translateY(-64px) scale(0.55) rotate(-5deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+.pack-card {
+  position: relative;
+  display: block;
+  width: 132px;
+  padding: 0 0 24px;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.pack-card-inner {
+  position: relative;
+  display: block;
+  width: 132px;
+  min-height: 172px;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.3, 0.8, 0.35, 1);
+}
+
+.pack-card.flipped .pack-card-inner {
+  transform: rotateY(180deg);
+}
+
+.pack-card:not(.flipped):hover .pack-card-inner {
+  transform: rotateY(14deg) translateY(-4px);
+}
+
+.pack-card-face {
+  display: block;
+  backface-visibility: hidden;
+}
+
+.pack-card-front {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(0, 240, 255, 0.42);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(8, 14, 20, 0.96);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5);
+}
+
+.pack-card-front img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pack-card-back {
+  position: relative;
+  transform: rotateY(180deg);
+}
+
+.pack-card-back .card {
+  width: 132px;
+  flex-basis: 132px;
+  min-height: 172px;
+  pointer-events: none;
+}
+
+/* レアリティ演出 */
+
+.pack-card.flipped.rarity-sr .pack-card-inner::after,
+.pack-card.flipped.rarity-sec .pack-card-inner::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 14px;
+  pointer-events: none;
+  transform: rotateY(180deg);
+  animation: pack-rare-burst 1s ease-out both;
+  animation-delay: 0.3s;
+}
+
+.pack-card.flipped.rarity-sr .pack-card-inner::after {
+  box-shadow: 0 0 34px rgba(245, 158, 11, 0.65), inset 0 0 18px rgba(245, 158, 11, 0.25);
+}
+
+.pack-card.flipped.rarity-sec .pack-card-inner::after {
+  box-shadow: 0 0 42px rgba(254, 0, 254, 0.6), 0 0 68px rgba(0, 240, 255, 0.45), inset 0 0 22px rgba(254, 0, 254, 0.25);
+}
+
+@keyframes pack-rare-burst {
+  0% { opacity: 0; transform: rotateY(180deg) scale(0.8); }
+  35% { opacity: 1; transform: rotateY(180deg) scale(1.06); }
+  100% { opacity: 0.55; transform: rotateY(180deg) scale(1); }
+}
+
+.pack-holo-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  pointer-events: none;
+  mix-blend-mode: color-dodge;
+  background:
+    repeating-linear-gradient(115deg, rgba(255, 119, 115, 0.24) 0%, rgba(255, 237, 95, 0.22) 8%, rgba(168, 255, 95, 0.2) 16%, rgba(131, 255, 247, 0.22) 24%, rgba(120, 148, 255, 0.24) 32%, rgba(216, 117, 255, 0.22) 40%, rgba(255, 119, 115, 0.24) 48%);
+  background-size: 320% 320%;
+  animation: pack-holo-shift 3.6s linear infinite;
+  opacity: 0.85;
+}
+
+@keyframes pack-holo-shift {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+
+.pack-rarity-chip {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--surface);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  opacity: 0;
+  transition: opacity 0.3s ease 0.35s;
+}
+
+.pack-rarity-chip.shown {
+  opacity: 1;
+}
+
+.pack-card.rarity-sr .pack-rarity-chip.shown {
+  color: #ffd489;
+  border-color: rgba(245, 158, 11, 0.65);
+}
+
+.pack-card.rarity-sec .pack-rarity-chip.shown {
+  color: #ff9dfd;
+  border-color: rgba(254, 0, 254, 0.6);
+}
+
+.pack-reveal-hint {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pack-summary {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 14px 22px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: center;
+  animation: pack-card-deal 0.4s ease both;
+}
+
+.pack-summary strong {
+  color: var(--accent-2);
+  font-size: 16px;
+  letter-spacing: 0.08em;
+}
+
+.pack-summary.best-sec strong {
+  color: #ff9dfd;
+  text-shadow: 0 0 14px rgba(254, 0, 254, 0.5);
+}
+
+.pack-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pack-summary button {
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 8px 16px;
+  color: #06251f;
+  background: var(--accent);
+  font-family: var(--app-font);
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* --- 高レア確定演出（剥いた瞬間） --- */
+
+.pack-omen {
+  /* 光のテーマ色（"R, G, B" 形式で rgba() に埋め込む） */
+  --omen-main: 255, 206, 112;
+  --omen-sub: 255, 168, 40;
+  --omen-hot: 255, 246, 220;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% - 92px);
+  width: 640px;
+  height: 540px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 0;
+  mix-blend-mode: screen;
+  animation: pack-omen-window 1.6s ease-out both;
+}
+
+.booster-pack.omen-sec .pack-omen {
+  --omen-main: 254, 0, 254;
+  --omen-sub: 0, 240, 255;
+  --omen-hot: 255, 255, 255;
+}
+
+@keyframes pack-omen-window {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  72% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.pack-omen-rays {
+  position: absolute;
+  left: 50%;
+  bottom: -310px;
+  width: 620px;
+  height: 620px;
+  margin-left: -310px;
+  background: repeating-conic-gradient(
+    from 8deg,
+    transparent 0deg 9deg,
+    rgba(var(--omen-main), 0.22) 12deg 15deg,
+    transparent 18deg 27deg,
+    rgba(var(--omen-sub), 0.18) 30deg 33deg,
+    transparent 36deg 45deg
+  );
+  -webkit-mask-image: radial-gradient(circle, rgba(0, 0, 0, 0.9) 8%, rgba(0, 0, 0, 0.45) 34%, transparent 62%);
+  mask-image: radial-gradient(circle, rgba(0, 0, 0, 0.9) 8%, rgba(0, 0, 0, 0.45) 34%, transparent 62%);
+  animation: pack-omen-spin 9s linear infinite;
+}
+
+@keyframes pack-omen-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Canvas パーティクル（packParticles.ts が描画） */
+.pack-omen-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* 開幕のインパクトフラッシュ */
+.pack-impact-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+  mix-blend-mode: screen;
+  background: radial-gradient(ellipse 55% 45% at 50% 44%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.25) 45%, transparent 70%);
+  animation: pack-impact-flash 0.32s ease-out both;
+}
+
+@keyframes pack-impact-flash {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* 開封の衝撃で画面が揺れる */
+.pack-stage.stage-omen-sr,
+.pack-stage.stage-omen-sec {
+  animation: pack-stage-shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes pack-stage-shake {
+  0%, 100% { transform: translate(0, 0); }
+  15% { transform: translate(-5px, 3px); }
+  30% { transform: translate(4px, -3px); }
+  45% { transform: translate(-3px, -2px); }
+  60% { transform: translate(3px, 2px); }
+  75% { transform: translate(-2px, 1px); }
+}
+
+.booster-pack.torn.omen-sr .pack-body,
+.booster-pack.torn.omen-sec .pack-body {
+  transition-delay: 0.95s;
+}
+
+.booster-pack.torn.omen-sr .pack-body {
+  border-color: rgba(245, 158, 11, 0.75);
+  box-shadow: 0 0 40px rgba(245, 158, 11, 0.55), 0 0 90px rgba(245, 158, 11, 0.28);
+}
+
+.booster-pack.torn.omen-sec .pack-body {
+  border-color: rgba(254, 0, 254, 0.7);
+  box-shadow: 0 0 44px rgba(254, 0, 254, 0.5), 0 0 96px rgba(0, 240, 255, 0.35);
+}
+
+.pack-stage.stage-omen-sr::after,
+.pack-stage.stage-omen-sec::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: pack-stage-flash 1.7s ease-out both;
+}
+
+.pack-stage.stage-omen-sr::after {
+  background: radial-gradient(ellipse 62% 55% at 50% 42%, rgba(245, 158, 11, 0.3), transparent 72%);
+}
+
+.pack-stage.stage-omen-sec::after {
+  background:
+    radial-gradient(ellipse 62% 55% at 50% 42%, rgba(254, 0, 254, 0.26), transparent 72%),
+    radial-gradient(ellipse 80% 65% at 50% 45%, rgba(0, 240, 255, 0.16), transparent 75%);
+}
+
+@keyframes pack-stage-flash {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* --- 裏向きカードのオーラ（高レアの気配） --- */
+
+.pack-card.rarity-sr:not(.flipped) .pack-card-front {
+  border-color: rgba(245, 158, 11, 0.7);
+  animation: pack-back-aura-sr 1.5s ease-in-out infinite;
+}
+
+.pack-card.rarity-sec:not(.flipped) .pack-card-front {
+  border-color: rgba(254, 0, 254, 0.7);
+  animation: pack-back-aura-sec 1.3s ease-in-out infinite;
+}
+
+@keyframes pack-back-aura-sr {
+  0%, 100% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 14px rgba(245, 158, 11, 0.35); }
+  50% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 30px rgba(245, 158, 11, 0.75); }
+}
+
+@keyframes pack-back-aura-sec {
+  0%, 100% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 16px rgba(254, 0, 254, 0.4); }
+  50% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 34px rgba(254, 0, 254, 0.8), 0 0 50px rgba(0, 240, 255, 0.4); }
+}
+
+/* --- めくった瞬間のフラッシュとスパークル --- */
+
+.pack-card.rarity-sr .pack-card-inner,
+.pack-card.rarity-sec .pack-card-inner {
+  transition-duration: 0.85s;
+}
+
+.pack-card.flipped.rarity-sr .pack-card-back::before,
+.pack-card.flipped.rarity-sec .pack-card-back::before {
+  content: "";
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 3;
+  background: radial-gradient(circle, rgba(255, 244, 214, 0.95) 0%, rgba(255, 214, 120, 0.5) 38%, transparent 68%);
+  animation: pack-flip-flash 0.72s ease-out both;
+  animation-delay: 0.34s;
+}
+
+.pack-card.flipped.rarity-sec .pack-card-back::before {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.98) 0%, rgba(254, 0, 254, 0.45) 36%, rgba(0, 240, 255, 0.3) 52%, transparent 70%);
+}
+
+@keyframes pack-flip-flash {
+  0% { opacity: 0; transform: scale(0.35); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.4); }
+}
+
+.pack-card.flipped.rarity-sec .pack-card-back::after {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  pointer-events: none;
+  z-index: 3;
+  background:
+    radial-gradient(circle 2.6px at 16% 20%, #fff 40%, transparent 65%),
+    radial-gradient(circle 2px at 82% 14%, #ffe9fd 40%, transparent 65%),
+    radial-gradient(circle 2.2px at 90% 58%, #d3fbff 40%, transparent 65%),
+    radial-gradient(circle 1.8px at 26% 78%, #fff 40%, transparent 65%),
+    radial-gradient(circle 2.4px at 64% 88%, #ffd7fe 40%, transparent 65%),
+    radial-gradient(circle 1.6px at 8% 52%, #d3fbff 40%, transparent 65%),
+    radial-gradient(circle 2px at 48% 6%, #fff 40%, transparent 65%);
+  animation: pack-sparkle-twinkle 1.5s ease-in-out 3 both;
+  animation-delay: 0.5s;
+}
+
+@keyframes pack-sparkle-twinkle {
+  0%, 100% { opacity: 0; transform: scale(0.97); }
+  50% { opacity: 1; transform: scale(1.03); }
+}
+
+.pack-summary.best-sr strong {
+  color: #ffd489;
+  text-shadow: 0 0 14px rgba(245, 158, 11, 0.5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booster-pack,
+  .pack-lid-foil,
+  .pack-lid-hint,
+  .pack-holo-overlay,
+  .pack-omen,
+  .pack-omen span,
+  .pack-impact-flash,
+  .pack-stage.stage-omen-sr,
+  .pack-stage.stage-omen-sec,
+  .pack-card.rarity-sr:not(.flipped) .pack-card-front,
+  .pack-card.rarity-sec:not(.flipped) .pack-card-front {
+    animation: none;
+  }
+
+  .pack-card-row li {
+    animation-duration: 0.01s;
+    animation-delay: 0s;
+  }
+
+  .pack-card-inner {
+    transition-duration: 0.01s;
+  }
+}
