@@ -7,6 +7,7 @@ export const MATCH_WIN_COINS = 10;
 export const MATCH_LOSE_COINS = 5;
 export const PACK_COST = 5;
 export const INITIAL_COINS = 10;
+export const STARTER_OWNED_COUNT = 2;
 
 export const WALLET_STORAGE_KEY = "break-duel:wallet";
 export const COLLECTION_STORAGE_KEY = "break-duel:collection";
@@ -119,7 +120,14 @@ export function addToCollection(cardIds: string[]): { counts: Record<string, num
 }
 
 export function ownedCount(cardId: string): number {
+  const card = CARD_BY_ID.get(cardId);
+  if (card && cardSet(card) === 1) return STARTER_OWNED_COUNT;
   return loadCollection()[cardId] ?? 0;
+}
+
+export function ownedCountForCard(card: Card, owned: Record<string, number> = loadCollection()): number {
+  if (cardSet(card) === 1) return STARTER_OWNED_COUNT;
+  return owned[card.id] ?? 0;
 }
 
 /**

@@ -356,7 +356,7 @@ export function roleText(card: Card): string {
   if (card.effect === "war_banner") return "1ターンに1回、自分の攻撃で相手のライフが減った時、山札からカードを1枚引く";
   if (card.effect === "grove_rest") return "自分のターン終了時、自分のライフが相手より少なく、消耗中召喚獣が2体以上なら1体回復する";
   if (card.effect === "echo_urn") return "1ターンに1回、トラッシュから自分の手札にカードが戻った時、山札からカードを1枚引く";
-  if (card.effect === "storm_core") return "1ターンに1回、自分がチャージした後、相手の未消耗召喚獣1体を消耗させる";
+  if (card.effect === "storm_core") return "自分がチャージした後、相手の未消耗召喚獣1体を消耗させる";
   if (card.effect === "tidal_mirror") return "自分の召喚獣が場防御に成功した時、山札からカードを1枚引く";
   if (card.effect === "dual_banner") return "自分のターン開始時、自分の場に属性が2種類以上あり手札が2枚以下なら、山札からカードを2枚引く";
   const trait = card.effect ? ` / ${aiEffectText(card)}` : "";

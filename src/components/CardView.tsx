@@ -1,14 +1,11 @@
 import * as React from "react";
-import { attacksPlus1, defensePowerBonus, type Card, type GameState, type Zone } from "../game";
+import { attacksPlus1, cardSet, defensePowerBonus, type Card, type GameState, type Zone } from "../game";
 import {
   cardArtAsset,
   cardArtClass,
   cardArtGlyph,
   cardColor,
   cardCoreText,
-  cardTypeLabel,
-  displayCost,
-  roleLabel,
 } from "./cardPresentation";
 
 export function CardView({
@@ -21,8 +18,6 @@ export function CardView({
   spent = false,
   actionState = "idle",
   visualEffect = "",
-  showCost = true,
-  upgradeSource = null,
   game,
   extraBadges = [],
   onClick,
@@ -45,7 +40,6 @@ export function CardView({
   onMouseEnter?: () => void;
 }) {
   const Element = selectable ? "button" : "div";
-  const cost = displayCost(card, actionState, upgradeSource, game);
   const showStatBadges = zone === "field";
   const statBadges: string[] = [];
   const overlayBadges: string[] = [];
@@ -63,11 +57,11 @@ export function CardView({
   if (fieldDefenseBonus > 0) {
     addStatBadge(statBadges, `場防御+${fieldDefenseBonus}`);
   }
-  const visibleCost = showCost && statBadges.length === 0 && Number.isFinite(cost) && cost < 99;
+  const setBadge = `${cardSet(card)}弾`;
   return (
     <Element
       type={selectable ? "button" : undefined}
-      className={`card ${card.type === "event" ? "command" : ""} ${card.type === "memory" ? "memory" : ""} ${selected ? "selected" : ""} ${selectable ? "selectable" : ""} ${spent ? "spent" : ""} ${visibleCost ? "has-cost-badge" : ""} ${visualEffect} ${actionState}`}
+      className={`card ${card.type === "event" ? "command" : ""} ${card.type === "memory" ? "memory" : ""} ${selected ? "selected" : ""} ${selectable ? "selectable" : ""} ${spent ? "spent" : ""} ${visualEffect} ${actionState}`}
       style={{ "--card-color": cardColor(card) } as React.CSSProperties}
       data-owner={ownerIndex}
       data-zone={zone}
@@ -84,12 +78,7 @@ export function CardView({
         <span>{cardArtGlyph(card)}</span>
       </div>
       <div className="card-core"><div className="power">{cardCoreText(card)}</div></div>
-      <div className="card-foot"><span>{cardTypeLabel(card)}</span><span>{roleLabel(card)}</span></div>
-      {visibleCost && (
-        <div className="card-badges">
-          <span>{cost}A</span>
-        </div>
-      )}
+      <div className="card-set-badge" title={setBadge}>{setBadge}</div>
       {statBadges.length > 0 && (
         <div className="card-stat-badges">
           {statBadges.map((badge) => <CardStatusBadge badge={badge} key={badge} />)}

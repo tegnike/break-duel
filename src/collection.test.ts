@@ -9,6 +9,7 @@ import {
   loadCoins,
   loadCollection,
   ownedCount,
+  ownedCountForCard,
   spendCoins,
 } from "./collection";
 import type { Card } from "./game";
@@ -50,6 +51,12 @@ describe("wallet", () => {
 });
 
 describe("collection", () => {
+  it("第1弾カードは2枚所持として扱う", () => {
+    const starter: Card = { id: "AI-FIRE-1", name: "テスト", type: "ai", power: 1, effect: "", status: "active" };
+    expect(ownedCount("AI-FIRE-1")).toBe(2);
+    expect(ownedCountForCard(starter, {})).toBe(2);
+  });
+
   it("追加した枚数が積み上がり、初取得は newIds に載る", () => {
     const before = ownedCount("TEST-CARD-A");
     const first = addToCollection(["TEST-CARD-A", "TEST-CARD-A", "TEST-CARD-B"]);

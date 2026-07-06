@@ -1915,7 +1915,7 @@ export function commandBlockedReason(game: GameState, command: Card | null | und
   if (command.effect === "pierce_sight") return "自分の未消耗召喚獣が必要です。";
   if (command.effect === "grave_call") {
     if (player.field.length >= CONFIG.fieldLimit) return "場に空きが必要です。";
-    return "自分のトラッシュに power 2 以下の召喚獣が必要です。";
+    return "自分のトラッシュに power 3 以下の召喚獣が必要です。";
   }
   if (command.effect === "salvage") return "自分のトラッシュに遺灰回収以外の術式が必要です。";
   if (command.effect === "relic_crush") return "相手に遺物が必要です。";
