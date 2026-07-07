@@ -93,7 +93,7 @@ import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
 import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
 import { SYNTH_SFX_PREFIX, renderSummonSfxSamples, summonArrivalForCard, summonAuraColor, summonSfxKind, type SummonArrival, type SummonSfxKind } from "./summonFx";
-import { attributeBurstTheme, runSummonBurst, type SummonBurstTheme } from "./summonParticles";
+import { attributeBurstTheme, hasCardMaterialBurst, runCardMaterialBurst, type CardMaterialTheme, type CardRect, type SummonBurstTheme } from "./summonParticles";
 import { duelEventDurationMs, type DuelEvent, type DuelEventPayload } from "./duelEvents";
 import { RIVAL_VOICE_LINES, type RivalVoiceLineId } from "./rivalVoiceLines";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
@@ -162,15 +162,12 @@ type CardFlight = {
   arrival?: SummonArrival;
 };
 
-const SUMMON_BURST_DURATION_MS = 1300;
 const CPU_CARD_PLAY_FLIGHT_DURATION_MS = 1700;
 const CPU_CARD_PLAY_COMMIT_DELAY_MS = 1400;
 // 音+エフェクトをカード飛行の終了(100%)より前倒しする猶予。
 // CPU側は commitDelay でゲーム状態(実カードDOM)が確定するため、
 // flightDuration - この値が commitDelay を上回るように抑える必要がある。
 const SUMMON_ARRIVAL_LEAD_MS = 180;
-// 着地バースト用 canvas の並列枠数。同時多発の着地でも取り合いにならない程度の余裕を持たせる
-const SUMMON_BURST_CANVAS_POOL_SIZE = 3;
 
 type FlightRect = {
   left: number;
@@ -744,10 +741,8 @@ export default function App() {
   const duelEventTimer = useRef<number | null>(null);
   const cardFlightTimers = useRef<number[]>([]);
   const summonBurstTimers = useRef<number[]>([]);
-  const battlefieldRef = useRef<HTMLElement | null>(null);
-  const summonBurstCanvasRefs = useRef<(HTMLCanvasElement | null)[]>(Array.from({ length: SUMMON_BURST_CANVAS_POOL_SIZE }, () => null));
-  const summonBurstCancelRefs = useRef<(() => void)[]>(Array.from({ length: SUMMON_BURST_CANVAS_POOL_SIZE }, () => () => {}));
-  const summonBurstCanvasCursor = useRef(0);
+  // カード着地演出は動的に canvas を生成/破棄するため固定プールではなく可変配列で cancel を保持する
+  const cardMaterialCancelRefs = useRef<(() => void)[]>([]);
   const aiCommitTimer = useRef<number | null>(null);
   const trashFlashTimer = useRef<number | null>(null);
   const lifeImpactTimer = useRef<number | null>(null);
@@ -1015,7 +1010,8 @@ export default function App() {
   function clearSummonLandingEffects() {
     summonBurstTimers.current.forEach((timer) => window.clearTimeout(timer));
     summonBurstTimers.current = [];
-    summonBurstCancelRefs.current.forEach((cancel) => cancel());
+    cardMaterialCancelRefs.current.forEach((cancel) => cancel());
+    cardMaterialCancelRefs.current = [];
     document.querySelectorAll<HTMLElement>(".summon-landed").forEach((element) => {
       element.classList.remove("summon-landed");
       element.style.removeProperty("--landed-color");
@@ -1212,38 +1208,32 @@ export default function App() {
     if (sfx) playSfx(sfx);
     const landedElement = document.querySelector(cardSelector(to.ownerIndex, to.zone, to.index));
     pulseLandedCard(landedElement, arrival);
-    launchSummonBurstCanvas(arrival, landedElement, fallbackRect);
-  }
-
-  // 盤面全体を覆う canvas プール（Canvas 2D パーティクルエンジン）にバーストを1つ描画させる。
-  // 座標は盤面セクション基準のローカル座標に変換する（PackOpening のキラカード演出と同じ手法）。
-  function launchSummonBurstCanvas(arrival: SummonArrival, landedElement: Element | null, fallbackRect: FlightRect) {
-    const stage = battlefieldRef.current;
-    if (!stage) return;
     const theme: SummonBurstTheme | null = arrival.kind === "relic"
       ? "relic"
       : arrival.attribute
         ? attributeBurstTheme(arrival.attribute)
         : null;
-    if (!theme) return;
-    const secondaryTheme = arrival.kind === "summon" && arrival.subAttribute && arrival.subAttribute !== arrival.attribute
-      ? attributeBurstTheme(arrival.subAttribute)
-      : null;
-    const stageRect = stage.getBoundingClientRect();
-    const cardRect = landedElement instanceof HTMLElement ? landedElement.getBoundingClientRect() : null;
-    const originRect = cardRect ?? fallbackRect;
-    const origin = {
-      x: originRect.left + originRect.width / 2 - stageRect.left,
-      y: originRect.top + originRect.height / 2 - stageRect.top,
+    // 遺物は専用canvas演出を持たない。pulseLandedCard の枠発光だけで十分という判断（紋章演出は撤去）。
+    if (!theme || !hasCardMaterialBurst(theme)) return;
+    launchCardMaterialBurst(theme, landedElement, fallbackRect);
+  }
+
+  // カード自体を発生源にした着地演出（属性ごとに「カードという素材が反応する」見た目）。
+  // カードの positioned 親にレイアウト座標で動的に canvas を生成し、
+  // アニメーション終了後は自動で取り除かれる。座標が取れない場合はフォールバック矩形を使う。
+  function launchCardMaterialBurst(theme: CardMaterialTheme, landedElement: Element | null, fallbackRect: FlightRect) {
+    if (!(landedElement instanceof HTMLElement)) return;
+    const container = landedElement.offsetParent;
+    if (!(container instanceof HTMLElement)) return;
+    const width = landedElement.offsetWidth || fallbackRect.width;
+    const height = landedElement.offsetHeight || fallbackRect.height;
+    const rect: CardRect = {
+      left: landedElement.offsetLeft,
+      top: landedElement.offsetTop,
+      width,
+      height,
     };
-    const margin = 80;
-    if (origin.x < -margin || origin.y < -margin || origin.x > stageRect.width + margin || origin.y > stageRect.height + margin) return;
-    const index = summonBurstCanvasCursor.current;
-    summonBurstCanvasCursor.current = (index + 1) % SUMMON_BURST_CANVAS_POOL_SIZE;
-    const canvas = summonBurstCanvasRefs.current[index];
-    if (!canvas) return;
-    summonBurstCancelRefs.current[index]?.();
-    summonBurstCancelRefs.current[index] = runSummonBurst(canvas, origin, theme, SUMMON_BURST_DURATION_MS, secondaryTheme);
+    cardMaterialCancelRefs.current.push(runCardMaterialBurst(container, rect, theme));
   }
 
   // 着地スロットのカード自体も属性色で発光させる（オーバーレイ座標に依存しない保険の演出）
@@ -3598,7 +3588,7 @@ export default function App() {
         </div>
       </header>
 
-      <section className="stitch-battlefield" aria-label="対戦盤面" ref={(el) => { battlefieldRef.current = el; }}>
+      <section className="stitch-battlefield" aria-label="対戦盤面">
         <LeaderPortrait
           player={ai}
           tone="rival"
@@ -3620,14 +3610,6 @@ export default function App() {
         </div>
         <LeaderPortrait player={human} tone="human" image={leaderHumanImage} label="YOU" reaction={leaderReactions[0]} />
         <FieldGrid player={human} ownerIndex={0} game={game} trashSurge={ownerHasTrashSurge(0)} tutorialStep={tutorialStep} tutorialFocus={tutorialStep?.focus} tutorialLocked={tutorialActive} onSelectField={selectField} onSelectMemory={selectMemory} />
-        {summonBurstCanvasRefs.current.map((_, index) => (
-          <canvas
-            key={index}
-            className="summon-burst-canvas"
-            aria-hidden="true"
-            ref={(el) => { summonBurstCanvasRefs.current[index] = el; }}
-          />
-        ))}
       </section>
 
       {matchResult && <MatchResultSpotlight result={matchResult} onRestart={openStarterDeckSetup} />}

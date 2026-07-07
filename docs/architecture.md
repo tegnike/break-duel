@@ -34,7 +34,7 @@ src/
   App.tsx           アプリ状態、通知、音、イベント配線
   game.ts           TypeScript 側カード定義、設定、純粋ルール、自動判断
   summonFx.ts       属性召喚/遺物配置の着地演出定義と属性SFXのその場で合成
-  summonParticles.ts 属性召喚/遺物配置の着地バースト（Canvas 2D パーティクルエンジン）
+  summonParticles.ts 属性召喚/遺物配置の着地演出（カード素材が属性ごとに反応する Canvas 2D 演出）
   game/
     actions.ts      TypeScript 側ゲーム状態を変更する操作処理
     selectors.ts    UI用の状態参照

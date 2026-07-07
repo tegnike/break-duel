@@ -2204,16 +2204,8 @@ h2 {
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.46), 0 0 32px var(--aura-color, rgba(254, 0, 254, 0.24));
 }
 
-/* 属性召喚/遺物配置: 着地バーストは Canvas 2D パーティクルエンジン（summonParticles.ts）が描画する。
-   盤面全体を覆う透明なcanvasを複数枚重ね、同時多発の着地でも取り合いにならないようにする。 */
-.summon-burst-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 6;
-  pointer-events: none;
-}
+/* 属性召喚/遺物配置: 着地演出は Canvas 2D エンジン（summonParticles.ts）が
+   着地したカードの positioned 親に動的に canvas を生成して描く（インラインスタイルで配置・破棄）。 */
 
 /* 着地したカード自体の属性発光（スロット要素に直接付くため座標ズレの影響を受けない主演出） */
 .card.summon-landed {
