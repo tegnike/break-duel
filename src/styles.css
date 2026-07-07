@@ -345,6 +345,23 @@ select {
   pointer-events: none;
 }
 
+.inspector-rarity.rarity-r {
+  color: #d7dee7;
+  border-color: rgba(203, 213, 225, 0.46);
+}
+
+.inspector-rarity.rarity-sr {
+  color: #f8fafc;
+  border-color: rgba(248, 250, 252, 0.72);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.22);
+}
+
+.inspector-rarity.rarity-ur {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.34), inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
 .owned-count-badge.empty {
   border-color: rgba(203, 213, 225, 0.32);
   color: #c6ccd2;
@@ -498,6 +515,20 @@ select {
 .card-inspector.compact .card {
   width: 116px;
   min-height: 148px;
+}
+
+.inspector-rarity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  border: 1px solid rgba(203, 213, 225, 0.34);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: #d7dee7;
+  background: rgba(8, 12, 18, 0.72);
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .builder-art-preview {
@@ -2765,6 +2796,139 @@ h2 {
   overflow: hidden;
 }
 
+.card.card-rarity-sr,
+.card.card-rarity-ur {
+  isolation: isolate;
+}
+
+.card.card-rarity-sr {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--card-color) 20%, #111923), #111820 72%);
+  box-shadow:
+    inset 0 0 20px rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.045),
+    0 12px 24px rgba(0, 0, 0, 0.22);
+}
+
+.card.card-rarity-ur {
+  background:
+    radial-gradient(ellipse 92% 58% at 50% -8%, rgba(255, 255, 255, 0.16), transparent 66%),
+    radial-gradient(circle at 18% 24%, rgba(255, 255, 255, 0.08), transparent 28%),
+    radial-gradient(circle at 78% 76%, rgba(255, 255, 255, 0.06), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14), transparent 38%),
+    linear-gradient(135deg, color-mix(in srgb, var(--card-color) 20%, #111923), #111820 72%);
+  box-shadow:
+    inset 0 0 24px rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.055),
+    0 12px 24px rgba(0, 0, 0, 0.22);
+}
+
+.card.card-rarity-sr::after,
+.card.card-rarity-ur::after {
+  content: "";
+  position: absolute;
+  inset: -38% -70%;
+  z-index: 2;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.card.card-rarity-sr::after {
+  background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, 0.26) 50%, transparent 58%);
+  transform: translateX(-42%) rotate(8deg);
+  animation: card-sr-sheen 5.2s ease-in-out infinite;
+}
+
+.card.card-rarity-ur::after {
+  inset: -1px;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle 1.8px at 13% 21%, rgba(255, 255, 255, 0.95) 38%, transparent 66%),
+    radial-gradient(circle 1.3px at 78% 17%, rgba(255, 255, 255, 0.82) 40%, transparent 70%),
+    radial-gradient(circle 1.5px at 82% 72%, rgba(255, 255, 255, 0.74) 40%, transparent 70%),
+    radial-gradient(circle 1px at 28% 84%, rgba(255, 255, 255, 0.7) 44%, transparent 72%),
+    conic-gradient(from 210deg at 50% 52%, transparent 0deg 66deg, rgba(255, 255, 255, 0.14) 78deg, transparent 92deg 178deg, rgba(255, 255, 255, 0.1) 190deg, transparent 208deg 360deg),
+    radial-gradient(ellipse 80% 58% at 50% 42%, rgba(255, 255, 255, 0.12), transparent 64%),
+    linear-gradient(105deg, transparent 32%, rgba(255, 255, 255, 0.08) 42%, rgba(255, 255, 255, 0.32) 50%, rgba(255, 255, 255, 0.08) 58%, transparent 68%),
+    linear-gradient(112deg, transparent 0%, rgba(255, 255, 255, 0.1) 18%, transparent 36%, transparent 64%, rgba(255, 255, 255, 0.08) 78%, transparent 100%);
+  background-size:
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    170% 170%,
+    145% 145%,
+    260% 260%,
+    220% 220%;
+  background-position:
+    0 0,
+    0 0,
+    0 0,
+    0 0,
+    58% 52%,
+    45% 50%,
+    220% 0%,
+    0% 0%;
+  animation: card-ur-holo 5.2s ease-in-out infinite;
+}
+
+@keyframes card-sr-sheen {
+  0%, 68% {
+    opacity: 0;
+    transform: translateX(-42%) rotate(8deg);
+  }
+  78% {
+    opacity: 0.75;
+  }
+  92%, 100% {
+    opacity: 0;
+    transform: translateX(42%) rotate(8deg);
+  }
+}
+
+@keyframes card-ur-holo {
+  0%, 68% {
+    opacity: 0.28;
+    background-position:
+      0 0,
+      0 0,
+      0 0,
+      0 0,
+      58% 52%,
+      45% 50%,
+      220% 0%,
+      0% 0%;
+    filter: brightness(1);
+  }
+  78% {
+    opacity: 0.82;
+    background-position:
+      0 0,
+      0 0,
+      0 0,
+      0 0,
+      46% 46%,
+      56% 44%,
+      50% 0%,
+      62% 38%;
+    filter: brightness(1.18);
+  }
+  92%, 100% {
+    opacity: 0.32;
+    background-position:
+      0 0,
+      0 0,
+      0 0,
+      0 0,
+      38% 58%,
+      48% 60%,
+      -120% 0%,
+      100% 100%;
+    filter: brightness(1.04);
+  }
+}
+
 @keyframes toast-in {
   from {
     opacity: 0;
@@ -3324,6 +3488,8 @@ h2 {
   .turn-banner,
   .zone-flash,
   .life-hit .life-dot:not(.empty),
+  .card.card-rarity-sr::after,
+  .card.card-rarity-ur::after,
   .card.card-pulse,
   .card.card-hit,
   .trash-surge-layer span,
@@ -3461,10 +3627,72 @@ h2 {
 .card-id {
   position: relative;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
   color: var(--muted);
   font-size: 10px;
   margin-top: 3px;
   overflow-wrap: anywhere;
+}
+
+.card-face-rarity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  border: 1px solid rgba(203, 213, 225, 0.28);
+  border-radius: 999px;
+  padding: 0 5px;
+  color: #d7dee7;
+  background: rgba(8, 12, 18, 0.72);
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.card-face-rarity.rarity-r {
+  color: #d7dee7;
+  border-color: rgba(203, 213, 225, 0.46);
+}
+
+.card-face-rarity.rarity-sr {
+  color: #f8fafc;
+  border-color: rgba(248, 250, 252, 0.72);
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.36);
+}
+
+.card-face-rarity.rarity-ur {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.9);
+  background: rgba(2, 6, 23, 0.94);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.52), inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.card.card-rarity-sr .card-art {
+  border-color: color-mix(in srgb, var(--card-color) 48%, #fff 8%);
+  box-shadow:
+    inset 0 0 18px rgba(255, 255, 255, 0.1),
+    0 0 12px rgba(255, 255, 255, 0.22);
+}
+
+.card.card-rarity-ur .card-art {
+  border-color: color-mix(in srgb, var(--card-color) 48%, #fff 8%);
+  box-shadow:
+    inset 0 0 22px rgba(255, 255, 255, 0.16),
+    0 0 16px rgba(255, 255, 255, 0.28),
+    0 0 26px rgba(226, 232, 240, 0.18);
+}
+
+.card.card-rarity-sr .card-name,
+.card.card-rarity-ur .card-name {
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.14);
+}
+
+.card.card-rarity-ur .card-core {
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.42));
 }
 
 .card-art {
@@ -11712,16 +11940,16 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 .pack-reveal-dim.dim-sr {
   opacity: 1;
   background:
-    radial-gradient(ellipse 70% 60% at 50% 38%, rgba(245, 158, 11, 0.12), transparent 70%),
-    rgba(6, 4, 2, 0.82);
+    radial-gradient(ellipse 70% 60% at 50% 38%, rgba(255, 255, 255, 0.1), transparent 70%),
+    rgba(3, 7, 18, 0.82);
 }
 
-.pack-reveal-dim.dim-sec {
+.pack-reveal-dim.dim-ur {
   opacity: 1;
   background:
-    radial-gradient(ellipse 70% 60% at 50% 38%, rgba(168, 85, 247, 0.14), transparent 70%),
-    radial-gradient(ellipse 90% 70% at 50% 45%, rgba(34, 211, 238, 0.07), transparent 76%),
-    rgba(4, 3, 12, 0.85);
+    radial-gradient(ellipse 70% 60% at 50% 38%, rgba(255, 255, 255, 0.16), transparent 70%),
+    radial-gradient(ellipse 90% 70% at 50% 45%, rgba(226, 232, 240, 0.08), transparent 76%),
+    rgba(2, 6, 23, 0.85);
 }
 
 /* キラカードめくり: カード背面から噴くパーティクル（packParticles.ts が描画） */
@@ -11747,13 +11975,13 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-card-row li:has(.pack-card.flipped.rarity-sr),
-.pack-card-row li:has(.pack-card.flipped.rarity-sec) {
+.pack-card-row li:has(.pack-card.flipped.rarity-ur) {
   z-index: 4;
 }
 
 /* キラカードめくり: めくった勢いでカードが迫り出して静止する */
 .pack-card.flipped.rarity-sr .pack-card-inner,
-.pack-card.flipped.rarity-sec .pack-card-inner {
+.pack-card.flipped.rarity-ur .pack-card-inner {
   animation: pack-flip-pop 1.9s cubic-bezier(0.22, 0.9, 0.3, 1) both;
 }
 
@@ -11784,20 +12012,20 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   background: repeating-conic-gradient(
     from 4deg,
     transparent 0deg 10deg,
-    rgba(255, 200, 110, 0.5) 13deg 16deg,
+    rgba(255, 255, 255, 0.42) 13deg 16deg,
     transparent 19deg 30deg,
-    rgba(255, 236, 190, 0.35) 33deg 36deg,
+    rgba(226, 232, 240, 0.28) 33deg 36deg,
     transparent 39deg 45deg
   );
 }
 
-.pack-card-rays.rays-sec {
+.pack-card-rays.rays-ur {
   background: repeating-conic-gradient(
     from 4deg,
     transparent 0deg 10deg,
-    rgba(196, 132, 252, 0.55) 13deg 16deg,
+    rgba(255, 255, 255, 0.58) 13deg 16deg,
     transparent 19deg 30deg,
-    rgba(103, 232, 249, 0.4) 33deg 36deg,
+    rgba(226, 232, 240, 0.42) 33deg 36deg,
     transparent 39deg 45deg
   );
 }
@@ -11814,7 +12042,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-card.flipped.rarity-sr .pack-card-inner::after,
-.pack-card.flipped.rarity-sec .pack-card-inner::after {
+.pack-card.flipped.rarity-ur .pack-card-inner::after {
   content: "";
   position: absolute;
   inset: -10px;
@@ -11826,11 +12054,11 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-card.flipped.rarity-sr .pack-card-inner::after {
-  box-shadow: 0 0 34px rgba(245, 158, 11, 0.65), inset 0 0 18px rgba(245, 158, 11, 0.25);
+  box-shadow: 0 0 34px rgba(255, 255, 255, 0.48), inset 0 0 18px rgba(255, 255, 255, 0.16);
 }
 
-.pack-card.flipped.rarity-sec .pack-card-inner::after {
-  box-shadow: 0 0 42px rgba(168, 85, 247, 0.65), 0 0 68px rgba(34, 211, 238, 0.45), inset 0 0 22px rgba(168, 85, 247, 0.28);
+.pack-card.flipped.rarity-ur .pack-card-inner::after {
+  box-shadow: 0 0 42px rgba(255, 255, 255, 0.66), 0 0 70px rgba(226, 232, 240, 0.36), inset 0 0 22px rgba(255, 255, 255, 0.2);
 }
 
 @keyframes pack-rare-burst {
@@ -11845,9 +12073,9 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   border-radius: 8px;
   pointer-events: none;
   mix-blend-mode: color-dodge;
-  /* パックと同系の紫〜シアンのプリズム箔 */
+  /* カード種別色と混ざらない白銀のプリズム箔 */
   background:
-    repeating-linear-gradient(115deg, rgba(196, 132, 252, 0.26) 0%, rgba(129, 140, 248, 0.22) 8%, rgba(103, 232, 249, 0.24) 16%, rgba(147, 197, 253, 0.2) 24%, rgba(216, 180, 254, 0.26) 32%, rgba(168, 85, 247, 0.22) 40%, rgba(196, 132, 252, 0.26) 48%);
+    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.24) 0%, rgba(226, 232, 240, 0.18) 8%, rgba(255, 255, 255, 0.1) 16%, rgba(203, 213, 225, 0.16) 24%, rgba(255, 255, 255, 0.24) 32%, rgba(226, 232, 240, 0.18) 40%, rgba(255, 255, 255, 0.24) 48%);
   background-size: 320% 320%;
   animation: pack-holo-shift 3.6s linear infinite;
   opacity: 0.9;
@@ -11880,13 +12108,14 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-card.rarity-sr .pack-rarity-chip.shown {
-  color: #ffd489;
-  border-color: rgba(245, 158, 11, 0.65);
+  color: #f8fafc;
+  border-color: rgba(248, 250, 252, 0.7);
 }
 
-.pack-card.rarity-sec .pack-rarity-chip.shown {
-  color: #d8b4fe;
-  border-color: rgba(168, 85, 247, 0.65);
+.pack-card.rarity-ur .pack-rarity-chip.shown {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.32);
 }
 
 .pack-reveal-controls {
@@ -11970,25 +12199,25 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-summary-cards li.rarity-sr .pack-summary-card-rarity {
-  color: #ffd489;
+  color: #f8fafc;
 }
 
-.pack-summary-cards li.rarity-sec .pack-summary-card-rarity {
-  color: #d8b4fe;
+.pack-summary-cards li.rarity-ur .pack-summary-card-rarity {
+  color: #ffffff;
 }
 
 .pack-summary-cards li.rarity-sr,
-.pack-summary-cards li.rarity-sec {
-  border-color: rgba(245, 158, 11, 0.5);
+.pack-summary-cards li.rarity-ur {
+  border-color: rgba(248, 250, 252, 0.46);
 }
 
-.pack-summary-cards li.rarity-sec {
-  border-color: rgba(168, 85, 247, 0.6);
+.pack-summary-cards li.rarity-ur {
+  border-color: rgba(255, 255, 255, 0.66);
 }
 
-.pack-summary.best-sec strong {
-  color: #d8b4fe;
-  text-shadow: 0 0 14px rgba(168, 85, 247, 0.55);
+.pack-summary.best-ur strong {
+  color: #ffffff;
+  text-shadow: 0 0 14px rgba(255, 255, 255, 0.42);
 }
 
 .pack-summary span {
@@ -12012,10 +12241,9 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 .pack-omen {
   /* 光のテーマ色（"R, G, B" 形式で rgba() に埋め込む） */
-  --omen-main: 255, 206, 112;
-  --omen-sub: 255, 168, 40;
-  --omen-hot: 255, 246, 220;
-
+  --omen-main: 255, 255, 255;
+  --omen-sub: 226, 232, 240;
+  --omen-hot: 255, 255, 255;
   position: absolute;
   left: 50%;
   bottom: calc(100% - 92px);
@@ -12028,9 +12256,9 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   animation: pack-omen-window 1.6s ease-out both;
 }
 
-.booster-pack.omen-sec .pack-omen {
-  --omen-main: 168, 85, 247;
-  --omen-sub: 34, 211, 238;
+.booster-pack.omen-ur .pack-omen {
+  --omen-main: 255, 255, 255;
+  --omen-sub: 203, 213, 225;
   --omen-hot: 255, 255, 255;
 }
 
@@ -12094,7 +12322,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 /* 開封の衝撃で画面が揺れる */
 .pack-stage.stage-omen-sr,
-.pack-stage.stage-omen-sec {
+.pack-stage.stage-omen-ur {
   animation: pack-stage-shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
 }
 
@@ -12108,21 +12336,22 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .booster-pack.torn.omen-sr .pack-body,
-.booster-pack.torn.omen-sec .pack-body {
+.booster-pack.torn.omen-ur .pack-body {
   transition-delay: 0.95s;
 }
 
 .booster-pack.torn.omen-sr .pack-body {
-  border-color: rgba(245, 158, 11, 0.75);
-  box-shadow: 0 0 40px rgba(245, 158, 11, 0.55), 0 0 90px rgba(245, 158, 11, 0.28);
+  border-color: rgba(248, 250, 252, 0.68);
+  box-shadow: 0 0 40px rgba(255, 255, 255, 0.42), 0 0 90px rgba(226, 232, 240, 0.22);
 }
 
-.booster-pack.torn.omen-sec .pack-body {
-  box-shadow: 0 0 44px rgba(168, 85, 247, 0.55), 0 0 96px rgba(34, 211, 238, 0.35);
+.booster-pack.torn.omen-ur .pack-body {
+  border-color: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 0 44px rgba(255, 255, 255, 0.56), 0 0 96px rgba(226, 232, 240, 0.34);
 }
 
 .pack-stage.stage-omen-sr::after,
-.pack-stage.stage-omen-sec::after {
+.pack-stage.stage-omen-ur::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -12131,13 +12360,13 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-stage.stage-omen-sr::after {
-  background: radial-gradient(ellipse 62% 55% at 50% 42%, rgba(245, 158, 11, 0.3), transparent 72%);
+  background: radial-gradient(ellipse 62% 55% at 50% 42%, rgba(255, 255, 255, 0.22), transparent 72%);
 }
 
-.pack-stage.stage-omen-sec::after {
+.pack-stage.stage-omen-ur::after {
   background:
-    radial-gradient(ellipse 62% 55% at 50% 42%, rgba(168, 85, 247, 0.28), transparent 72%),
-    radial-gradient(ellipse 80% 65% at 50% 45%, rgba(34, 211, 238, 0.16), transparent 75%);
+    radial-gradient(ellipse 62% 55% at 50% 42%, rgba(255, 255, 255, 0.28), transparent 72%),
+    radial-gradient(ellipse 80% 65% at 50% 45%, rgba(226, 232, 240, 0.16), transparent 75%);
 }
 
 @keyframes pack-stage-flash {
@@ -12149,47 +12378,47 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 /* --- 裏向きカードのオーラ（高レアの気配） --- */
 
 .pack-card.rarity-sr:not(.flipped) .pack-card-front {
-  border-color: rgba(245, 158, 11, 0.7);
+  border-color: rgba(248, 250, 252, 0.66);
   animation: pack-back-aura-sr 1.5s ease-in-out infinite;
 }
 
-.pack-card.rarity-sec:not(.flipped) .pack-card-front {
-  border-color: rgba(196, 132, 252, 0.75);
-  animation: pack-back-aura-sec 1.3s ease-in-out infinite;
+.pack-card.rarity-ur:not(.flipped) .pack-card-front {
+  border-color: rgba(255, 255, 255, 0.82);
+  animation: pack-back-aura-ur 1.3s ease-in-out infinite;
 }
 
 @keyframes pack-back-aura-sr {
-  0%, 100% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 14px rgba(245, 158, 11, 0.35); }
-  50% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 30px rgba(245, 158, 11, 0.75); }
+  0%, 100% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 14px rgba(255, 255, 255, 0.26); }
+  50% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 255, 255, 0.54); }
 }
 
-@keyframes pack-back-aura-sec {
-  0%, 100% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 16px rgba(168, 85, 247, 0.45); }
-  50% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 34px rgba(168, 85, 247, 0.85), 0 0 50px rgba(34, 211, 238, 0.4); }
+@keyframes pack-back-aura-ur {
+  0%, 100% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 16px rgba(255, 255, 255, 0.36); }
+  50% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 34px rgba(255, 255, 255, 0.68), 0 0 52px rgba(226, 232, 240, 0.38); }
 }
 
 /* --- めくった瞬間のフラッシュとスパークル --- */
 
 .pack-card.rarity-sr .pack-card-inner,
-.pack-card.rarity-sec .pack-card-inner {
+.pack-card.rarity-ur .pack-card-inner {
   transition-duration: 0.85s;
 }
 
 .pack-card.flipped.rarity-sr .pack-card-back::before,
-.pack-card.flipped.rarity-sec .pack-card-back::before {
+.pack-card.flipped.rarity-ur .pack-card-back::before {
   content: "";
   position: absolute;
   inset: -20px;
   border-radius: 50%;
   pointer-events: none;
   z-index: 3;
-  background: radial-gradient(circle, rgba(255, 244, 214, 0.95) 0%, rgba(255, 214, 120, 0.5) 38%, transparent 68%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.94) 0%, rgba(226, 232, 240, 0.42) 38%, transparent 68%);
   animation: pack-flip-flash 0.72s ease-out both;
   animation-delay: 0.34s;
 }
 
-.pack-card.flipped.rarity-sec .pack-card-back::before {
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.98) 0%, rgba(168, 85, 247, 0.5) 36%, rgba(34, 211, 238, 0.3) 52%, transparent 70%);
+.pack-card.flipped.rarity-ur .pack-card-back::before {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.5) 36%, rgba(203, 213, 225, 0.28) 52%, transparent 70%);
 }
 
 @keyframes pack-flip-flash {
@@ -12217,7 +12446,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   100% { opacity: 0; transform: scale(1.2); }
 }
 
-.pack-card.flipped.rarity-sec .pack-card-back::after {
+.pack-card.flipped.rarity-ur .pack-card-back::after {
   content: "";
   position: absolute;
   inset: -14px;
@@ -12225,11 +12454,11 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   z-index: 3;
   background:
     radial-gradient(circle 2.6px at 16% 20%, #fff 40%, transparent 65%),
-    radial-gradient(circle 2px at 82% 14%, #ede9fe 40%, transparent 65%),
-    radial-gradient(circle 2.2px at 90% 58%, #d3fbff 40%, transparent 65%),
+    radial-gradient(circle 2px at 82% 14%, #f8fafc 40%, transparent 65%),
+    radial-gradient(circle 2.2px at 90% 58%, #e2e8f0 40%, transparent 65%),
     radial-gradient(circle 1.8px at 26% 78%, #fff 40%, transparent 65%),
-    radial-gradient(circle 2.4px at 64% 88%, #e9d5ff 40%, transparent 65%),
-    radial-gradient(circle 1.6px at 8% 52%, #d3fbff 40%, transparent 65%),
+    radial-gradient(circle 2.4px at 64% 88%, #f8fafc 40%, transparent 65%),
+    radial-gradient(circle 1.6px at 8% 52%, #e2e8f0 40%, transparent 65%),
     radial-gradient(circle 2px at 48% 6%, #fff 40%, transparent 65%);
   animation: pack-sparkle-twinkle 1.5s ease-in-out 3 both;
   animation-delay: 0.5s;
@@ -12241,8 +12470,8 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-summary.best-sr strong {
-  color: #ffd489;
-  text-shadow: 0 0 14px rgba(245, 158, 11, 0.5);
+  color: #f8fafc;
+  text-shadow: 0 0 14px rgba(255, 255, 255, 0.34);
 }
 
 /* --- コインとコレクション --- */
@@ -12338,12 +12567,12 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   .pack-omen span,
   .pack-impact-flash,
   .pack-stage.stage-omen-sr,
-  .pack-stage.stage-omen-sec,
+  .pack-stage.stage-omen-ur,
   .pack-card-rays,
   .pack-card.flipped.rarity-sr .pack-card-inner,
-  .pack-card.flipped.rarity-sec .pack-card-inner,
+  .pack-card.flipped.rarity-ur .pack-card-inner,
   .pack-card.rarity-sr:not(.flipped) .pack-card-front,
-  .pack-card.rarity-sec:not(.flipped) .pack-card-front {
+  .pack-card.rarity-ur:not(.flipped) .pack-card-front {
     animation: none;
   }
 

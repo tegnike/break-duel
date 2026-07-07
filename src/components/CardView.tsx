@@ -7,6 +7,7 @@ import {
   cardColor,
   cardCoreText,
 } from "./cardPresentation";
+import { RARITY_LABELS, baseCardRarity } from "../rarity";
 
 export function CardView({
   card,
@@ -21,6 +22,7 @@ export function CardView({
   game,
   extraBadges = [],
   showSetBadge = true,
+  showRarityBadge = true,
   onClick,
   onMouseEnter,
 }: {
@@ -38,6 +40,7 @@ export function CardView({
   game?: GameState;
   extraBadges?: string[];
   showSetBadge?: boolean;
+  showRarityBadge?: boolean;
   onClick?: () => void;
   onMouseEnter?: () => void;
 }) {
@@ -61,10 +64,12 @@ export function CardView({
     addStatBadge(statBadges, `場防御+${fieldDefenseBonus}`);
   }
   const setBadge = `${cardSet(card)}弾`;
+  const rarity = baseCardRarity(card);
+  const rarityClass = rarity ? `card-rarity-${rarity}` : "";
   return (
     <Element
       type={selectable ? "button" : undefined}
-      className={`card ${card.type === "event" ? "command" : ""} ${card.type === "memory" ? "memory" : ""} ${selected ? "selected" : ""} ${selectable ? "selectable" : ""} ${spent ? "spent" : ""} ${visualEffect} ${actionState}`}
+      className={`card ${card.type === "event" ? "command" : ""} ${card.type === "memory" ? "memory" : ""} ${selected ? "selected" : ""} ${selectable ? "selectable" : ""} ${spent ? "spent" : ""} ${rarityClass} ${visualEffect} ${actionState}`}
       style={{ "--card-color": cardColor(card) } as React.CSSProperties}
       data-owner={ownerIndex}
       data-zone={zone}
@@ -74,7 +79,10 @@ export function CardView({
     >
       <div className="card-header">
         <div className="card-name">{card.name}</div>
-        <div className="card-id">{card.id}</div>
+        <div className="card-id">
+          <span>{card.id}</span>
+          {showRarityBadge && rarity && <span className={`card-face-rarity rarity-${rarity}`}>{RARITY_LABELS[rarity]}</span>}
+        </div>
       </div>
       <div className={`card-art kenney-art ${cardArtClass(card)}`}>
         <img src={cardArtAsset(card)} alt="" loading="lazy" />

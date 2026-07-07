@@ -15,6 +15,7 @@ import {
 import { CardArtPreview, CardView } from "./CardView";
 import { cardArtAsset, cardArtClass, cardArtGlyph, cardColor, roleText, selectedText } from "./cardPresentation";
 import { collectionLimitMessages, loadCollection, ownedCountForCard } from "../collection";
+import { RARITY_LABELS, baseCardRarity } from "../rarity";
 
 const DECK_SIZE = 25;
 const SAME_NAME_LIMIT = 2;
@@ -418,7 +419,9 @@ function CardPoolButton({
   onPreview?: () => void;
 }) {
   const unowned = ownedCount <= 0;
-  const title = unowned ? `${card.name} / 未所持` : selectedText(card);
+  const rarity = baseCardRarity(card);
+  const rarityText = rarity ? ` / ${RARITY_LABELS[rarity]}` : "";
+  const title = unowned ? `${card.name}${rarityText} / 未所持` : `${selectedText(card)}${rarityText}`;
   return (
     <button
       type="button"
@@ -438,9 +441,18 @@ function CardPoolButton({
   );
 }
 
-function CardInspector({ card, compact = false, owned = loadCollection() }: { card: Card | null; compact?: boolean; owned?: Record<string, number> }) {
+function CardInspector({
+  card,
+  compact = false,
+  owned = loadCollection(),
+}: {
+  card: Card | null;
+  compact?: boolean;
+  owned?: Record<string, number>;
+}) {
   if (!card) return null;
   const ownedCount = ownedCountForCard(card, owned);
+  const rarity = baseCardRarity(card);
   return (
     <aside className={`card-inspector ${compact ? "compact" : ""}`} style={{ "--card-color": cardColor(card) } as React.CSSProperties}>
       {compact
@@ -451,6 +463,7 @@ function CardInspector({ card, compact = false, owned = loadCollection() }: { ca
         <p>{inspectorMetaText(card)}</p>
         <dl>
           <div><dt>ID</dt><dd>{card.id}</dd></div>
+          {rarity && <div><dt>レアリティ</dt><dd><span className={`inspector-rarity rarity-${rarity}`}>{RARITY_LABELS[rarity]}</span></dd></div>}
           <div><dt>所持</dt><dd>{ownedCount}枚</dd></div>
           <div><dt>種別</dt><dd>{card.type === "ai" ? "召喚獣" : card.type === "event" ? "術式" : "遺物"}</dd></div>
           {card.attribute && <div><dt>属性</dt><dd>{card.attribute}</dd></div>}

@@ -135,6 +135,46 @@ describe("CardView", () => {
     expect(html).not.toContain("1弾");
   });
 
+  it("does not show rarity for starter set cards", () => {
+    const target = card("AI-FIRE-4");
+    const html = renderToStaticMarkup(
+      <CardView card={target} ownerIndex={0} zone="field" index={0} showCost={false} />,
+    );
+
+    expect(html).not.toContain("card-face-rarity");
+    expect(html).not.toContain("card-rarity-ur");
+  });
+
+  it("shows the base rarity on the card face", () => {
+    const target = card("AI-FIRE-4D");
+    const html = renderToStaticMarkup(
+      <CardView card={target} ownerIndex={0} zone="field" index={0} showCost={false} />,
+    );
+
+    expect(html).toContain("card-face-rarity rarity-ur");
+    expect(html).toContain("card-rarity-ur");
+    expect(html).toContain(">UR</span>");
+  });
+
+  it("shows the SR effect class on SR cards", () => {
+    const target = card("AI-FIRE-3D");
+    const html = renderToStaticMarkup(
+      <CardView card={target} ownerIndex={0} zone="field" index={0} showCost={false} />,
+    );
+
+    expect(html).toContain("card-face-rarity rarity-sr");
+    expect(html).toContain("card-rarity-sr");
+  });
+
+  it("can hide the base rarity on the card face", () => {
+    const target = card("AI-FIRE-4D");
+    const html = renderToStaticMarkup(
+      <CardView card={target} ownerIndex={0} zone="field" index={0} showCost={false} showRarityBadge={false} />,
+    );
+
+    expect(html).not.toContain("card-face-rarity");
+  });
+
   it("does not render action-state or spent text badges on the card face", () => {
     const target = card("AI-FIRE-2");
     const html = renderToStaticMarkup(
