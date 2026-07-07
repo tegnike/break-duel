@@ -495,6 +495,21 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.stats.undefended_attacks, 0)
         self.assertEqual(state.log[-1]["defense_result"], "partial_failed")
 
+    def test_ai_prefers_failed_field_defense_with_trigger_when_values_tie(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[1].field_ai = [card("AI-WATER-2"), card("AI-WATER-2D")]
+        state.players[1].deck = [card("AI-FIRE-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 6)
+        self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-WATER-2"])
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-WATER-2D"])
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-FIRE-1"])
+        self.assertEqual(state.stats.failed_defenses, 1)
+        self.assertEqual(state.stats.undefended_attacks, 0)
+        self.assertEqual(state.log[-1]["defense_result"], "partial_failed")
+
     def test_hand_defense_is_limited_to_once_per_turn_by_default(self) -> None:
         state = new_game(
             1,

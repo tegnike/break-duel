@@ -147,6 +147,19 @@ describe("turn action state", () => {
     expect(chooseAiDefense(defender, card("AI-WATER-4"), "challenger")).toEqual({ type: "field", index: 1 });
   });
 
+  it("prefers failed field defense with a defense trigger when defense values tie", () => {
+    const game = createGame(
+      34,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-WATER-4"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-WATER-2", "AI-WATER-2D"] },
+    );
+    const defender = game.players[1];
+    defender.field = [card("AI-WATER-2"), card("AI-WATER-2D")];
+    defender.hand = [];
+
+    expect(chooseAiDefense(defender, card("AI-WATER-4"), "challenger")).toEqual({ type: "field", index: 1 });
+  });
+
   it("keeps challenger from using accelerator without an enabled summon", () => {
     const game = createGame(
       19,
