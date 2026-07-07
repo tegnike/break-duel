@@ -109,7 +109,11 @@ function OpponentDefensePreview({ game, attackCard }: { game: GameState; attackC
         {rows.map(({ card, index }) => {
           const defenseValue = defenseCombatValue(attackCard, card, opponent, { fieldIndex: index, attackContext });
           const attackValue = attackCombatValue(attackCard, attackContext);
-          const result = defenseValue > attackValue ? "防御側が残る" : defenseValue === attackValue ? "相打ち" : "防御不可";
+          const result = defenseValue > attackValue
+            ? "防御側が残る"
+            : defenseValue === attackValue
+              ? "相打ち"
+              : `差分${attackValue - defenseValue}点`;
           return (
             <div className="affinity-defense-row" style={{ "--card-color": cardColor(card) } as React.CSSProperties} key={card.id}>
               <div className="affinity-defense-main">{card.name} / {card.attribute} / power {card.power}</div>
@@ -326,7 +330,7 @@ export function DefensePanel({
       <div className="defense-context">
         {strikeTarget && strikeInfo
           ? `攻撃値 ${strikeInfo.attackValue} vs ${strikeTarget.name} 防御値 ${strikeInfo.defenseValue}。防御しなければ${strikeInfo.attackValue === strikeInfo.defenseValue ? "相打ちで両方トラッシュ" : `${strikeTarget.name}は退場`}。手札ブロックで止めれば${strikeTarget.name}は場に残ります（防御カードは使い切り）。`
-          : `攻撃値 ${attackCombatValue(attackCard, attackContext)} / 通れば ${attackDamage(attackCard)} ダメージ(power分)。場防御は不足でも選べます。不足なら防御召喚獣をトラッシュし、攻撃は通ります。手札ブロックは使い切りです。`}
+          : `攻撃値 ${attackCombatValue(attackCard, attackContext)} / 防御しなければ ${attackDamage(attackCard)} ダメージ(power分)。場防御は不足でも選べます。不足なら防御召喚獣をトラッシュし、攻撃値との差分ダメージを受けます。手札ブロックは使い切りです。`}
       </div>
       <div className="defense-choice-grid">
         {visibleFieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} cardIndex={index} attackCard={attackCard} attackContext={attackContext} defender={defender} fieldIndex={index} onClick={() => onResolve({ type: "field", index })} />)}
@@ -409,7 +413,7 @@ function DefenseChoiceButton({ source, card, cardIndex, attackCard, attackContex
     : baseDefenseValue < attackValue && paidDefenseValue >= attackValue
       ? `竜盾使用で${paidDefenseValue === attackValue ? "相打ち" : "防御成功"}`
       : defenseValue < attackValue
-      ? "防御失敗 / 攻撃は通る"
+      ? `防御失敗 / 差分${Math.max(0, attackValue - defenseValue)}点`
       : defenseValue === attackValue
       ? "相打ち / 両方トラッシュ"
       : "防御側が残る / 攻撃側退場";
