@@ -252,7 +252,7 @@ describe("relic manipulation", () => {
     const trashed = trashMemory(opponent);
     expect(trashed?.id).toBe("MEM-CACHE");
     expect(opponent.memory).toBeNull();
-    expect(opponent.discard.at(-1)?.id).toBe("MEM-CACHE");
+    expect(opponent.discard[opponent.discard.length - 1]?.id).toBe("MEM-CACHE");
   });
 
   it("recoverMemoryFromDiscard returns only relic cards to hand", () => {
