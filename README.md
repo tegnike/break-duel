@@ -308,6 +308,8 @@ web/
 
 ## アセット
 
+カード画像・ライバルのイラスト/ボイス・セリフなどのオリジナルアセットは、本プロジェクト専用です(All Rights Reserved)。無断での転載・再利用はご遠慮ください。詳細は [LICENSE-ASSETS.md](LICENSE-ASSETS.md) を参照してください。
+
 ブラウザ UI の一部アイコンには Kenney の `Board Game Icons` を使用しています。
 
 - Source: https://kenney.nl/assets/board-game-icons
@@ -326,4 +328,12 @@ web/
 
 ## ライセンス
 
-このプロジェクトは MIT License です。詳細は [LICENSE](LICENSE) を参照してください。
+このリポジトリは、対象ごとにライセンスが異なります。
+
+| 対象 | ライセンス |
+| --- | --- |
+| ソースコード | MIT License([LICENSE](LICENSE)) |
+| オリジナルアセット(カード画像、ライバルのイラスト・ボイス、セリフなどのゲームテキスト) | All Rights Reserved([LICENSE-ASSETS.md](LICENSE-ASSETS.md)) |
+| 第三者素材(Kenney アイコン、BGM・効果音) | CC0(出典は上記アセット節を参照) |
+
+オリジナルアセットの本プロジェクト外での利用(転載・再配布・流用)は許可していません。ゲームをプレイ・フォークしてビルドする範囲での複製は問題ありません。
