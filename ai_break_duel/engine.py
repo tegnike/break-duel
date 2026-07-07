@@ -1869,29 +1869,6 @@ def _has_live_resources(player: PlayerState) -> bool:
     return bool(player.deck or player.hand or player.field_ai)
 
 
-def _finish_by_life_judgement(state: GameState, event: str) -> None:
-    life = [player.life for player in state.players]
-    if life[0] == life[1]:
-        state.draw = True
-        result = "draw"
-    else:
-        state.winner = 0 if life[0] > life[1] else 1
-        result = "life_judgement"
-    state.phase = "finished"
-    state.actions_remaining = 0
-    state.charged_actions_remaining = 0
-    state.log.append(
-        {
-            "turn": state.turn,
-            "event": event,
-            "result": result,
-            "winner": None if state.winner is None else state.players[state.winner].name,
-            "life": life,
-            "field": _field_state(state),
-        }
-    )
-
-
 def _finish_by_draw(state: GameState, event: str) -> None:
     state.draw = True
     state.phase = "finished"

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { CONFIG, createGame, type GameState } from "../game";
+import { CARD_BY_ID, CONFIG, createGame, type GameState } from "../game";
 import {
   devAddCard,
+  devCardLabel,
   devRemoveCard,
   devRemoveFieldCard,
+  devResetTurnFlags,
   devSetMatchResult,
   devToggleFieldSpent,
   devTriggerRivalAttack,
@@ -80,6 +82,44 @@ describe("devRemoveFieldCard", () => {
 });
 
 describe("devRemoveCard", () => {
+  it("removes cards from hand, deck, discard, and memory zones", () => {
+    const game = makeTestGame();
+    const player = game.players[0];
+    player.hand = [];
+    player.deck = [];
+    player.discard = [];
+    player.memory = null;
+
+    expect(devAddCard(game, 0, "hand", "AI-FIRE-1")).toBe(true);
+    expect(devAddCard(game, 0, "deckTop", "AI-WATER-1")).toBe(true);
+    expect(devAddCard(game, 0, "discard", "AI-EARTH-1")).toBe(true);
+    expect(devAddCard(game, 0, "memory", "MEM-FIREWALL")).toBe(true);
+
+    expect(devRemoveCard(game, 0, "hand", 0)).toBe(true);
+    expect(player.hand).toHaveLength(0);
+    expect(devRemoveCard(game, 0, "deck", 0)).toBe(true);
+    expect(player.deck).toHaveLength(0);
+    expect(devRemoveCard(game, 0, "discard", 0)).toBe(true);
+    expect(player.discard).toHaveLength(0);
+    expect(devRemoveCard(game, 0, "memory", 0)).toBe(true);
+    expect(player.memory).toBeNull();
+  });
+
+  it("returns false without mutating indexed zones for invalid removal indexes", () => {
+    const game = makeTestGame();
+    const player = game.players[0];
+    player.hand = [CARD_BY_ID.get("AI-FIRE-1")!];
+    player.deck = [CARD_BY_ID.get("AI-WATER-1")!];
+    player.discard = [CARD_BY_ID.get("AI-EARTH-1")!];
+
+    expect(devRemoveCard(game, 0, "hand", -1)).toBe(false);
+    expect(devRemoveCard(game, 0, "deck", 1)).toBe(false);
+    expect(devRemoveCard(game, 0, "discard", 1)).toBe(false);
+    expect(player.hand.map((card) => card.id)).toEqual(["AI-FIRE-1"]);
+    expect(player.deck.map((card) => card.id)).toEqual(["AI-WATER-1"]);
+    expect(player.discard.map((card) => card.id)).toEqual(["AI-EARTH-1"]);
+  });
+
   it("clears a pending attack that points past the shrunken field", () => {
     const game = makeTestGame();
     const rival = game.players[1];
@@ -90,6 +130,37 @@ describe("devRemoveCard", () => {
 
     expect(devRemoveCard(game, 1, "field", 0)).toBe(true);
     expect(game.pendingAttack).toBeNull();
+  });
+});
+
+describe("devResetTurnFlags", () => {
+  it("clears once-per-turn flags for repeatable scenario testing", () => {
+    const game = makeTestGame();
+    const player = game.players[0];
+    player.playedAiThisTurn = true;
+    player.chargeUsed = true;
+    player.pipelineUsed = true;
+    player.acceleratorUsed = true;
+    player.warBannerUsed = true;
+    player.echoUrnUsed = true;
+    player.handDefensesUsed = 2;
+
+    devResetTurnFlags(player);
+
+    expect(player.playedAiThisTurn).toBe(false);
+    expect(player.chargeUsed).toBe(false);
+    expect(player.pipelineUsed).toBe(false);
+    expect(player.acceleratorUsed).toBe(false);
+    expect(player.warBannerUsed).toBe(false);
+    expect(player.echoUrnUsed).toBe(false);
+    expect(player.handDefensesUsed).toBe(0);
+  });
+});
+
+describe("devCardLabel", () => {
+  it("includes power and attribute details when available", () => {
+    expect(devCardLabel(CARD_BY_ID.get("AI-FIRE-1")!)).toBe("熾き尾のサラ P1（火）");
+    expect(devCardLabel(CARD_BY_ID.get("MEM-FIREWALL")!)).toBe("竜盾の紋章");
   });
 });
 

@@ -39,7 +39,7 @@ description: Use when creating or opening a GitHub pull request for a local repo
    - Then inspect PR reviews, PR comments, and review threads from the live GitHub state.
 
 7. Handle CodeRabbit feedback.
-   - If CodeRabbit feedback exists and is actionable, use `/Users/user/.codex/skills/coderabbit-pr-review-resolver/SKILL.md` and follow that workflow.
+   - If CodeRabbit feedback exists and is actionable, use the `coderabbit-pr-review-resolver` skill and follow that workflow.
    - If no CodeRabbit feedback has arrived after the wait, report the exact check result instead of guessing.
 
 ## Final Report

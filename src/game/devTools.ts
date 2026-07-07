@@ -97,6 +97,7 @@ export function devAddCard(game: GameState, playerIndex: number, zone: DevCardZo
 export function devRemoveCard(game: GameState, playerIndex: number, zone: DevRemovableZone, index: number): boolean {
   const player = game.players[playerIndex];
   if (!player) return false;
+  if (zone !== "memory" && index < 0) return false;
   let removed = false;
   switch (zone) {
     case "hand":
