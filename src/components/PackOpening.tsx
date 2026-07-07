@@ -4,13 +4,10 @@ import { CardView } from "./CardView";
 import { runPackBurst } from "./packParticles";
 import { PACK_COST, addToCollection } from "../collection";
 import cardBackImage from "../assets/card-back.webp";
-import packArtImage from "../assets/battlefield-fantasy-arena.webp";
+import packArtImage from "../assets/pack-set2-echoes.png";
 import brandMark from "../assets/mark.svg";
 
-// テスト実装: 新弾お披露目用のパック開封演出。
-// カードは既存プールからのダミー抽選で、新弾カード実装後に差し替える。
-
-const PACK_SET_LABEL = "拡張パック 第2弾（仮）";
+const PACK_SET_LABEL = "残響の胎動";
 const PACK_SIZE = 5;
 const SR_RATE = 0.4;
 const SECRET_UPGRADE_RATE = 0.25;
@@ -86,6 +83,7 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
   const [tearProgress, setTearProgress] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [flippedKeys, setFlippedKeys] = useState<Set<number>>(() => new Set());
+  const [revealFocus, setRevealFocus] = useState<PackOmen>("none");
   const stripRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ pointerId: number; startX: number } | null>(null);
   const settleTimerRef = useRef<number | null>(null);
@@ -93,10 +91,17 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
   const stageRef = useRef<HTMLDivElement>(null);
   const packRef = useRef<HTMLDivElement>(null);
   const burstCanvasRef = useRef<HTMLCanvasElement>(null);
+  const revealCanvasRef = useRef<HTMLCanvasElement>(null);
+  const flipAllTimersRef = useRef<number[]>([]);
+  const flipFxTimersRef = useRef<number[]>([]);
+  const flipBurstCancelRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     return () => {
       if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current);
+      flipAllTimersRef.current.forEach((id) => window.clearTimeout(id));
+      flipFxTimersRef.current.forEach((id) => window.clearTimeout(id));
+      flipBurstCancelRef.current?.();
     };
   }, []);
 
@@ -158,16 +163,58 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
   }
 
   function flipCard(key: number) {
+    const entry = pack?.find((item) => item.key === key);
+    const isFresh = entry !== undefined && !flippedKeys.has(key);
     setFlippedKeys((prev) => {
       if (prev.has(key)) return prev;
       const next = new Set(prev);
       next.add(key);
       return next;
     });
+    if (!isFresh || (entry.rarity !== "sr" && entry.rarity !== "sec")) return;
+    // キラカード確定: ステージ暗転 + カード背面からのバースト
+    const rarity = entry.rarity;
+    setRevealFocus(rarity);
+    flipFxTimersRef.current.push(
+      window.setTimeout(() => setRevealFocus("none"), 2100),
+      // カードが表を向く瞬間（フリップ中間点の少し後）に光を噴かせる
+      window.setTimeout(() => {
+        const stage = stageRef.current;
+        const canvas = revealCanvasRef.current;
+        const cardEl = stage?.querySelector(`[data-pack-key="${key}"]`);
+        if (!stage || !canvas || !cardEl) return;
+        const stageRect = stage.getBoundingClientRect();
+        const cardRect = cardEl.getBoundingClientRect();
+        flipBurstCancelRef.current?.();
+        flipBurstCancelRef.current = runPackBurst(
+          canvas,
+          {
+            x: cardRect.left + cardRect.width / 2 - stageRect.left,
+            y: cardRect.top + cardRect.height * 0.3 - stageRect.top,
+          },
+          rarity,
+          1450,
+        );
+      }, 360),
+    );
+  }
+
+  function flipAll() {
+    if (!pack) return;
+    flipAllTimersRef.current.forEach((id) => window.clearTimeout(id));
+    flipAllTimersRef.current = pack
+      .filter((entry) => !flippedKeys.has(entry.key))
+      .map((entry, order) => window.setTimeout(() => flipCard(entry.key), order * 140));
   }
 
   function openNextPack() {
     if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current);
+    flipAllTimersRef.current.forEach((id) => window.clearTimeout(id));
+    flipAllTimersRef.current = [];
+    flipFxTimersRef.current.forEach((id) => window.clearTimeout(id));
+    flipFxTimersRef.current = [];
+    flipBurstCancelRef.current?.();
+    flipBurstCancelRef.current = null;
     dragRef.current = null;
     tearBusyRef.current = false;
     setPack(null);
@@ -175,6 +222,7 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
     setTearProgress(0);
     setDragging(false);
     setFlippedKeys(new Set());
+    setRevealFocus("none");
   }
 
   const canAfford = coins >= PACK_COST;
@@ -203,7 +251,7 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
     <section className="workshop-page pack-page">
       <div className="workshop-heading">
         <div>
-          <h2>パック開封（テスト実装）</h2>
+          <h2>パック開封</h2>
           <p>1 パック {PACK_COST} コイン。封を左から右へドラッグして剥くと中身が決まります。コインは対戦で獲得（勝利 +10 ／ 敗北 +5）。</p>
         </div>
         <div className="pack-heading-actions">
@@ -244,19 +292,27 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
                 }
               }}
             >
-              <span className="pack-lid-foil" aria-hidden="true" />
+              <img className="pack-lid-art" src={packArtImage} alt="" draggable={false} />
               <span className="pack-tear-line" aria-hidden="true" />
-              <span className="pack-lid-hint">{canAfford ? "ここをドラッグして剥く →" : "コイン不足"}</span>
+              {canAfford && (
+                <span className="pack-lid-grip" aria-hidden="true">
+                  <span className="pack-lid-grip-chevron" />
+                  <span className="pack-lid-grip-chevron" />
+                  <span className="pack-lid-grip-chevron" />
+                </span>
+              )}
             </div>
             <div className="pack-body">
+              <img className="pack-wrapper-art" src={packArtImage} alt="" draggable={false} />
               <div className="pack-brand">
                 <img src={brandMark} alt="" draggable={false} />
                 <span>BREAK DUEL</span>
               </div>
-              <div className="pack-art">
-                <img src={packArtImage} alt="" draggable={false} />
+              <div className="pack-title-lockup">
+                <span>BOOSTER PACK</span>
+                <strong>{PACK_SET_LABEL}</strong>
+                <em>第2弾</em>
               </div>
-              <div className="pack-set-name">{PACK_SET_LABEL}</div>
               <div className="pack-set-count">カード {PACK_SIZE} 枚入り</div>
             </div>
           </div>
@@ -275,6 +331,8 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
         )}
         {phase === "opened" && pack && (
           <div className="pack-reveal">
+            <span className={`pack-reveal-dim ${revealFocus !== "none" ? `dim-${revealFocus}` : ""}`} aria-hidden="true" />
+            <canvas ref={revealCanvasRef} className="pack-reveal-canvas" aria-hidden="true" />
             <ul className="pack-card-row">
               {pack.map((entry, index) => {
                 const flipped = flippedKeys.has(entry.key);
@@ -282,10 +340,14 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
                   <li key={entry.key} style={{ "--deal-index": index } as CSSProperties}>
                     <button
                       type="button"
+                      data-pack-key={entry.key}
                       className={`pack-card rarity-${entry.rarity} ${flipped ? "flipped" : ""}`}
                       onClick={() => flipCard(entry.key)}
                       aria-label={flipped ? `${entry.card.name}（公開済み）` : `${index + 1} 枚目のカードをめくる`}
                     >
+                      {(entry.rarity === "sr" || entry.rarity === "sec") && (
+                        <span className={`pack-card-rays rays-${entry.rarity}`} aria-hidden="true" />
+                      )}
                       <span className="pack-card-inner">
                         <span className="pack-card-face pack-card-front">
                           <img src={cardBackImage} alt="" draggable={false} />
@@ -307,14 +369,24 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
                 <strong>
                   {bestRarity === "sec" ? "シークレット出現！！" : bestRarity === "sr" ? "スーパーレア確保！" : "開封完了"}
                 </strong>
-                <span>
-                  {pack.map((entry) => entry.card.name).join(" / ")}
-                </span>
+                <ul className="pack-summary-cards">
+                  {pack.map((entry) => (
+                    <li key={entry.key} className={`rarity-${entry.rarity}`}>
+                      <span className="pack-summary-card-name">{entry.card.name}</span>
+                      <span className="pack-summary-card-rarity">{RARITY_LABELS[entry.rarity]}</span>
+                    </li>
+                  ))}
+                </ul>
                 <span className="pack-summary-meta">NEW {newCount} 種 ／ 所持コイン {coins}</span>
                 <button type="button" onClick={openNextPack}>次のパックへ</button>
               </div>
             ) : (
-              <p className="pack-reveal-hint">カードをタップしてめくる（残り {pack.length - flippedKeys.size} 枚）</p>
+              <div className="pack-reveal-controls">
+                <p className="pack-reveal-hint">カードをタップしてめくる（残り {pack.length - flippedKeys.size} 枚）</p>
+                <button type="button" className="pack-flip-all" onClick={flipAll}>
+                  すべてめくる
+                </button>
+              </div>
             )}
           </div>
         )}

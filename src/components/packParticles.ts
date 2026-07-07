@@ -38,12 +38,13 @@ function makeGlowSprite(inner: string, mid: string): HTMLCanvasElement {
 
 function buildSprites(theme: OmenTheme): SpriteSet {
   if (theme === "sec") {
+    // パック（残響の胎動）の紫×シアンの結晶カラーに合わせる
     return {
-      core: makeGlowSprite("rgba(255, 255, 255, 0.95)", "rgba(254, 0, 254, 0.4)"),
+      core: makeGlowSprite("rgba(255, 255, 255, 0.95)", "rgba(168, 85, 247, 0.45)"),
       sparks: [
-        makeGlowSprite("rgba(255, 255, 255, 1)", "rgba(254, 0, 254, 0.55)"),
-        makeGlowSprite("rgba(255, 255, 255, 1)", "rgba(0, 240, 255, 0.5)"),
-        makeGlowSprite("rgba(255, 231, 254, 1)", "rgba(216, 117, 255, 0.5)"),
+        makeGlowSprite("rgba(255, 255, 255, 1)", "rgba(196, 132, 252, 0.55)"),
+        makeGlowSprite("rgba(255, 255, 255, 1)", "rgba(34, 211, 238, 0.5)"),
+        makeGlowSprite("rgba(240, 231, 255, 1)", "rgba(129, 140, 248, 0.5)"),
       ],
     };
   }
