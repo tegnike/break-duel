@@ -20,6 +20,7 @@ const DECK_SIZE = 25;
 const SAME_NAME_LIMIT = 2;
 const HIGH_POWER_LIMIT = 5;
 export const SAVED_DECKS_STORAGE_KEY = "break-duel:saved-decks";
+type PlaySfx = (kind: string) => void;
 
 type TypeFilter = CardType | "all";
 type AttributeFilter = Attribute | "all";
@@ -75,7 +76,7 @@ function SetTabs({ setFilter, onChange }: { setFilter: SetFilter; onChange: (val
   );
 }
 
-export function CardLibraryPage() {
+export function CardLibraryPage({ playSfx = () => undefined }: { playSfx?: PlaySfx } = {}) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [attributeFilter, setAttributeFilter] = useState<AttributeFilter>("all");
   const [setFilter, setSetFilter] = useState<SetFilter>("all");
@@ -93,7 +94,7 @@ export function CardLibraryPage() {
   });
 
   return (
-    <section className="workshop-page" aria-label="カード一覧">
+    <section className="workshop-page library-page" aria-label="カード一覧">
       <div className="workshop-heading">
         <div>
           <h2>カード一覧</h2>
@@ -119,15 +120,22 @@ export function CardLibraryPage() {
       <div className="library-layout">
         <div className="library-grid">
           {visibleCards.map((card, index) => (
-            <button
-              type="button"
-              className={`library-card-button ${selectedCard?.id === card.id ? "selected" : ""}`}
+            <CardPoolButton
+              card={card}
+              index={index}
               key={card.id}
-              onClick={() => setSelectedId(card.id)}
-            >
-              <CardView card={card} ownerIndex={2} zone="hand" index={index} showCost />
-              <span className="owned-count-badge">所持 {ownedCountForCard(card, owned)}枚</span>
-            </button>
+              ownerIndex={2}
+              ownedCount={ownedCountForCard(card, owned)}
+              selected={selectedCard?.id === card.id}
+              onSelect={() => {
+                if (selectedId !== card.id) playSfx("select");
+                setSelectedId(card.id);
+              }}
+              onPreview={() => {
+                if (selectedId !== card.id) playSfx("hover");
+                setSelectedId(card.id);
+              }}
+            />
           ))}
         </div>
         <CardInspector card={selectedCard} owned={owned} />
@@ -136,7 +144,7 @@ export function CardLibraryPage() {
   );
 }
 
-export function DeckBuilderPage() {
+export function DeckBuilderPage({ playSfx = () => undefined }: { playSfx?: PlaySfx } = {}) {
   const [deckName, setDeckName] = useState("新しいデッキ");
   const [cardIds, setCardIds] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState(CARD_LIST[0]?.id ?? "");
@@ -161,6 +169,7 @@ export function DeckBuilderPage() {
     return true;
   });
   const deckCards = cardIds.map((cardId) => CARD_BY_ID.get(cardId)).filter((card): card is Card => Boolean(card));
+  const highPowerDeckCount = deckCards.filter((card) => card.type === "ai" && (card.power ?? 0) >= 3).length;
 
   function addCard(cardId: string) {
     if (cardIds.length >= DECK_SIZE) return;
@@ -168,11 +177,13 @@ export function DeckBuilderPage() {
     setCardIds((current) => sortCardIds([...current, cardId]));
     setSelectedId(cardId);
     setNotice("");
+    playSfx("play");
   }
 
   function removeCard(index: number) {
     setCardIds((current) => current.filter((_, itemIndex) => itemIndex !== index));
     setNotice("");
+    playSfx("trash");
   }
 
   function loadPreset(deckId: keyof typeof DECKS) {
@@ -191,23 +202,23 @@ export function DeckBuilderPage() {
       setNotice(validation.messages[0] ?? "保存条件を満たしていません");
       return;
     }
-    const trimmedName = deckName.trim() || "無名デッキ";
-    const existing = savedDecks.find((deck) => deck.name === trimmedName);
+    const trimmedName = uniqueDeckName(deckName.trim() || "無名デッキ", savedDecks);
     const next: SavedDeck = {
       version: 1,
-      id: existing?.id ?? `deck-${Date.now()}`,
+      id: `deck-${Date.now()}`,
       name: trimmedName,
       cardIds: sortCardIds(cardIds),
       updatedAt: new Date().toISOString(),
     };
-    setSavedDecks((current) => [next, ...current.filter((deck) => deck.id !== next.id)]);
+    setSavedDecks((current) => [next, ...current]);
     setNotice(`${trimmedName}を保存しました`);
   }
 
-  function loadDeck(deck: SavedDeck) {
-    setDeckName(deck.name);
+  function copyDeck(deck: SavedDeck) {
+    const copiedName = uniqueDeckName(`${deck.name} のコピー`, savedDecks);
+    setDeckName(copiedName);
     setCardIds(sortCardIds(deck.cardIds));
-    setNotice(`${deck.name}を読み込みました`);
+    setNotice(`${deck.name}をコピーして編集中です`);
   }
 
   function deleteDeck(deckId: string) {
@@ -285,27 +296,32 @@ export function DeckBuilderPage() {
               ))}
             </select>
           </div>
-          <div className="builder-card-list">
+          <div className="builder-card-grid">
             {visibleCards.map((card, index) => {
               const count = counts.get(card.id) ?? 0;
               const ownedCount = ownedCountForCard(card, owned);
               const disabled = cardIds.length >= DECK_SIZE || count >= SAME_NAME_LIMIT || count >= ownedCount;
               return (
-                <button
-                  type="button"
-                  className={`builder-card-row ${selectedId === card.id ? "selected" : ""}`}
-                  style={{ "--card-color": cardColor(card) } as React.CSSProperties}
+                <CardPoolButton
+                  card={card}
+                  deckCount={count}
                   disabled={disabled}
+                  index={index}
                   key={card.id}
-                  onClick={() => addCard(card.id)}
-                  onMouseEnter={() => setSelectedId(card.id)}
-                  title={selectedText(card)}
-                >
-                  <span className="builder-card-name">{card.name}</span>
-                  <span className="builder-card-meta">{card.id}</span>
-                  <span className="builder-card-count">{count}/{SAME_NAME_LIMIT}</span>
-                  <span className="builder-card-owned">所持 {ownedCount}枚</span>
-                </button>
+                  ownerIndex={3}
+                  ownedCount={ownedCount}
+                  selected={selectedId === card.id}
+                  showDeckCount
+                  onSelect={() => {
+                    if (disabled) playSfx("select");
+                    setSelectedId(card.id);
+                    if (!disabled) addCard(card.id);
+                  }}
+                  onPreview={() => {
+                    if (selectedId !== card.id) playSfx("hover");
+                    setSelectedId(card.id);
+                  }}
+                />
               );
             })}
           </div>
@@ -326,21 +342,26 @@ export function DeckBuilderPage() {
             {validation.messages.length === 0 ? <span className="valid">保存できます</span> : validation.messages.map((message) => <span key={message}>{message}</span>)}
           </div>
           <div className="deck-list">
-            {deckCards.length === 0 ? <div className="empty-deck">カードを追加してください</div> : deckCards.map((card, index) => (
-              <button
-                type="button"
-                className="deck-card-item"
-                style={{ "--card-color": cardColor(card) } as React.CSSProperties}
-                key={`${card.id}-${index}`}
-                aria-label={`${index + 1}枚目の${card.name}をデッキから外す`}
-                title={`${card.name}をデッキから外す`}
-                onClick={() => removeCard(index)}
-                onMouseEnter={() => setSelectedId(card.id)}
-              >
-                <span className="deck-card-number">{index + 1}</span>
-                <CardView card={card} ownerIndex={4} zone="hand" index={index} showCost />
-              </button>
-            ))}
+            {deckCards.map((card, index) => {
+              const issue = deckCardIssue(card, counts, owned, highPowerDeckCount);
+              return (
+                <button
+                  type="button"
+                  className={`deck-card-item ${issue ? `issue-${issue.kind}` : ""}`}
+                  style={{ "--card-color": cardColor(card) } as React.CSSProperties}
+                  key={`${card.id}-${index}`}
+                  aria-label={`${index + 1}枚目の${card.name}をデッキから外す`}
+                  title={issue ? `${issue.message} / クリックで外す` : `${card.name}をデッキから外す`}
+                  onClick={() => removeCard(index)}
+                  onMouseEnter={() => {
+                    if (selectedId !== card.id) playSfx("hover");
+                    setSelectedId(card.id);
+                  }}
+                >
+                  <CardView card={card} ownerIndex={4} zone="hand" index={index} showCost />
+                </button>
+              );
+            })}
           </div>
           <div className="deck-save-actions">
             <button type="button" className="primary-action" disabled={!validation.valid} onClick={saveDeck}>保存</button>
@@ -359,9 +380,9 @@ export function DeckBuilderPage() {
             <h3>保存済み</h3>
             {savedDecks.length === 0 ? <p>まだ保存されていません</p> : savedDecks.map((deck) => (
               <div className="saved-deck-row" key={deck.id}>
-                <button type="button" onClick={() => loadDeck(deck)}>
+                <button type="button" onClick={() => copyDeck(deck)} title={`${deck.name}をコピーして編集`}>
                   <strong>{deck.name}</strong>
-                  <span>{deck.cardIds.length}枚 / {formatDate(deck.updatedAt)}</span>
+                  <span>{deck.cardIds.length}枚 / {formatDate(deck.updatedAt)} / コピーして編集</span>
                 </button>
                 <button type="button" onClick={() => deleteDeck(deck.id)}>削除</button>
               </div>
@@ -370,6 +391,50 @@ export function DeckBuilderPage() {
         </aside>
       </div>
     </section>
+  );
+}
+
+function CardPoolButton({
+  card,
+  deckCount = 0,
+  disabled = false,
+  index,
+  ownerIndex,
+  ownedCount,
+  selected,
+  showDeckCount = false,
+  onSelect,
+  onPreview,
+}: {
+  card: Card;
+  deckCount?: number;
+  disabled?: boolean;
+  index: number;
+  ownerIndex: number;
+  ownedCount: number;
+  selected: boolean;
+  showDeckCount?: boolean;
+  onSelect: () => void;
+  onPreview?: () => void;
+}) {
+  const unowned = ownedCount <= 0;
+  const title = unowned ? `${card.name} / 未所持` : selectedText(card);
+  return (
+    <button
+      type="button"
+      className={`card-pool-button ${selected ? "selected" : ""} ${unowned ? "unowned" : ""} ${disabled ? "disabled" : ""}`}
+      aria-disabled={disabled}
+      onClick={onSelect}
+      onMouseEnter={onPreview}
+      onFocus={onPreview}
+      title={title}
+    >
+      <CardView card={card} ownerIndex={ownerIndex} zone="hand" index={index} showCost />
+      <span className={`owned-count-badge ${unowned ? "empty" : ""}`}>
+        {unowned ? "未所持" : `所持 ${ownedCount}枚`}
+      </span>
+      {showDeckCount && <span className="deck-count-badge">{deckCount}/{SAME_NAME_LIMIT}</span>}
+    </button>
   );
 }
 
@@ -439,6 +504,26 @@ function StatChip({ label, value }: { label: string; value: number }) {
       <strong>{value}</strong>
     </span>
   );
+}
+
+function deckCardIssue(
+  card: Card,
+  counts: Map<string, number>,
+  owned: Record<string, number>,
+  highPowerDeckCount: number,
+): { kind: "unowned" | "invalid"; message: string } | null {
+  const cardCount = counts.get(card.id) ?? 0;
+  const ownedCount = ownedCountForCard(card, owned);
+  if (!isCardActive(card)) return { kind: "invalid", message: "現在使えないカードです" };
+  if (cardSet(card) !== 1 && ownedCount <= 0) return { kind: "unowned", message: "未所持のカードです" };
+  if (cardSet(card) !== 1 && cardCount > ownedCount) {
+    return { kind: "invalid", message: `所持${ownedCount}枚を超えています` };
+  }
+  if (cardCount > SAME_NAME_LIMIT) return { kind: "invalid", message: `同名${SAME_NAME_LIMIT}枚を超えています` };
+  if (card.type === "ai" && (card.power ?? 0) >= 3 && highPowerDeckCount > HIGH_POWER_LIMIT) {
+    return { kind: "invalid", message: `power 3以上の召喚獣が${HIGH_POWER_LIMIT}枚を超えています` };
+  }
+  return null;
 }
 
 export function validateDeck(cardIds: string[]): { valid: boolean; messages: string[] } {
@@ -528,6 +613,16 @@ function compareCardsByNumber(left: Card, right: Card): number {
 
 function safeFileName(name: string): string {
   return name.trim().replace(/[^\w.-]+/g, "_") || "break-duel-deck";
+}
+
+function uniqueDeckName(baseName: string, decks: SavedDeck[]): string {
+  const usedNames = new Set(decks.map((deck) => deck.name));
+  if (!usedNames.has(baseName)) return baseName;
+  for (let index = 2; index < 1000; index += 1) {
+    const candidate = `${baseName} ${index}`;
+    if (!usedNames.has(candidate)) return candidate;
+  }
+  return `${baseName} ${Date.now()}`;
 }
 
 function formatDate(value: string): string {

@@ -19,6 +19,7 @@ type Rarity = "n" | "r" | "sr" | "sec";
 type PackPhase = "sealed" | "torn" | "opened";
 type PackCard = { key: number; card: Card; rarity: Rarity; isNew?: boolean };
 type PackOmen = "none" | "sr" | "sec";
+type PlaySfx = (kind: string) => void;
 
 const RARITY_LABELS: Record<Rarity, string> = {
   n: "N",
@@ -77,7 +78,15 @@ function omenOf(cards: PackCard[] | null): PackOmen {
   return "none";
 }
 
-export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpendPack: () => boolean }) {
+export function PackOpeningPage({
+  coins,
+  onSpendPack,
+  playSfx = () => undefined,
+}: {
+  coins: number;
+  onSpendPack: () => boolean;
+  playSfx?: PlaySfx;
+}) {
   const [pack, setPack] = useState<PackCard[] | null>(null);
   const [phase, setPhase] = useState<PackPhase>("sealed");
   const [tearProgress, setTearProgress] = useState(0);
@@ -112,9 +121,18 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
     return clamp01((clientX - drag.startX) / (stripWidth * 0.8));
   }
 
+  function scheduleSfx(kind: string, delayMs: number) {
+    if (delayMs <= 0) {
+      playSfx(kind);
+      return;
+    }
+    flipFxTimersRef.current.push(window.setTimeout(() => playSfx(kind), delayMs));
+  }
+
   function completeTear() {
     if (phase !== "sealed" || tearBusyRef.current) return;
     if (!onSpendPack()) {
+      playSfx("select");
       setTearProgress(0);
       setDragging(false);
       return;
@@ -124,16 +142,18 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
     const rolled = rollPack();
     const { newIds } = addToCollection(rolled.map((entry) => entry.card.id));
     const marked = rolled.map((entry) => ({ ...entry, isNew: newIds.includes(entry.card.id) }));
+    const packOmen = omenOf(marked);
     setPack(marked);
     setTearProgress(1);
     setDragging(false);
     setPhase("torn");
-    const settleMs = omenOf(marked) === "none" ? TEAR_SETTLE_MS : TEAR_SETTLE_OMEN_MS;
+    const settleMs = packOmen === "none" ? TEAR_SETTLE_MS : TEAR_SETTLE_OMEN_MS;
     settleTimerRef.current = window.setTimeout(() => setPhase("opened"), settleMs);
   }
 
   function handleTearPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (phase !== "sealed" || !canAfford) return;
+    playSfx("pack-tear");
     dragRef.current = { pointerId: event.pointerId, startX: event.clientX };
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -165,6 +185,7 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
   function flipCard(key: number) {
     const entry = pack?.find((item) => item.key === key);
     const isFresh = entry !== undefined && !flippedKeys.has(key);
+    if (isFresh) playSfx("card-flip");
     setFlippedKeys((prev) => {
       if (prev.has(key)) return prev;
       const next = new Set(prev);
@@ -179,6 +200,7 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
       window.setTimeout(() => setRevealFocus("none"), 2100),
       // カードが表を向く瞬間（フリップ中間点の少し後）に光を噴かせる
       window.setTimeout(() => {
+        playSfx("rare-reveal");
         const stage = stageRef.current;
         const canvas = revealCanvasRef.current;
         const cardEl = stage?.querySelector(`[data-pack-key="${key}"]`);
@@ -208,6 +230,7 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
   }
 
   function openNextPack() {
+    playSfx("select");
     if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current);
     flipAllTimersRef.current.forEach((id) => window.clearTimeout(id));
     flipAllTimersRef.current = [];
@@ -288,7 +311,9 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
-                  if (phase === "sealed") completeTear();
+                  if (phase !== "sealed" || !canAfford) return;
+                  playSfx("pack-tear");
+                  completeTear();
                 }
               }}
             >
@@ -343,6 +368,7 @@ export function PackOpeningPage({ coins, onSpendPack }: { coins: number; onSpend
                       data-pack-key={entry.key}
                       className={`pack-card rarity-${entry.rarity} ${flipped ? "flipped" : ""}`}
                       onClick={() => flipCard(entry.key)}
+                      onMouseEnter={() => playSfx("hover")}
                       aria-label={flipped ? `${entry.card.name}（公開済み）` : `${index + 1} 枚目のカードをめくる`}
                     >
                       {(entry.rarity === "sr" || entry.rarity === "sec") && (

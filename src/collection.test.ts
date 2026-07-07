@@ -113,6 +113,16 @@ describe("collectionLimitMessages", () => {
     const card = set2Card("AI2-TEST-3", "新弾テスト獣3");
     expect(collectionLimitMessages([card], {})).toHaveLength(1);
   });
+
+  it("複数カードの所持超過は1件にまとめる", () => {
+    const first = set2Card("AI2-TEST-4", "新弾テスト獣4");
+    const second = set2Card("AI2-TEST-5", "新弾テスト獣5");
+    const third = set2Card("AI2-TEST-6", "新弾テスト獣6");
+    const fourth = set2Card("AI2-TEST-7", "新弾テスト獣7");
+    expect(collectionLimitMessages([first, second, third, fourth], {})).toEqual([
+      "所持枚数を超えるカードが4種類あります（新弾テスト獣4、新弾テスト獣5、新弾テスト獣6、ほか1種類）",
+    ]);
+  });
 });
 
 describe("storage keys", () => {
