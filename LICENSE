@@ -1,27 +1,144 @@
-NOTE: This MIT License applies to the source code of this repository only.
-Original art, audio, and game-text assets (card art, rival illustrations and
-voice files, dialogue text, etc.) are NOT covered by this license — all rights
-reserved; see LICENSE-ASSETS.md. Third-party CC0 assets remain CC0 under their
-original terms (see the asset section of README.md).
-
-MIT License
+Break Duel Source Available License 1.0
 
 Copyright (c) 2026 Break Duel contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Japanese summary (not a substitute for the license terms):
+You may view, clone, run, play, study, and modify this project for personal,
+educational, research, review, and contribution purposes. You may not use this
+project, its code, card data, rule text, game text, art, audio, or substantially
+similar playable design to publish, operate, sell, monetize, or provide a
+commercial game, app, service, dataset, or product without prior written
+permission from the copyright holder.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This license is not an Open Source Initiative approved open-source license.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+1. Definitions
+
+"Project" means this Break Duel repository and all files distributed with it,
+except Third-Party Materials.
+
+"Licensor" means the copyright holder or authorized distributor of the Project.
+
+"You" means any person or legal entity exercising permissions under this
+license.
+
+"Code" means the software source code, scripts, tests, and build configuration
+included in the Project.
+
+"Break Duel Materials" means the original expressive and game-design materials
+included in the Project, including card data, card names, card text, flavor
+text, rules text, balance tables, deck construction rules as expressed in the
+Project, UI text, dialogue, character/rival text, images, illustrations, audio,
+generated assets, documentation, screenshots, and other original content.
+
+"Non-Commercial Use" means use that is not primarily intended for, directed
+toward, or connected to commercial advantage, monetary compensation, advertising
+revenue, paid access, in-app purchases, subscriptions, sponsorship revenue,
+consulting delivery, client work, or operation of a product or service for a
+business or commercial organization.
+
+"Commercial Use" means any use that is not Non-Commercial Use.
+
+"Playable Derivative" means a game, app, service, simulation, or other
+interactive product that is based on, incorporates, ports, adapts, translates,
+or is substantially similar to the Code or Break Duel Materials.
+
+"Third-Party Materials" means files that are clearly identified in this
+repository as being owned by third parties and distributed under their own
+licenses, such as CC0 art, icons, music, or sound effects.
+
+2. Permissions
+
+Subject to the conditions and restrictions below, the Licensor grants You a
+worldwide, royalty-free, non-exclusive, non-transferable, non-sublicensable
+license to:
+
+- access, view, clone, download, and run the Project;
+- play Break Duel locally or through an official deployment;
+- study the Project and use it for personal learning, research, testing,
+  experimentation, and private entertainment;
+- modify the Project for Non-Commercial Use;
+- share Non-Commercial source-code forks, patches, or pull requests for study,
+  testing, review, or contribution back to the Project, provided that You keep
+  required notices and do not offer a Playable Derivative as a product or
+  service;
+- publish commentary, reviews, articles, screenshots, short clips, livestreams,
+  and gameplay videos about Break Duel, including on monetized creator
+  platforms, provided that You do not distribute a Playable Derivative or imply
+  endorsement by the Licensor.
+
+3. Conditions
+
+You must:
+
+- keep this license and all copyright, license, and attribution notices in any
+  copy or substantial portion of the Project that You share;
+- clearly mark modified versions as modified;
+- comply with the separate license terms for Third-Party Materials;
+- obtain prior written permission from the Licensor for any use not expressly
+  permitted by this license.
+
+4. Restrictions
+
+Without prior written permission from the Licensor, You may not:
+
+- make any Commercial Use of the Project, Code, or Break Duel Materials;
+- publish, distribute, operate, sell, sublicense, rent, lease, host, or provide
+  access to a Playable Derivative as a commercial game, app, web service, SaaS,
+  marketplace item, template, starter kit, or client deliverable;
+- monetize a Playable Derivative through sales, paid access, advertising,
+  sponsorships, subscriptions, in-app purchases, virtual goods, donations tied
+  primarily to access, or any similar revenue model;
+- use the Project as the basis for a product whose value is substantially
+  derived from Break Duel's Code, Break Duel Materials, card system, deck
+  construction structure, battle flow, or rules as expressed in the Project;
+- extract, reuse, redistribute, resell, repackage, or include Break Duel
+  Materials in another game, app, asset pack, dataset, machine-learning
+  training set, benchmark, or content library;
+- remove, obscure, or alter copyright, license, attribution, or source notices;
+- use the names "Break Duel", "AI Break Duel", or confusingly similar names,
+  logos, marks, or branding in a way that suggests endorsement, sponsorship, or
+  official status;
+- use the Project for unlawful, infringing, or deceptive purposes.
+
+5. Third-Party Materials
+
+Third-Party Materials are not licensed under this license. They remain available
+only under their own license terms. Nothing in this license limits permissions
+granted by those third-party licenses.
+
+6. Contributions
+
+Unless otherwise agreed in writing, any contribution You intentionally submit to
+the Project may be used, modified, distributed, and relicensed by the Licensor
+as part of the Project under this license or any later license chosen by the
+Licensor. You represent that You have the right to submit the contribution.
+
+7. Independent Creation and Legal Limits
+
+This license applies to the Project and to uses of the Code and Break Duel
+Materials. It does not claim rights that copyright or other applicable law does
+not provide. Independently created games or ideas that do not copy, use, adapt,
+or derive from the Project, Code, or Break Duel Materials are outside the scope
+of this license.
+
+8. Termination
+
+If You violate this license, the permissions granted to You under this license
+terminate automatically. If You stop all violation, remove or disable access to
+the infringing material, and cure the violation within 30 days after receiving
+notice from the Licensor, the permissions will be reinstated unless the Licensor
+notifies You otherwise.
+
+9. No Warranty
+
+THE PROJECT IS PROVIDED "AS IS" AND WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE, TITLE, AND NONINFRINGEMENT. YOU USE THE PROJECT AT YOUR OWN RISK.
+
+10. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE LICENSOR AND CONTRIBUTORS WILL NOT
+BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM OR RELATED TO
+THE PROJECT OR THIS LICENSE, WHETHER IN CONTRACT, TORT, OR OTHERWISE, EVEN IF
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.

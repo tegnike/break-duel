@@ -50,7 +50,7 @@ export function PlayerPanel({
       </div>
       <div className="zone-label memory-label">遺物</div>
       <div className="memory-row">
-        {player.memory ? <CardView card={player.memory} ownerIndex={ownerIndex} zone="memory" index={0} showCost={false} /> : <div className="empty-slot memory-slot">{isOpponent ? "相手遺物" : "遺物枠"}</div>}
+        {player.memory ? <CardView card={player.memory} ownerIndex={ownerIndex} zone="memory" index={0} showCost={false} showSetBadge={false} /> : <div className="empty-slot memory-slot">{isOpponent ? "相手遺物" : "遺物枠"}</div>}
       </div>
       <div className="zone-label field-label">場</div>
       <div className="field-row">
@@ -67,6 +67,7 @@ export function PlayerPanel({
             actionState={ownerIndex === 0 ? fieldCardActionState(game, player, index) : "idle"}
             game={game}
             showCost={false}
+            showSetBadge={false}
             onClick={() => onSelectField?.(index)}
           />
         ))}
@@ -94,6 +95,7 @@ export function PlayerPanel({
                   upgradeSource={sourceIndex === null ? null : player.field[sourceIndex]}
                   game={game}
                   showCost={false}
+                  showSetBadge={false}
                   onClick={() => onSelectHand?.(index)}
                 />
               );

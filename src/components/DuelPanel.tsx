@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import {
   ATTRIBUTES,
   type Attribute,
+  type AttackContext,
   type Card,
   type DefenseChoice,
   type GameState,
@@ -27,6 +28,7 @@ import {
   defensePowerBonus,
   legalFieldDefenders,
   legalHandDefenders,
+  legalStrikeFieldDefenders,
   strikeValues,
   opponentPlayer,
   playCost,
@@ -96,6 +98,7 @@ export function AffinityGuide({ game, selected }: { game: GameState; selected: C
 
 function OpponentDefensePreview({ game, attackCard }: { game: GameState; attackCard: Card }) {
   const opponent = game.players[1];
+  const attackContext: AttackContext = { attacker: game.players[0], attackerFieldIndex: game.selected?.index ?? null };
   const rows = opponent.field
     .map((card, index) => ({ card, index }))
     .filter(({ index }) => !opponent.spentFieldIndexes.has(index));
@@ -105,9 +108,13 @@ function OpponentDefensePreview({ game, attackCard }: { game: GameState; attackC
       <div className="affinity-preview-title">相手の場の防御候補</div>
       <div className="affinity-defense-list">
         {rows.map(({ card, index }) => {
-          const defenseValue = defenseCombatValue(attackCard, card, opponent, { fieldIndex: index });
-          const attackValue = attackCombatValue(attackCard);
-          const result = defenseValue > attackValue ? "防御側が残る" : defenseValue === attackValue ? "相打ち" : "防御不可";
+          const defenseValue = defenseCombatValue(attackCard, card, opponent, { fieldIndex: index, attackContext });
+          const attackValue = attackCombatValue(attackCard, attackContext);
+          const result = defenseValue > attackValue
+            ? "防御側が残る"
+            : defenseValue === attackValue
+              ? "相打ち"
+              : `差分${attackValue - defenseValue}点`;
           return (
             <div className="affinity-defense-row" style={{ "--card-color": cardColor(card) } as React.CSSProperties} key={card.id}>
               <div className="affinity-defense-main">{card.name} / {card.attribute} / power {card.power}</div>
@@ -129,6 +136,7 @@ export function DefensePanel({
   onTogglePendingCard,
   onConfirmPending,
   onConfirmCardSelection,
+  onConfirmRelicThiefTrash,
   onConfirmFaceAttack,
   onStrikeTarget,
   forcedDefenseChoice,
@@ -141,11 +149,25 @@ export function DefensePanel({
   onTogglePendingCard: (index: number) => void;
   onConfirmPending: () => void;
   onConfirmCardSelection: () => void;
+  onConfirmRelicThiefTrash: () => void;
   onConfirmFaceAttack: () => void;
   onStrikeTarget: (sourceIndex: number, targetIndex: number) => void;
   forcedDefenseChoice?: DefenseChoice | null;
 }) {
   if (game.pendingTarget) {
+    if (game.pendingTarget.kind === "confirm") {
+      const pending = game.pendingTarget;
+      return (
+        <div className={`defense-panel pending-${pending.reason}`}>
+          <h3>{pending.title}</h3>
+          <p className="choice-prompt">{pending.prompt}</p>
+          <div className="defense-actions pending-actions">
+            <button type="button" onClick={onConfirmRelicThiefTrash}>{pending.confirmLabel}</button>
+            {pending.cancelable !== false && <button type="button" onClick={onCancelTarget}>{pending.cancelLabel}</button>}
+          </div>
+        </div>
+      );
+    }
     if (game.pendingTarget.kind === "hand-discard") {
       const pending = game.pendingTarget;
       const player = game.players[pending.playerIndex];
@@ -173,7 +195,7 @@ export function DefensePanel({
               {pending.reason === "optimize"
                 ? "トラッシュへ送って山札からカードを2枚引く"
                 : pending.reason === "firewall"
-                  ? pending.selectedIndexes.length > 0 ? "このカードで強化" : "使わず防御"
+                  ? pending.selectedIndexes.length > 0 ? "このカードで強化" : "竜盾の紋章を使わず防御"
                   : "このカードを送る"}
             </button>
             {pending.cancelable !== false && <button type="button" onClick={onCancelTarget}>キャンセル</button>}
@@ -220,12 +242,14 @@ export function DefensePanel({
       const opponent = opponentPlayer(game);
       const attackCard = attacker.field[pending.sourceIndex];
       if (!attackCard) return null;
-      const targets = strikeTargets(attackCard, opponent);
+      const attackContext: AttackContext = { attacker, attackerFieldIndex: pending.sourceIndex };
+      const attackValue = attackCombatValue(attackCard, attackContext);
+      const targets = strikeTargets(attackCard, opponent, attackContext);
       return (
         <div className="defense-panel pending-strike" role="dialog" aria-modal="true" aria-labelledby="strike-target-title">
           <h3 id="strike-target-title">{attackCard.name}の攻撃対象を選択</h3>
           <p className="choice-prompt">相手プレイヤーへ攻撃するか、討伐できる相手召喚獣を選んでください。</p>
-          <div className="defense-context">攻撃値 {attackCombatValue(attackCard)} / プレイヤーへ通れば {attackDamage(attackCard)} ダメージ。召喚獣攻撃は同値なら相打ち、上回れば対象を討伐します。</div>
+          <div className="defense-context">攻撃値 {attackValue} / プレイヤーへ通れば {attackDamage(attackCard)} ダメージ。召喚獣攻撃は同値なら相打ち、上回れば対象を討伐します。</div>
           <div className="pending-card-grid strike-target-grid">
             {targets.map(({ card, index, attackValue, defenseValue, trade }) => (
               <PendingCardChoice
@@ -280,14 +304,23 @@ export function DefensePanel({
 
   const pending = game.pendingAttack;
   if (!pending || !game.players[pending.defenderIndex].isHuman) return null;
+  return <AttackDefensePanel game={game} forcedDefenseChoice={forcedDefenseChoice} onResolve={onResolve} />;
+}
+
+function AttackDefensePanel({ game, forcedDefenseChoice, onResolve }: { game: GameState; forcedDefenseChoice?: DefenseChoice | null; onResolve: (choice: DefenseChoice) => void }) {
+  const pending = game.pendingAttack!;
   const attackCard = game.players[pending.attackerIndex].field[pending.fieldIndex];
+  const attacker = game.players[pending.attackerIndex];
   const defender = game.players[pending.defenderIndex];
+  const attackContext: AttackContext = { attacker, attackerFieldIndex: pending.fieldIndex };
   const strikeTarget = pending.strikeTargetIndex !== undefined ? defender.field[pending.strikeTargetIndex] : null;
   const strikeInfo = pending.strikeTargetIndex !== undefined && strikeTarget
-    ? strikeValues(attackCard, defender, pending.strikeTargetIndex)
+    ? strikeValues(attackCard, defender, pending.strikeTargetIndex, attackContext)
     : null;
-  const fieldOptions = strikeTarget ? [] : legalFieldDefenders(defender, attackCard);
-  const handOptions = legalHandDefenders(defender, attackCard);
+  const fieldOptions = pending.strikeTargetIndex !== undefined
+    ? legalStrikeFieldDefenders(defender, attackCard, pending.strikeTargetIndex, attackContext)
+    : legalFieldDefenders(defender, attackCard, attackContext);
+  const handOptions = legalHandDefenders(defender, attackCard, attackContext);
   const forcedFieldOptions = forcedDefenseChoice?.type === "field"
     ? fieldOptions.filter(({ index }) => index === forcedDefenseChoice.index)
     : [];
@@ -299,17 +332,42 @@ export function DefensePanel({
   const visibleFieldOptions = forcedNoDefense ? [] : effectiveForcedDefenseChoice?.type === "field" ? forcedFieldOptions : fieldOptions;
   const visibleHandOptions = forcedNoDefense ? [] : effectiveForcedDefenseChoice?.type === "hand" ? forcedHandOptions : handOptions;
   const hasVisibleOptions = visibleFieldOptions.length > 0 || visibleHandOptions.length > 0;
+  const attackValue = attackCombatValue(attackCard, attackContext);
+  const firewallOptions = visibleFieldOptions.filter(({ card, index }) => {
+    if (!canUseFirewall(defender, card, attackCard)) return false;
+    const baseValue = defenseCombatValue(attackCard, card, defender, { fieldDefense: true, fieldIndex: index, attackContext });
+    const paidValue = defenseCombatValue(attackCard, card, defender, { fieldDefense: true, fieldIndex: index, attackContext, firewallPaid: true });
+    return paidValue > baseValue;
+  });
+  const defaultFirewallEnabled = firewallOptions.some(({ card, index }) => {
+    const baseValue = defenseCombatValue(attackCard, card, defender, { fieldDefense: true, fieldIndex: index, attackContext });
+    const paidValue = defenseCombatValue(attackCard, card, defender, { fieldDefense: true, fieldIndex: index, attackContext, firewallPaid: true });
+    return baseValue < attackValue && paidValue >= attackValue;
+  });
+  const [firewallEnabled, setFirewallEnabled] = React.useState(defaultFirewallEnabled);
+  React.useEffect(() => {
+    setFirewallEnabled(defaultFirewallEnabled);
+  }, [defaultFirewallEnabled, pending.attackerIndex, pending.defenderIndex, pending.fieldIndex, pending.strikeTargetIndex]);
   return (
     <div className="defense-panel">
       <h3>{strikeTarget ? `${attackCard.name}のモンスター攻撃への防御を選択` : `${attackCard.name}への防御を選択`}</h3>
       <div className="defense-context">
         {strikeTarget && strikeInfo
-          ? `攻撃値 ${strikeInfo.attackValue} vs ${strikeTarget.name} 防御値 ${strikeInfo.defenseValue}。防御しなければ${strikeInfo.attackValue === strikeInfo.defenseValue ? "相打ちで両方トラッシュ" : `${strikeTarget.name}は退場`}。手札ブロックで止めれば${strikeTarget.name}は場に残ります（防御カードは使い切り）。`
-          : `攻撃値 ${attackCombatValue(attackCard)} / 通れば ${attackDamage(attackCard)} ダメージ(power分)。場ブロックは同値なら相打ち、上回れば防御側が残ります。手札ブロックは使い切りです。`}
+          ? `攻撃値 ${strikeInfo.attackValue} vs ${strikeTarget.name} 防御値 ${strikeInfo.defenseValue}。防御しなければ${strikeInfo.attackValue === strikeInfo.defenseValue ? "相打ちで両方トラッシュ" : `${strikeTarget.name}は退場`}。場の別召喚獣でかばうか、手札ブロックで止めれば${strikeTarget.name}は場に残ります。`
+          : `攻撃値 ${attackCombatValue(attackCard, attackContext)} / 防御しなければ ${attackDamage(attackCard)} ダメージ(power分)。場防御は不足でも選べます。不足なら防御召喚獣をトラッシュし、攻撃値との差分ダメージを受けます。手札ブロックは使い切りです。`}
       </div>
+      {firewallOptions.length > 0 && (
+        <div className="firewall-toggle-panel" role="group" aria-label="竜盾の紋章を使うか">
+          <span>竜盾の紋章</span>
+          <div className="firewall-toggle-buttons">
+            <button type="button" className={!firewallEnabled ? "active" : ""} aria-pressed={!firewallEnabled} onClick={() => setFirewallEnabled(false)}>使用しない</button>
+            <button type="button" className={firewallEnabled ? "active" : ""} aria-pressed={firewallEnabled} onClick={() => setFirewallEnabled(true)}>使用する</button>
+          </div>
+        </div>
+      )}
       <div className="defense-choice-grid">
-        {visibleFieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} cardIndex={index} attackCard={attackCard} defender={defender} fieldIndex={index} onClick={() => onResolve({ type: "field", index })} />)}
-        {visibleHandOptions.map(({ card, index }) => <DefenseChoiceButton key={`hand-${index}`} source="手札" card={card} cardIndex={index} attackCard={attackCard} defender={defender} hand onClick={() => onResolve({ type: "hand", index })} />)}
+        {visibleFieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} cardIndex={index} attackCard={attackCard} attackContext={attackContext} defender={defender} fieldIndex={index} strikeGuard={Boolean(strikeTarget)} firewallEnabled={firewallEnabled} onResolve={onResolve} />)}
+        {visibleHandOptions.map(({ card, index }) => <DefenseChoiceButton key={`hand-${index}`} source="手札" card={card} cardIndex={index} attackCard={attackCard} attackContext={attackContext} defender={defender} hand firewallEnabled={false} onResolve={onResolve} />)}
         {!hasVisibleOptions && !forcedNoDefense && <div className="defense-context">防御できるカードはありません。</div>}
         {(!effectiveForcedDefenseChoice || forcedNoDefense) && <button type="button" className="defense-pass" onClick={() => onResolve({ type: "none" })}>防御しない</button>}
       </div>
@@ -357,6 +415,7 @@ function PendingCardChoice({
         selected={selected}
         spent={spent}
         showCost={false}
+        showSetBadge={false}
       />
       <span className="pending-card-copy">
         <span className="pending-card-title">{card.name}</span>
@@ -368,40 +427,61 @@ function PendingCardChoice({
   );
 }
 
-function DefenseChoiceButton({ source, card, cardIndex, attackCard, defender, hand = false, fieldIndex, onClick }: { source: string; card: Card; cardIndex: number; attackCard: Card; defender: PlayerState; hand?: boolean; fieldIndex?: number; onClick: () => void }) {
-  const defenseOptions = { fieldDefense: !hand, fieldIndex };
+function DefenseChoiceButton({ source, card, cardIndex, attackCard, attackContext, defender, hand = false, fieldIndex, strikeGuard = false, firewallEnabled, onResolve }: { source: string; card: Card; cardIndex: number; attackCard: Card; attackContext: AttackContext; defender: PlayerState; hand?: boolean; fieldIndex?: number; strikeGuard?: boolean; firewallEnabled: boolean; onResolve: (choice: DefenseChoice) => void }) {
+  const defenseOptions = { fieldDefense: !hand, fieldIndex, attackContext };
   const baseDefenseValue = defenseCombatValue(attackCard, card, defender, defenseOptions);
   const paidDefenseValue = canUseFirewall(defender, card, attackCard)
     ? defenseCombatValue(attackCard, card, defender, { firewallPaid: true, ...defenseOptions })
     : baseDefenseValue;
-  const defenseValue = baseDefenseValue >= attackCombatValue(attackCard) ? baseDefenseValue : paidDefenseValue;
-  const traitBonus = !hand && (card.effect === "defense_plus_1" || card.effect === "defense_plus_1_enters_spent") ? 1 : 0;
-  const attackValue = attackCombatValue(attackCard);
+  const attackValue = attackCombatValue(attackCard, attackContext);
+  const firewallAvailable = !hand && paidDefenseValue > baseDefenseValue;
+  const defenseValue = firewallAvailable && firewallEnabled ? paidDefenseValue : baseDefenseValue;
+  const traitBonus = !hand && (
+    card.effect === "defense_plus_1"
+    || card.effect === "defense_plus_1_enters_spent"
+    || card.effect === "recover_memory_on_play_defense_plus_1"
+    || (card.effect === "defense_plus_1_with_memory" && defender.memory)
+  ) ? 1 : 0;
   const result = hand
     ? "防御成功 / このカードをトラッシュ"
-    : baseDefenseValue < attackValue && paidDefenseValue >= attackValue
-      ? `竜盾使用で${paidDefenseValue === attackValue ? "相打ち" : "防御成功"}`
+    : firewallAvailable && firewallEnabled && baseDefenseValue < attackValue && paidDefenseValue >= attackValue
+      ? `竜盾の紋章使用で${paidDefenseValue === attackValue ? "相打ち" : "防御成功"}`
+    : defenseValue < attackValue
+      ? strikeGuard ? "防御失敗 / 対象は守る" : `防御失敗 / 差分${Math.max(0, attackValue - defenseValue)}点`
       : defenseValue === attackValue
       ? "相打ち / 両方トラッシュ"
       : "防御側が残る / 攻撃側退場";
-  const firewallText = !hand && paidDefenseValue > baseDefenseValue ? ` / 竜盾使用時 ${paidDefenseValue}` : "";
+  const firewallText = firewallAvailable ? ` / 竜盾の紋章使用時 ${paidDefenseValue}` : "";
   const visibleDefenseBonus = hand ? 0 : defensePowerBonus(card, defender, attackCard, defenseOptions);
   const extraBadges = visibleDefenseBonus > 0 ? [`場防御+${visibleDefenseBonus}`] : [];
+  const resolveChoice = () => {
+    if (hand) {
+      onResolve({ type: "hand", index: cardIndex });
+      return;
+    }
+    if (firewallAvailable && !firewallEnabled) {
+      onResolve({ type: "field", index: cardIndex, firewallDiscardIndex: null });
+      return;
+    }
+    onResolve({ type: "field", index: cardIndex });
+  };
   return (
-    <button type="button" className="defense-choice" style={{ "--card-color": cardColor(card) } as React.CSSProperties} title={`${source}: ${card.name} / ${defenseMathText(attackCard, card, defender, defenseOptions)}`} onClick={onClick}>
-      <div className="defense-choice-card">
-        <span className="defense-source">{source}</span>
-        <CardView card={card} ownerIndex={0} zone={hand ? "hand" : "field"} index={cardIndex} showCost={false} extraBadges={extraBadges} />
-      </div>
-      <div className="defense-choice-info">
-        <div className="defense-choice-name">{card.name}</div>
-        <div className="defense-choice-body">
-          <span>{card.attribute} / power {card.power}</span>
-          <span>防御値 {baseDefenseValue} = {card.power} + {defensePowerBonus(card, defender, attackCard, defenseOptions) - traitBonus} + {traitBonus}{firewallText}</span>
-          <span className="defense-choice-result">{result}</span>
+    <div className="defense-choice" style={{ "--card-color": cardColor(card) } as React.CSSProperties} title={`${source}: ${card.name} / ${defenseMathText(attackCard, card, defender, { ...defenseOptions, firewallPaid: firewallEnabled })}`}>
+      <button type="button" className="defense-choice-select" onClick={resolveChoice}>
+        <div className="defense-choice-card">
+          <span className="defense-source">{source}</span>
+          <CardView card={card} ownerIndex={0} zone={hand ? "hand" : "field"} index={cardIndex} showCost={false} showSetBadge={false} extraBadges={extraBadges} />
         </div>
-      </div>
-    </button>
+        <div className="defense-choice-info">
+          <div className="defense-choice-name">{card.name}</div>
+          <div className="defense-choice-body">
+            <span>{card.attribute} / power {card.power}</span>
+            <span>防御値 {baseDefenseValue} = {card.power} + {defensePowerBonus(card, defender, attackCard, defenseOptions) - traitBonus} + {traitBonus}{firewallText}</span>
+            <span className="defense-choice-result">{result}</span>
+          </div>
+        </div>
+      </button>
+    </div>
   );
 }
 

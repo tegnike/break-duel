@@ -37,7 +37,24 @@ export type AiEffect =
   | "charge_pressure_plus"
   | "charge_surge_draw"
   | "charge_spend_enemy"
-  | "charge_recover_discard";
+  | "charge_recover_discard"
+  | "trash_enemy_memory_on_play"
+  | "draw_on_play_if_discard_4"
+  | "charge_draw_if_discard_ai"
+  | "recover_ai_on_successful_defense"
+  | "discard_commands_attack_plus_1"
+  | "draw_on_play_defense_draw"
+  | "ready_ally_on_play_enters_spent"
+  | "defense_plus_1_with_memory"
+  | "blocked_attack_draw"
+  | "charge_spend_enemy_ready_ally"
+  | "charge_recover_discard_any"
+  | "charge_filter_draw"
+  | "charge_pressure_any"
+  | "return_after_overheat_opponent_draw_on_play"
+  | "discard_ai_attack_plus_1"
+  | "charge_spend_all_enemies"
+  | "recover_memory_on_play_defense_plus_1";
 export type CommandEffect =
   | "optimize"
   | "patch"
@@ -50,8 +67,16 @@ export type CommandEffect =
   | "water_rite"
   | "wind_rite"
   | "earth_rite"
-  | "comeback_rite";
-export type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator" | "resonator" | "recovery_cache" | "war_banner" | "grove_rest";
+  | "comeback_rite"
+  | "war_cry"
+  | "tide_edge"
+  | "pierce_sight"
+  | "grave_call"
+  | "salvage"
+  | "overdrive"
+  | "relic_crush"
+  | "deep_current";
+export type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator" | "resonator" | "recovery_cache" | "war_banner" | "grove_rest" | "echo_urn" | "storm_core" | "tidal_mirror" | "dual_banner";
 export type CardEffect = AiEffect | CommandEffect | MemoryEffect | "";
 export type Zone = "hand" | "field" | "memory" | "discard";
 
@@ -60,9 +85,40 @@ export type Card = {
   name: string;
   type: CardType;
   attribute?: Attribute;
+  /** デュアル属性カードの第2属性。単属性カードは未指定 */
+  subAttribute?: Attribute;
   power?: number;
   effect?: CardEffect;
   status: CardStatus;
+  /** 収録弾。未指定は第1弾（スターター、コレクション制限なし） */
+  set?: number;
+};
+
+/** カードが持つ属性の一覧（主属性 + デュアル副属性） */
+export function cardAttributes(card: Card): Attribute[] {
+  const attributes: Attribute[] = [];
+  if (card.attribute) attributes.push(card.attribute);
+  if (card.subAttribute && card.subAttribute !== card.attribute) attributes.push(card.subAttribute);
+  return attributes;
+}
+
+/** カードが属性 attribute を持つか（デュアル属性対応の統一判定） */
+export function hasAttribute(card: Card, attribute: Attribute): boolean {
+  return card.attribute === attribute || card.subAttribute === attribute;
+}
+
+/** 2枚のカードが属性を1つでも共有するか（同属性判定のデュアル対応版） */
+export function sharesAttribute(left: Card, right: Card): boolean {
+  return cardAttributes(left).some((attribute) => hasAttribute(right, attribute));
+}
+
+export function cardSet(card: Card): number {
+  return card.set ?? 1;
+}
+
+export const CARD_SET_LABELS: Record<number, string> = {
+  1: "第1弾",
+  2: "第2弾「残響の胎動」",
 };
 
 type CardSeed = Omit<Card, "status"> & { status?: CardStatus };
@@ -86,11 +142,25 @@ export type PlayerState = {
   pipelineUsed: boolean;
   acceleratorUsed: boolean;
   warBannerUsed: boolean;
+  /** このターン、残響の骨壺（トラッシュ→手札の回収時ドロー）を使ったか */
+  echoUrnUsed: boolean;
   chargeUsed: boolean;
   chargeGuardedFieldIndexes: Set<number>;
   sandboxShield: number;
   spentFieldIndexes: Set<number>;
   power3RecoveryDelayedFieldIndexes: Set<number>;
+  /** このターン限定: 場インデックス別の戦闘時攻撃値ボーナス（「召喚獣1体の攻撃値+N」用） */
+  turnFieldAttackBonuses: Map<number, number>;
+  /** このターン限定: 自分の召喚獣すべての戦闘時攻撃値ボーナス */
+  turnGlobalAttackBonus: number;
+  /** このターン限定: 自分の次の攻撃は手札防御されない */
+  nextAttackUnblockable: boolean;
+};
+
+/** 攻撃値算出・防御可否判定に攻撃側のターン限定状態を伝えるコンテキスト */
+export type AttackContext = {
+  attacker?: PlayerState | null;
+  attackerFieldIndex?: number | null;
 };
 
 export type DuelDeckSource =
@@ -142,7 +212,7 @@ export type PendingTarget =
     }
   | {
       kind: "card-select";
-      reason: "filter-discard" | "relearn-recover" | "earth-rite-recover" | "recover-on-play" | "upgrade-source" | "ready-ally" | "spend-enemy" | "block-pressure" | "accelerator-sacrifice" | "charge-guard" | "charge-ready-ally" | "charge-spend-enemy" | "charge-recover" | "wind-rite-disrupt" | "wind-rite-ready" | "comeback-rite-ready";
+      reason: "filter-discard" | "relearn-recover" | "earth-rite-recover" | "recover-on-play" | "upgrade-source" | "ready-ally" | "spend-enemy" | "block-pressure" | "accelerator-sacrifice" | "charge-guard" | "charge-ready-ally" | "charge-spend-enemy" | "charge-recover" | "wind-rite-disrupt" | "wind-rite-ready" | "comeback-rite-ready" | "tide-edge-buff" | "grave-call-revive" | "salvage-recover" | "deep-current-discard";
       zone: "hand" | "field" | "discard";
       playerIndex: number;
       title: string;
@@ -158,6 +228,18 @@ export type PendingTarget =
       secondaryTargetIndex?: number;
       actionCost?: number;
       actionKind?: "normal" | "attack";
+      cancelable?: boolean;
+    }
+  | {
+      kind: "confirm";
+      reason: "relic-thief-trash";
+      playerIndex: number;
+      fieldIndex: number;
+      title: string;
+      prompt: string;
+      confirmLabel: string;
+      cancelLabel: string;
+      actionCost?: number;
       cancelable?: boolean;
     }
   | null;
@@ -362,9 +444,45 @@ export function cardPool(): Card[] {
     { id: "AI-WIND-1C", name: monsterNames["AI-WIND-1C"], type: "ai", attribute: "風", power: 1, effect: "charge_spend_enemy" },
     { id: "AI-EARTH-1C", name: monsterNames["AI-EARTH-1C"], type: "ai", attribute: "土", power: 1, effect: "charge_recover_discard" },
   ];
+  // 第2弾「残響の胎動」召喚獣（18種）。全カード set: 2
+  const set2AiCards: CardSeed[] = [
+    { id: "AI-FIRE-1D", name: "炉暴きレミ", type: "ai", attribute: "火", power: 1, effect: "trash_enemy_memory_on_play", set: 2 },
+    { id: "AI-WATER-1D", name: "雫渡りナユ", type: "ai", attribute: "水", power: 1, effect: "draw_on_play_if_discard_4", set: 2 },
+    { id: "AI-WIND-1D", name: "風信子スゥ", type: "ai", attribute: "風", power: 1, effect: "charge_draw_if_discard_ai", set: 2 },
+    { id: "AI-EARTH-1D", name: "骨集めコロ", type: "ai", attribute: "土", power: 1, effect: "recover_ai_on_successful_defense", set: 2 },
+    { id: "AI-FIRE-2D", name: "焔喰いガルル", type: "ai", attribute: "火", power: 2, effect: "discard_commands_attack_plus_1", set: 2 },
+    { id: "AI-WATER-2D", name: "潮汲みモネ", type: "ai", attribute: "水", power: 2, effect: "draw_on_play_defense_draw", set: 2 },
+    { id: "AI-WIND-2D", name: "旋律鳥カナタ", type: "ai", attribute: "風", power: 2, effect: "ready_ally_on_play_enters_spent", set: 2 },
+    { id: "AI-EARTH-2D", name: "苔纏いドルモ", type: "ai", attribute: "土", power: 2, effect: "defense_plus_1_with_memory", set: 2 },
+    { id: "AI-FIRE-3D", name: "焔角のグレンド", type: "ai", attribute: "火", power: 3, effect: "hand_defense_pierce", set: 2 },
+    { id: "AI-WATER-3D", name: "深響のセレナ", type: "ai", attribute: "水", power: 3, effect: "blocked_attack_draw", set: 2 },
+    { id: "AI-WIND-3C", name: "翠嵐鷹ハヤテ", type: "ai", attribute: "風", power: 3, effect: "charge_spend_enemy_ready_ally", set: 2 },
+    { id: "AI-EARTH-3C", name: "古磐熊ゴロン", type: "ai", attribute: "土", power: 3, effect: "charge_recover_discard_any", set: 2 },
+    { id: "AI-WATER-3C", name: "潮渦のシラス", type: "ai", attribute: "水", power: 3, effect: "charge_filter_draw", set: 2 },
+    { id: "AI-FIRE-3C", name: "燐火獅子レオン", type: "ai", attribute: "火", power: 3, effect: "charge_pressure_any", set: 2 },
+    { id: "AI-WATER-4D", name: "海淵帝グランマーレ", type: "ai", attribute: "水", power: 4, effect: "return_after_overheat_opponent_draw_on_play", set: 2 },
+    { id: "AI-FIRE-4D", name: "灰滅竜ヴァレン", type: "ai", attribute: "火", power: 4, effect: "discard_ai_attack_plus_1", set: 2 },
+    { id: "AI-WIND-4D", name: "天嵐王ジェイル", type: "ai", attribute: "風", power: 4, effect: "charge_spend_all_enemies", set: 2 },
+    { id: "AI-EARTH-4D", name: "城塞獣ガリオン", type: "ai", attribute: "土", power: 4, effect: "recover_memory_on_play_defense_plus_1", set: 2 },
+  ];
+  const set2SupportCards: CardSeed[] = [
+    { id: "CMD-WAR-CRY", name: "猛りの号令", type: "event", effect: "war_cry", set: 2 },
+    { id: "CMD-TIDE-EDGE", name: "潮刃の付与", type: "event", effect: "tide_edge", set: 2 },
+    { id: "CMD-PIERCE-SIGHT", name: "貫きの眼光", type: "event", effect: "pierce_sight", set: 2 },
+    { id: "CMD-GRAVE-CALL", name: "残響召喚", type: "event", effect: "grave_call", set: 2 },
+    { id: "CMD-SALVAGE", name: "遺灰回収", type: "event", effect: "salvage", set: 2 },
+    { id: "CMD-OVERDRIVE", name: "過負荷解放", type: "event", effect: "overdrive", set: 2 },
+    { id: "CMD-RELIC-CRUSH", name: "遺物砕き", type: "event", effect: "relic_crush", set: 2 },
+    { id: "CMD-DEEP-CURRENT", name: "深流呼び", type: "event", effect: "deep_current", set: 2 },
+    { id: "MEM-ECHO-URN", name: "残響の骨壺", type: "memory", effect: "echo_urn", set: 2 },
+    { id: "MEM-STORM-CORE", name: "嵐核の環", type: "memory", effect: "storm_core", set: 2 },
+    { id: "MEM-TIDAL-MIRROR", name: "潮鏡の祭具", type: "memory", effect: "tidal_mirror", set: 2 },
+    { id: "MEM-DUAL-BANNER", name: "双色の軍旗", type: "memory", effect: "dual_banner", set: 2 },
+  ];
   const cards: CardSeed[] = [
     ...aiCards,
     ...chargeCycleCards,
+    ...set2AiCards,
     { id: "CMD-OPTIMIZE", name: "陣形リライト", type: "event", effect: "optimize" },
     { id: "CMD-PATCH", name: "若葉の息吹", type: "event", effect: "patch" },
     { id: "CMD-DISRUPT", name: "黒蔦の足止め", type: "event", effect: "disrupt" },
@@ -385,6 +503,7 @@ export function cardPool(): Card[] {
     { id: "MEM-RECOVERY-CACHE", name: "再起の灯箱", type: "memory", effect: "recovery_cache" },
     { id: "MEM-WAR-BANNER", name: "猛火の戦旗", type: "memory", effect: "war_banner" },
     { id: "MEM-GROVE", name: "大樹の寝床", type: "memory", effect: "grove_rest" },
+    ...set2SupportCards,
   ];
   return cards.map((card) => ({ ...card, status: card.status ?? "active" }));
 }
@@ -497,8 +616,8 @@ export const DECKS = {
     name: "水単色デッキ",
     description: "ドローと手札調整で必要札を探し続ける安定型。息切れしにくい構成です。",
     cards: [
-      "AI-WATER-1",
-      "AI-WATER-1",
+      "AI-WATER-2D",
+      "AI-WATER-2D",
       "AI-WATER-1C",
       "AI-WATER-1C",
       "AI-WATER-2",
@@ -617,11 +736,42 @@ export const DECKS = {
       "MEM-RECOVERY-CACHE",
     ],
   },
+  echoes: {
+    name: "残響胎動デッキ",
+    description: "第2弾主体のトラッシュ×水デッキ。捨てて、引いて、トラッシュから何度でも蘇ります。",
+    cards: [
+      "AI-WATER-1D",
+      "AI-WATER-1D",
+      "AI-EARTH-1D",
+      "AI-EARTH-1D",
+      "AI-WATER-2D",
+      "AI-WATER-2D",
+      "AI-WIND-2D",
+      "AI-WIND-2D",
+      "AI-EARTH-2D",
+      "AI-EARTH-2D",
+      "AI-WATER-3D",
+      "AI-WATER-3C",
+      "AI-EARTH-3C",
+      "AI-WATER-4D",
+      "AI-WATER-4D",
+      "CMD-GRAVE-CALL",
+      "CMD-GRAVE-CALL",
+      "CMD-DEEP-CURRENT",
+      "CMD-DEEP-CURRENT",
+      "CMD-PURGE",
+      "CMD-DISRUPT",
+      "CMD-TIDE-EDGE",
+      "MEM-CACHE",
+      "MEM-ECHO-URN",
+      "MEM-ECHO-URN",
+    ],
+  },
 } as const;
 
 export type DeckId = keyof typeof DECKS;
 
-export const BATTLE_DECK_IDS = ["break", "control", "fire", "water", "wind", "earth", "apex"] as const satisfies readonly DeckId[];
+export const BATTLE_DECK_IDS = ["break", "control", "fire", "water", "wind", "earth", "apex", "echoes"] as const satisfies readonly DeckId[];
 
 export function cloneCard(card: Card): Card {
   return { ...card };
@@ -680,11 +830,15 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     pipelineUsed: false,
     acceleratorUsed: false,
     warBannerUsed: false,
+    echoUrnUsed: false,
     chargeUsed: false,
     chargeGuardedFieldIndexes: new Set(),
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
     power3RecoveryDelayedFieldIndexes: new Set<number>(),
+    turnFieldAttackBonuses: new Map<number, number>(),
+    turnGlobalAttackBonus: 0,
+    nextAttackUnblockable: false,
   };
 }
 
@@ -710,11 +864,15 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     pipelineUsed: false,
     acceleratorUsed: false,
     warBannerUsed: false,
+    echoUrnUsed: false,
     chargeUsed: false,
     chargeGuardedFieldIndexes: new Set(),
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
     power3RecoveryDelayedFieldIndexes: new Set<number>(),
+    turnFieldAttackBonuses: new Map<number, number>(),
+    turnGlobalAttackBonus: 0,
+    nextAttackUnblockable: false,
   };
 }
 
@@ -746,6 +904,7 @@ export function cloneGame(game: GameState): GameState {
       spentFieldIndexes: new Set(player.spentFieldIndexes),
       power3RecoveryDelayedFieldIndexes: new Set(player.power3RecoveryDelayedFieldIndexes),
       chargeGuardedFieldIndexes: new Set(player.chargeGuardedFieldIndexes),
+      turnFieldAttackBonuses: new Map(player.turnFieldAttackBonuses ?? []),
     })),
     selected: game.selected ? { ...game.selected } : null,
     pendingAttack: game.pendingAttack ? { ...game.pendingAttack } : null,
@@ -845,6 +1004,7 @@ export function startTurn(game: GameState): void {
   game.players.forEach((player) => {
     player.handDefensesUsed = 0;
     player.playedAiThisTurn = false;
+    player.echoUrnUsed = false;
   });
   const player = activePlayer(game);
   readyFieldForTurn(player);
@@ -854,6 +1014,7 @@ export function startTurn(game: GameState): void {
   player.chargeUsed = false;
   player.chargeGuardedFieldIndexes.clear();
   player.sandboxShield = 0;
+  resetTurnAttackBuffs(player);
   player.turnsStarted += 1;
   const handCountAtTurnStart = player.hand.length;
   const drawnCards = shouldDrawForTurn(game) ? drawCards(player, 1) : [];
@@ -901,8 +1062,30 @@ export function actionsForTurn(game: GameState): number {
 }
 
 export function applyTurnStartMemory(player: PlayerState, handCountAtTurnStart = player.hand.length): Card[] {
-  if (player.memory?.effect !== "cache") return [];
-  if (handCountAtTurnStart > 2) return [];
+  if (player.memory?.effect === "cache") {
+    if (handCountAtTurnStart > 2) return [];
+    return drawCards(player, 1);
+  }
+  if (player.memory?.effect === "dual_banner") {
+    if (handCountAtTurnStart > 2) return [];
+    if (fieldAttributeCount(player) < 2) return [];
+    return drawCards(player, 2);
+  }
+  return [];
+}
+
+/** 場の召喚獣が持つ属性の種類数（デュアル属性は両方数える） */
+export function fieldAttributeCount(player: PlayerState): number {
+  const attributes = new Set<Attribute>();
+  player.field.forEach((card) => cardAttributes(card).forEach((attribute) => attributes.add(attribute)));
+  return attributes.size;
+}
+
+/** 残響の骨壺: 1ターンに1回、トラッシュから手札にカードが戻った時に1枚引く */
+export function applyEchoUrnDraw(player: PlayerState): Card[] {
+  if (player.memory?.effect !== "echo_urn") return [];
+  if (player.echoUrnUsed) return [];
+  player.echoUrnUsed = true;
   return drawCards(player, 1);
 }
 
@@ -947,6 +1130,7 @@ export function finishTurn(game: GameState, logEnd: boolean): void {
     addLog(game, `${player.name}は${player.memory!.name}で${groveRestedCard.name}を回復した。`);
   }
   player.sandboxShield = 0;
+  resetTurnAttackBuffs(player);
   game.actionsRemaining = 0;
   game.chargedActionsRemaining = 0;
   game.active = 1 - game.active;
@@ -994,7 +1178,7 @@ export function canUpgrade(source: Card | undefined, target: Card | undefined): 
   if (!(
     source?.type === "ai"
       && target?.type === "ai"
-      && source.attribute === target.attribute
+      && sharesAttribute(source, target)
       && (source.power ?? 0) < (target.power ?? 0)
   )) {
     return false;
@@ -1030,8 +1214,50 @@ export function matchupLabel(defenseAttribute: Attribute, attackAttribute: Attri
   return "別属性";
 }
 
-export function attackCombatValue(card: Card): number {
-  return (card.power ?? 0) + (attacksPlus1(card) ? 1 : 0);
+/** ターン限定攻撃バフ: 場の召喚獣1体の戦闘時攻撃値を +amount する（このターンのみ） */
+export function addTurnFieldAttackBonus(player: PlayerState, fieldIndex: number, amount: number): void {
+  player.turnFieldAttackBonuses.set(fieldIndex, (player.turnFieldAttackBonuses.get(fieldIndex) ?? 0) + amount);
+}
+
+/** ターン限定攻撃バフ: 自分の召喚獣すべての戦闘時攻撃値を +amount する（このターンのみ） */
+export function addTurnGlobalAttackBonus(player: PlayerState, amount: number): void {
+  player.turnGlobalAttackBonus += amount;
+}
+
+/** ターン限定バフ: このターンの自分の次の攻撃は手札防御されない */
+export function setNextAttackUnblockable(player: PlayerState, value = true): void {
+  player.nextAttackUnblockable = value;
+}
+
+/** ターン限定攻撃バフをすべてリセットする（ターン終了時処理） */
+export function resetTurnAttackBuffs(player: PlayerState): void {
+  player.turnFieldAttackBonuses.clear();
+  player.turnGlobalAttackBonus = 0;
+  player.nextAttackUnblockable = false;
+}
+
+/** 攻撃側プレイヤーのターン限定攻撃ボーナス合計（全体バフ + 対象バフ） */
+export function turnAttackBonus(attacker: PlayerState | null | undefined, fieldIndex?: number | null): number {
+  if (!attacker) return 0;
+  let bonus = attacker.turnGlobalAttackBonus;
+  if (typeof fieldIndex === "number") bonus += attacker.turnFieldAttackBonuses.get(fieldIndex) ?? 0;
+  return bonus;
+}
+
+/** 条件付き攻撃バフ: 攻撃側プレイヤーのトラッシュ内容に依存する戦闘時攻撃値ボーナス */
+export function conditionalAttackBonus(card: Card, attacker?: PlayerState | null): number {
+  if (!attacker || card.type !== "ai") return 0;
+  let bonus = 0;
+  if (card.effect === "discard_commands_attack_plus_1" && attacker.discard.filter((item) => item.type === "event").length >= 2) bonus += 2;
+  if (card.effect === "discard_ai_attack_plus_1" && attacker.discard.filter((item) => item.type === "ai").length >= 3) bonus += 1;
+  return bonus;
+}
+
+export function attackCombatValue(card: Card, context: AttackContext = {}): number {
+  return (card.power ?? 0)
+    + (attacksPlus1(card) ? 1 : 0)
+    + turnAttackBonus(context.attacker, context.attackerFieldIndex)
+    + conditionalAttackBonus(card, context.attacker);
 }
 
 export function aiEffectText(card: Card): string {
@@ -1043,14 +1269,14 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "draw_two_after_overheat_opponent_draw") return "攻撃後退場時、山札からカードを2枚引く。登場時、相手は山札からカードを1枚引く";
   if (card.effect === "draw_on_play") return "登場時、山札からカードを1枚引く";
   if (card.effect === "draw_on_play_cannot_hand_defend") return "登場時、山札からカードを1枚引く。手札防御に使えない";
-  if (card.effect === "filter_on_play") return "登場時、山札からカードを2枚引き、手札1枚をトラッシュへ送る";
+  if (card.effect === "filter_on_play") return "登場時、山札からカードを2枚引き、手札1枚をトラッシュする";
   if (card.effect === "no_spend_after_attack") return "攻撃しても消耗しない";
   if (card.effect === "spend_enemy_on_play") return "登場時、相手の未消耗召喚獣1体を消耗";
   if (card.effect === "spend_enemy_on_play_enters_spent") return "登場時、相手の未消耗召喚獣1体を消耗。自身も消耗で出る";
   if (card.effect === "defense_plus_1") return "場防御時、防御値 +1";
   if (card.effect === "defense_plus_1_enters_spent") return "場防御時、防御値 +1。消耗で出る";
   if (card.effect === "recover_ai_on_play") return "登場時、手札1枚以下ならトラッシュの召喚獣1枚を回収";
-  if (card.effect === "block_pressure") return "攻撃が防御された時、相手は手札1枚をトラッシュへ送る";
+  if (card.effect === "block_pressure") return "攻撃が防御された時、相手は手札1枚をトラッシュする";
   if (card.effect === "hand_defense_pierce") return "手札防御されても1ダメージ";
   if (card.effect === "low_life_no_hand_defense") return "相手ライフ2以下なら手札防御不可";
   if (card.effect === "low_life_no_hand_defense_self_damage") return "相手ライフ2以下なら手札防御不可。登場時、自分に1ダメージ";
@@ -1060,21 +1286,41 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "ready_ally_on_play_draw") return "登場時、山札からカードを1枚引き、自分の消耗召喚獣1体を回復";
   if (card.effect === "return_after_overheat") return "攻撃後退場時、トラッシュではなく手札に戻る";
   if (card.effect === "return_after_overheat_cannot_hand_defend") return "攻撃後退場時、手札に戻る。消耗で出る。手札防御に使えない";
-  if (card.effect === "draw_on_successful_defense") return "場防御成功時、山札からカードを1枚引く";
-  if (card.effect === "draw_on_successful_defense_enters_spent") return "場防御成功時、山札からカードを1枚引く。消耗で出る";
-  if (card.effect === "charge_pressure") return "このカードをチャージした時、相手の手札が3枚以上なら1枚トラッシュへ送る";
+  if (card.effect === "draw_on_successful_defense") return "場防御時、山札からカードを1枚引く";
+  if (card.effect === "draw_on_successful_defense_enters_spent") return "場防御時、山札からカードを1枚引く。消耗で出る";
+  if (card.effect === "charge_pressure") return "このカードをチャージした時、相手の手札が3枚以上なら1枚トラッシュする";
   if (card.effect === "charge_draw") return "このカードをチャージした時、山札からカードを1枚引く";
   if (card.effect === "charge_ready_ally") return "このカードをチャージした時、自分の消耗召喚獣1体を選んで回復";
   if (card.effect === "charge_guard") return "このカードをチャージした時、場の召喚獣を1体選び、その召喚獣は次の自分ターンまで場防御値 +1";
-  if (card.effect === "charge_pressure_plus") return "このカードをチャージした時、相手の手札が2枚以上なら1枚トラッシュへ送る";
+  if (card.effect === "charge_pressure_plus") return "このカードをチャージした時、相手の手札が2枚以上なら1枚トラッシュする";
   if (card.effect === "charge_surge_draw") return "このカードをチャージした時、手札が2枚以下なら山札からカードを2枚引く";
   if (card.effect === "charge_spend_enemy") return "このカードをチャージした時、相手の未消耗召喚獣1体を選んで消耗";
-  if (card.effect === "charge_recover_discard") return "このカードをチャージした時、手札が2枚以下ならトラッシュの召喚獣1枚を手札に戻す。このカード自身は戻せない";
+  if (card.effect === "charge_recover_discard") return "このカードをチャージした時、手札が2枚以下ならトラッシュの召喚獣1枚を手札に戻す";
+  if (card.effect === "trash_enemy_memory_on_play") return "登場時、相手の遺物があれば、トラッシュしてもよい。トラッシュした場合、この召喚獣を消耗させる";
+  if (card.effect === "draw_on_play_if_discard_4") return "登場時、自分のトラッシュが4枚以上なら山札からカードを1枚引く";
+  if (card.effect === "charge_draw_if_discard_ai") return "このカードをチャージした時、自分のトラッシュに召喚獣があれば山札からカードを1枚引く";
+  if (card.effect === "recover_ai_on_successful_defense") return "場防御時、トラッシュの召喚獣1枚を手札に戻す";
+  if (card.effect === "discard_commands_attack_plus_1") return "自分のトラッシュに術式が2枚以上あるなら、戦闘時、攻撃値 +2";
+  if (card.effect === "draw_on_play_defense_draw") return "登場時、山札からカードを1枚引く。場防御時、山札からカードを1枚引く";
+  if (card.effect === "ready_ally_on_play_enters_spent") return "登場時、自分の消耗召喚獣1体を回復。消耗で出る";
+  if (card.effect === "defense_plus_1_with_memory") return "自分の遺物がある間、場防御時、防御値 +2";
+  if (card.effect === "blocked_attack_draw") return "攻撃が防御された時、山札からカードを1枚引く";
+  if (card.effect === "charge_spend_enemy_ready_ally") return "このカードをチャージした時、相手の未消耗召喚獣1体を消耗させ、自分の消耗中召喚獣1体を回復する";
+  if (card.effect === "charge_recover_discard_any") return "このカードをチャージした時、トラッシュの召喚獣1枚を手札に戻す";
+  if (card.effect === "charge_filter_draw") return "このカードをチャージした時、山札からカードを2枚引き、手札1枚をトラッシュする";
+  if (card.effect === "charge_pressure_any") return "このカードをチャージした時、相手の手札を1枚トラッシュする";
+  if (card.effect === "return_after_overheat_opponent_draw_on_play") return "登場時、山札からカードを1枚引く。相手も山札からカードを1枚引く。攻撃後退場時、トラッシュではなく手札に戻る";
+  if (card.effect === "discard_ai_attack_plus_1") return "自分のトラッシュに召喚獣が3枚以上あるなら、戦闘時、攻撃値 +1";
+  if (card.effect === "charge_spend_all_enemies") return "このカードをチャージした時、相手の未消耗召喚獣をすべて消耗させる";
+  if (card.effect === "recover_memory_on_play_defense_plus_1") return "登場時、自分のトラッシュの遺物1枚を手札に戻す。場防御時、防御値 +1";
   return "効果なし";
 }
 
 export function attacksPlus1(card: Card): boolean {
-  return card.type === "ai" && (card.effect === "attack_plus_1" || card.effect === "reckless_attack_plus_1");
+  return card.type === "ai" && (
+    card.effect === "attack_plus_1"
+    || card.effect === "reckless_attack_plus_1"
+  );
 }
 
 export function drawsOnPlay(card: Card): boolean {
@@ -1082,6 +1328,8 @@ export function drawsOnPlay(card: Card): boolean {
     card.effect === "draw_on_play"
     || card.effect === "draw_on_play_cannot_hand_defend"
     || card.effect === "ready_ally_on_play_draw"
+    || card.effect === "draw_on_play_defense_draw"
+    || card.effect === "return_after_overheat_opponent_draw_on_play"
   );
 }
 
@@ -1090,7 +1338,10 @@ export function keepsReadyAfterAttack(card: Card): boolean {
 }
 
 export function drawsAfterOverheat(card: Card): boolean {
-  return card.type === "ai" && (card.effect === "draw_after_overheat" || card.effect === "draw_after_overheat_opponent_draw");
+  return card.type === "ai" && (
+    card.effect === "draw_after_overheat"
+    || card.effect === "draw_after_overheat_opponent_draw"
+  );
 }
 
 export function drawsTwoAfterOverheat(card: Card): boolean {
@@ -1102,7 +1353,22 @@ export function filtersOnPlay(card: Card): boolean {
 }
 
 export function spendsEnemyOnPlay(card: Card): boolean {
-  return card.type === "ai" && (card.effect === "spend_enemy_on_play" || card.effect === "spend_enemy_on_play_enters_spent");
+  return card.type === "ai" && (
+    card.effect === "spend_enemy_on_play"
+    || card.effect === "spend_enemy_on_play_enters_spent"
+  );
+}
+
+export function trashesEnemyMemoryOnPlay(card: Card): boolean {
+  return card.type === "ai" && card.effect === "trash_enemy_memory_on_play";
+}
+
+export function recoversMemoryOnPlay(card: Card): boolean {
+  return card.type === "ai" && card.effect === "recover_memory_on_play_defense_plus_1";
+}
+
+export function recoversAiOnSuccessfulDefense(card: Card): boolean {
+  return card.type === "ai" && card.effect === "recover_ai_on_successful_defense";
 }
 
 export function recoversAiOnPlay(card: Card): boolean {
@@ -1124,19 +1390,35 @@ export function blocksLowLifeHandDefense(card: Card, defender: PlayerState): boo
 }
 
 export function drawsOnBlockedAttack(card: Card): boolean {
-  return card.type === "ai" && (card.effect === "draw_on_blocked_attack" || card.effect === "draw_on_blocked_attack_cannot_hand_defend");
+  return card.type === "ai" && (
+    card.effect === "draw_on_blocked_attack"
+    || card.effect === "draw_on_blocked_attack_cannot_hand_defend"
+    || card.effect === "blocked_attack_draw"
+  );
 }
 
 export function readiesAllyOnPlay(card: Card): boolean {
-  return card.type === "ai" && (card.effect === "ready_ally_on_play" || card.effect === "ready_ally_on_play_draw");
+  return card.type === "ai" && (
+    card.effect === "ready_ally_on_play"
+    || card.effect === "ready_ally_on_play_draw"
+    || card.effect === "ready_ally_on_play_enters_spent"
+  );
 }
 
 export function returnsAfterOverheat(card: Card): boolean {
-  return card.type === "ai" && (card.effect === "return_after_overheat" || card.effect === "return_after_overheat_cannot_hand_defend");
+  return card.type === "ai" && (
+    card.effect === "return_after_overheat"
+    || card.effect === "return_after_overheat_cannot_hand_defend"
+    || card.effect === "return_after_overheat_opponent_draw_on_play"
+  );
 }
 
 export function drawsOnSuccessfulDefense(card: Card): boolean {
-  return card.type === "ai" && (card.effect === "draw_on_successful_defense" || card.effect === "draw_on_successful_defense_enters_spent");
+  return card.type === "ai" && (
+    card.effect === "draw_on_successful_defense"
+    || card.effect === "draw_on_successful_defense_enters_spent"
+    || card.effect === "draw_on_play_defense_draw"
+  );
 }
 
 export function hasChargeEffect(card: Card): boolean {
@@ -1149,6 +1431,12 @@ export function hasChargeEffect(card: Card): boolean {
     || card.effect === "charge_surge_draw"
     || card.effect === "charge_spend_enemy"
     || card.effect === "charge_recover_discard"
+    || card.effect === "charge_draw_if_discard_ai"
+    || card.effect === "charge_filter_draw"
+    || card.effect === "charge_pressure_any"
+    || card.effect === "charge_spend_all_enemies"
+    || card.effect === "charge_spend_enemy_ready_ally"
+    || card.effect === "charge_recover_discard_any"
   );
 }
 
@@ -1158,6 +1446,7 @@ export function entersSpentOnPlay(card: Card): boolean {
     || card.effect === "defense_plus_1_enters_spent"
     || card.effect === "return_after_overheat_cannot_hand_defend"
     || card.effect === "draw_on_successful_defense_enters_spent"
+    || card.effect === "ready_ally_on_play_enters_spent"
   );
 }
 
@@ -1166,7 +1455,11 @@ export function selfDamagesOnPlay(card: Card): boolean {
 }
 
 export function opponentDrawsOnPlay(card: Card): boolean {
-  return card.type === "ai" && (card.effect === "draw_after_overheat_opponent_draw" || card.effect === "draw_two_after_overheat_opponent_draw");
+  return card.type === "ai" && (
+    card.effect === "draw_after_overheat_opponent_draw"
+    || card.effect === "draw_two_after_overheat_opponent_draw"
+    || card.effect === "return_after_overheat_opponent_draw_on_play"
+  );
 }
 
 export function cannotHandDefend(card: Card): boolean {
@@ -1178,14 +1471,18 @@ export function cannotHandDefend(card: Card): boolean {
   );
 }
 
-type DefenseOptions = { firewallPaid?: boolean; fieldDefense?: boolean; fieldIndex?: number };
+type DefenseOptions = { firewallPaid?: boolean; fieldDefense?: boolean; fieldIndex?: number; attackContext?: AttackContext };
 
 export function defensePowerBonus(card: Card, defender: PlayerState | null = null, attackCard: Card | null = null, options: DefenseOptions = {}): number {
   const fieldDefense = options.fieldDefense ?? true;
   let bonus = fieldDefense && (
     card.effect === "defense_plus_1"
     || card.effect === "defense_plus_1_enters_spent"
+    || card.effect === "recover_memory_on_play_defense_plus_1"
   ) ? CONFIG.power2DefenseBonus : 0;
+  if (fieldDefense && card.effect === "defense_plus_1_with_memory" && defender?.memory) {
+    bonus += 2;
+  }
   if (card.power === 3) {
     bonus += CONFIG.power3DefenseModifier;
   }
@@ -1193,7 +1490,7 @@ export function defensePowerBonus(card: Card, defender: PlayerState | null = nul
     defender?.memory?.effect === "firewall"
     && options.firewallPaid
     && attackCard
-    && card.attribute !== attackCard.attribute
+    && !sharesAttribute(card, attackCard)
   ) {
     bonus += 1;
   }
@@ -1215,34 +1512,51 @@ export function defenseCombatValue(attackCard: Card, defenseCard: Card, defender
 }
 
 export function canDefend(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: DefenseOptions = {}): boolean {
-  return defenseCombatValue(attackCard, defenseCard, defender, options) >= attackCombatValue(attackCard);
+  return defenseCombatValue(attackCard, defenseCard, defender, options) >= attackCombatValue(attackCard, options.attackContext);
 }
 
 export function canUseFirewall(defender: PlayerState, defenseCard: Card, attackCard: Card): boolean {
   return Boolean(
     defender.memory?.effect === "firewall"
-      && defenseCard.attribute !== attackCard.attribute
+      && !sharesAttribute(defenseCard, attackCard)
       && defender.hand.length > 0,
   );
 }
 
-export function canDefendWithOptionalFirewall(attackCard: Card, defenseCard: Card, defender: PlayerState, fieldIndex?: number): boolean {
-  return canDefend(attackCard, defenseCard, defender, { fieldIndex })
+export function canDefendWithOptionalFirewall(attackCard: Card, defenseCard: Card, defender: PlayerState, fieldIndex?: number, attackContext?: AttackContext): boolean {
+  return canDefend(attackCard, defenseCard, defender, { fieldIndex, attackContext })
     || (
       canUseFirewall(defender, defenseCard, attackCard)
-      && defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: true, fieldIndex }) >= attackCombatValue(attackCard)
+      && defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: true, fieldIndex, attackContext }) >= attackCombatValue(attackCard, attackContext)
     );
 }
 
-export function legalFieldDefenders(defender: PlayerState, attackCard: Card): { card: Card; index: number }[] {
-  return defender.field
-    .map((card, index) => ({ card, index }))
-    .filter(({ card, index }) => !(
-      CONFIG.power3CannotFieldDefend && card.power === 3
-    ) && (CONFIG.exhaustedCanDefend || !defender.spentFieldIndexes.has(index)) && canDefendWithOptionalFirewall(attackCard, card, defender, index));
+export function canAttemptFieldDefense(defenseCard: Card, defender: PlayerState, fieldIndex: number): boolean {
+  return defenseCard.type === "ai"
+    && !(CONFIG.power3CannotFieldDefend && defenseCard.power === 3)
+    && (CONFIG.exhaustedCanDefend || !defender.spentFieldIndexes.has(fieldIndex));
 }
 
-export function legalHandDefenders(defender: PlayerState, attackCard: Card): { card: Card; index: number }[] {
+export function legalFieldDefenders(defender: PlayerState, attackCard: Card, attackContext?: AttackContext): { card: Card; index: number }[] {
+  void attackCard;
+  void attackContext;
+  return defender.field
+    .map((card, index) => ({ card, index }))
+    .filter(({ card, index }) => canAttemptFieldDefense(card, defender, index));
+}
+
+export function legalStrikeFieldDefenders(defender: PlayerState, attackCard: Card, targetIndex: number, attackContext?: AttackContext): { card: Card; index: number }[] {
+  return legalFieldDefenders(defender, attackCard, attackContext)
+    .filter(({ index }) => index !== targetIndex);
+}
+
+export function successfulFieldDefenders(defender: PlayerState, attackCard: Card, attackContext?: AttackContext): { card: Card; index: number }[] {
+  return legalFieldDefenders(defender, attackCard, attackContext)
+    .filter(({ card, index }) => canDefendWithOptionalFirewall(attackCard, card, defender, index, attackContext));
+}
+
+export function legalHandDefenders(defender: PlayerState, attackCard: Card, attackContext?: AttackContext): { card: Card; index: number }[] {
+  if (attackContext?.attacker?.nextAttackUnblockable) return [];
   if (blocksLowLifeHandDefense(attackCard, defender)) return [];
   if (CONFIG.handDefenseLimit !== null) {
     if (CONFIG.handDefenseLimit <= 0) return [];
@@ -1254,14 +1568,14 @@ export function legalHandDefenders(defender: PlayerState, attackCard: Card): { c
     .filter(({ card }) => card.type === "ai"
       && !cannotHandDefend(card)
       && !(CONFIG.power3CannotHandDefend && card.power === 3)
-      && canDefend(attackCard, card, defender, { fieldDefense: false }));
+      && canDefend(attackCard, card, defender, { fieldDefense: false, attackContext }));
 }
 
 export function defenseMathText(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: DefenseOptions = {}): string {
   if (!attackCard.attribute || !defenseCard.attribute) return "";
-  const label = matchupLabel(defenseCard.attribute, attackCard.attribute);
+  const label = sharesAttribute(defenseCard, attackCard) ? "同属性" : "別属性";
   const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, options);
-  const attackValue = attackCombatValue(attackCard);
+  const attackValue = attackCombatValue(attackCard, options.attackContext);
   const result = defenseValue > attackValue
     ? "勝ち"
     : defenseValue === attackValue
@@ -1270,12 +1584,12 @@ export function defenseMathText(attackCard: Card, defenseCard: Card, defender: P
   return `${label} / 防御値${defenseValue} vs 攻撃値${attackValue} / ${result}`;
 }
 
-export function needsFirewallFuel(defender: PlayerState, defenseCard: Card, attackCard: Card, fieldIndex?: number): boolean {
+export function needsFirewallFuel(defender: PlayerState, defenseCard: Card, attackCard: Card, fieldIndex?: number, attackContext?: AttackContext): boolean {
   if (!canUseFirewall(defender, defenseCard, attackCard)) return false;
-  const baseValue = defenseCombatValue(attackCard, defenseCard, defender, { fieldIndex });
-  const paidValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: true, fieldIndex });
-  const attackValue = attackCombatValue(attackCard);
-  return baseValue < attackValue || (baseValue === attackValue && paidValue > attackValue);
+  const baseValue = defenseCombatValue(attackCard, defenseCard, defender, { fieldIndex, attackContext });
+  const paidValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: true, fieldIndex, attackContext });
+  const attackValue = attackCombatValue(attackCard, attackContext);
+  return (baseValue < attackValue && paidValue >= attackValue) || (baseValue === attackValue && paidValue > attackValue);
 }
 
 export function discardLowPriorityCards(player: PlayerState, count: number): Card[] {
@@ -1288,8 +1602,8 @@ export function discardLowPriorityCards(player: PlayerState, count: number): Car
   return discarded;
 }
 
-export function discardFirewallFuel(defender: PlayerState, defenseCard: Card, attackCard: Card, fieldIndex?: number): Card | null {
-  if (!needsFirewallFuel(defender, defenseCard, attackCard, fieldIndex)) return null;
+export function discardFirewallFuel(defender: PlayerState, defenseCard: Card, attackCard: Card, fieldIndex?: number, attackContext?: AttackContext): Card | null {
+  if (!needsFirewallFuel(defender, defenseCard, attackCard, fieldIndex, attackContext)) return null;
   return discardLowPriorityCards(defender, 1)[0] ?? null;
 }
 
@@ -1320,6 +1634,12 @@ export function removeFieldStack(player: PlayerState, index: number): Card[] {
     if (guardedIndex > index) nextChargeGuarded.add(guardedIndex - 1);
   });
   player.chargeGuardedFieldIndexes = nextChargeGuarded;
+  const nextTurnFieldBonuses = new Map<number, number>();
+  player.turnFieldAttackBonuses.forEach((bonus, bonusIndex) => {
+    if (bonusIndex < index) nextTurnFieldBonuses.set(bonusIndex, bonus);
+    if (bonusIndex > index) nextTurnFieldBonuses.set(bonusIndex - 1, bonus);
+  });
+  player.turnFieldAttackBonuses = nextTurnFieldBonuses;
   return [card, ...[...stack].reverse()];
 }
 
@@ -1328,6 +1648,48 @@ export function stackUpgradeCard(player: PlayerState, index: number, source: Car
   while (player.fieldStacks.length < player.field.length) player.fieldStacks.push([]);
   const stack = player.fieldStacks[index] ?? [];
   player.fieldStacks[index] = [...stack, source];
+}
+
+/**
+ * 蘇生: 自分のトラッシュの召喚獣1枚を消耗状態で場に出す。
+ * 場が上限（3体）なら何もしない。登場時効果は発動しない（呼び出し側で必要なら処理する）。
+ */
+export function reviveAiFromDiscard(player: PlayerState, discardIndex: number): Card | null {
+  if (player.field.length >= CONFIG.fieldLimit) return null;
+  const card = player.discard[discardIndex];
+  if (!card || card.type !== "ai") return null;
+  player.discard.splice(discardIndex, 1);
+  player.field.push(card);
+  player.fieldStacks ??= [];
+  while (player.fieldStacks.length < player.field.length) player.fieldStacks.push([]);
+  player.spentFieldIndexes.add(player.field.length - 1);
+  return card;
+}
+
+/** 遺物破壊: 対象プレイヤーの遺物をトラッシュへ送る。遺物がなければ何もしない */
+export function trashMemory(player: PlayerState): Card | null {
+  if (!player.memory) return null;
+  const trashed = player.memory;
+  player.memory = null;
+  player.discard.push(trashed);
+  return trashed;
+}
+
+/** 遺物回収: 自分のトラッシュの遺物1枚を手札に戻す。遺物カード以外は対象にできない */
+export function recoverMemoryFromDiscard(player: PlayerState, discardIndex: number): Card | null {
+  const card = player.discard[discardIndex];
+  if (!card || card.type !== "memory") return null;
+  player.discard.splice(discardIndex, 1);
+  player.hand.push(card);
+  return card;
+}
+
+/**
+ * チャージ済み参照: このターン、そのプレイヤーがチャージしたか。
+ * chargeUsed は自分のターン開始時にリセットされるため、ターンプレイヤー自身の判定に使うこと。
+ */
+export function hasChargedThisTurn(player: PlayerState): boolean {
+  return player.chargeUsed;
 }
 
 export function highestPowerSpentAi(player: PlayerState): number | null {
@@ -1348,7 +1710,7 @@ export function highestPowerFieldAi(player: PlayerState): number | null {
 
 export function highestPowerSpentAiByAttribute(player: PlayerState, attribute: Attribute): number | null {
   const options = [...player.spentFieldIndexes]
-    .filter((index) => player.field[index]?.attribute === attribute)
+    .filter((index) => player.field[index] && hasAttribute(player.field[index], attribute))
     .map((index) => ({ card: player.field[index], index }));
   if (options.length === 0) return null;
   options.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
@@ -1365,7 +1727,7 @@ export function highestPowerReadyAi(player: PlayerState): number | null {
 }
 
 export function hasAttributeAi(player: PlayerState, attribute: Attribute): boolean {
-  return player.field.some((card) => card.attribute === attribute);
+  return player.field.some((card) => hasAttribute(card, attribute));
 }
 
 export function highestPowerAiInDiscard(player: PlayerState, excludedCard?: Card): number | null {
@@ -1374,6 +1736,36 @@ export function highestPowerAiInDiscard(player: PlayerState, excludedCard?: Card
     .filter(({ card }) => card.type === "ai" && card !== excludedCard);
   if (options.length === 0) return null;
   options.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
+  return options[0].index;
+}
+
+/** 残響召喚の自動対象: トラッシュの power 2 以下の召喚獣のうち最高 power、同 power なら ID 降順 */
+export function bestReviveTargetInDiscard(player: PlayerState, maxPower = 2): number | null {
+  const options = player.discard
+    .map((card, index) => ({ card, index }))
+    .filter(({ card }) => card.type === "ai" && (card.power ?? 0) <= maxPower);
+  if (options.length === 0) return null;
+  options.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
+  return options[0].index;
+}
+
+/** 遺灰回収の自動対象: トラッシュの術式（遺灰回収以外）のうち ID 降順 */
+export function bestEventInDiscard(player: PlayerState): number | null {
+  const options = player.discard
+    .map((card, index) => ({ card, index }))
+    .filter(({ card }) => card.type === "event" && card.effect !== "salvage");
+  if (options.length === 0) return null;
+  options.sort((a, b) => b.card.id.localeCompare(a.card.id));
+  return options[0].index;
+}
+
+/** 城塞獣ガリオンの自動対象: トラッシュの遺物のうち ID 降順 */
+export function bestMemoryInDiscard(player: PlayerState): number | null {
+  const options = player.discard
+    .map((card, index) => ({ card, index }))
+    .filter(({ card }) => card.type === "memory");
+  if (options.length === 0) return null;
+  options.sort((a, b) => b.card.id.localeCompare(a.card.id));
   return options[0].index;
 }
 
@@ -1403,33 +1795,33 @@ export function attackDamage(attackCard: Card): number {
   return attackCard.power ?? 1;
 }
 
-export function strikeValues(attackCard: Card, defender: PlayerState, targetIndex: number): { attackValue: number; defenseValue: number } {
+export function strikeValues(attackCard: Card, defender: PlayerState, targetIndex: number, attackContext?: AttackContext): { attackValue: number; defenseValue: number } {
   const target = defender.field[targetIndex];
-  const attackValue = attackCombatValue(attackCard);
+  const attackValue = attackCombatValue(attackCard, attackContext);
   const defenseValue = defenseCombatValue(attackCard, target, defender, { fieldIndex: targetIndex });
   return { attackValue, defenseValue };
 }
 
-export function strikeTargets(attackCard: Card, defender: PlayerState): { index: number; card: Card; attackValue: number; defenseValue: number; trade: boolean }[] {
+export function strikeTargets(attackCard: Card, defender: PlayerState, attackContext?: AttackContext): { index: number; card: Card; attackValue: number; defenseValue: number; trade: boolean }[] {
   if (!CONFIG.monsterCombat) return [];
   return defender.field
     .map((card, index) => {
-      const { attackValue, defenseValue } = strikeValues(attackCard, defender, index);
+      const { attackValue, defenseValue } = strikeValues(attackCard, defender, index, attackContext);
       return { index, card, attackValue, defenseValue, trade: attackValue === defenseValue };
     })
     .filter((option) => option.attackValue >= option.defenseValue);
 }
 
-export function chooseStrikeHandDefense(defender: PlayerState, attackCard: Card, targetIndex: number): number | null {
+export function chooseStrikeHandDefense(defender: PlayerState, attackCard: Card, targetIndex: number, attackContext?: AttackContext): number | null {
   const mode = CONFIG.handDefenseVsStrike;
   if (mode !== "eager" && mode !== "value") return null;
-  const options = legalHandDefenders(defender, attackCard);
+  const options = legalHandDefenders(defender, attackCard, attackContext);
   if (options.length === 0) return null;
   const best = [...options].sort((a, b) => (
     (a.card.power ?? 0) - (b.card.power ?? 0)
     || a.card.id.localeCompare(b.card.id)
   ))[0];
-  const { attackValue, defenseValue } = strikeValues(attackCard, defender, targetIndex);
+  const { attackValue, defenseValue } = strikeValues(attackCard, defender, targetIndex, attackContext);
   if (attackValue === defenseValue) return null;
   if (mode === "value") {
     const stack = defender.fieldStacks?.[targetIndex] ?? [];
@@ -1440,10 +1832,40 @@ export function chooseStrikeHandDefense(defender: PlayerState, attackCard: Card,
   return best.index;
 }
 
+export function chooseStrikeFieldDefense(defender: PlayerState, attackCard: Card, targetIndex: number, attackContext?: AttackContext): number | null {
+  const mode = CONFIG.handDefenseVsStrike;
+  if (mode !== "eager" && mode !== "value") return null;
+  const options = legalStrikeFieldDefenders(defender, attackCard, targetIndex, attackContext);
+  if (options.length === 0) return null;
+  const ranked = [...options].sort((a, b) => {
+    const aValue = defenseCombatValue(attackCard, a.card, defender, { fieldDefense: true, fieldIndex: a.index, attackContext });
+    const bValue = defenseCombatValue(attackCard, b.card, defender, { fieldDefense: true, fieldIndex: b.index, attackContext });
+    const attackValue = attackCombatValue(attackCard, attackContext);
+    const aBlocks = aValue >= attackValue ? 0 : 1;
+    const bBlocks = bValue >= attackValue ? 0 : 1;
+    return aBlocks - bBlocks
+      || (a.card.power ?? 0) - (b.card.power ?? 0)
+      || a.card.id.localeCompare(b.card.id);
+  });
+  const best = ranked[0];
+  if (!best) return null;
+  if (mode === "value") {
+    const stack = defender.fieldStacks?.[targetIndex] ?? [];
+    const savedPower = (defender.field[targetIndex]?.power || 1)
+      + stack.reduce((sum, card) => sum + (card.power || 1), 0);
+    const blockerStack = defender.fieldStacks?.[best.index] ?? [];
+    const blockerPower = (best.card.power || 1)
+      + blockerStack.reduce((sum, card) => sum + (card.power || 1), 0);
+    if (savedPower < blockerPower) return null;
+  }
+  return best.index;
+}
+
 export function bestClassicStrike(attacker: PlayerState, defender: PlayerState): { index: number; targetIndex: number } | null {
   let best: { key: [number, number, number, number]; index: number; targetIndex: number } | null = null;
   attackableField(attacker).forEach(({ card, index }) => {
-    strikeTargets(card, defender).forEach((option) => {
+    const attackContext: AttackContext = { attacker, attackerFieldIndex: index };
+    strikeTargets(card, defender, attackContext).forEach((option) => {
       const attackerPower = card.power ?? 0;
       const targetPower = option.card.power ?? 0;
       let key: [number, number, number, number];
@@ -1470,11 +1892,11 @@ export function bestClassicStrike(attacker: PlayerState, defender: PlayerState):
 
 export function commandUsable(game: GameState, command: Card | null | undefined, player: PlayerState, opponent: PlayerState): boolean {
   if (!command || command.type !== "event") return false;
-  if (command.effect === "optimize") return player.hand.length > 1;
-  if (command.effect === "patch") return highestPowerSpentAi(player) !== null;
+  if (command.effect === "optimize") return true;
+  if (command.effect === "patch") return true;
   if (command.effect === "disrupt") return highestPowerReadyAi(opponent) !== null;
   if (command.effect === "purge") return highestPowerSpentAi(opponent) !== null;
-  if (command.effect === "relearn") return player.hand.length > 1 && highestPowerAiInDiscard(player) !== null;
+  if (command.effect === "relearn") return highestPowerAiInDiscard(player) !== null;
   if (command.effect === "sandbox") return sandboxCommandReady(game, player);
   if (command.effect === "trinity") return player.field.length >= CONFIG.fieldLimit;
   if (command.effect === "fire_rite") return hasAttributeAi(player, "火");
@@ -1491,20 +1913,27 @@ export function commandUsable(game: GameState, command: Card | null | undefined,
   if (command.effect === "comeback_rite") {
     return player.life < opponent.life;
   }
+  if (command.effect === "war_cry") return highestPowerReadyAi(player) !== null;
+  if (command.effect === "tide_edge") return hasAttributeAi(player, "水") && player.field.length > 0;
+  if (command.effect === "pierce_sight") return highestPowerReadyAi(player) !== null;
+  if (command.effect === "grave_call") {
+    return player.field.length < CONFIG.fieldLimit && bestReviveTargetInDiscard(player) !== null;
+  }
+  if (command.effect === "salvage") return bestEventInDiscard(player) !== null;
+  if (command.effect === "overdrive") return hasChargedThisTurn(player) && player.deck.length > 0;
+  if (command.effect === "relic_crush") return Boolean(opponent.memory);
+  if (command.effect === "deep_current") {
+    return player.field.filter((card) => hasAttribute(card, "水")).length >= 2 && player.deck.length > 0;
+  }
   return false;
 }
 
 export function commandBlockedReason(game: GameState, command: Card | null | undefined, player: PlayerState, opponent: PlayerState): string {
   if (!command || command.type !== "event") return "術式カードではありません。";
   if (commandUsable(game, command, player, opponent)) return "";
-  if (command.effect === "optimize") return "手札にトラッシュへ送るカードがもう1枚必要です。";
-  if (command.effect === "patch") return "自分の消耗中召喚獣が必要です。";
   if (command.effect === "disrupt") return "相手の未消耗召喚獣が必要です。";
   if (command.effect === "purge") return "相手の消耗中召喚獣が必要です。";
-  if (command.effect === "relearn") {
-    if (player.hand.length <= 1) return "手札にトラッシュへ送るカードがもう1枚必要です。";
-    return "自分のトラッシュに召喚獣が必要です。";
-  }
+  if (command.effect === "relearn") return "自分のトラッシュに召喚獣が必要です。";
   if (command.effect === "sandbox") return "残り2アクション以上、攻撃可能、未消耗power 4が必要です。";
   if (command.effect === "trinity") return "自分の場に召喚獣が3体必要です。";
   if (command.effect === "fire_rite") return "自分の場に火の召喚獣が必要です。";
@@ -1523,6 +1952,26 @@ export function commandBlockedReason(game: GameState, command: Card | null | und
   if (command.effect === "comeback_rite") {
     if (player.life >= opponent.life) return "相手よりライフが少ない時だけ発動できます。";
     return "";
+  }
+  if (command.effect === "war_cry") return "自分の未消耗召喚獣が必要です。";
+  if (command.effect === "tide_edge") {
+    if (!hasAttributeAi(player, "水")) return "自分の場に水の召喚獣が必要です。";
+    return "自分の場に召喚獣が必要です。";
+  }
+  if (command.effect === "pierce_sight") return "自分の未消耗召喚獣が必要です。";
+  if (command.effect === "grave_call") {
+    if (player.field.length >= CONFIG.fieldLimit) return "場に空きが必要です。";
+    return "自分のトラッシュに power 2 以下の召喚獣が必要です。";
+  }
+  if (command.effect === "salvage") return "自分のトラッシュに遺灰回収以外の術式が必要です。";
+  if (command.effect === "relic_crush") return "相手に遺物が必要です。";
+  if (command.effect === "overdrive") {
+    if (!hasChargedThisTurn(player)) return "このターンにチャージしている必要があります。";
+    return "山札が必要です。";
+  }
+  if (command.effect === "deep_current") {
+    if (player.field.filter((card) => hasAttribute(card, "水")).length < 2) return "自分の場に水の召喚獣が2体必要です。";
+    return "山札が必要です。";
   }
   return "条件を満たしていません。";
 }
@@ -1570,14 +2019,15 @@ export function acceleratorSacrificeTarget(player: PlayerState): number | null {
   return options[0].index;
 }
 
-export function chooseAiDefense(defender: PlayerState, attackCard: Card, profile: AiProfile = defender.aiProfile): DefenseChoice {
+export function chooseAiDefense(defender: PlayerState, attackCard: Card, profile: AiProfile = defender.aiProfile, attackContext?: AttackContext): DefenseChoice {
   void profile;
-  const fieldOptions = legalFieldDefenders(defender, attackCard);
-  const handOptions = legalHandDefenders(defender, attackCard);
-  if (fieldOptions.length > 0) {
-    const attackValue = attackCombatValue(attackCard);
-    const best = fieldOptions.sort((a, b) => (
-      fieldDefenseOutcomeRank(defender, attackCard, a, attackValue) - fieldDefenseOutcomeRank(defender, attackCard, b, attackValue)
+  const fieldOptions = legalFieldDefenders(defender, attackCard, attackContext);
+  const handOptions = legalHandDefenders(defender, attackCard, attackContext);
+  const successfulFieldOptions = fieldOptions.filter(({ card, index }) => canDefendWithOptionalFirewall(attackCard, card, defender, index, attackContext));
+  if (successfulFieldOptions.length > 0) {
+    const attackValue = attackCombatValue(attackCard, attackContext);
+    const best = successfulFieldOptions.sort((a, b) => (
+      fieldDefenseOutcomeRank(defender, attackCard, a, attackValue, attackContext) - fieldDefenseOutcomeRank(defender, attackCard, b, attackValue, attackContext)
       || (a.card.power ?? 0) - (b.card.power ?? 0)
       || a.card.id.localeCompare(b.card.id)
     ))[0];
@@ -1590,7 +2040,23 @@ export function chooseAiDefense(defender: PlayerState, attackCard: Card, profile
     ))[0];
     return { type: "hand", index: best.index };
   }
+  if (fieldOptions.length > 0) {
+    const best = fieldOptions.sort((a, b) => (
+      defenseCombatValue(attackCard, b.card, defender, { fieldIndex: b.index, attackContext })
+      - defenseCombatValue(attackCard, a.card, defender, { fieldIndex: a.index, attackContext })
+      || failedFieldDefenseTriggerPriority(b.card, defender) - failedFieldDefenseTriggerPriority(a.card, defender)
+      || (a.card.power ?? 0) - (b.card.power ?? 0)
+      || a.card.id.localeCompare(b.card.id)
+    ))[0];
+    return { type: "field", index: best.index };
+  }
   return { type: "none" };
+}
+
+function failedFieldDefenseTriggerPriority(card: Card, defender: PlayerState): number {
+  if (drawsOnSuccessfulDefense(card) || recoversAiOnSuccessfulDefense(card)) return 1;
+  if (defender.memory?.effect === "tidal_mirror") return 1;
+  return 0;
 }
 
 function fieldDefenseOutcomeRank(
@@ -1598,10 +2064,11 @@ function fieldDefenseOutcomeRank(
   attackCard: Card,
   option: { card: Card; index: number },
   attackValue: number,
+  attackContext?: AttackContext,
 ): number {
-  const baseValue = defenseCombatValue(attackCard, option.card, defender, { fieldIndex: option.index });
+  const baseValue = defenseCombatValue(attackCard, option.card, defender, { fieldIndex: option.index, attackContext });
   const paidValue = canUseFirewall(defender, option.card, attackCard)
-    ? defenseCombatValue(attackCard, option.card, defender, { firewallPaid: true, fieldIndex: option.index })
+    ? defenseCombatValue(attackCard, option.card, defender, { firewallPaid: true, fieldIndex: option.index, attackContext })
     : baseValue;
   return Math.max(baseValue, paidValue) > attackValue ? 0 : 1;
 }
@@ -1636,7 +2103,7 @@ export function bestUpgrade(game: GameState, player: PlayerState): { handIndex: 
 
 export function bestMemory(player: PlayerState): number | null {
   if (player.memory) return null;
-  const priority: Record<string, number> = { cache: 4, recovery_cache: 4, resonator: 4, war_banner: 3, grove_rest: 3, pipeline: 3, accelerator: 3, firewall: 2 };
+  const priority: Record<string, number> = { cache: 4, recovery_cache: 4, resonator: 4, echo_urn: 4, tidal_mirror: 4, war_banner: 3, grove_rest: 3, pipeline: 3, accelerator: 3, storm_core: 3, dual_banner: 3, firewall: 2 };
   const options = player.hand
     .map((card, index) => ({ card, index }))
     .filter(({ card }) => card.type === "memory");
@@ -1663,6 +2130,14 @@ export function bestCommand(game: GameState, player: PlayerState, opponent: Play
     relearn: 2,
     sandbox: 2,
     optimize: 1,
+    grave_call: 4,
+    deep_current: 4,
+    overdrive: 3,
+    relic_crush: 3,
+    war_cry: 3,
+    tide_edge: 3,
+    pierce_sight: 2,
+    salvage: 2,
   };
   options.sort((a, b) => (priority[b.card.effect ?? ""] || 0) - (priority[a.card.effect ?? ""] || 0) || b.card.id.localeCompare(a.card.id));
   return options[0].index;
@@ -1678,7 +2153,14 @@ export function bestSandboxCommand(game: GameState, player: PlayerState): number
 
 export function bestDamagingAttacker(attacker: PlayerState, defender: PlayerState): number | null {
   const options = attackableField(attacker)
-    .filter(({ card }) => chooseAiDefense(defender, card).type === "none");
+    .filter(({ card, index }) => {
+      const attackContext: AttackContext = { attacker, attackerFieldIndex: index };
+      const defense = chooseAiDefense(defender, card, defender.aiProfile, attackContext);
+      if (defense.type === "none") return true;
+      if (defense.type !== "field") return false;
+      const defenseCard = defender.field[defense.index];
+      return Boolean(defenseCard && !canDefendWithOptionalFirewall(card, defenseCard, defender, defense.index, attackContext));
+    });
   if (options.length === 0) return null;
   options.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
   return options[0].index;
@@ -1743,7 +2225,11 @@ function chooseClassicAiAction(game: GameState): AiAction {
 
 function beginnerDamagingAttack(attacker: PlayerState, defender: PlayerState): number | null {
   const options = attackableField(attacker)
-    .filter(({ card }) => legalFieldDefenders(defender, card).length === 0);
+    .filter(({ card, index }) => {
+      const attackContext: AttackContext = { attacker, attackerFieldIndex: index };
+      return successfulFieldDefenders(defender, card, attackContext).length === 0
+        && legalHandDefenders(defender, card, attackContext).length === 0;
+    });
   if (options.length === 0) return null;
   options.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
   return options[0].index;
@@ -1818,7 +2304,7 @@ function legalAiActions(game: GameState): AiAction[] {
       attackableField(ai).forEach(({ index }) => actions.push({ type: "attack", index }));
       if (CONFIG.monsterCombat) {
         attackableField(ai).forEach(({ card, index }) => {
-          strikeTargets(card, human).forEach((target) => actions.push({ type: "strike", index, targetIndex: target.index }));
+          strikeTargets(card, human, { attacker: ai, attackerFieldIndex: index }).forEach((target) => actions.push({ type: "strike", index, targetIndex: target.index }));
         });
       }
     }
@@ -1909,16 +2395,17 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
   if (action.type === "attack") {
     const attacker = ai.field[action.index];
     if (!attacker) return -9999;
-    return score + attackAiValue(game, attacker);
+    return score + attackAiValue(game, attacker, action.index);
   }
   if (action.type === "strike") {
     const attacker = ai.field[action.index];
     const target = opponent.field[action.targetIndex];
     if (!attacker || !target) return -9999;
-    const { attackValue, defenseValue } = strikeValues(attacker, opponent, action.targetIndex);
+    const attackContext: AttackContext = { attacker: ai, attackerFieldIndex: action.index };
+    const { attackValue, defenseValue } = strikeValues(attacker, opponent, action.targetIndex, attackContext);
     if (attackValue < defenseValue) return -9999;
     if (CONFIG.handDefenseVsStrike !== "off") {
-      const blockerIndex = chooseStrikeHandDefense(opponent, attacker, action.targetIndex);
+      const blockerIndex = chooseStrikeHandDefense(opponent, attacker, action.targetIndex, attackContext);
       if (blockerIndex !== null) {
         const blocker = opponent.hand[blockerIndex];
         return score + CHALLENGER_WEIGHTS.handTradeAttack + (blocker ? aiCardValue(blocker) * 0.35 : 0);
@@ -1948,12 +2435,13 @@ function boardAiScore(ai: PlayerState, opponent: PlayerState): number {
   );
 }
 
-function attackAiValue(game: GameState, attacker: Card): number {
+function attackAiValue(game: GameState, attacker: Card, attackerFieldIndex: number): number {
   const defender = opponentPlayer(game);
-  if (hasCrushingFieldDefender(defender, attacker)) return CHALLENGER_SELF_DEFEAT_ATTACK_SCORE;
+  const attackContext: AttackContext = { attacker: activePlayer(game), attackerFieldIndex };
+  if (hasCrushingFieldDefender(defender, attacker, attackContext)) return CHALLENGER_SELF_DEFEAT_ATTACK_SCORE;
 
-  const defense = chooseAiDefense(defender, attacker, "challenger");
-  let value = CHALLENGER_WEIGHTS.attackPower * attackCombatValue(attacker);
+  const defense = chooseAiDefense(defender, attacker, "challenger", attackContext);
+  let value = CHALLENGER_WEIGHTS.attackPower * attackCombatValue(attacker, attackContext);
   if (defense.type === "none") {
     value += CHALLENGER_WEIGHTS.damage;
     if (defender.life <= attackDamage(attacker)) value += CHALLENGER_WEIGHTS.lethal;
@@ -1967,8 +2455,17 @@ function attackAiValue(game: GameState, attacker: Card): number {
   }
   const card = defender.field[defense.index];
   if (!card) return value + CHALLENGER_WEIGHTS.badAttack;
-  const defenseValue = defenseCombatValue(attacker, card, defender, { fieldIndex: defense.index });
-  if (defenseValue === attackCombatValue(attacker)) value += CHALLENGER_WEIGHTS.tradeAttack + aiCardValue(card) * 0.35;
+  const defenseValue = defenseCombatValue(attacker, card, defender, { fieldIndex: defense.index, attackContext });
+  const attackValue = attackCombatValue(attacker, attackContext);
+  if (defenseValue < attackValue) {
+    value += CHALLENGER_WEIGHTS.damage + aiCardValue(card) * 0.2;
+    if (defender.life <= attackDamage(attacker)) value += CHALLENGER_WEIGHTS.lethal;
+    if (drawsOnSuccessfulDefense(card)) value -= 20;
+    if (recoversAiOnSuccessfulDefense(card)) value -= 28;
+    if (defender.memory?.effect === "tidal_mirror") value -= 20;
+    return value;
+  }
+  if (defenseValue === attackValue) value += CHALLENGER_WEIGHTS.tradeAttack + aiCardValue(card) * 0.35;
   else value += CHALLENGER_WEIGHTS.badAttack;
   if (pressuresOnBlock(attacker)) value += CHALLENGER_WEIGHTS.blockedValue;
   if (drawsOnBlockedAttack(attacker)) value += 32;
@@ -1976,12 +2473,12 @@ function attackAiValue(game: GameState, attacker: Card): number {
   return value;
 }
 
-function hasCrushingFieldDefender(defender: PlayerState, attacker: Card): boolean {
-  const attackValue = attackCombatValue(attacker);
-  return legalFieldDefenders(defender, attacker).some(({ card, index }) => {
-    const baseValue = defenseCombatValue(attacker, card, defender, { fieldIndex: index });
+function hasCrushingFieldDefender(defender: PlayerState, attacker: Card, attackContext: AttackContext): boolean {
+  const attackValue = attackCombatValue(attacker, attackContext);
+  return legalFieldDefenders(defender, attacker, attackContext).some(({ card, index }) => {
+    const baseValue = defenseCombatValue(attacker, card, defender, { fieldIndex: index, attackContext });
     const paidValue = canUseFirewall(defender, card, attacker)
-      ? defenseCombatValue(attacker, card, defender, { firewallPaid: true, fieldIndex: index })
+      ? defenseCombatValue(attacker, card, defender, { firewallPaid: true, fieldIndex: index, attackContext })
       : baseValue;
     return Math.max(baseValue, paidValue) > attackValue;
   });
@@ -1989,7 +2486,7 @@ function hasCrushingFieldDefender(defender: PlayerState, attacker: Card): boolea
 
 function aiCardValue(card: Card): number {
   if (card.type === "memory") {
-    const priority: Record<string, number> = { cache: 48, resonator: 45, recovery_cache: 42, war_banner: 40, pipeline: 38, accelerator: 36, grove_rest: 34, firewall: 30 };
+    const priority: Record<string, number> = { cache: 48, resonator: 45, recovery_cache: 42, echo_urn: 42, tidal_mirror: 40, war_banner: 40, pipeline: 38, storm_core: 38, dual_banner: 36, accelerator: 36, grove_rest: 34, firewall: 30 };
     return priority[card.effect ?? ""] ?? 12;
   }
   if (card.type !== "ai") return 12;
@@ -2029,6 +2526,23 @@ function aiCardValue(card: Card): number {
     charge_surge_draw: 20,
     charge_spend_enemy: 20,
     charge_recover_discard: 18,
+    trash_enemy_memory_on_play: 14,
+    draw_on_play_if_discard_4: 16,
+    charge_draw_if_discard_ai: 16,
+    recover_ai_on_successful_defense: 18,
+    discard_commands_attack_plus_1: 14,
+    draw_on_play_defense_draw: 26,
+    ready_ally_on_play_enters_spent: 14,
+    defense_plus_1_with_memory: 12,
+    blocked_attack_draw: 18,
+    charge_spend_enemy_ready_ally: 24,
+    charge_recover_discard_any: 20,
+    charge_filter_draw: 20,
+    charge_pressure_any: 20,
+    return_after_overheat_opponent_draw_on_play: 14,
+    discard_ai_attack_plus_1: 18,
+    charge_spend_all_enemies: 26,
+    recover_memory_on_play_defense_plus_1: 20,
   };
   return (card.power ?? 0) * 20 + (effectBonus[card.effect ?? ""] ?? 0);
 }
@@ -2060,6 +2574,14 @@ function commandAiValue(game: GameState, command: Card): number {
   if (command.effect === "patch") return 52 + (ai.deck.length > 0 ? 8 : 0);
   if (command.effect === "relearn") return 45;
   if (command.effect === "optimize") return 36 + Math.max(0, 4 - ai.hand.length) * 4;
+  if (command.effect === "war_cry") return canActivePlayerAttack(game) ? 40 : 0;
+  if (command.effect === "tide_edge") return canActivePlayerAttack(game) ? 42 : 0;
+  if (command.effect === "pierce_sight") return canActivePlayerAttack(game) && opponent.hand.length > 0 ? 38 : 0;
+  if (command.effect === "grave_call") return 58;
+  if (command.effect === "salvage") return 40;
+  if (command.effect === "overdrive") return 64;
+  if (command.effect === "relic_crush") return opponent.memory ? 66 : 34;
+  if (command.effect === "deep_current") return 70;
   return 0;
 }
 
@@ -2074,6 +2596,19 @@ function chargeAiValue(game: GameState, fuel: Card): number {
   if (fuel.effect === "charge_surge_draw") return ai.hand.length <= 3 && ai.deck.length > 0 ? 56 : 6;
   if (fuel.effect === "charge_spend_enemy") return highestPowerReadyAi(opponent) !== null ? 58 : 8;
   if (fuel.effect === "charge_recover_discard") return ai.hand.length <= 3 && highestPowerAiInDiscard(ai) !== null ? 50 : 6;
+  if (fuel.effect === "charge_draw_if_discard_ai") return ai.discard.some((card) => card.type === "ai") && ai.deck.length > 0 ? 44 : 6;
+  if (fuel.effect === "charge_filter_draw") return ai.deck.length > 0 ? 48 : 6;
+  if (fuel.effect === "charge_pressure_any") return opponent.hand.length >= 1 ? 46 : 8;
+  if (fuel.effect === "charge_spend_all_enemies") {
+    const readyCount = opponent.field.filter((_, index) => !opponent.spentFieldIndexes.has(index)).length;
+    return readyCount >= 2 ? 70 : readyCount === 1 ? 40 : 8;
+  }
+  if (fuel.effect === "charge_spend_enemy_ready_ally") {
+    const canSpend = highestPowerReadyAi(opponent) !== null;
+    const canReady = highestPowerSpentAi(ai) !== null;
+    return canSpend && canReady ? 72 : canSpend ? 58 : canReady ? 62 : 8;
+  }
+  if (fuel.effect === "charge_recover_discard_any") return highestPowerAiInDiscard(ai) !== null ? 52 : 6;
   if (ai.memory?.effect === "resonator" && ai.hand.length <= 2) return 24;
   return 0;
 }
@@ -2132,6 +2667,14 @@ function chargeFuelHasImmediateValue(player: PlayerState, opponent: PlayerState 
   if (card.effect === "charge_surge_draw") return remainingHand.length <= 2 && player.deck.length > 0;
   if (card.effect === "charge_spend_enemy") return Boolean(opponent && highestPowerReadyAi(opponent) !== null);
   if (card.effect === "charge_recover_discard") return remainingHand.length <= 2 && highestPowerAiInDiscard(player) !== null;
+  if (card.effect === "charge_draw_if_discard_ai") return player.discard.some((item) => item.type === "ai") && player.deck.length > 0;
+  if (card.effect === "charge_filter_draw") return player.deck.length > 0;
+  if (card.effect === "charge_pressure_any") return Boolean(opponent && opponent.hand.length >= 1);
+  if (card.effect === "charge_spend_all_enemies") return Boolean(opponent && highestPowerReadyAi(opponent) !== null);
+  if (card.effect === "charge_spend_enemy_ready_ally") {
+    return Boolean(opponent && highestPowerReadyAi(opponent) !== null) || highestPowerSpentAi(player) !== null;
+  }
+  if (card.effect === "charge_recover_discard_any") return highestPowerAiInDiscard(player) !== null;
   if (player.memory?.effect === "resonator") return remainingHand.length <= 2 && player.deck.length > 0;
   return false;
 }

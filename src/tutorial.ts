@@ -189,7 +189,7 @@ export function currentTutorialStep(game: GameState): TutorialStep {
         id: "field-defend",
         kicker: "STEP 9",
         title: "場で防御",
-        detail: "場に未消耗の召喚獣がいれば、防御に使えます。防御値が攻撃値以上なら防御成功です。『炉殻バサルトン』(防御値2)でライバルの攻撃を受け止めましょう。",
+        detail: "場に未消耗の召喚獣がいれば、防御に使えます。防御値が攻撃値以上なら防御成功、不足しても差分ダメージまで軽減できます。『炉殻バサルトン』(防御値2)でライバルの攻撃を受け止めましょう。",
         focus: { kind: "defense" },
       };
     }
@@ -341,7 +341,7 @@ export function currentTutorialStep(game: GameState): TutorialStep {
         id: "attack",
         kicker: "STEP 10",
         title: "攻撃する",
-        detail: "『灯火の旅嚢』の補充を確認したら攻撃です。『炉殻バサルトン』を選んで攻撃ボタンを押します。防がれなかった攻撃は power と同じダメージを与え、攻撃後はその召喚獣が消耗します。",
+        detail: "『灯火の旅嚢』の補充を確認したら攻撃です。『炉殻バサルトン』を選んで攻撃ボタンを押します。防御されなかった攻撃は power と同じダメージを与え、攻撃後はその召喚獣が消耗します。",
         focus: selectedHumanFieldCardByIdReady(game, "AI-FIRE-2") ? { kind: "action", action: "attack" } : { kind: "field-card", ownerIndex: 0, index: attackerIndex },
       };
     }
@@ -450,7 +450,7 @@ export function currentTutorialStep(game: GameState): TutorialStep {
       id: "strike-monster",
       kicker: "STEP 21",
       title: "モンスター攻撃",
-      detail: "攻撃対象には相手プレイヤーだけでなく相手の召喚獣も選べます。攻撃値が相手の防御値を上回れば討伐、同値なら相打ちです。この攻撃も相手の手札防御で止められることがあります。『炉殻バサルトン』で相手の壁を討伐しましょう。",
+      detail: "攻撃対象には相手プレイヤーだけでなく相手の召喚獣も選べます。攻撃値が相手の防御値を上回れば討伐、同値なら相打ちです。実戦では、相手が場の別召喚獣でかばったり、手札防御で止めたりすることがあります。『炉殻バサルトン』で相手の壁を討伐しましょう。",
       focus: selectedHumanFieldCardByIdReady(game, "AI-FIRE-2") ? { kind: "action", action: "attack" } : { kind: "field-card", ownerIndex: 0, index: strikerIndex },
     };
   }
@@ -562,7 +562,7 @@ function completeStep(): TutorialStep {
     id: "complete",
     kicker: "COMPLETE",
     title: "チュートリアル完了",
-    detail: "場防御、手札防御、追撃粛清、モンスター攻撃、ブレイクドローを確認し、最後は切札の4点パンチで勝利しました。内容を確認したら完了して、通常の対戦準備へ戻ります。",
+    detail: "場防御、手札防御、追撃粛清、モンスター攻撃、ブレイクドローを確認し、最後は切札の4点パンチで勝利しました。モンスター攻撃は場の別召喚獣でかばえることも覚えておきましょう。内容を確認したら完了して、通常の対戦準備へ戻ります。",
   };
 }
 

@@ -2,9 +2,11 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   CONFIG,
   BATTLE_DECK_IDS,
+  CARD_BY_ID,
   DECKS,
   type AiAction,
   type AiProfile,
+  type AttackContext,
   type DefenseChoice,
   type Card,
   type DeckId,
@@ -13,11 +15,11 @@ import {
   type PlayerState,
   addLog,
   activePlayer,
+  applyEchoUrnDraw,
   attackCombatValue,
   bestUpgradeSource,
   canActivePlayerAttack,
   canChargeCard,
-  canDefendWithOptionalFirewall,
   canHumanAct,
   canHumanEndTurn,
   canUseAcceleratorMemory,
@@ -25,6 +27,7 @@ import {
   canUseFirewall,
   canUpgrade,
   cloneGame,
+  cloneCard,
   commandUsable,
   strikeTargets,
   createGame,
@@ -38,14 +41,17 @@ import {
   highestPowerSpentAiByAttribute,
   legalFieldDefenders,
   legalHandDefenders,
+  legalStrikeFieldDefenders,
   makeRng,
   needsFirewallFuel,
   opponentPlayer,
   playCost,
   recoversAiOnPlay,
   stackUpgradeCard,
+  trashMemory,
   upgradeCost,
   upgradeSourceIndexes,
+  visibleDrawText,
 } from "./game";
 import {
   afterAction,
@@ -80,6 +86,8 @@ import {
   actionHintText,
 } from "./components/DuelPanel";
 import { CardLibraryPage, DeckBuilderPage, loadSavedDecks, validateDeck, type SavedDeck } from "./components/DeckWorkshop";
+import { PackOpeningPage } from "./components/PackOpening";
+import { MATCH_LOSE_COINS, MATCH_WIN_COINS, PACK_COST, addCoins, loadCoins, spendCoins } from "./collection";
 import { CardArtPreview, CardView } from "./components/CardView";
 import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
@@ -89,6 +97,7 @@ import { RIVAL_VOICE_LINES, type RivalVoiceLineId } from "./rivalVoiceLines";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
 import finalBattleBgm from "./assets/audio/battle_music_final_loop.mp3";
 import menuBgm from "./assets/audio/menu_music_loop.ogg";
+import packBgm from "./assets/audio/pack_music_loop.wav";
 import sfxAttack from "./assets/audio/sfx-attack.ogg";
 import sfxBlock from "./assets/audio/sfx-block.ogg";
 import sfxCardHover from "./assets/audio/sfx-card-hover.ogg";
@@ -97,6 +106,8 @@ import sfxCharge from "./assets/audio/sfx-charge.ogg";
 import sfxCommand from "./assets/audio/sfx-command.ogg";
 import sfxDamage from "./assets/audio/sfx-damage.ogg";
 import sfxDraw from "./assets/audio/sfx-card-draw.ogg";
+import sfxPackTear from "./assets/audio/sfx-pack-tear.wav";
+import sfxRareReveal from "./assets/audio/sfx-rare-reveal.wav";
 import sfxSelect from "./assets/audio/sfx-select.ogg";
 import sfxTrash from "./assets/audio/sfx-trash.ogg";
 import sfxTurnEnd from "./assets/audio/sfx-turn-end.ogg";
@@ -112,12 +123,13 @@ const INITIAL_SEED = randomSeed();
 const BATTLE_BGM_VOLUME = 0.32;
 const FINAL_BATTLE_BGM_VOLUME = 0.36;
 const MENU_BGM_VOLUME = 0.26;
+const PACK_BGM_VOLUME = 0.24;
 const BGM_FADE_OUT_MS = 360;
 const BGM_TRACK_SWITCH_PAUSE_MS = 160;
 const BGM_FADE_IN_MS = 900;
 const BGM_FADE_STEP_MS = 40;
 
-type AppPage = "duel" | "cards" | "builder";
+type AppPage = "duel" | "cards" | "builder" | "packs";
 
 type DeckSelection =
   | { kind: "random" }
@@ -132,6 +144,7 @@ const PAGE_PATHS: Record<AppPage, string> = {
   duel: "/duel",
   cards: "/cards",
   builder: "/builder",
+  packs: "/packs",
 };
 
 type CardFlight = {
@@ -256,6 +269,7 @@ const RIVAL_ACTION_VOICE_LINE_IDS = [
 ] as const satisfies readonly RivalVoiceLineId[];
 type RivalActionVoiceLineId = typeof RIVAL_ACTION_VOICE_LINE_IDS[number];
 type RivalVoiceTurnGroup = "odd" | "even";
+type DevScenario = "firewall";
 
 const TRASH_SPARKS = [
   { x: 12, y: 18, delay: 0 },
@@ -285,6 +299,9 @@ const SFX_ASSETS: Record<string, { src: string; volume: number }> = {
   hover: { src: sfxCardHover, volume: 1 },
   draw: { src: sfxDraw, volume: 0.72 },
   charge: { src: sfxCharge, volume: 0.82 },
+  "card-flip": { src: sfxSelect, volume: 0.92 },
+  "pack-tear": { src: sfxPackTear, volume: 0.74 },
+  "rare-reveal": { src: sfxRareReveal, volume: 0.78 },
 };
 
 const TRASH_SFX_PRIMARY_GRACE_MS = 450;
@@ -297,22 +314,25 @@ const SFX_PRIORITY: Record<string, number> = {
   select: 1,
   trash: 1,
   draw: 1,
+  "card-flip": 2,
   end: 2,
   attack: 3,
   command: 3,
+  "pack-tear": 3,
   play: 4,
   charge: 4,
   block: 4,
   damage: 4,
   "damage-heavy": 5,
+  "rare-reveal": 5,
 };
-const LOW_PRIORITY_SFX_KINDS = new Set(["hover", "select", "trash", "draw"]);
+const LOW_PRIORITY_SFX_KINDS = new Set(["hover", "select", "trash", "draw", "card-flip"]);
 
 type CombatPreview = {
   attackerIndex: number;
   attackValue: number;
   fieldDefenses: Map<number, {
-    result: "trade" | "hold";
+    result: "fail" | "trade" | "hold";
     label: string;
   }>;
   handDefenseCount: number;
@@ -339,6 +359,75 @@ function readResultPreviewTone(): MatchResultTone | null {
   return tone === "win" || tone === "lose" || tone === "draw" ? tone : null;
 }
 
+function readDevScenario(): DevScenario | null {
+  if (!import.meta.env.DEV || typeof window === "undefined") return null;
+  const scenario = new URLSearchParams(window.location.search).get("devScenario");
+  return scenario === "firewall" ? scenario : null;
+}
+
+function devCard(cardId: string): Card {
+  const card = CARD_BY_ID.get(cardId);
+  if (!card) throw new Error(`Unknown dev scenario card id: ${cardId}`);
+  return cloneCard(card);
+}
+
+function createFirewallDevScenario(seed: number, opponentAiProfile: AiProfile): GameState {
+  const game = createGame(seed, "fire", "water", opponentAiProfile);
+  const human = game.players[0];
+  const rival = game.players[1];
+  const defender = devCard("AI-WATER-1");
+  const attacker = devCard("AI-FIRE-2B");
+
+  human.deckName = "竜盾の紋章検証";
+  human.life = CONFIG.life;
+  human.deck = [devCard("AI-EARTH-1"), devCard("AI-WIND-1")];
+  human.hand = [devCard("AI-FIRE-1"), devCard("AI-EARTH-1")];
+  human.field = [defender];
+  human.fieldStacks = [[]];
+  human.memory = devCard("MEM-FIREWALL");
+  human.discard = [];
+  human.spentFieldIndexes.clear();
+  human.power3RecoveryDelayedFieldIndexes.clear();
+  human.chargeGuardedFieldIndexes.clear();
+  human.turnFieldAttackBonuses.clear();
+
+  rival.deckName = "竜盾の紋章検証攻撃側";
+  rival.life = CONFIG.life;
+  rival.deck = [devCard("AI-FIRE-1"), devCard("AI-WATER-1")];
+  rival.hand = [];
+  rival.field = [attacker];
+  rival.fieldStacks = [[]];
+  rival.memory = null;
+  rival.discard = [];
+  rival.spentFieldIndexes.clear();
+  rival.power3RecoveryDelayedFieldIndexes.clear();
+  rival.chargeGuardedFieldIndexes.clear();
+  rival.turnFieldAttackBonuses.clear();
+
+  game.active = 1;
+  game.turn = 6;
+  game.actionsRemaining = 1;
+  game.chargedActionsRemaining = 0;
+  game.winner = null;
+  game.draw = false;
+  game.selected = null;
+  game.pendingTarget = null;
+  game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
+  game.aiRunning = false;
+  game.discardViewerOwner = null;
+  game.discardViewerIndex = null;
+  game.log = [
+    `Seed ${seed} / 開発用: 竜盾の紋章 検証シナリオ。`,
+    `${rival.name}は${attacker.name}で攻撃。${human.name}は${defender.name}で場防御を選べます。`,
+  ];
+  return game;
+}
+
+function createInitialDuelGame(seed: number, opponentAiProfile: AiProfile): GameState {
+  if (readDevScenario() === "firewall") return createFirewallDevScenario(seed, opponentAiProfile);
+  return createGame(seed, "fire", undefined, opponentAiProfile);
+}
+
 function previewMatchResult(tone: MatchResultTone): MatchResultView {
   if (tone === "draw") {
     return {
@@ -363,6 +452,7 @@ function previewMatchResult(tone: MatchResultTone): MatchResultView {
 function pageFromPath(pathname: string): AppPage {
   if (pathname === PAGE_PATHS.cards) return "cards";
   if (pathname === PAGE_PATHS.builder) return "builder";
+  if (pathname === PAGE_PATHS.packs) return "packs";
   return "duel";
 }
 
@@ -583,15 +673,16 @@ export default function App() {
   const [opponentDeckSelection, setOpponentDeckSelection] = useState<DeckSelection>({ kind: "random" });
   const [opponentAiProfile, setOpponentAiProfile] = useState<AiProfile>("challenger");
   const [savedDecks, setSavedDecks] = useState<SavedDeck[]>(() => loadSavedDecks());
-  const [game, setGame] = useState<GameState>(() => createGame(INITIAL_SEED, "fire", undefined, "challenger"));
+  const [game, setGame] = useState<GameState>(() => createInitialDuelGame(INITIAL_SEED, "challenger"));
   const [lastHumanActionsRemaining, setLastHumanActionsRemaining] = useState(() => game.actionsRemaining);
   const [rulesOpen, setRulesOpen] = useState(false);
-  const [starterDeckSetupOpen, setStarterDeckSetupOpen] = useState(true);
+  const [starterDeckSetupOpen, setStarterDeckSetupOpen] = useState(() => readDevScenario() === null);
   const [tutorialActive, setTutorialActive] = useState(false);
   const [tutorialAiAdvanceKey, setTutorialAiAdvanceKey] = useState<string | null>(null);
   const [tutorialAiAdvancePending, setTutorialAiAdvancePending] = useState(false);
   const [aiGateRetryTick, setAiGateRetryTick] = useState(0);
   const [toast, setToast] = useState<Toast>(null);
+  const [coins, setCoins] = useState(() => loadCoins());
   const [duelEvent, setDuelEvent] = useState<DuelEvent | null>(null);
   const [cardFlights, setCardFlights] = useState<CardFlight[]>([]);
   const [trashFlash, setTrashFlash] = useState<TrashFlash | null>(null);
@@ -603,8 +694,10 @@ export default function App() {
   const [breakDrawPulse, setBreakDrawPulse] = useState<BreakDrawPulse | null>(null);
   const [banner, setBanner] = useState<Banner>(() => ({
     kind: "start",
-    title: "BREAK DUEL",
-    detail: `Seed ${INITIAL_SEED} / 先攻: あなた / ${CONFIG.maxTurns}手番制限`,
+    title: readDevScenario() === "firewall" ? "竜盾の紋章 検証" : "BREAK DUEL",
+    detail: readDevScenario() === "firewall"
+      ? `Seed ${INITIAL_SEED} / ライバル攻撃への場防御から開始`
+      : `Seed ${INITIAL_SEED} / 先攻: あなた / ${CONFIG.maxTurns}手番制限`,
     id: eventId++,
   }));
   const [audioEnabled, setAudioEnabled] = useState(false);
@@ -637,6 +730,7 @@ export default function App() {
   const currentRivalVoiceStateKey = useRef("");
   const gameResolvedRef = useRef(false);
   const announcedResultKey = useRef<string | null>(null);
+  const coinAwardedKey = useRef<string | null>(null);
   const rivalActionVoiceTurnGroups = useRef(createRivalActionVoiceTurnGroups(INITIAL_SEED));
   const announcedAutoDismissDefault = useRef(false);
   const recentLifeDamageImpact = useRef<DuelEventPayload["impact"] | null>(null);
@@ -1173,15 +1267,22 @@ export default function App() {
     const defender = game.players[defenderIndex];
     const attackCard = attacker?.field[fieldIndex];
     if (!attacker || !defender || !attackCard) return;
+    const attackContext: AttackContext = { attacker, attackerFieldIndex: fieldIndex };
     if (choice.type === "field") {
       const defenseCard = defender.field[choice.index];
-      if (!defenseCard || !canDefendWithOptionalFirewall(attackCard, defenseCard, defender, choice.index)) return;
-      if (defender.isHuman && needsFirewallFuel(defender, defenseCard, attackCard, choice.index) && choice.firewallDiscardIndex === undefined) return;
-      launchTrashFlight(attackCard, { ownerIndex: attackerIndex, zone: "field", index: fieldIndex }, attackerIndex, "攻撃札退場", 760);
+      const fieldOptions = game.pendingAttack?.strikeTargetIndex !== undefined
+        ? legalStrikeFieldDefenders(defender, attackCard, game.pendingAttack.strikeTargetIndex, attackContext)
+        : legalFieldDefenders(defender, attackCard, attackContext);
+      if (!defenseCard || !fieldOptions.some((option) => option.index === choice.index)) return;
+      if (defender.isHuman && needsFirewallFuel(defender, defenseCard, attackCard, choice.index, attackContext) && choice.firewallDiscardIndex === undefined) return;
       const firewallPaid = typeof choice.firewallDiscardIndex === "number";
-      const isTrade = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid, fieldIndex: choice.index }) === attackCombatValue(attackCard);
-      if (isTrade) {
-        launchTrashFlight(defenseCard, { ownerIndex: defenderIndex, zone: "field", index: choice.index }, defenderIndex, "相打ち", 760);
+      const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid, fieldIndex: choice.index, attackContext });
+      const attackValue = attackCombatValue(attackCard, attackContext);
+      if (defenseValue >= attackValue) {
+        launchTrashFlight(attackCard, { ownerIndex: attackerIndex, zone: "field", index: fieldIndex }, attackerIndex, "攻撃札退場", 760);
+      }
+      if (defenseValue <= attackValue) {
+        launchTrashFlight(defenseCard, { ownerIndex: defenderIndex, zone: "field", index: choice.index }, defenderIndex, defenseValue === attackValue ? "相打ち" : "防御失敗", 760);
       }
       return;
     }
@@ -1373,6 +1474,12 @@ export default function App() {
     setTutorialAiAdvancePending(false);
     changePage("duel");
     setStarterDeckSetupOpen(true);
+  }
+
+  function spendForPack(): boolean {
+    if (!spendCoins(PACK_COST)) return false;
+    setCoins(loadCoins());
+    return true;
   }
 
   function changePage(nextPage: AppPage) {
@@ -1597,6 +1704,20 @@ export default function App() {
     }
   }, [page, seed, game.turn, game.winner, game.draw, human.life, ai.life]);
 
+  // CPU戦を最後まで打った試合にコインを付与する（チュートリアルと途中放棄は対象外）
+  useEffect(() => {
+    if (page !== "duel") return;
+    if (tutorialActive) return;
+    if (game.winner === null && !game.draw) return;
+    const awardKey = `${seed}:${game.turn}:${game.winner ?? "draw"}`;
+    if (coinAwardedKey.current === awardKey) return;
+    coinAwardedKey.current = awardKey;
+    const amount = game.winner === 0 ? MATCH_WIN_COINS : MATCH_LOSE_COINS;
+    const balance = addCoins(amount);
+    setCoins(balance);
+    showToast(`+${amount} コイン獲得`, `所持コイン ${balance}`);
+  }, [page, seed, game.turn, game.winner, game.draw, tutorialActive]);
+
   useEffect(() => {
     if (!audioEnabled) return;
     startBgm();
@@ -1814,6 +1935,7 @@ export default function App() {
   }
 
   function bgmTrackForCurrentView(): BgmTrack {
+    if (page === "packs") return { src: packBgm, volume: PACK_BGM_VOLUME };
     if (!activeDuelUsesBattleBgm()) return { src: menuBgm, volume: MENU_BGM_VOLUME };
     return duelIsInFinalPhase()
       ? { src: finalBattleBgm, volume: FINAL_BATTLE_BGM_VOLUME }
@@ -1961,7 +2083,7 @@ export default function App() {
       }
       const attacker = game.players[0].field[pending.sourceIndex];
       if (!attacker) return;
-      if (!strikeTargets(attacker, game.players[1]).some((target) => target.index === index)) return;
+      if (!strikeTargets(attacker, game.players[1], { attacker: game.players[0], attackerFieldIndex: pending.sourceIndex }).some((target) => target.index === index)) return;
       performStrike(pending.sourceIndex, index);
       return;
     }
@@ -2175,6 +2297,7 @@ export default function App() {
       player.spentFieldIndexes.delete(sourceIndex);
       player.power3RecoveryDelayedFieldIndexes.delete(sourceIndex);
       player.chargeGuardedFieldIndexes.delete(sourceIndex);
+      player.turnFieldAttackBonuses.delete(sourceIndex);
       draft.pendingTarget = null;
       let text = `${player.name}は${source.name}を元に${card.name}へアップグレード。`;
       text += applyPlayEffects(draft, player, card, sourceIndex, cost, source);
@@ -2220,7 +2343,7 @@ export default function App() {
       });
       return;
     }
-    if (command.effect === "patch") {
+    if (command.effect === "patch" && highestPowerSpentAi(player) !== null) {
       mutate((draft) => {
         const player = activePlayer(draft);
         const command = player.hand[sourceIndex];
@@ -2244,7 +2367,7 @@ export default function App() {
       });
       return;
     }
-    if (command.effect === "optimize") {
+    if (command.effect === "optimize" && player.hand.length > 1) {
       mutate((draft) => {
         draft.pendingTarget = {
           kind: "hand-discard",
@@ -2261,7 +2384,7 @@ export default function App() {
       });
       return;
     }
-    if (command.effect === "relearn") {
+    if (command.effect === "relearn" && player.hand.length > 1) {
       mutate((draft) => {
         const player = activePlayer(draft);
         const command = player.hand[sourceIndex];
@@ -2360,6 +2483,82 @@ export default function App() {
       });
       return;
     }
+    if (command.effect === "tide_edge") {
+      mutate((draft) => {
+        const player = activePlayer(draft);
+        const command = player.hand[sourceIndex];
+        if (!command || command.effect !== "tide_edge") return;
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "tide-edge-buff",
+          zone: "field",
+          playerIndex: draft.active,
+          title: `${command.name}で強化する召喚獣を選択`,
+          prompt: "このターン、戦闘時の攻撃値を+2する自分の召喚獣を1体選んでください。",
+          confirmLabel: "この召喚獣を強化",
+          min: 1,
+          max: 1,
+          excludeIndexes: [],
+          selectedIndexes: [],
+          sourceIndex,
+          actionCost: 1,
+          cancelable: true,
+        };
+      });
+      return;
+    }
+    if (command.effect === "grave_call") {
+      mutate((draft) => {
+        const player = activePlayer(draft);
+        const command = player.hand[sourceIndex];
+        if (!command || command.effect !== "grave_call") return;
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "grave-call-revive",
+          zone: "discard",
+          playerIndex: draft.active,
+          title: `${command.name}で場に出すカードを選択`,
+          prompt: "消耗状態で場に出す power 2 以下の召喚獣を1枚選んでください。",
+          confirmLabel: "このカードを場に出す",
+          min: 1,
+          max: 1,
+          excludeIndexes: player.discard
+            .map((card, index) => (card.type === "ai" && (card.power ?? 0) <= 2 ? -1 : index))
+            .filter((index) => index >= 0),
+          selectedIndexes: [],
+          sourceIndex,
+          actionCost: 1,
+          cancelable: true,
+        };
+      });
+      return;
+    }
+    if (command.effect === "salvage") {
+      mutate((draft) => {
+        const player = activePlayer(draft);
+        const command = player.hand[sourceIndex];
+        if (!command || command.effect !== "salvage") return;
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "salvage-recover",
+          zone: "discard",
+          playerIndex: draft.active,
+          title: `${command.name}で回収するカードを選択`,
+          prompt: "トラッシュから手札に戻す術式を1枚選んでください。遺灰回収は戻せません。",
+          confirmLabel: "このカードを回収",
+          min: 1,
+          max: 1,
+          excludeIndexes: player.discard
+            .map((card, index) => (card.type === "event" && card.effect !== "salvage" ? -1 : index))
+            .filter((index) => index >= 0),
+          selectedIndexes: [],
+          sourceIndex,
+          actionCost: 1,
+          cancelable: true,
+        };
+      });
+      return;
+    }
     if (command.effect === "comeback_rite" && highestPowerSpentAi(player) !== null) {
       mutate((draft) => {
         const player = activePlayer(draft);
@@ -2418,7 +2617,7 @@ export default function App() {
     if (tutorialBlocks("attack")) return;
     const fieldIndex = game.selected.index;
     const attackCard = game.players[0].field[fieldIndex];
-    if ((!tutorialStep || tutorialStep.id === "strike-monster") && CONFIG.monsterCombat && attackCard && strikeTargets(attackCard, game.players[1]).length > 0) {
+    if ((!tutorialStep || tutorialStep.id === "strike-monster") && CONFIG.monsterCombat && attackCard && strikeTargets(attackCard, game.players[1], { attacker: game.players[0], attackerFieldIndex: fieldIndex }).length > 0) {
       mutate((draft) => {
         draft.pendingTarget = { kind: "strike", sourceIndex: fieldIndex };
       });
@@ -2552,11 +2751,64 @@ export default function App() {
       });
       return;
     }
-    if (card.effect === "charge_recover_discard" && player.hand.length <= 3 && highestPowerAiInDiscard(player) !== null) {
+    if (card.effect === "charge_spend_enemy_ready_ally" && highestPowerReadyAi(game.players[1]) !== null) {
+      // 消耗させる相手は選択、自分の回復対象は自動（最高power消耗中）で解決する
       const handIndex = game.selected.index;
       mutate((draft) => {
         const current = draft.players[0].hand[handIndex];
-        if (!current || current.effect !== "charge_recover_discard") return;
+        if (!current || current.effect !== "charge_spend_enemy_ready_ally") return;
+        const opponent = draft.players[1];
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "charge-spend-enemy",
+          zone: "field",
+          playerIndex: 1,
+          title: `${current.name}で消耗させる相手召喚獣を選択`,
+          prompt: "消耗させる相手の未消耗召喚獣を1体選んでください。自分の消耗中召喚獣の回復は自動で行われます。",
+          confirmLabel: "この召喚獣を消耗",
+          min: 1,
+          max: 1,
+          excludeIndexes: opponent.field.map((_, index) => opponent.spentFieldIndexes.has(index) ? index : -1).filter((index) => index >= 0),
+          selectedIndexes: [],
+          sourceIndex: handIndex,
+          cancelable: true,
+        };
+      });
+      return;
+    }
+    if (card.effect === "charge_spend_enemy_ready_ally" && highestPowerSpentAi(player) !== null) {
+      // 相手に未消耗召喚獣がいない場合は回復対象だけを選択する
+      const handIndex = game.selected.index;
+      mutate((draft) => {
+        const owner = draft.players[0];
+        const current = owner.hand[handIndex];
+        if (!current || current.effect !== "charge_spend_enemy_ready_ally") return;
+        draft.pendingTarget = {
+          kind: "card-select",
+          reason: "charge-ready-ally",
+          zone: "field",
+          playerIndex: 0,
+          title: `${current.name}で回復する召喚獣を選択`,
+          prompt: "消耗から回復する自分の召喚獣を1体選んでください。",
+          confirmLabel: "この召喚獣を回復する",
+          min: 1,
+          max: 1,
+          excludeIndexes: owner.field.map((_, index) => owner.spentFieldIndexes.has(index) ? -1 : index).filter((index) => index >= 0),
+          selectedIndexes: [],
+          sourceIndex: handIndex,
+          cancelable: true,
+        };
+      });
+      return;
+    }
+    if (
+      (card.effect === "charge_recover_discard" ? player.hand.length <= 3 : card.effect === "charge_recover_discard_any")
+      && highestPowerAiInDiscard(player) !== null
+    ) {
+      const handIndex = game.selected.index;
+      mutate((draft) => {
+        const current = draft.players[0].hand[handIndex];
+        if (!current || (current.effect !== "charge_recover_discard" && current.effect !== "charge_recover_discard_any")) return;
         const owner = draft.players[0];
         draft.pendingTarget = {
           kind: "card-select",
@@ -2697,7 +2949,13 @@ export default function App() {
       useCommandAt(pending.sourceIndex!, selectedIndex);
       return;
     }
-    if (pending.reason === "relearn-recover" || pending.reason === "earth-rite-recover") {
+    if (
+      pending.reason === "relearn-recover"
+      || pending.reason === "earth-rite-recover"
+      || pending.reason === "tide-edge-buff"
+      || pending.reason === "grave-call-revive"
+      || pending.reason === "salvage-recover"
+    ) {
       useCommandAt(pending.sourceIndex!, selectedIndex, pending.discardIndexes ?? []);
       return;
     }
@@ -2721,7 +2979,7 @@ export default function App() {
         launchTrashFlight(charged, { ownerIndex: 0, zone: flightHandZone(chargeOwner), index: pending.sourceIndex! }, 0, "チャージ");
       }
     }
-    if (pending.reason === "filter-discard" || pending.reason === "block-pressure") {
+    if (pending.reason === "filter-discard" || pending.reason === "block-pressure" || pending.reason === "deep-current-discard") {
       const discarded = pendingPlayer.hand[selectedIndex];
       launchTrashFlight(
         discarded,
@@ -2742,10 +3000,10 @@ export default function App() {
       const current = draft.pendingTarget;
       if (!current || current.kind !== "card-select") return;
       const player = draft.players[current.playerIndex];
-      if (current.reason === "filter-discard" || current.reason === "block-pressure") {
+      if (current.reason === "filter-discard" || current.reason === "block-pressure" || current.reason === "deep-current-discard") {
         const discarded = discardHandCards(draft, current.playerIndex, current.selectedIndexes);
         if (discarded.length > 0) {
-          const sourceName = current.reason === "block-pressure" ? "攻撃の圧" : "登場時効果";
+          const sourceName = current.reason === "block-pressure" ? "攻撃の圧" : current.reason === "deep-current-discard" ? "深流呼び" : "登場時効果";
           addLog(draft, `${player.name}は${sourceName}で${discarded.map((card) => card.name).join("、")}をトラッシュへ送った。`);
           queueDuelEvent({
             kind: "trash",
@@ -2761,6 +3019,10 @@ export default function App() {
         const recovered = player.discard.splice(selectedIndex, 1)[0];
         if (recovered) {
           player.hand.push(recovered);
+          const urnDrawnCards = applyEchoUrnDraw(player);
+          if (urnDrawnCards.length > 0) {
+            addLog(draft, `${player.memory!.name}で${player.name}は${visibleDrawText(player, urnDrawnCards)}。`);
+          }
           addLog(draft, `${player.name}は${recovered.name}をトラッシュから回収。`);
           queueDuelEvent({
             kind: "trash",
@@ -2874,6 +3136,55 @@ export default function App() {
       const actionCost = current.actionCost ?? 1;
       draft.pendingTarget = null;
       afterAction(draft, actionCost, current.actionKind ?? "normal");
+    });
+  }
+
+  function confirmRelicThiefTrash() {
+    const pending = game.pendingTarget;
+    if (!pending || pending.kind !== "confirm" || pending.reason !== "relic-thief-trash") return;
+    const player = game.players[pending.playerIndex];
+    const opponent = game.players[1 - pending.playerIndex];
+    const relic = opponent.memory;
+    if (relic) {
+      launchTrashFlight(relic, { ownerIndex: 1 - pending.playerIndex, zone: "memory", index: 0 }, 1 - pending.playerIndex, "炉暴きレミ");
+    }
+    mutate((draft) => {
+      const current = draft.pendingTarget;
+      if (!current || current.kind !== "confirm" || current.reason !== "relic-thief-trash") return;
+      const player = draft.players[current.playerIndex];
+      const opponent = draft.players[1 - current.playerIndex];
+      const card = player.field[current.fieldIndex];
+      const trashed = trashMemory(opponent);
+      if (trashed) {
+        player.spentFieldIndexes.add(current.fieldIndex);
+        addLog(draft, `${player.name}は${card?.name ?? "炉暴きレミ"}で${opponent.name}の${trashed.name}をトラッシュへ送った。代償として消耗した。`);
+        queueDuelEvent({
+          kind: "trash",
+          title: `${card?.name ?? "炉暴きレミ"}を使用`,
+          detail: `${opponent.name}の${trashed.name}をトラッシュへ送りました。`,
+          fromLabel: "遺物",
+          toLabel: "トラッシュ",
+          resultLabel: "消耗",
+          tone: player.isHuman ? "magenta" : "cyan",
+          cards: [{ card: trashed, label: "トラッシュ", state: "trash" }],
+        });
+      }
+      const actionCost = current.actionCost ?? 1;
+      draft.pendingTarget = null;
+      afterAction(draft, actionCost);
+    });
+  }
+
+  function cancelRelicThiefTrash() {
+    mutate((draft) => {
+      const current = draft.pendingTarget;
+      if (!current || current.kind !== "confirm" || current.reason !== "relic-thief-trash") return;
+      const player = draft.players[current.playerIndex];
+      const card = player.field[current.fieldIndex];
+      addLog(draft, `${player.name}は${card?.name ?? "炉暴きレミ"}の効果を発動しなかった。`);
+      const actionCost = current.actionCost ?? 1;
+      draft.pendingTarget = null;
+      afterAction(draft, actionCost);
     });
   }
 
@@ -3021,11 +3332,18 @@ export default function App() {
       game={game}
       onResolve={resolveDefense}
       onUseCommand={useCommandAt}
-      onCancelTarget={() => mutate((draft) => { draft.pendingTarget = null; })}
+      onCancelTarget={() => {
+        if (game.pendingTarget?.kind === "confirm" && game.pendingTarget.reason === "relic-thief-trash") {
+          cancelRelicThiefTrash();
+          return;
+        }
+        mutate((draft) => { draft.pendingTarget = null; });
+      }}
       onTogglePendingHand={togglePendingHandIndex}
       onTogglePendingCard={togglePendingCardIndex}
       onConfirmPending={confirmPendingTarget}
       onConfirmCardSelection={confirmCardSelectionTarget}
+      onConfirmRelicThiefTrash={confirmRelicThiefTrash}
       onConfirmFaceAttack={confirmFaceAttack}
       onStrikeTarget={performStrike}
       forcedDefenseChoice={tutorialForcedDefenseChoice(tutorialStep, game)}
@@ -3051,6 +3369,7 @@ export default function App() {
         <WorkspaceHeader
           page={page}
           onChangePage={changePage}
+          coins={coins}
           seed={seed}
           onStartNewGame={openStarterDeckSetup}
           onStartTutorial={startTutorialGame}
@@ -3058,7 +3377,13 @@ export default function App() {
           audioEnabled={audioEnabled}
           onToggleAudio={toggleAudio}
         />
-        {page === "cards" ? <CardLibraryPage /> : <DeckBuilderPage />}
+        {page === "cards" ? (
+          <CardLibraryPage playSfx={playSfx} />
+        ) : page === "packs" ? (
+          <PackOpeningPage coins={coins} onSpendPack={spendForPack} playSfx={playSfx} />
+        ) : (
+          <DeckBuilderPage playSfx={playSfx} />
+        )}
         <EventToast toast={toast} />
         {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
       </main>
@@ -3071,6 +3396,7 @@ export default function App() {
         <WorkspaceHeader
           page={page}
           onChangePage={changePage}
+          coins={coins}
           seed={seed}
           onStartNewGame={openStarterDeckSetup}
           onStartTutorial={startTutorialGame}
@@ -3111,6 +3437,7 @@ export default function App() {
         </div>
         <div className="duel-top-controls">
           <PageTabs page={page} onChange={changePage} />
+          <CoinChip coins={coins} />
           <label className="duel-seed">
             <span>Seed</span>
             <input type="number" value={seed} readOnly aria-label="現在のSeed" />
@@ -3196,6 +3523,7 @@ export default function App() {
                 game={game}
                 visualEffect={tutorialFocusMatchesCard(tutorialStep?.focus, 0, "hand", card, index) ? "tutorial-focus" : ""}
                 showCost={false}
+                showSetBadge={false}
                 onClick={handSelectable ? () => selectHand(index) : undefined}
                 onMouseEnter={() => playSfx("hover")}
               />
@@ -3564,6 +3892,7 @@ function isDeckSelectionEqual(left: DeckSelection, right: DeckSelection): boolea
 function WorkspaceHeader({
   page,
   onChangePage,
+  coins,
   seed,
   onStartNewGame,
   onStartTutorial,
@@ -3573,6 +3902,7 @@ function WorkspaceHeader({
 }: {
   page: AppPage;
   onChangePage: (page: AppPage) => void;
+  coins: number;
   seed: number;
   onStartNewGame: () => void;
   onStartTutorial: () => void;
@@ -3591,6 +3921,7 @@ function WorkspaceHeader({
       </button>
       <PageTabs page={page} onChange={onChangePage} />
       <div className="workspace-tools">
+        <CoinChip coins={coins} />
         <label className="duel-seed">
           <span>Seed</span>
           <input type="number" value={seed} readOnly aria-label="現在のSeed" />
@@ -3628,12 +3959,22 @@ function MatchResultSpotlight({
   );
 }
 
+function CoinChip({ coins }: { coins: number }) {
+  return (
+    <span className="coin-chip" title="所持コイン" aria-label={`所持コイン ${coins}`}>
+      <i aria-hidden="true" />
+      {coins}
+    </span>
+  );
+}
+
 function PageTabs({ page, onChange }: { page: AppPage; onChange: (page: AppPage) => void }) {
   return (
     <nav className="page-tabs" aria-label="ページ切替">
       <button type="button" className={page === "duel" ? "active" : ""} onClick={() => onChange("duel")}>対戦</button>
       <button type="button" className={page === "cards" ? "active" : ""} onClick={() => onChange("cards")}>カード一覧</button>
       <button type="button" className={page === "builder" ? "active" : ""} onClick={() => onChange("builder")}>デッキ制作</button>
+      <button type="button" className={page === "packs" ? "active" : ""} onClick={() => onChange("packs")}>パック開封</button>
     </nav>
   );
 }
@@ -3717,6 +4058,7 @@ function TrashPileButton({
               zone="discard"
               index={Math.max(0, player.discard.length - 1)}
               showCost={false}
+              showSetBadge={false}
             />
           </span>
         ) : (
@@ -3740,18 +4082,22 @@ function combatPreviewForSelection(game: GameState): CombatPreview | null {
   if (!attacker || attacker.type !== "ai") return null;
   if (!canHumanAct(game) || !canActivePlayerAttack(game) || human.spentFieldIndexes.has(selected.index)) return null;
 
-  const attackValue = attackCombatValue(attacker);
-  const fieldDefenses = new Map<number, { result: "trade" | "hold"; label: string }>();
-  legalFieldDefenders(defender, attacker).forEach(({ card, index }) => {
-    const defenseOptions = { fieldDefense: true, fieldIndex: index };
+  const attackContext: AttackContext = { attacker: human, attackerFieldIndex: selected.index };
+  const attackValue = attackCombatValue(attacker, attackContext);
+  const fieldDefenses = new Map<number, { result: "fail" | "trade" | "hold"; label: string }>();
+  legalFieldDefenders(defender, attacker, attackContext).forEach(({ card, index }) => {
+    const defenseOptions = { fieldDefense: true, fieldIndex: index, attackContext };
     const baseDefenseValue = defenseCombatValue(attacker, card, defender, defenseOptions);
     const paidDefenseValue = canUseFirewall(defender, card, attacker)
       ? defenseCombatValue(attacker, card, defender, { ...defenseOptions, firewallPaid: true })
       : baseDefenseValue;
     const usesFirewall = baseDefenseValue < attackValue && paidDefenseValue >= attackValue;
     const defenseValue = usesFirewall ? paidDefenseValue : baseDefenseValue;
-    const defenseLabel = usesFirewall ? `竜盾 ${defenseValue}` : `DEF ${defenseValue}`;
-    fieldDefenses.set(index, {
+    const defenseLabel = usesFirewall ? `竜盾の紋章 ${defenseValue}` : `DEF ${defenseValue}`;
+    fieldDefenses.set(index, defenseValue < attackValue ? {
+      result: "fail",
+      label: `${defenseLabel} / 失敗`,
+    } : {
       result: defenseValue > attackValue ? "hold" : "trade",
       label: defenseValue > attackValue ? `${defenseLabel} / 残る` : `${defenseLabel} / 相打ち`,
     });
@@ -3761,7 +4107,7 @@ function combatPreviewForSelection(game: GameState): CombatPreview | null {
     attackerIndex: selected.index,
     attackValue,
     fieldDefenses,
-    handDefenseCount: legalHandDefenders(defender, attacker).length,
+    handDefenseCount: legalHandDefenders(defender, attacker, attackContext).length,
     direct: fieldDefenses.size === 0,
   };
 }
@@ -3804,12 +4150,13 @@ function FieldGrid({
           && ownerIndex === 1 - game.active
           && player.spentFieldIndexes.has(index);
         const strikePending = game.pendingTarget?.kind === "strike" ? game.pendingTarget : null;
-        const strikeAttacker = strikePending ? game.players[game.active]?.field[strikePending.sourceIndex] : null;
+        const strikePlayer = strikePending ? game.players[game.active] : null;
+        const strikeAttacker = strikePending && strikePlayer ? strikePlayer.field[strikePending.sourceIndex] : null;
         const isStrikeTarget = Boolean(
           strikePending
             && ownerIndex === 1 - game.active
             && strikeAttacker
-            && strikeTargets(strikeAttacker, player).some((target) => target.index === index),
+            && strikeTargets(strikeAttacker, player, { attacker: strikePlayer, attackerFieldIndex: strikePending.sourceIndex }).some((target) => target.index === index),
         );
         const pendingCardTarget = pendingTargetCardState(game, ownerIndex, "field", index);
         const isSelected = game.selected?.zone === "field"
@@ -3839,6 +4186,7 @@ function FieldGrid({
             extraBadges={defensePreview ? [defensePreview.label] : isAttackerPreview ? [`ATK ${combatPreview.attackValue}`] : []}
             game={game}
             showCost={false}
+            showSetBadge={false}
             onClick={fieldSelectable ? () => onSelectField(ownerIndex, index) : undefined}
           />
         );
@@ -3877,6 +4225,7 @@ function MemorySlot({
         actionState={ownerIndex === 0 && canUseAcceleratorMemory(game, player) ? "usable" : "idle"}
         visualEffect={trashSurge ? "trash-alert" : ""}
         showCost={false}
+        showSetBadge={false}
         onClick={tutorialLocked ? undefined : () => onSelectMemory(ownerIndex)}
       />
     );
@@ -3974,7 +4323,7 @@ function CardFlightLayer({ flight }: { flight: CardFlight | null }) {
           <img src={cardBackImage} alt="" draggable={false} />
         </div>
       ) : (
-        flight.card && <CardView card={flight.card} ownerIndex={flight.tone === "ai" ? 1 : 0} zone="hand" index={0} showCost={false} />
+        flight.card && <CardView card={flight.card} ownerIndex={flight.tone === "ai" ? 1 : 0} zone="hand" index={0} showCost={false} showSetBadge={false} />
       )}
     </div>
   );
