@@ -20,6 +20,7 @@ const DECK_SIZE = 25;
 const SAME_NAME_LIMIT = 2;
 const HIGH_POWER_LIMIT = 5;
 export const SAVED_DECKS_STORAGE_KEY = "break-duel:saved-decks";
+type PlaySfx = (kind: string) => void;
 
 type TypeFilter = CardType | "all";
 type AttributeFilter = Attribute | "all";
@@ -49,7 +50,7 @@ const CARD_LIST = allCards();
 
 const CARD_SETS = [...new Set(CARD_LIST.map((card) => cardSet(card)))].sort((a, b) => a - b);
 
-export function CardLibraryPage() {
+export function CardLibraryPage({ playSfx = () => undefined }: { playSfx?: PlaySfx } = {}) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [attributeFilter, setAttributeFilter] = useState<AttributeFilter>("all");
   const [setFilter, setSetFilter] = useState<SetFilter>("all");
@@ -114,7 +115,14 @@ export function CardLibraryPage() {
               ownerIndex={2}
               ownedCount={ownedCountForCard(card, owned)}
               selected={selectedCard?.id === card.id}
-              onSelect={() => setSelectedId(card.id)}
+              onSelect={() => {
+                if (selectedId !== card.id) playSfx("select");
+                setSelectedId(card.id);
+              }}
+              onPreview={() => {
+                if (selectedId !== card.id) playSfx("hover");
+                setSelectedId(card.id);
+              }}
             />
           ))}
         </div>
@@ -124,7 +132,7 @@ export function CardLibraryPage() {
   );
 }
 
-export function DeckBuilderPage() {
+export function DeckBuilderPage({ playSfx = () => undefined }: { playSfx?: PlaySfx } = {}) {
   const [deckName, setDeckName] = useState("新しいデッキ");
   const [cardIds, setCardIds] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState(CARD_LIST[0]?.id ?? "");
@@ -157,11 +165,13 @@ export function DeckBuilderPage() {
     setCardIds((current) => sortCardIds([...current, cardId]));
     setSelectedId(cardId);
     setNotice("");
+    playSfx("play");
   }
 
   function removeCard(index: number) {
     setCardIds((current) => current.filter((_, itemIndex) => itemIndex !== index));
     setNotice("");
+    playSfx("trash");
   }
 
   function loadPreset(deckId: keyof typeof DECKS) {
@@ -305,10 +315,14 @@ export function DeckBuilderPage() {
                   selected={selectedId === card.id}
                   showDeckCount
                   onSelect={() => {
+                    if (disabled) playSfx("select");
                     setSelectedId(card.id);
                     if (!disabled) addCard(card.id);
                   }}
-                  onPreview={() => setSelectedId(card.id)}
+                  onPreview={() => {
+                    if (selectedId !== card.id) playSfx("hover");
+                    setSelectedId(card.id);
+                  }}
                 />
               );
             })}
@@ -341,7 +355,10 @@ export function DeckBuilderPage() {
                   aria-label={`${index + 1}枚目の${card.name}をデッキから外す`}
                   title={issue ? `${issue.message} / クリックで外す` : `${card.name}をデッキから外す`}
                   onClick={() => removeCard(index)}
-                  onMouseEnter={() => setSelectedId(card.id)}
+                  onMouseEnter={() => {
+                    if (selectedId !== card.id) playSfx("hover");
+                    setSelectedId(card.id);
+                  }}
                 >
                   <CardView card={card} ownerIndex={4} zone="hand" index={index} showCost />
                 </button>

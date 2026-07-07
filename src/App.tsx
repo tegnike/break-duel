@@ -94,6 +94,7 @@ import { RIVAL_VOICE_LINES, type RivalVoiceLineId } from "./rivalVoiceLines";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
 import finalBattleBgm from "./assets/audio/battle_music_final_loop.mp3";
 import menuBgm from "./assets/audio/menu_music_loop.ogg";
+import packBgm from "./assets/audio/pack_music_loop.wav";
 import sfxAttack from "./assets/audio/sfx-attack.ogg";
 import sfxBlock from "./assets/audio/sfx-block.ogg";
 import sfxCardHover from "./assets/audio/sfx-card-hover.ogg";
@@ -102,6 +103,8 @@ import sfxCharge from "./assets/audio/sfx-charge.ogg";
 import sfxCommand from "./assets/audio/sfx-command.ogg";
 import sfxDamage from "./assets/audio/sfx-damage.ogg";
 import sfxDraw from "./assets/audio/sfx-card-draw.ogg";
+import sfxPackTear from "./assets/audio/sfx-pack-tear.wav";
+import sfxRareReveal from "./assets/audio/sfx-rare-reveal.wav";
 import sfxSelect from "./assets/audio/sfx-select.ogg";
 import sfxTrash from "./assets/audio/sfx-trash.ogg";
 import sfxTurnEnd from "./assets/audio/sfx-turn-end.ogg";
@@ -117,6 +120,7 @@ const INITIAL_SEED = randomSeed();
 const BATTLE_BGM_VOLUME = 0.32;
 const FINAL_BATTLE_BGM_VOLUME = 0.36;
 const MENU_BGM_VOLUME = 0.26;
+const PACK_BGM_VOLUME = 0.24;
 const BGM_FADE_OUT_MS = 360;
 const BGM_TRACK_SWITCH_PAUSE_MS = 160;
 const BGM_FADE_IN_MS = 900;
@@ -291,6 +295,9 @@ const SFX_ASSETS: Record<string, { src: string; volume: number }> = {
   hover: { src: sfxCardHover, volume: 1 },
   draw: { src: sfxDraw, volume: 0.72 },
   charge: { src: sfxCharge, volume: 0.82 },
+  "card-flip": { src: sfxSelect, volume: 0.92 },
+  "pack-tear": { src: sfxPackTear, volume: 0.74 },
+  "rare-reveal": { src: sfxRareReveal, volume: 0.78 },
 };
 
 const TRASH_SFX_PRIMARY_GRACE_MS = 450;
@@ -303,16 +310,19 @@ const SFX_PRIORITY: Record<string, number> = {
   select: 1,
   trash: 1,
   draw: 1,
+  "card-flip": 2,
   end: 2,
   attack: 3,
   command: 3,
+  "pack-tear": 3,
   play: 4,
   charge: 4,
   block: 4,
   damage: 4,
   "damage-heavy": 5,
+  "rare-reveal": 5,
 };
-const LOW_PRIORITY_SFX_KINDS = new Set(["hover", "select", "trash", "draw"]);
+const LOW_PRIORITY_SFX_KINDS = new Set(["hover", "select", "trash", "draw", "card-flip"]);
 
 type CombatPreview = {
   attackerIndex: number;
@@ -1847,6 +1857,7 @@ export default function App() {
   }
 
   function bgmTrackForCurrentView(): BgmTrack {
+    if (page === "packs") return { src: packBgm, volume: PACK_BGM_VOLUME };
     if (!activeDuelUsesBattleBgm()) return { src: menuBgm, volume: MENU_BGM_VOLUME };
     return duelIsInFinalPhase()
       ? { src: finalBattleBgm, volume: FINAL_BATTLE_BGM_VOLUME }
@@ -3288,7 +3299,13 @@ export default function App() {
           audioEnabled={audioEnabled}
           onToggleAudio={toggleAudio}
         />
-        {page === "cards" ? <CardLibraryPage /> : page === "packs" ? <PackOpeningPage coins={coins} onSpendPack={spendForPack} /> : <DeckBuilderPage />}
+        {page === "cards" ? (
+          <CardLibraryPage playSfx={playSfx} />
+        ) : page === "packs" ? (
+          <PackOpeningPage coins={coins} onSpendPack={spendForPack} playSfx={playSfx} />
+        ) : (
+          <DeckBuilderPage playSfx={playSfx} />
+        )}
         <EventToast toast={toast} />
         {rulesOpen && <RulesModal onClose={() => setRulesOpen(false)} />}
       </main>

@@ -26,6 +26,14 @@
 - License: CC0
 - Notes: Public Domain menu loop used outside active duels.
 
+## `pack_music_loop.wav`
+
+- Title: Break Duel Pack Room Loop
+- Author: Generated in-repo
+- Source: Procedural synthesis via Python `wave` and sine/noise layers.
+- License: MIT, same as the project.
+- Notes: Dedicated BGM for the pack opening screen.
+
 ## Card Battle SFX
 
 The following short effects are edited from card-focused CC0 packs for card
@@ -53,6 +61,17 @@ selection and card play feedback.
   - Sources:
     - https://opengameart.org/content/level-up-power-up-coin-get-13-sounds
 - License: Creative Commons CC0
+
+## Pack Opening SFX
+
+The following short effects are procedurally generated in this repository for
+pack-opening feedback.
+
+- `sfx-pack-tear.wav`
+- `sfx-rare-reveal.wav`
+- Source: Procedural synthesis via Python `wave` using sine, noise, and envelope layers.
+- License: MIT, same as the project.
+- Notes: Pack card flipping reuses the existing `sfx-select.ogg` card selection sound so it matches card list and deck workshop feedback.
 
 ## Battle SFX
 
