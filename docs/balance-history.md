@@ -4,6 +4,56 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
+## 2026-07-07 モンスター攻撃への場防御追加: 採用（要監視）
+
+### 背景
+
+モンスター攻撃に対して手札防御はできる一方、場の別召喚獣で対象をかばえない状態だった。通常攻撃への場防御と直感がずれるため、対象自身を除く未消耗召喚獣でモンスター攻撃を場防御できるようにした。
+
+### 採用変更 / 変更内容
+
+Python / TypeScript 両実装に以下を同期した。
+
+1. モンスター攻撃の防御選択に、対象以外の未消耗召喚獣による場防御を追加。
+2. 防御値不足の場防御でも元の対象は守られる。防御召喚獣はトラッシュへ行き、ライフダメージとブレイクドローは発生しない。
+3. 防御値が攻撃値以上なら通常の場防御と同じく、同値は相打ち、上回れば攻撃側だけトラッシュ。`場防御時` 効果は防御値不足でも発動し、`攻撃が防御された時` 効果は攻撃を止めた場合だけ発動する。
+
+### 検証
+
+`origin/develop` と実装後を同一条件で比較（8 デッキ総当たり、challenger 同士、100 games/ordered pair x 2 シード = 各 11200 戦、seed 2026070701 / 2026070702）。
+
+| デッキ / 指標 | 実装前 | 実装後 | 差分 |
+| --- | ---: | ---: | ---: |
+| apex | 84.0% | 81.5% | -2.5pt |
+| break | 47.4% | 45.9% | -1.5pt |
+| control | 49.6% | 51.3% | +1.7pt |
+| earth | 34.9% | 37.3% | +2.4pt |
+| echoes | 51.5% | 57.7% | +6.2pt |
+| fire | 45.6% | 42.4% | -3.2pt |
+| water | 49.4% | 47.2% | -2.2pt |
+| wind | 37.5% | 36.8% | -0.7pt |
+| 先攻勝率 | 49.9% | 49.3% | -0.6pt |
+| ワンサイド率 | 58.2% | 57.6% | -0.6pt |
+
+実装後 11200 戦で、モンスター攻撃への場防御は成功 4341 回、失敗 619 回発生。モンスター攻撃への手札防御は 30 回から 14 回に減少した。
+
+### 判断
+
+採用する。モンスター攻撃への防御手段が通常攻撃の直感に近くなり、ワンサイド率もわずかに改善した。ただし、`echoes` が +6.2pt で 57.7% まで上がり、`fire` が 42.4% まで下がったため、次回調整では `echoes` / `fire` を監視対象にする。
+
+### 検証コマンド
+
+```bash
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070701 --decks break control fire water wind earth apex echoes --out tmp/strike-field-baseline-2026070701
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070702 --decks break control fire water wind earth apex echoes --out tmp/strike-field-baseline-2026070702
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070701 --decks break control fire water wind earth apex echoes --out tmp/strike-field-after-2026070701
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070702 --decks break control fire water wind earth apex echoes --out tmp/strike-field-after-2026070702
+PATH="/Users/user/.nvm/versions/node/v24.13.0/bin:$PATH" npm run test:unit
+python3 -m unittest
+PATH="/Users/user/.nvm/versions/node/v24.13.0/bin:$PATH" npm run typecheck
+PATH="/Users/user/.nvm/versions/node/v24.13.0/bin:$PATH" npm run build
+```
+
 ## 2026-07-07 場防御失敗の差分ダメージ化 + echoes 再調整: 採用
 
 ### 背景
@@ -467,7 +517,7 @@ python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance
 
 ### 背景
 
-「場の召喚獣は攻撃され放題で止める手立てがない」というプレイフィールの指摘を受け、モンスター攻撃（相手の場の召喚獣への攻撃）に対しても手札防御で割り込めるルール変更がバランスを崩すかを検証しました。現行仕様ではモンスター攻撃は防御選択を挟まず即時解決です（`docs/game-spec.md` 10.6）。設計原則では「手札は逆転の資源、盤面は優勢側の資源」の相殺のため、モンスター攻撃は優勢側の決着装置として意図的に防御不可で採用されています（`docs/design-principles.md` 1 節）。
+「場の召喚獣は攻撃され放題で止める手立てがない」というプレイフィールの指摘を受け、モンスター攻撃（相手の場の召喚獣への攻撃）に対しても手札防御で割り込めるルール変更がバランスを崩すかを検証しました。当時の仕様ではモンスター攻撃は防御選択を挟まず即時解決でした。設計原則では「手札は逆転の資源、盤面は優勢側の資源」の相殺のため、モンスター攻撃は優勢側の決着装置として意図的に防御不可で採用されていました。
 
 ### 変更内容
 

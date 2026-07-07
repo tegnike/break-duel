@@ -27,6 +27,7 @@ from ai_break_duel.engine import (
     add_turn_global_attack_bonus,
     apply_action,
     command_is_usable,
+    choose_strike_field_defender,
     end_turn,
     finish_if_turn_limit_reached,
     has_charged_this_turn,
@@ -2067,6 +2068,42 @@ class BreakthroughRevisionTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[0].field_ai], ["AI-WATER-3"])
         self.assertIn(0, state.players[0].spent_field_ai)
         self.assertEqual(state.players[1].life, 8)
+
+    def test_strike_field_defense_saves_valuable_stack(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[1].field_ai = [card("AI-WIND-3"), card("AI-WATER-4")]
+        state.players[1].field_stacks = [[card("AI-WIND-2")], []]
+        start_turn(state)
+        apply_action(state, Action(ActionType.STRIKE, 0, 0))
+        self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-WIND-3"])
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-WATER-4"])
+        self.assertEqual(state.players[1].life, 8)
+        self.assertEqual(state.players[0].field_ai, [])
+        self.assertEqual([item.id for item in state.players[0].discard], ["AI-WATER-4"])
+        self.assertEqual(state.log[-1]["field_defense_ai"], "AI-WATER-4")
+        self.assertEqual(state.log[-1]["defense_result"], "success_trade")
+
+    def test_strike_field_defense_does_not_use_target_itself(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[1].field_ai = [card("AI-WIND-3"), card("AI-WATER-4")]
+        state.players[1].field_stacks = [[card("AI-WIND-2")], []]
+        self.assertEqual(choose_strike_field_defender(state, state.players[0].field_ai[0], state.players[1], 0), 1)
+
+    def test_failed_strike_field_defense_still_triggers_field_defense_effect(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[1].field_ai = [card("AI-WIND-3"), card("AI-EARTH-1B")]
+        state.players[1].field_stacks = [[card("AI-WIND-2")], []]
+        state.players[1].deck = [card("AI-FIRE-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.STRIKE, 0, 0))
+        self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-WIND-3"])
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-EARTH-1B"])
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-FIRE-1"])
+        self.assertEqual(state.players[1].life, 8)
+        self.assertEqual(state.log[-1]["defense_result"], "partial_failed")
 
     def test_strike_trade_trashes_both_summons(self) -> None:
         state = new_game(1, no_opening_hands())

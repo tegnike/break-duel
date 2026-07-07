@@ -28,6 +28,7 @@ import {
   checkTurnLimit,
   checkWinner,
   chooseAiDefense,
+  chooseStrikeFieldDefense,
   chooseStrikeHandDefense,
   cardNameList,
   commandUsable,
@@ -52,6 +53,7 @@ import {
   hasAttributeAi,
   legalFieldDefenders,
   legalHandDefenders,
+  legalStrikeFieldDefenders,
   lowestPriorityHand,
   keepsReadyAfterAttack,
   needsFirewallFuel,
@@ -815,7 +817,32 @@ export function resolveDefenseInDraft(
     const strikeDefender = draft.players[pending.defenderIndex];
     if (!strikeAttackCard) return;
     const strikeAttackContext = { attacker: draft.players[pending.attackerIndex], attackerFieldIndex: pending.fieldIndex };
-    if (choice.type === "hand") {
+    if (choice.type === "field") {
+      const defenseCard = strikeDefender.field[choice.index];
+      if (!defenseCard || !legalStrikeFieldDefenders(strikeDefender, strikeAttackCard, pending.strikeTargetIndex, strikeAttackContext).some((option) => option.index === choice.index)) return;
+      draft.pendingTarget = null;
+      if (strikeDefender.isHuman && needsFirewallFuel(strikeDefender, defenseCard, strikeAttackCard, choice.index, strikeAttackContext) && choice.firewallDiscardIndex === undefined) {
+        const baseCanDefend = canDefend(strikeAttackCard, defenseCard, strikeDefender, { fieldIndex: choice.index, attackContext: strikeAttackContext });
+        draft.pendingTarget = {
+          kind: "hand-discard",
+          reason: "firewall",
+          playerIndex: pending.defenderIndex,
+          title: `${strikeDefender.memory!.name}でトラッシュへ送るカードを選択`,
+          prompt: baseCanDefend
+            ? "他属性防御で power +1 できます。使うなら手札を1枚選んでください。"
+            : "他属性防御で power +1 しないと防御できません。手札を1枚選んでください。",
+          min: baseCanDefend ? 0 : 1,
+          max: 1,
+          excludeIndexes: [],
+          selectedIndexes: [],
+          fieldIndex: choice.index,
+          actionCost: 1,
+          cancelable: true,
+        };
+        return;
+      }
+      resolveStrikeFieldDefenseInDraft(draft, pending.attackerIndex, pending.fieldIndex, pending.strikeTargetIndex, choice.index, effects, choice.firewallDiscardIndex);
+    } else if (choice.type === "hand") {
       if (!legalHandDefenders(strikeDefender, strikeAttackCard, strikeAttackContext).some((option) => option.index === choice.index)) return;
       resolveStrikeHandDefenseInDraft(draft, pending.attackerIndex, pending.fieldIndex, pending.strikeTargetIndex, choice.index, effects);
     } else if (choice.type === "none") {
@@ -1146,7 +1173,10 @@ export function strikeInDraft(
   }
   if (CONFIG.handDefenseVsStrike !== "off" && aiDefenseOverride?.type !== "none") {
     if (defender.isHuman) {
-      if (legalHandDefenders(defender, attackCard, attackContext).length > 0) {
+      if (
+        legalStrikeFieldDefenders(defender, attackCard, targetIndex, attackContext).length > 0
+        || legalHandDefenders(defender, attackCard, attackContext).length > 0
+      ) {
         addLog(draft, `${attacker.name}は${attackCard.name}で${defender.name}の${targetCard.name}を攻撃。`);
         effects.showDuelEvent?.({
           kind: "battle",
@@ -1167,6 +1197,13 @@ export function strikeInDraft(
         return;
       }
     } else {
+      const interceptFieldIndex = aiDefenseOverride?.type === "field"
+        ? aiDefenseOverride.index
+        : chooseStrikeFieldDefense(defender, attackCard, targetIndex, attackContext);
+      if (interceptFieldIndex !== null) {
+        resolveStrikeFieldDefenseInDraft(draft, attackerIndex, fieldIndex, targetIndex, interceptFieldIndex, effects, aiDefenseOverride?.type === "field" ? aiDefenseOverride.firewallDiscardIndex : undefined);
+        return;
+      }
       const interceptIndex = aiDefenseOverride?.type === "hand"
         ? aiDefenseOverride.index
         : chooseStrikeHandDefense(defender, attackCard, targetIndex, attackContext);
@@ -1177,6 +1214,126 @@ export function strikeInDraft(
     }
   }
   resolveStrikeOutcomeInDraft(draft, attackerIndex, fieldIndex, targetIndex, effects);
+}
+
+export function resolveStrikeFieldDefenseInDraft(
+  draft: GameState,
+  attackerIndex: number,
+  fieldIndex: number,
+  targetIndex: number,
+  defenseIndex: number,
+  effects: GameActionEffects = {},
+  firewallDiscardIndex?: number | null,
+): void {
+  const attacker = draft.players[attackerIndex];
+  const defenderIndex = 1 - attackerIndex;
+  const defender = draft.players[defenderIndex];
+  const attackCard = attacker.field[fieldIndex];
+  const targetCard = defender.field[targetIndex];
+  const defenseCard = defender.field[defenseIndex];
+  if (!attackCard || !targetCard || !defenseCard || defenseIndex === targetIndex) return;
+  const attackContext = { attacker, attackerFieldIndex: fieldIndex };
+  if (!legalStrikeFieldDefenders(defender, attackCard, targetIndex, attackContext).some((option) => option.index === defenseIndex)) return;
+  draft.pendingAttack = null;
+  draft.pendingTarget = null;
+  const firewallFuel = typeof firewallDiscardIndex === "number"
+    ? discardHandCards(draft, defenderIndex, [firewallDiscardIndex])[0]
+    : firewallDiscardIndex === null
+      ? null
+      : discardFirewallFuel(defender, defenseCard, attackCard, defenseIndex, attackContext);
+  const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: Boolean(firewallFuel), fieldDefense: true, fieldIndex: defenseIndex, attackContext });
+  const attackValue = attackCombatValue(attackCard, attackContext);
+  const blocked = defenseValue >= attackValue;
+  const isTrade = defenseValue === attackValue;
+  const isFailure = defenseValue < attackValue;
+  const fuelText = firewallFuel ? ` ${defender.memory!.name}で${firewallFuel.name}をトラッシュ。` : "";
+  const defenseDrawnCards = drawsOnSuccessfulDefense(defenseCard) ? drawCards(defender, 1) : [];
+  let defenseRecoverText = "";
+  if (recoversAiOnSuccessfulDefense(defenseCard)) {
+    const recoverIndex = highestPowerAiInDiscard(defender, defenseCard);
+    if (recoverIndex !== null) {
+      const recovered = defender.discard.splice(recoverIndex, 1)[0];
+      defender.hand.push(recovered);
+      defenseRecoverText = `${defenseCard.name}の効果で${defender.name}は${recovered.name}をトラッシュから回収。`;
+      const urnDrawnCards = applyEchoUrnDraw(defender);
+      if (urnDrawnCards.length > 0) defenseRecoverText += ` ${defender.memory!.name}で${visibleDrawText(defender, urnDrawnCards)}。`;
+    }
+  }
+  const mirrorDrawnCards = defender.memory?.effect === "tidal_mirror" ? drawCards(defender, 1) : [];
+  const shouldChoosePressureDiscard = blocked && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
+  const pressureDiscarded = blocked && pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
+    ? discardLowPriorityCards(defender, 1)[0] ?? null
+    : null;
+  const blockedDrawnCards = blocked && drawsOnBlockedAttack(attackCard) ? drawCards(attacker, 1) : [];
+  const extraText = [
+    defenseDrawnCards.length > 0 ? `${defenseCard.name}の効果で${defender.name}は${visibleDrawText(defender, defenseDrawnCards)}。` : "",
+    defenseRecoverText,
+    mirrorDrawnCards.length > 0 ? `${defender.memory?.name ?? "遺物"}で${defender.name}は${visibleDrawText(defender, mirrorDrawnCards)}。` : "",
+    pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}をトラッシュへ送った。` : "",
+    blockedDrawnCards.length > 0 ? `${attackCard.name}の効果で${attacker.name}は${visibleDrawText(attacker, blockedDrawnCards)}。` : "",
+  ].filter(Boolean).join(" ");
+  addLog(
+    draft,
+    isFailure
+      ? `${defender.name}は場の${defenseCard.name}で${targetCard.name}をかばったが、攻撃を止めきれなかった。防御値${defenseValue}が攻撃値${attackValue}を下回り、${defenseCard.name}はトラッシュ。${targetCard.name}は場に残る。${fuelText}${extraText ? ` ${extraText}` : ""}`
+      : isTrade
+      ? `${defender.name}は場の${defenseCard.name}で${targetCard.name}をかばって防御成功。防御値${defenseValue}と攻撃値${attackValue}が同値で相打ち。攻撃側と防御側はトラッシュ、${targetCard.name}は場に残る。${fuelText}${extraText ? ` ${extraText}` : ""}`
+      : `${defender.name}は場の${defenseCard.name}で${targetCard.name}をかばって防御成功。防御値${defenseValue}が攻撃値${attackValue}を上回り、${attackCard.name}は退場。${defenseCard.name}と${targetCard.name}は場に残る。${fuelText}${extraText ? ` ${extraText}` : ""}`,
+  );
+  effects.showDuelEvent?.({
+    kind: "battle",
+    title: isFailure ? "場防御でかばう" : isTrade ? "かばって相打ち" : `${defender.name}の場防御成功`,
+    detail: `${attackCard.name} 攻撃値${attackValue} vs 場の${defenseCard.name} 防御${defenseValue}。${isFailure ? `${defenseCard.name}はトラッシュ。${targetCard.name}は守られます。` : isTrade ? `同値なので攻撃側と${defenseCard.name}はトラッシュ。${targetCard.name}は守られます。` : `${attackCard.name}はトラッシュ。${defenseCard.name}は場に残って消耗し、${targetCard.name}も守られます。`}${fuelText}${extraText ? ` ${extraText}` : ""}`,
+    fromLabel: `${attacker.name}の場`,
+    toLabel: `${defenseCard.name}がかばう`,
+    resultLabel: isFailure ? "対象を防御" : isTrade ? "相打ち" : "防御側が残る",
+    tone: isFailure ? "warning" : isTrade ? "warning" : defender.isHuman ? "magenta" : "cyan",
+    emphasis: isFailure || isTrade ? "high" : undefined,
+    rivalVoiceLine: defender.isHuman ? undefined : "field_defense",
+    cards: [
+      { card: attackCard, label: "攻撃", state: isFailure ? "neutral" : "trash" },
+      { card: targetCard, label: "対象", state: "winner" },
+      { card: defenseCard, label: "防御", state: isFailure || isTrade ? "trash" : "winner" },
+    ],
+  });
+  if (isFailure) {
+    defender.discard.push(...removeFieldStack(defender, defenseIndex));
+  } else {
+    attacker.discard.push(...removeFieldStack(attacker, fieldIndex));
+    if (isTrade) {
+      defender.discard.push(...removeFieldStack(defender, defenseIndex));
+    } else {
+      defender.spentFieldIndexes.add(defenseIndex);
+    }
+  }
+  effects.playSfx?.(isFailure ? "damage" : "block");
+  if (shouldChoosePressureDiscard) {
+    draft.pendingTarget = {
+      kind: "card-select",
+      reason: "block-pressure",
+      zone: "hand",
+      playerIndex: defenderIndex,
+      title: `${attackCard.name}の圧でトラッシュへ送るカードを選択`,
+      prompt: "攻撃を防いだため、手札からトラッシュへ送るカードを1枚選んでください。",
+      confirmLabel: "このカードを送る",
+      min: 1,
+      max: 1,
+      excludeIndexes: [],
+      selectedIndexes: [],
+      actionCost: 1,
+      actionKind: "attack",
+      cancelable: false,
+    };
+  }
+  attacker.nextAttackUnblockable = false;
+  overheatAttackerIfNeeded(draft, attacker, fieldIndex, attackCard, effects);
+  draft.selected = null;
+  checkWinner(draft);
+  checkResourceExhaustion(draft);
+  if (draft.winner === null && !draft.draw) {
+    draft.active = attackerIndex;
+    if (!draft.pendingTarget) afterAction(draft, 1, "attack");
+  }
 }
 
 export function resolveStrikeHandDefenseInDraft(
