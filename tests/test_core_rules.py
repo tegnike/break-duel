@@ -324,6 +324,7 @@ class CoreRuleTests(unittest.TestCase):
         action = choose_action(state)
 
         self.assertEqual(action.type, ActionType.ATTACK)
+        self.assertIn(action.source_index, {0, 2})
 
     def test_challenger_skips_charge_without_followup_or_immediate_value(self) -> None:
         state = new_game(1, no_opening_hands(ai_profiles=("challenger", "challenger")))

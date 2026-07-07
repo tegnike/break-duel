@@ -742,7 +742,7 @@ def _attack_value(state: GameState, attacker, attacker_index: int, weights: dict
         value += weights["blocked_value"]
     if draws_on_blocked_attack(attacker):
         value += 32
-    if keeps_ready_after_attack(attacker):
+    if not crushing_defender and keeps_ready_after_attack(attacker):
         value += 36
     return value
 

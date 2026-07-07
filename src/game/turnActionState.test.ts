@@ -94,7 +94,10 @@ describe("turn action state", () => {
     game.players[1].memory = card("MEM-FIREWALL");
     game.players[1].spentFieldIndexes.clear();
 
-    expect(chooseAiAction(game, "challenger").type).toBe("attack");
+    const action = chooseAiAction(game, "challenger");
+
+    expect(action.type).toBe("attack");
+    if (action.type === "attack") expect([0, 2]).toContain(action.index);
   });
 
   it("draws when the turn limit is reached regardless of life totals", () => {
@@ -104,6 +107,8 @@ describe("turn action state", () => {
       { kind: "custom", name: "Test Rival", cardIds: ["AI-WATER-1"] },
     );
     game.turn = CONFIG.maxTurns;
+    game.actionsRemaining = 1;
+    game.chargedActionsRemaining = 1;
     game.players[0].life = 2;
     game.players[1].life = 7;
 
@@ -111,6 +116,8 @@ describe("turn action state", () => {
 
     expect(game.winner).toBeNull();
     expect(game.draw).toBe(true);
+    expect(game.actionsRemaining).toBe(0);
+    expect(game.chargedActionsRemaining).toBe(0);
     expect(game.log[game.log.length - 1]).toContain(`${CONFIG.maxTurns}手番に到達したため引き分け`);
   });
 

@@ -60,16 +60,19 @@ Python / TypeScript 両実装に以下を同期した。
 ### 検証コマンド
 
 ```bash
-git worktree add --detach /Users/user/WorkSpace/ai-break-duel-baseline-origin-develop origin/develop
-cd /Users/user/WorkSpace/ai-break-duel-baseline-origin-develop
+REPO_ROOT=$(git rev-parse --show-toplevel)
+BASELINE_WORKTREE=$(mktemp -d "${TMPDIR:-/tmp}/break-duel-baseline.XXXXXX")
+git worktree add --detach "$BASELINE_WORKTREE" origin/develop
+cd "$BASELINE_WORKTREE"
 python3 -m ai_break_duel.cli simulate --games 2000 --seed 2026070718 --max-turns 60 --out tmp/turn-limit-baseline-2026070718
 python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070719 --decks break control fire water wind earth --max-turns 40 --out tmp/baseline-turn40-league-2026070719
 python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070720 --decks break control fire water wind earth --max-turns 40 --out tmp/baseline-turn40-league-2026070720
-cd /Users/user/WorkSpace/ai-break-duel-cpu-empty-resource-loop
+cd "$REPO_ROOT"
 python3 -m ai_break_duel.cli simulate --games 2000 --seed 2026070718 --out tmp/cpu-followup-turn40-2026070718-rerun
 python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070719 --decks break control fire water wind earth --out tmp/cpu-followup-turn40-league-2026070719-rerun
 python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070720 --decks break control fire water wind earth --out tmp/cpu-followup-turn40-league-2026070720-rerun
 python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/cpu-followup-turn40-league-2026070719-rerun tmp/cpu-followup-turn40-league-2026070720-rerun
+git worktree remove "$BASELINE_WORKTREE"
 ```
 
 ## 2026-07-07 モンスター攻撃への場防御追加: 採用（要監視）

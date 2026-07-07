@@ -2482,7 +2482,7 @@ function attackAiValue(game: GameState, attacker: Card, attackerFieldIndex: numb
   }
   if (pressuresOnBlock(attacker)) value += CHALLENGER_WEIGHTS.blockedValue;
   if (drawsOnBlockedAttack(attacker)) value += 32;
-  if (keepsReadyAfterAttack(attacker)) value += 36;
+  if (!crushingDefender && keepsReadyAfterAttack(attacker)) value += 36;
   return value;
 }
 
