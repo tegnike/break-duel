@@ -846,8 +846,8 @@ export function resolveDefenseInDraft(
         title: `${defender.memory!.name}でトラッシュへ送るカードを選択`,
         prompt: baseCanDefend
           ? "他属性防御で power +1 できます。使うなら手札を1枚選んでください。"
-          : "他属性防御で power +1 しないと防御できません。手札を1枚選んでください。",
-        min: baseCanDefend ? 0 : 1,
+          : "防御成功には他属性防御の power +1 が必要です。使うなら手札を1枚選んでください。",
+        min: 0,
         max: 1,
         excludeIndexes: [],
         selectedIndexes: [],
