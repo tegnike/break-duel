@@ -829,6 +829,7 @@ select {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
     color-mix(in srgb, var(--card-color) 12%, #111923);
+  overflow: hidden;
 }
 
 .deck-card-item:hover:not(:disabled) {
@@ -2851,6 +2852,11 @@ h2 {
   isolation: isolate;
 }
 
+.card-tilt {
+  width: 100%;
+  height: 100%;
+}
+
 .card.card-rarity-sr {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent 34%),
@@ -2887,95 +2893,27 @@ h2 {
 .card.card-rarity-sr::after {
   background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, 0.26) 50%, transparent 58%);
   transform: translateX(-42%) rotate(8deg);
-  animation: card-sr-sheen 5.2s ease-in-out infinite;
+  animation: card-sheen-sweep 5.2s ease-in-out infinite;
 }
 
 .card.card-rarity-ur::after {
-  inset: -1px;
-  border-radius: inherit;
-  background:
-    radial-gradient(circle 1.8px at 13% 21%, rgba(255, 255, 255, 0.95) 38%, transparent 66%),
-    radial-gradient(circle 1.3px at 78% 17%, rgba(255, 255, 255, 0.82) 40%, transparent 70%),
-    radial-gradient(circle 1.5px at 82% 72%, rgba(255, 255, 255, 0.74) 40%, transparent 70%),
-    radial-gradient(circle 1px at 28% 84%, rgba(255, 255, 255, 0.7) 44%, transparent 72%),
-    conic-gradient(from 210deg at 50% 52%, transparent 0deg 66deg, rgba(255, 255, 255, 0.14) 78deg, transparent 92deg 178deg, rgba(255, 255, 255, 0.1) 190deg, transparent 208deg 360deg),
-    radial-gradient(ellipse 80% 58% at 50% 42%, rgba(255, 255, 255, 0.12), transparent 64%),
-    linear-gradient(105deg, transparent 32%, rgba(255, 255, 255, 0.08) 42%, rgba(255, 255, 255, 0.32) 50%, rgba(255, 255, 255, 0.08) 58%, transparent 68%),
-    linear-gradient(112deg, transparent 0%, rgba(255, 255, 255, 0.1) 18%, transparent 36%, transparent 64%, rgba(255, 255, 255, 0.08) 78%, transparent 100%);
-  background-size:
-    100% 100%,
-    100% 100%,
-    100% 100%,
-    100% 100%,
-    170% 170%,
-    145% 145%,
-    260% 260%,
-    220% 220%;
-  background-position:
-    0 0,
-    0 0,
-    0 0,
-    0 0,
-    58% 52%,
-    45% 50%,
-    220% 0%,
-    0% 0%;
-  animation: card-ur-holo 5.2s ease-in-out infinite;
+  --sheen-peak-opacity: 0.95;
+  background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.4) 50%, transparent 62%);
+  transform: translateX(-42%) rotate(8deg);
+  animation: card-sheen-sweep 5.2s ease-in-out infinite;
 }
 
-@keyframes card-sr-sheen {
+@keyframes card-sheen-sweep {
   0%, 68% {
     opacity: 0;
     transform: translateX(-42%) rotate(8deg);
   }
   78% {
-    opacity: 0.75;
+    opacity: var(--sheen-peak-opacity, 0.75);
   }
   92%, 100% {
     opacity: 0;
     transform: translateX(42%) rotate(8deg);
-  }
-}
-
-@keyframes card-ur-holo {
-  0%, 68% {
-    opacity: 0.28;
-    background-position:
-      0 0,
-      0 0,
-      0 0,
-      0 0,
-      58% 52%,
-      45% 50%,
-      220% 0%,
-      0% 0%;
-    filter: brightness(1);
-  }
-  78% {
-    opacity: 0.82;
-    background-position:
-      0 0,
-      0 0,
-      0 0,
-      0 0,
-      46% 46%,
-      56% 44%,
-      50% 0%,
-      62% 38%;
-    filter: brightness(1.18);
-  }
-  92%, 100% {
-    opacity: 0.32;
-    background-position:
-      0 0,
-      0 0,
-      0 0,
-      0 0,
-      38% 58%,
-      48% 60%,
-      -120% 0%,
-      100% 100%;
-    filter: brightness(1.04);
   }
 }
 
@@ -6948,6 +6886,70 @@ h1 {
 .selected-art-preview.art-ai span,
 .selected-art-preview.art-generated span {
   display: none;
+}
+
+.selected-art-preview-frame {
+  box-sizing: border-box;
+  width: 100%;
+  overflow: hidden;
+  /* 3Dチルトで膨らんだ分を吸収する余白。カードの角がクリップ境界に届かないようにする */
+  padding: 16px;
+}
+
+.selected-art-preview-tilt {
+  width: 100%;
+}
+
+.selected-art-preview.preview-rarity-sr,
+.selected-art-preview.preview-rarity-ur {
+  isolation: isolate;
+}
+
+.selected-art-preview.preview-rarity-sr {
+  box-shadow:
+    0 0 30px color-mix(in srgb, var(--card-color) 26%, transparent),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 0 24px rgba(255, 255, 255, 0.1),
+    0 16px 28px rgba(0, 0, 0, 0.28);
+}
+
+.selected-art-preview.preview-rarity-ur {
+  box-shadow:
+    0 0 38px color-mix(in srgb, var(--card-color) 36%, transparent),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    inset 0 0 30px rgba(255, 255, 255, 0.16),
+    0 16px 28px rgba(0, 0, 0, 0.28);
+}
+
+.selected-art-preview.preview-rarity-sr::before,
+.selected-art-preview.preview-rarity-ur::before {
+  content: "";
+  position: absolute;
+  inset: -160% -70%;
+  z-index: 2;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.selected-art-preview.preview-rarity-sr::before {
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.3) 50%, transparent 60%);
+  transform: translateX(-42%) rotate(8deg);
+  animation: card-sheen-sweep 5.2s ease-in-out infinite;
+}
+
+.selected-art-preview.preview-rarity-ur::before {
+  --sheen-peak-opacity: 0.95;
+  background: linear-gradient(105deg, transparent 36%, rgba(255, 255, 255, 0.42) 50%, transparent 64%);
+  transform: translateX(-42%) rotate(8deg);
+  animation: card-sheen-sweep 5.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .selected-art-preview.preview-rarity-sr::before,
+  .selected-art-preview.preview-rarity-ur::before {
+    animation: none;
+    opacity: 0.35;
+  }
 }
 
 .empty-preview {

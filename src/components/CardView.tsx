@@ -1,4 +1,5 @@
 import * as React from "react";
+import Tilt from "react-parallax-tilt";
 import { attacksPlus1, cardSet, conditionalAttackBonus, defensePowerBonus, turnAttackBonus, type Card, type GameState, type Zone } from "../game";
 import {
   cardArtAsset,
@@ -7,7 +8,33 @@ import {
   cardColor,
   cardCoreText,
 } from "./cardPresentation";
-import { RARITY_LABELS, baseCardRarity } from "../rarity";
+import { RARITY_LABELS, baseCardRarity, type CardRarity } from "../rarity";
+
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = React.useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  React.useEffect(() => {
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = () => setReduced(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
+  return reduced;
+}
+
+const TILT_SETTINGS: Record<"sr" | "ur", { angle: number; scale: number; glareOpacity: number }> = {
+  sr: { angle: 10, scale: 1.03, glareOpacity: 0.28 },
+  ur: { angle: 16, scale: 1.05, glareOpacity: 0.42 },
+};
+
+// 大型プレビューは面積が大きく、拡大や深い角度はフレーム余白を突き抜けるので控えめにする
+const PREVIEW_TILT_SETTINGS: Record<CardRarity, { angle: number; scale: number; glareOpacity: number }> = {
+  n: { angle: 5, scale: 1, glareOpacity: 0.08 },
+  r: { angle: 6, scale: 1, glareOpacity: 0.15 },
+  sr: { angle: 8, scale: 1, glareOpacity: 0.28 },
+  ur: { angle: 10, scale: 1, glareOpacity: 0.42 },
+};
 
 export function CardView({
   card,
@@ -23,6 +50,7 @@ export function CardView({
   extraBadges = [],
   showSetBadge = true,
   showRarityBadge = true,
+  tiltEnabled = false,
   onClick,
   onMouseEnter,
 }: {
@@ -41,9 +69,11 @@ export function CardView({
   extraBadges?: string[];
   showSetBadge?: boolean;
   showRarityBadge?: boolean;
+  tiltEnabled?: boolean;
   onClick?: () => void;
   onMouseEnter?: () => void;
 }) {
+  const reducedMotion = usePrefersReducedMotion();
   const Element = selectable ? "button" : "div";
   const showStatBadges = zone === "field";
   const statBadges: string[] = [];
@@ -66,7 +96,10 @@ export function CardView({
   const setBadge = `${cardSet(card)}弾`;
   const rarity = baseCardRarity(card);
   const rarityClass = rarity ? `card-rarity-${rarity}` : "";
-  return (
+  const foilRarity: "sr" | "ur" | null = rarity === "sr" || rarity === "ur" ? rarity : null;
+  const useTilt = tiltEnabled && foilRarity !== null && !reducedMotion;
+
+  const cardElement = (
     <Element
       type={selectable ? "button" : undefined}
       className={`card ${card.type === "event" ? "command" : ""} ${card.type === "memory" ? "memory" : ""} ${selected ? "selected" : ""} ${selectable ? "selectable" : ""} ${spent ? "spent" : ""} ${rarityClass} ${visualEffect} ${actionState}`}
@@ -101,6 +134,27 @@ export function CardView({
         </div>
       )}
     </Element>
+  );
+
+  if (!useTilt) return cardElement;
+
+  const { angle, scale, glareOpacity } = TILT_SETTINGS[foilRarity];
+  return (
+    <Tilt
+      className={`card-tilt rarity-${foilRarity}`}
+      tiltMaxAngleX={angle}
+      tiltMaxAngleY={angle}
+      perspective={800}
+      scale={scale}
+      transitionSpeed={800}
+      glareEnable
+      glareMaxOpacity={glareOpacity}
+      glareColor="#ffffff"
+      glarePosition="all"
+      glareBorderRadius="10px"
+    >
+      {cardElement}
+    </Tilt>
   );
 }
 
@@ -173,16 +227,43 @@ function defenseBadgeValue(badge: string): number {
 }
 
 export function CardArtPreview({ card }: { card: Card | null }) {
+  const reducedMotion = usePrefersReducedMotion();
   if (!card) return <div className="empty-preview"><span>カード選択</span></div>;
 
-  return (
+  const rarity = baseCardRarity(card);
+  const foilRarity: CardRarity | null = rarity === "sr" || rarity === "ur" ? rarity : null;
+
+  const preview = (
     <div
-      className={`selected-art-preview ${cardArtClass(card)}`}
+      className={`selected-art-preview ${cardArtClass(card)} ${foilRarity ? `preview-rarity-${foilRarity}` : ""}`}
       style={{ "--card-color": cardColor(card) } as React.CSSProperties}
       aria-label={`${card.name}のイラスト`}
     >
       <img src={cardArtAsset(card)} alt="" loading="lazy" />
       <span>{cardArtGlyph(card)}</span>
+    </div>
+  );
+
+  if (reducedMotion) return <div className="selected-art-preview-frame">{preview}</div>;
+
+  const { angle, scale, glareOpacity } = PREVIEW_TILT_SETTINGS[rarity ?? "n"];
+  return (
+    <div className="selected-art-preview-frame">
+      <Tilt
+        className={`selected-art-preview-tilt rarity-${rarity ?? "n"}`}
+        tiltMaxAngleX={angle}
+        tiltMaxAngleY={angle}
+        perspective={900}
+        scale={scale}
+        transitionSpeed={800}
+        glareEnable
+        glareMaxOpacity={glareOpacity}
+        glareColor="#ffffff"
+        glarePosition="all"
+        glareBorderRadius="8px"
+      >
+        {preview}
+      </Tilt>
     </div>
   );
 }
