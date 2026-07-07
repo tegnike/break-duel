@@ -50,6 +50,32 @@ const CARD_LIST = allCards();
 
 const CARD_SETS = [...new Set(CARD_LIST.map((card) => cardSet(card)))].sort((a, b) => a - b);
 
+function SetTabs({ setFilter, onChange }: { setFilter: SetFilter; onChange: (value: SetFilter) => void }) {
+  return (
+    <nav className="set-tabs" aria-label="弾で絞り込み">
+      <button
+        type="button"
+        className={setFilter === "all" ? "active" : ""}
+        aria-pressed={setFilter === "all"}
+        onClick={() => onChange("all")}
+      >
+        全カード
+      </button>
+      {CARD_SETS.map((setNumber) => (
+        <button
+          type="button"
+          key={setNumber}
+          className={setFilter === setNumber ? "active" : ""}
+          aria-pressed={setFilter === setNumber}
+          onClick={() => onChange(setNumber)}
+        >
+          {CARD_SET_LABELS[setNumber] ?? `第${setNumber}弾`}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 export function CardLibraryPage({ playSfx = () => undefined }: { playSfx?: PlaySfx } = {}) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [attributeFilter, setAttributeFilter] = useState<AttributeFilter>("all");
@@ -73,21 +99,7 @@ export function CardLibraryPage({ playSfx = () => undefined }: { playSfx?: PlayS
         <div>
           <h2>カード一覧</h2>
           <p>{setCards.length}種類 / 召喚獣{aiCount}種 / 術式{eventCount}種 / 遺物{memoryCount}種</p>
-          <nav className="set-tabs" aria-label="弾で絞り込み">
-            <button type="button" className={setFilter === "all" ? "active" : ""} onClick={() => setSetFilter("all")}>
-              全カード
-            </button>
-            {CARD_SETS.map((setNumber) => (
-              <button
-                type="button"
-                key={setNumber}
-                className={setFilter === setNumber ? "active" : ""}
-                onClick={() => setSetFilter(setNumber)}
-              >
-                {CARD_SET_LABELS[setNumber] ?? `第${setNumber}弾`}
-              </button>
-            ))}
-          </nav>
+          <SetTabs setFilter={setFilter} onChange={setSetFilter} />
         </div>
         <div className="workshop-filters">
           <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}>
@@ -270,21 +282,7 @@ export function DeckBuilderPage({ playSfx = () => undefined }: { playSfx?: PlayS
       <div className="builder-layout">
         <section className="builder-pool" aria-label="カードプール">
           <div className="builder-toolbar">
-            <nav className="set-tabs" aria-label="弾で絞り込み">
-              <button type="button" className={setFilter === "all" ? "active" : ""} onClick={() => setSetFilter("all")}>
-                全カード
-              </button>
-              {CARD_SETS.map((setNumber) => (
-                <button
-                  type="button"
-                  key={setNumber}
-                  className={setFilter === setNumber ? "active" : ""}
-                  onClick={() => setSetFilter(setNumber)}
-                >
-                  {CARD_SET_LABELS[setNumber] ?? `第${setNumber}弾`}
-                </button>
-              ))}
-            </nav>
+            <SetTabs setFilter={setFilter} onChange={setSetFilter} />
             <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}>
               <option value="all">すべて</option>
               <option value="ai">召喚獣</option>

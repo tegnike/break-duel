@@ -2445,7 +2445,7 @@ export default function App() {
           min: 1,
           max: 1,
           excludeIndexes: player.discard
-            .map((card, index) => (card.type === "ai" && (card.power ?? 0) <= 3 ? -1 : index))
+            .map((card, index) => (card.type === "ai" && (card.power ?? 0) <= 2 ? -1 : index))
             .filter((index) => index >= 0),
           selectedIndexes: [],
           sourceIndex,
