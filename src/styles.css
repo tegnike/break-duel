@@ -1785,8 +1785,7 @@ h2 {
 
 .defense-choice {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
+  grid-template-rows: 1fr auto;
   gap: 10px;
   min-height: 148px;
   padding: 9px;
@@ -1797,10 +1796,24 @@ h2 {
     color-mix(in srgb, var(--card-color) 20%, #10202a);
 }
 
-.defense-choice:hover:not(:disabled) {
+.defense-choice:hover {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.11), transparent),
     color-mix(in srgb, var(--card-color) 28%, #10202a);
+}
+
+.defense-choice-select {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
 }
 
 .defense-choice-card {
@@ -1883,6 +1896,43 @@ h2 {
 .defense-choice-result {
   color: #fde68a;
   font-weight: 800;
+}
+
+.firewall-toggle-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 7px 9px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.46);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.firewall-toggle-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.firewall-toggle-buttons button {
+  min-width: 76px;
+  min-height: 26px;
+  padding: 4px 10px;
+  border-color: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  color: #dbeafe;
+  background: rgba(15, 23, 42, 0.68);
+  font-size: 11px;
+}
+
+.firewall-toggle-buttons button.active {
+  border-color: rgba(251, 191, 36, 0.72);
+  color: #111827;
+  background: #fde68a;
 }
 
 .defense-pass {

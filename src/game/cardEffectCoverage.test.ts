@@ -1255,6 +1255,61 @@ describe("AI-FIRE-3D shares the hand_defense_pierce effect", () => {
   });
 });
 
+describe("firewall field defense flow", () => {
+  it("asks a human defender to choose firewall fuel, then resolves with that discard", () => {
+    const game = blankGame();
+    game.players[0].memory = card("MEM-FIREWALL");
+    game.players[0].hand = [card("AI-FIRE-1"), card("AI-EARTH-1")];
+    game.players[0].field = [card("AI-WATER-1")];
+    game.players[1].field = [card("AI-FIRE-2B")];
+    game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
+
+    resolveDefenseInDraft(game, { type: "field", index: 0 }, {});
+
+    expect(game.pendingAttack).not.toBeNull();
+    expect(game.pendingTarget).toMatchObject({
+      kind: "hand-discard",
+      reason: "firewall",
+      playerIndex: 0,
+      fieldIndex: 0,
+      min: 0,
+      max: 1,
+    });
+
+    resolveDefenseInDraft(game, { type: "field", index: 0, firewallDiscardIndex: 1 }, {});
+
+    expect(game.pendingAttack).toBeNull();
+    expect(game.pendingTarget).toBeNull();
+    expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+    expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-EARTH-1", "AI-WATER-1"]);
+    expect(game.players[1].discard.map((item) => item.id)).toEqual(["AI-FIRE-2B"]);
+    expect(game.log[game.log.length - 1]).toContain("竜盾の紋章で苔掘りモールをトラッシュ");
+  });
+
+  it("can decline firewall and resolve the field defense without the bonus", () => {
+    const game = blankGame();
+    game.players[0].memory = card("MEM-FIREWALL");
+    game.players[0].hand = [card("AI-EARTH-1")];
+    game.players[0].deck = [card("AI-FIRE-1")];
+    game.players[0].field = [card("AI-WATER-1")];
+    game.players[1].field = [card("AI-FIRE-2B")];
+    game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
+
+    resolveDefenseInDraft(game, { type: "field", index: 0 }, {});
+    expect(game.pendingTarget).toMatchObject({ kind: "hand-discard", reason: "firewall", min: 0 });
+
+    resolveDefenseInDraft(game, { type: "field", index: 0, firewallDiscardIndex: null }, {});
+
+    expect(game.pendingAttack).toBeNull();
+    expect(game.pendingTarget).toBeNull();
+    expect(game.players[0].life).toBe(CONFIG.life - 1);
+    expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-EARTH-1", "AI-FIRE-1"]);
+    expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-WATER-1"]);
+    expect(game.players[1].field.map((item) => item.id)).toEqual(["AI-FIRE-2B"]);
+    expect(game.log[game.log.length - 1]).not.toContain("竜盾の紋章で");
+  });
+});
+
 describe("command usability reasons", () => {
   it("allows comeback rite when life is behind even without a deck or spent summon", () => {
     const game = blankGame();
