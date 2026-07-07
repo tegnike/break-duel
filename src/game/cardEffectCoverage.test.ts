@@ -1283,7 +1283,7 @@ describe("firewall field defense flow", () => {
     expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
     expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-EARTH-1", "AI-WATER-1"]);
     expect(game.players[1].discard.map((item) => item.id)).toEqual(["AI-FIRE-2B"]);
-    expect(game.log.at(-1)).toContain("竜盾の紋章で苔掘りモールをトラッシュ");
+    expect(game.log[game.log.length - 1]).toContain("竜盾の紋章で苔掘りモールをトラッシュ");
   });
 
   it("can decline firewall and resolve the field defense without the bonus", () => {
@@ -1306,7 +1306,7 @@ describe("firewall field defense flow", () => {
     expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-EARTH-1", "AI-FIRE-1"]);
     expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-WATER-1"]);
     expect(game.players[1].field.map((item) => item.id)).toEqual(["AI-FIRE-2B"]);
-    expect(game.log.at(-1)).not.toContain("竜盾の紋章で");
+    expect(game.log[game.log.length - 1]).not.toContain("竜盾の紋章で");
   });
 });
 
