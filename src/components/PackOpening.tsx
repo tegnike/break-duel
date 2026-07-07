@@ -311,8 +311,9 @@ export function PackOpeningPage({
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
+                  if (phase !== "sealed" || !canAfford) return;
                   playSfx("pack-tear");
-                  if (phase === "sealed") completeTear();
+                  completeTear();
                 }
               }}
             >
