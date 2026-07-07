@@ -1,11 +1,11 @@
 # Break Duel アセットライセンス / Asset License
 
-**English summary:** The MIT License in [LICENSE](LICENSE) applies to the
-source code of this repository only. The original art, audio, and game-text
-assets listed below are **not** covered by the MIT License. **All rights
-reserved.** They may not be extracted, reused, or redistributed outside this
-project without prior permission. Third-party CC0 assets listed at the bottom
-remain CC0 under their original terms.
+**English summary:** The source code and original game materials in this
+repository are governed by the [Break Duel Source Available License](LICENSE).
+The original art, audio, and game-text assets listed below remain protected
+Break Duel Materials. They may not be extracted, reused, or redistributed
+outside this project without prior permission. Third-party CC0 assets listed at
+the bottom remain CC0 under their original terms.
 
 ## 対象(All Rights Reserved)
 
@@ -18,7 +18,7 @@ remain CC0 under their original terms.
 - `src/assets/audio/voice/` 以下すべて — ライバルのボイス音声
 - ソースコードに埋め込まれたセリフ・ゲームテキスト —
   [src/rivalVoiceLines.ts](src/rivalVoiceLines.ts) のセリフ文字列、カード名・フレーバーテキストなど
-  (これらはコードファイル内にありますが、MIT License の対象ではなくアセットとして扱います)
+  (これらはコードファイル内にありますが、Break Duel Materials として扱います)
 - `docs/assets/`、`output/`、`stitch-output/` 以下の画像・生成物
 
 ## 許可される利用
