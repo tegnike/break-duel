@@ -33,6 +33,7 @@ src/
   main.tsx          React entry
   App.tsx           アプリ状態、通知、音、イベント配線
   game.ts           TypeScript 側カード定義、設定、純粋ルール、自動判断
+  summonFx.ts       属性召喚/遺物配置の着地演出定義と属性SFXのその場合成
   game/
     actions.ts      TypeScript 側ゲーム状態を変更する操作処理
     selectors.ts    UI用の状態参照
@@ -42,7 +43,7 @@ src/
     PlayerPanel.tsx プレイヤー盤面
     DuelPanel.tsx   中央操作、詳細、防御候補、ログ
     Modals.tsx      ルール、トラッシュモーダル
-    Overlays.tsx    トースト、ターン/結果バナー
+    Overlays.tsx    トースト、ターン/結果バナー、属性着地バースト
     cardPresentation.ts カード表示ラベル、色、画像
   styles.css        ブラウザUIスタイル
 
