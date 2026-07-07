@@ -1508,14 +1508,13 @@ export function performAiActionInDraft(
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "play",
-      title: card.power === 4 ? `${player.name}の切札登場!!` : `${player.name}が場に出す`,
+      title: `${player.name}が場に出す`,
       detail: text,
       fromLabel: "手札",
       toLabel: "場",
       tone: player.isHuman ? "magenta" : "cyan",
-      emphasis: card.power === 4 ? "peak" : undefined,
       rivalVoiceLine: player.isHuman ? undefined : "play_summon",
-      cards: [{ card, label: card.power === 4 ? "切札" : "登場", state: card.power === 4 ? "winner" : "neutral" }],
+      cards: [{ card, label: "登場", state: "neutral" }],
     });
     if (!draft.pendingTarget) afterAction(draft, cost);
   } else if (action.type === "upgrade") {
@@ -1535,12 +1534,11 @@ export function performAiActionInDraft(
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "upgrade",
-      title: card.power === 4 ? `${player.name}の切札へアップグレード!!` : `${player.name}がアップグレード`,
+      title: `${player.name}がアップグレード`,
       detail: `${source.name}を元に${card.name}へ。元カードは下に重ねます。`,
       fromLabel: "手札 + 場",
       toLabel: "場",
       tone: player.isHuman ? "magenta" : "cyan",
-      emphasis: card.power === 4 ? "peak" : undefined,
       rivalVoiceLine: player.isHuman ? undefined : "upgrade",
       cards: [
         { card: source, label: "元", state: "neutral" },
