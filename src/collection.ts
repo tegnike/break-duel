@@ -74,9 +74,14 @@ export function loadCoins(): number {
   return loadWallet().coins;
 }
 
+function validWalletAmount(amount: number): boolean {
+  return Number.isFinite(amount) && amount >= 0;
+}
+
 /** コインを加算して新しい残高を返す */
 export function addCoins(amount: number): number {
   const wallet = loadWallet();
+  if (!validWalletAmount(amount)) return wallet.coins;
   wallet.coins = Math.max(0, wallet.coins + Math.floor(amount));
   persistWallet(wallet);
   return wallet.coins;
@@ -85,6 +90,7 @@ export function addCoins(amount: number): number {
 /** 残高が足りれば支払って true、足りなければ何もせず false */
 export function spendCoins(amount: number): boolean {
   const wallet = loadWallet();
+  if (!validWalletAmount(amount)) return false;
   const cost = Math.floor(amount);
   if (wallet.coins < cost) return false;
   wallet.coins -= cost;
@@ -121,8 +127,8 @@ export function addToCollection(cardIds: string[]): { counts: Record<string, num
 
 export function ownedCount(cardId: string): number {
   const card = CARD_BY_ID.get(cardId);
-  if (card && cardSet(card) === 1) return STARTER_OWNED_COUNT;
-  return loadCollection()[cardId] ?? 0;
+  const owned = loadCollection();
+  return card ? ownedCountForCard(card, owned) : (owned[cardId] ?? 0);
 }
 
 export function ownedCountForCard(card: Card, owned: Record<string, number> = loadCollection()): number {

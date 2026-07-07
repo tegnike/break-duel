@@ -48,6 +48,20 @@ describe("wallet", () => {
     expect(spendCoins(5)).toBe(false);
     expect(loadCoins()).toBe(3);
   });
+
+  it("負値や非有限値では残高が変わらない", () => {
+    resetWalletTo(10);
+    expect(spendCoins(-5)).toBe(false);
+    expect(loadCoins()).toBe(10);
+    expect(spendCoins(Number.NaN)).toBe(false);
+    expect(spendCoins(Number.POSITIVE_INFINITY)).toBe(false);
+    expect(loadCoins()).toBe(10);
+
+    expect(addCoins(-5)).toBe(10);
+    expect(addCoins(Number.NaN)).toBe(10);
+    expect(addCoins(Number.POSITIVE_INFINITY)).toBe(10);
+    expect(loadCoins()).toBe(10);
+  });
 });
 
 describe("collection", () => {
