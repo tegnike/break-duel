@@ -10858,6 +10858,10 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 .duel-setup-shell {
   min-height: 100vh;
+  /* body は広幅時 overflow: hidden のため、ウィンドウが低いときはこのシェル自身が
+     スクロールコンテナになって「この設定で対戦開始」まで届くようにする */
+  max-height: 100vh;
+  overflow-y: auto;
   overflow-x: hidden;
   background:
     radial-gradient(ellipse at 18% 18%, rgba(82, 228, 255, 0.18), transparent 34%),
@@ -12672,4 +12676,179 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   border-color: var(--accent-2);
   color: #ffd489;
   background: rgba(245, 158, 11, 0.12);
+}
+
+/* ===== 開発ビルド限定: 盤面エディタ（DevPanel） ===== */
+
+.dev-panel-toggle {
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  z-index: 120;
+  border: 1px solid rgba(245, 158, 11, 0.7);
+  border-radius: 6px;
+  padding: 4px 10px;
+  background: rgba(20, 16, 8, 0.85);
+  color: #ffd489;
+  font-family: var(--app-font);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.dev-panel-toggle:hover {
+  opacity: 1;
+}
+
+.dev-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 120;
+  width: 330px;
+  overflow-y: auto;
+  border-left: 1px solid rgba(245, 158, 11, 0.5);
+  padding: 10px 12px 20px;
+  background: rgba(12, 12, 16, 0.94);
+  color: var(--text, #e7e7ee);
+  font-family: var(--app-font);
+  font-size: 12px;
+}
+
+.dev-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: #ffd489;
+}
+
+.dev-panel section {
+  margin-bottom: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding-top: 8px;
+}
+
+.dev-panel h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: #ffd489;
+}
+
+.dev-panel-note {
+  margin: 8px 0 4px;
+  color: var(--muted, #9a9ab0);
+  font-size: 11px;
+}
+
+.dev-panel-empty {
+  margin: 2px 0;
+  color: var(--muted, #9a9ab0);
+  font-size: 11px;
+}
+
+.dev-panel-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: flex-end;
+}
+
+.dev-panel-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--muted, #9a9ab0);
+}
+
+.dev-panel input,
+.dev-panel select,
+.dev-panel button {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  padding: 3px 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.dev-panel input[type="number"] {
+  width: 64px;
+}
+
+.dev-panel button {
+  cursor: pointer;
+}
+
+.dev-panel button:hover:not(:disabled) {
+  border-color: rgba(245, 158, 11, 0.8);
+  color: #ffd489;
+}
+
+.dev-panel button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dev-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dev-panel-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.dev-panel-tabs button.active {
+  border-color: rgba(245, 158, 11, 0.9);
+  background: rgba(245, 158, 11, 0.15);
+  color: #ffd489;
+}
+
+.dev-panel-card-select {
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.dev-panel-cards {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dev-panel-cards li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.dev-panel-cards li span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dev-panel details {
+  margin-top: 8px;
+}
+
+.dev-panel summary {
+  cursor: pointer;
+  color: var(--muted, #9a9ab0);
+  font-size: 11px;
+}
+
+.dev-panel-flag-reset {
+  margin-left: auto;
 }
