@@ -262,21 +262,17 @@ def choose_defender(
         )
     ]
     if not successful:
-        failed_with_trigger = [
-            item
-            for item in candidates
-            if (
-                draws_on_successful_defense(item[1])
-                or recovers_ai_on_successful_defense(item[1])
-                or (
-                    defender.memory is not None
-                    and defender.memory.effect == MemoryEffect.TIDAL_MIRROR.value
-                )
-            )
-        ]
-        if not failed_with_trigger:
+        if not candidates:
             return None
-        return min(failed_with_trigger, key=lambda item: (item[1].power or 0, item[1].id))[0]
+        return min(
+            candidates,
+            key=lambda item: (
+                -item[2],
+                -_failed_field_defense_trigger_priority(item[1], defender),
+                item[1].power or 0,
+                item[1].id,
+            ),
+        )[0]
     return min(
         successful,
         key=lambda item: (
@@ -285,6 +281,14 @@ def choose_defender(
             item[1].id,
         ),
     )[0]
+
+
+def _failed_field_defense_trigger_priority(card, defender: PlayerState) -> int:
+    if draws_on_successful_defense(card) or recovers_ai_on_successful_defense(card):
+        return 1
+    if defender.memory is not None and defender.memory.effect == MemoryEffect.TIDAL_MIRROR.value:
+        return 1
+    return 0
 
 
 def choose_hand_defender(
