@@ -1,14 +1,11 @@
 import * as React from "react";
-import { attacksPlus1, defensePowerBonus, type Card, type GameState, type Zone } from "../game";
+import { attacksPlus1, cardSet, conditionalAttackBonus, defensePowerBonus, turnAttackBonus, type Card, type GameState, type Zone } from "../game";
 import {
   cardArtAsset,
   cardArtClass,
   cardArtGlyph,
   cardColor,
   cardCoreText,
-  cardTypeLabel,
-  displayCost,
-  roleLabel,
 } from "./cardPresentation";
 
 export function CardView({
@@ -21,10 +18,9 @@ export function CardView({
   spent = false,
   actionState = "idle",
   visualEffect = "",
-  showCost = true,
-  upgradeSource = null,
   game,
   extraBadges = [],
+  showSetBadge = true,
   onClick,
   onMouseEnter,
 }: {
@@ -41,11 +37,11 @@ export function CardView({
   upgradeSource?: Card | null;
   game?: GameState;
   extraBadges?: string[];
+  showSetBadge?: boolean;
   onClick?: () => void;
   onMouseEnter?: () => void;
 }) {
   const Element = selectable ? "button" : "div";
-  const cost = displayCost(card, actionState, upgradeSource, game);
   const showStatBadges = zone === "field";
   const statBadges: string[] = [];
   const overlayBadges: string[] = [];
@@ -56,18 +52,19 @@ export function CardView({
       overlayBadges.push(badge);
     }
   }
-  if (showStatBadges && attacksPlus1(card)) {
-    addStatBadge(statBadges, "攻撃+1");
+  const attackBonus = showStatBadges ? visibleAttackBonus(card, game, ownerIndex, index) : 0;
+  if (attackBonus > 0) {
+    addStatBadge(statBadges, `攻撃+${attackBonus}`);
   }
   const fieldDefenseBonus = showStatBadges ? visibleFieldDefenseBonus(card, game, ownerIndex, zone, index) : 0;
   if (fieldDefenseBonus > 0) {
     addStatBadge(statBadges, `場防御+${fieldDefenseBonus}`);
   }
-  const visibleCost = showCost && statBadges.length === 0 && Number.isFinite(cost) && cost < 99;
+  const setBadge = `${cardSet(card)}弾`;
   return (
     <Element
       type={selectable ? "button" : undefined}
-      className={`card ${card.type === "event" ? "command" : ""} ${card.type === "memory" ? "memory" : ""} ${selected ? "selected" : ""} ${selectable ? "selectable" : ""} ${spent ? "spent" : ""} ${visibleCost ? "has-cost-badge" : ""} ${visualEffect} ${actionState}`}
+      className={`card ${card.type === "event" ? "command" : ""} ${card.type === "memory" ? "memory" : ""} ${selected ? "selected" : ""} ${selectable ? "selectable" : ""} ${spent ? "spent" : ""} ${visualEffect} ${actionState}`}
       style={{ "--card-color": cardColor(card) } as React.CSSProperties}
       data-owner={ownerIndex}
       data-zone={zone}
@@ -84,12 +81,7 @@ export function CardView({
         <span>{cardArtGlyph(card)}</span>
       </div>
       <div className="card-core"><div className="power">{cardCoreText(card)}</div></div>
-      <div className="card-foot"><span>{cardTypeLabel(card)}</span><span>{roleLabel(card)}</span></div>
-      {visibleCost && (
-        <div className="card-badges">
-          <span>{cost}A</span>
-        </div>
-      )}
+      {showSetBadge && <div className="card-set-badge" title={setBadge}>{setBadge}</div>}
       {statBadges.length > 0 && (
         <div className="card-stat-badges">
           {statBadges.map((badge) => <CardStatusBadge badge={badge} key={badge} />)}
@@ -105,11 +97,12 @@ export function CardView({
 }
 
 function CardStatusBadge({ badge }: { badge: string }) {
-  if (badge === "攻撃+1") {
+  if (badge.startsWith("攻撃+")) {
+    const bonus = badge.slice("攻撃".length);
     return (
-      <span className="stat-badge sword-badge" aria-label="戦闘時、攻撃値 +1" title="戦闘時、攻撃値 +1(ダメージは power のまま)">
+      <span className="stat-badge sword-badge" aria-label={`戦闘時、攻撃値 ${bonus}`} title={`戦闘時、攻撃値 ${bonus}(ダメージは power のまま)`}>
         <span>攻</span>
-        <b>+1</b>
+        <b>{bonus}</b>
       </span>
     );
   }
@@ -126,18 +119,29 @@ function CardStatusBadge({ badge }: { badge: string }) {
 }
 
 function visibleFieldDefenseBonus(card: Card, game: GameState | undefined, ownerIndex: number, zone: Zone, index: number): number {
-  const baseBonus = defensePowerBonus(card, null, null, { fieldDefense: true });
-  const chargeBonus = zone === "field" && game?.players[ownerIndex]?.chargeGuardedFieldIndexes.has(index) ? 1 : 0;
-  return baseBonus + chargeBonus;
+  const defender = game?.players[ownerIndex] ?? null;
+  return defensePowerBonus(card, defender, null, { fieldDefense: true, fieldIndex: zone === "field" ? index : undefined });
+}
+
+function visibleAttackBonus(card: Card, game: GameState | undefined, ownerIndex: number, index: number): number {
+  const player = game?.players[ownerIndex];
+  return (attacksPlus1(card) ? 1 : 0)
+    + turnAttackBonus(player, index)
+    + conditionalAttackBonus(card, player);
 }
 
 function isStatBadge(badge: string): boolean {
-  return badge === "攻撃+1" || badge.startsWith("場防御+");
+  return badge.startsWith("攻撃+") || badge.startsWith("場防御+");
 }
 
 function addStatBadge(badges: string[], badge: string) {
-  if (badge === "攻撃+1") {
-    if (!badges.includes(badge)) badges.push(badge);
+  if (badge.startsWith("攻撃+")) {
+    const existingAttackBadgeIndex = badges.findIndex((candidate) => candidate.startsWith("攻撃+"));
+    if (existingAttackBadgeIndex === -1) {
+      badges.push(badge);
+    } else if (attackBadgeValue(badge) > attackBadgeValue(badges[existingAttackBadgeIndex])) {
+      badges[existingAttackBadgeIndex] = badge;
+    }
     return;
   }
   if (badge.startsWith("場防御+")) {
@@ -148,6 +152,11 @@ function addStatBadge(badges: string[], badge: string) {
       badges[existingDefenseBadgeIndex] = badge;
     }
   }
+}
+
+function attackBadgeValue(badge: string): number {
+  const value = Number(badge.replace("攻撃+", ""));
+  return Number.isFinite(value) ? value : 0;
 }
 
 function defenseBadgeValue(badge: string): number {

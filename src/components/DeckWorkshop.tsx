@@ -2,16 +2,19 @@ import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import {
   ATTRIBUTES,
   CARD_BY_ID,
+  CARD_SET_LABELS,
   DECKS,
   type Attribute,
   type Card,
   type CardType,
   activeCardPool,
+  cardSet,
   isCardActive,
   playCost,
 } from "../game";
 import { CardArtPreview, CardView } from "./CardView";
 import { cardArtAsset, cardArtClass, cardArtGlyph, cardColor, roleText, selectedText } from "./cardPresentation";
+import { collectionLimitMessages, loadCollection, ownedCountForCard } from "../collection";
 
 const DECK_SIZE = 25;
 const SAME_NAME_LIMIT = 2;
@@ -20,6 +23,7 @@ export const SAVED_DECKS_STORAGE_KEY = "break-duel:saved-decks";
 
 type TypeFilter = CardType | "all";
 type AttributeFilter = Attribute | "all";
+type SetFilter = number | "all";
 
 const CARD_ID_COLLATOR = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
@@ -43,15 +47,46 @@ function allCards(): Card[] {
 
 const CARD_LIST = allCards();
 
+const CARD_SETS = [...new Set(CARD_LIST.map((card) => cardSet(card)))].sort((a, b) => a - b);
+
+function SetTabs({ setFilter, onChange }: { setFilter: SetFilter; onChange: (value: SetFilter) => void }) {
+  return (
+    <nav className="set-tabs" aria-label="弾で絞り込み">
+      <button
+        type="button"
+        className={setFilter === "all" ? "active" : ""}
+        aria-pressed={setFilter === "all"}
+        onClick={() => onChange("all")}
+      >
+        全カード
+      </button>
+      {CARD_SETS.map((setNumber) => (
+        <button
+          type="button"
+          key={setNumber}
+          className={setFilter === setNumber ? "active" : ""}
+          aria-pressed={setFilter === setNumber}
+          onClick={() => onChange(setNumber)}
+        >
+          {CARD_SET_LABELS[setNumber] ?? `第${setNumber}弾`}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 export function CardLibraryPage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [attributeFilter, setAttributeFilter] = useState<AttributeFilter>("all");
+  const [setFilter, setSetFilter] = useState<SetFilter>("all");
+  const [owned] = useState(() => loadCollection());
   const [selectedId, setSelectedId] = useState(CARD_LIST[0]?.id ?? "");
   const selectedCard = CARD_BY_ID.get(selectedId) ?? CARD_LIST[0] ?? null;
-  const aiCount = CARD_LIST.filter((card) => card.type === "ai").length;
-  const eventCount = CARD_LIST.filter((card) => card.type === "event").length;
-  const memoryCount = CARD_LIST.filter((card) => card.type === "memory").length;
-  const visibleCards = CARD_LIST.filter((card) => {
+  const setCards = setFilter === "all" ? CARD_LIST : CARD_LIST.filter((card) => cardSet(card) === setFilter);
+  const aiCount = setCards.filter((card) => card.type === "ai").length;
+  const eventCount = setCards.filter((card) => card.type === "event").length;
+  const memoryCount = setCards.filter((card) => card.type === "memory").length;
+  const visibleCards = setCards.filter((card) => {
     if (typeFilter !== "all" && card.type !== typeFilter) return false;
     if (attributeFilter !== "all" && card.attribute !== attributeFilter) return false;
     return true;
@@ -62,7 +97,8 @@ export function CardLibraryPage() {
       <div className="workshop-heading">
         <div>
           <h2>カード一覧</h2>
-          <p>{CARD_LIST.length}種類 / 召喚獣{aiCount}種 / 術式{eventCount}種 / 遺物{memoryCount}種</p>
+          <p>{setCards.length}種類 / 召喚獣{aiCount}種 / 術式{eventCount}種 / 遺物{memoryCount}種</p>
+          <SetTabs setFilter={setFilter} onChange={setSetFilter} />
         </div>
         <div className="workshop-filters">
           <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}>
@@ -90,10 +126,11 @@ export function CardLibraryPage() {
               onClick={() => setSelectedId(card.id)}
             >
               <CardView card={card} ownerIndex={2} zone="hand" index={index} showCost />
+              <span className="owned-count-badge">所持 {ownedCountForCard(card, owned)}枚</span>
             </button>
           ))}
         </div>
-        <CardInspector card={selectedCard} />
+        <CardInspector card={selectedCard} owned={owned} />
       </div>
     </section>
   );
@@ -105,6 +142,8 @@ export function DeckBuilderPage() {
   const [selectedId, setSelectedId] = useState(CARD_LIST[0]?.id ?? "");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [attributeFilter, setAttributeFilter] = useState<AttributeFilter>("all");
+  const [setFilter, setSetFilter] = useState<SetFilter>("all");
+  const [owned] = useState(() => loadCollection());
   const [savedDecks, setSavedDecks] = useState<SavedDeck[]>(() => loadSavedDecks());
   const [notice, setNotice] = useState("");
 
@@ -116,6 +155,7 @@ export function DeckBuilderPage() {
   const selectedCard = CARD_BY_ID.get(selectedId) ?? CARD_LIST[0] ?? null;
   const validation = validateDeck(cardIds);
   const visibleCards = CARD_LIST.filter((card) => {
+    if (setFilter !== "all" && cardSet(card) !== setFilter) return false;
     if (typeFilter !== "all" && card.type !== typeFilter) return false;
     if (attributeFilter !== "all" && card.attribute !== attributeFilter) return false;
     return true;
@@ -231,6 +271,7 @@ export function DeckBuilderPage() {
       <div className="builder-layout">
         <section className="builder-pool" aria-label="カードプール">
           <div className="builder-toolbar">
+            <SetTabs setFilter={setFilter} onChange={setSetFilter} />
             <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}>
               <option value="all">すべて</option>
               <option value="ai">召喚獣</option>
@@ -247,7 +288,8 @@ export function DeckBuilderPage() {
           <div className="builder-card-list">
             {visibleCards.map((card, index) => {
               const count = counts.get(card.id) ?? 0;
-              const disabled = cardIds.length >= DECK_SIZE || count >= SAME_NAME_LIMIT;
+              const ownedCount = ownedCountForCard(card, owned);
+              const disabled = cardIds.length >= DECK_SIZE || count >= SAME_NAME_LIMIT || count >= ownedCount;
               return (
                 <button
                   type="button"
@@ -262,6 +304,7 @@ export function DeckBuilderPage() {
                   <span className="builder-card-name">{card.name}</span>
                   <span className="builder-card-meta">{card.id}</span>
                   <span className="builder-card-count">{count}/{SAME_NAME_LIMIT}</span>
+                  <span className="builder-card-owned">所持 {ownedCount}枚</span>
                 </button>
               );
             })}
@@ -311,7 +354,7 @@ export function DeckBuilderPage() {
         </section>
 
         <aside className="builder-side" aria-label="カード詳細と保存済みデッキ">
-          <CardInspector card={selectedCard} compact />
+          <CardInspector card={selectedCard} compact owned={owned} />
           <section className="saved-decks">
             <h3>保存済み</h3>
             {savedDecks.length === 0 ? <p>まだ保存されていません</p> : savedDecks.map((deck) => (
@@ -330,8 +373,9 @@ export function DeckBuilderPage() {
   );
 }
 
-function CardInspector({ card, compact = false }: { card: Card | null; compact?: boolean }) {
+function CardInspector({ card, compact = false, owned = loadCollection() }: { card: Card | null; compact?: boolean; owned?: Record<string, number> }) {
   if (!card) return null;
+  const ownedCount = ownedCountForCard(card, owned);
   return (
     <aside className={`card-inspector ${compact ? "compact" : ""}`} style={{ "--card-color": cardColor(card) } as React.CSSProperties}>
       {compact
@@ -342,6 +386,7 @@ function CardInspector({ card, compact = false }: { card: Card | null; compact?:
         <p>{inspectorMetaText(card)}</p>
         <dl>
           <div><dt>ID</dt><dd>{card.id}</dd></div>
+          <div><dt>所持</dt><dd>{ownedCount}枚</dd></div>
           <div><dt>種別</dt><dd>{card.type === "ai" ? "召喚獣" : card.type === "event" ? "術式" : "遺物"}</dd></div>
           {card.attribute && <div><dt>属性</dt><dd>{card.attribute}</dd></div>}
           {card.power && <div><dt>power</dt><dd>{card.power}</dd></div>}
@@ -412,6 +457,7 @@ export function validateDeck(cardIds: string[]): { valid: boolean; messages: str
     return card && !isCardActive(card);
   });
   if (inactive.length > 0) messages.push("現在使えないカードが含まれています");
+  messages.push(...collectionLimitMessages(knownCards, loadCollection()));
   return { valid: messages.length === 0, messages };
 }
 

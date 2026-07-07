@@ -51,6 +51,12 @@ class PlayerState:
     spent_field_ai: set[int] = field(default_factory=set)
     power_3_recovery_delayed_field_ai: set[int] = field(default_factory=set)
     charge_guarded_field_ai: set[int] = field(default_factory=set)
+    # このターン限定: 場インデックス別の戦闘時攻撃値ボーナス（「召喚獣1体の攻撃値+N」用）
+    turn_field_attack_bonuses: dict[int, int] = field(default_factory=dict)
+    # このターン限定: 自分の召喚獣すべての戦闘時攻撃値ボーナス
+    turn_global_attack_bonus: int = 0
+    # このターン限定: 自分の次の攻撃は手札防御されない
+    next_attack_unblockable: bool = False
 
     def draw(self, count: int, rng: Random | None) -> int:
         drawn = 0

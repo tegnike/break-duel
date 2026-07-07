@@ -189,7 +189,7 @@ export function currentTutorialStep(game: GameState): TutorialStep {
         id: "field-defend",
         kicker: "STEP 9",
         title: "場で防御",
-        detail: "場に未消耗の召喚獣がいれば、防御に使えます。防御値が攻撃値以上なら防御成功です。『炉殻バサルトン』(防御値2)でライバルの攻撃を受け止めましょう。",
+        detail: "場に未消耗の召喚獣がいれば、防御に使えます。防御値が攻撃値以上なら防御成功、不足しても差分ダメージまで軽減できます。『炉殻バサルトン』(防御値2)でライバルの攻撃を受け止めましょう。",
         focus: { kind: "defense" },
       };
     }
@@ -341,7 +341,7 @@ export function currentTutorialStep(game: GameState): TutorialStep {
         id: "attack",
         kicker: "STEP 10",
         title: "攻撃する",
-        detail: "『灯火の旅嚢』の補充を確認したら攻撃です。『炉殻バサルトン』を選んで攻撃ボタンを押します。防がれなかった攻撃は power と同じダメージを与え、攻撃後はその召喚獣が消耗します。",
+        detail: "『灯火の旅嚢』の補充を確認したら攻撃です。『炉殻バサルトン』を選んで攻撃ボタンを押します。防御されなかった攻撃は power と同じダメージを与え、攻撃後はその召喚獣が消耗します。",
         focus: selectedHumanFieldCardByIdReady(game, "AI-FIRE-2") ? { kind: "action", action: "attack" } : { kind: "field-card", ownerIndex: 0, index: attackerIndex },
       };
     }

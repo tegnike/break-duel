@@ -29,6 +29,14 @@ class CommandEffect(str, Enum):
     WIND_RITE = "wind_rite"
     EARTH_RITE = "earth_rite"
     COMEBACK_RITE = "comeback_rite"
+    WAR_CRY = "war_cry"
+    TIDE_EDGE = "tide_edge"
+    PIERCE_SIGHT = "pierce_sight"
+    GRAVE_CALL = "grave_call"
+    SALVAGE = "salvage"
+    OVERDRIVE = "overdrive"
+    RELIC_CRUSH = "relic_crush"
+    DEEP_CURRENT = "deep_current"
 
 
 class MemoryEffect(str, Enum):
@@ -40,6 +48,10 @@ class MemoryEffect(str, Enum):
     RECOVERY_CACHE = "recovery_cache"
     WAR_BANNER = "war_banner"
     GROVE_REST = "grove_rest"
+    ECHO_URN = "echo_urn"
+    STORM_CORE = "storm_core"
+    TIDAL_MIRROR = "tidal_mirror"
+    DUAL_BANNER = "dual_banner"
 
 
 class AiEffect(str, Enum):
@@ -78,6 +90,23 @@ class AiEffect(str, Enum):
     CHARGE_SURGE_DRAW = "charge_surge_draw"
     CHARGE_SPEND_ENEMY = "charge_spend_enemy"
     CHARGE_RECOVER_DISCARD = "charge_recover_discard"
+    TRASH_ENEMY_MEMORY_ON_PLAY = "trash_enemy_memory_on_play"
+    DRAW_ON_PLAY_IF_DISCARD_4 = "draw_on_play_if_discard_4"
+    CHARGE_DRAW_IF_DISCARD_AI = "charge_draw_if_discard_ai"
+    RECOVER_AI_ON_SUCCESSFUL_DEFENSE = "recover_ai_on_successful_defense"
+    DISCARD_COMMANDS_ATTACK_PLUS_1 = "discard_commands_attack_plus_1"
+    DRAW_ON_PLAY_DEFENSE_DRAW = "draw_on_play_defense_draw"
+    READY_ALLY_ON_PLAY_ENTERS_SPENT = "ready_ally_on_play_enters_spent"
+    DEFENSE_PLUS_1_WITH_MEMORY = "defense_plus_1_with_memory"
+    BLOCKED_ATTACK_DRAW = "blocked_attack_draw"
+    CHARGE_SPEND_ENEMY_READY_ALLY = "charge_spend_enemy_ready_ally"
+    CHARGE_RECOVER_DISCARD_ANY = "charge_recover_discard_any"
+    CHARGE_FILTER_DRAW = "charge_filter_draw"
+    CHARGE_PRESSURE_ANY = "charge_pressure_any"
+    RETURN_AFTER_OVERHEAT_OPPONENT_DRAW_ON_PLAY = "return_after_overheat_opponent_draw_on_play"
+    DISCARD_AI_ATTACK_PLUS_1 = "discard_ai_attack_plus_1"
+    CHARGE_SPEND_ALL_ENEMIES = "charge_spend_all_enemies"
+    RECOVER_MEMORY_ON_PLAY_DEFENSE_PLUS_1 = "recover_memory_on_play_defense_plus_1"
 
 
 class DeckArchetype(str, Enum):
@@ -88,6 +117,7 @@ class DeckArchetype(str, Enum):
     WIND = "wind"
     EARTH = "earth"
     APEX = "apex"
+    ECHOES = "echoes"
 
 
 class Attribute(str, Enum):
@@ -106,6 +136,30 @@ class Card:
     power: int | None = None
     effect: str = ""
     status: str = CardStatus.ACTIVE.value
+    # デュアル属性カードの第2属性。単属性カードは None
+    sub_attribute: Attribute | None = None
+    # 収録弾。1 = スターター（コレクション制限なし）、2 = 第2弾「残響の胎動」
+    card_set: int = 1
+
+
+def card_attributes(card: Card) -> list[Attribute]:
+    """カードが持つ属性の一覧（主属性 + デュアル副属性）。"""
+    attributes: list[Attribute] = []
+    if card.attribute is not None:
+        attributes.append(card.attribute)
+    if card.sub_attribute is not None and card.sub_attribute != card.attribute:
+        attributes.append(card.sub_attribute)
+    return attributes
+
+
+def has_attribute(card: Card, attribute: Attribute) -> bool:
+    """カードが属性 attribute を持つか（デュアル属性対応の統一判定）。"""
+    return card.attribute == attribute or card.sub_attribute == attribute
+
+
+def shares_attribute(left: Card, right: Card) -> bool:
+    """2枚のカードが属性を1つでも共有するか（同属性判定のデュアル対応版）。"""
+    return any(has_attribute(right, attribute) for attribute in card_attributes(left))
 
 
 def can_defend(
@@ -117,6 +171,7 @@ def can_defend(
     same_attribute_strict: bool = False,
     defense_power_bonus: int = 0,
     include_defense_effect_bonus: bool = True,
+    attack_power_bonus: int = 0,
 ) -> bool:
     _ = same_attribute_strict
     return (
@@ -128,16 +183,16 @@ def can_defend(
             defense_power_bonus=defense_power_bonus,
             include_defense_effect_bonus=include_defense_effect_bonus,
         )
-        >= attack_combat_value(attack_ai)
+        >= attack_combat_value(attack_ai, attack_power_bonus=attack_power_bonus)
     )
 
 
-def attack_combat_value(attack_ai: Card) -> int:
+def attack_combat_value(attack_ai: Card, *, attack_power_bonus: int = 0) -> int:
     if attack_ai.type != CardType.AI:
         raise ValueError("Attack checks require summon cards.")
     if attack_ai.power is None:
         raise ValueError("Summon cards require power.")
-    return attack_ai.power + (1 if attacks_plus_1(attack_ai) else 0)
+    return attack_ai.power + (1 if attacks_plus_1(attack_ai) else 0) + attack_power_bonus
 
 
 def defense_combat_value(
@@ -182,11 +237,31 @@ def attacks_plus_1(ai: Card) -> bool:
     }
 
 
+def conditional_attack_bonus(ai: Card, attacker_discard: list[Card] | None) -> int:
+    """条件付き攻撃バフ: 攻撃側プレイヤーのトラッシュ内容に依存する戦闘時攻撃値ボーナス。"""
+    if attacker_discard is None or ai.type != CardType.AI:
+        return 0
+    bonus = 0
+    if (
+        ai.effect == AiEffect.DISCARD_COMMANDS_ATTACK_PLUS_1.value
+        and sum(1 for card in attacker_discard if card.type == CardType.EVENT) >= 2
+    ):
+        bonus += 2
+    if (
+        ai.effect == AiEffect.DISCARD_AI_ATTACK_PLUS_1.value
+        and sum(1 for card in attacker_discard if card.type == CardType.AI) >= 3
+    ):
+        bonus += 1
+    return bonus
+
+
 def draws_on_play(ai: Card) -> bool:
     return ai.type == CardType.AI and ai.effect in {
         AiEffect.DRAW_ON_PLAY.value,
         AiEffect.DRAW_ON_PLAY_CANNOT_HAND_DEFEND.value,
         AiEffect.READY_ALLY_ON_PLAY_DRAW.value,
+        AiEffect.DRAW_ON_PLAY_DEFENSE_DRAW.value,
+        AiEffect.RETURN_AFTER_OVERHEAT_OPPONENT_DRAW_ON_PLAY.value,
     }
 
 
@@ -219,10 +294,23 @@ def spends_enemy_on_play(ai: Card) -> bool:
     }
 
 
+def trashes_enemy_memory_on_play(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.TRASH_ENEMY_MEMORY_ON_PLAY.value
+
+
+def recovers_memory_on_play(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.RECOVER_MEMORY_ON_PLAY_DEFENSE_PLUS_1.value
+
+
+def recovers_ai_on_successful_defense(ai: Card) -> bool:
+    return ai.type == CardType.AI and ai.effect == AiEffect.RECOVER_AI_ON_SUCCESSFUL_DEFENSE.value
+
+
 def defense_plus_1(ai: Card) -> bool:
     return ai.type == CardType.AI and ai.effect in {
         AiEffect.DEFENSE_PLUS_1.value,
         AiEffect.DEFENSE_PLUS_1_ENTERS_SPENT.value,
+        AiEffect.RECOVER_MEMORY_ON_PLAY_DEFENSE_PLUS_1.value,
     }
 
 
@@ -249,6 +337,7 @@ def draws_on_blocked_attack(ai: Card) -> bool:
     return ai.type == CardType.AI and ai.effect in {
         AiEffect.DRAW_ON_BLOCKED_ATTACK.value,
         AiEffect.DRAW_ON_BLOCKED_ATTACK_CANNOT_HAND_DEFEND.value,
+        AiEffect.BLOCKED_ATTACK_DRAW.value,
     }
 
 
@@ -256,6 +345,7 @@ def readies_ally_on_play(ai: Card) -> bool:
     return ai.type == CardType.AI and ai.effect in {
         AiEffect.READY_ALLY_ON_PLAY.value,
         AiEffect.READY_ALLY_ON_PLAY_DRAW.value,
+        AiEffect.READY_ALLY_ON_PLAY_ENTERS_SPENT.value,
     }
 
 
@@ -263,6 +353,7 @@ def returns_after_overheat(ai: Card) -> bool:
     return ai.type == CardType.AI and ai.effect in {
         AiEffect.RETURN_AFTER_OVERHEAT.value,
         AiEffect.RETURN_AFTER_OVERHEAT_CANNOT_HAND_DEFEND.value,
+        AiEffect.RETURN_AFTER_OVERHEAT_OPPONENT_DRAW_ON_PLAY.value,
     }
 
 
@@ -270,6 +361,7 @@ def draws_on_successful_defense(ai: Card) -> bool:
     return ai.type == CardType.AI and ai.effect in {
         AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE.value,
         AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE_ENTERS_SPENT.value,
+        AiEffect.DRAW_ON_PLAY_DEFENSE_DRAW.value,
     }
 
 
@@ -283,6 +375,12 @@ def has_charge_effect(ai: Card) -> bool:
         AiEffect.CHARGE_SURGE_DRAW.value,
         AiEffect.CHARGE_SPEND_ENEMY.value,
         AiEffect.CHARGE_RECOVER_DISCARD.value,
+        AiEffect.CHARGE_DRAW_IF_DISCARD_AI.value,
+        AiEffect.CHARGE_FILTER_DRAW.value,
+        AiEffect.CHARGE_PRESSURE_ANY.value,
+        AiEffect.CHARGE_SPEND_ALL_ENEMIES.value,
+        AiEffect.CHARGE_SPEND_ENEMY_READY_ALLY.value,
+        AiEffect.CHARGE_RECOVER_DISCARD_ANY.value,
     }
 
 
@@ -292,6 +390,7 @@ def enters_spent_on_play(ai: Card) -> bool:
         AiEffect.DEFENSE_PLUS_1_ENTERS_SPENT.value,
         AiEffect.RETURN_AFTER_OVERHEAT_CANNOT_HAND_DEFEND.value,
         AiEffect.DRAW_ON_SUCCESSFUL_DEFENSE_ENTERS_SPENT.value,
+        AiEffect.READY_ALLY_ON_PLAY_ENTERS_SPENT.value,
     }
 
 
@@ -303,6 +402,7 @@ def opponent_draws_on_play(ai: Card) -> bool:
     return ai.type == CardType.AI and ai.effect in {
         AiEffect.DRAW_AFTER_OVERHEAT_OPPONENT_DRAW.value,
         AiEffect.DRAW_TWO_AFTER_OVERHEAT_OPPONENT_DRAW.value,
+        AiEffect.RETURN_AFTER_OVERHEAT_OPPONENT_DRAW_ON_PLAY.value,
     }
 
 
@@ -502,7 +602,45 @@ def build_ai_card_pool() -> list[Card]:
             ),
         ]
     )
+    cards.extend(_build_set2_ai_cards())
     return cards
+
+
+def _build_set2_ai_cards() -> list[Card]:
+    """第2弾「残響の胎動」召喚獣（18種）。全カード card_set=2。"""
+    rows: list[tuple[str, str, Attribute, Attribute | None, int, str]] = [
+        ("AI-FIRE-1D", "炉暴きレミ", Attribute.FIRE, None, 1, AiEffect.TRASH_ENEMY_MEMORY_ON_PLAY.value),
+        ("AI-WATER-1D", "雫渡りナユ", Attribute.WATER, None, 1, AiEffect.DRAW_ON_PLAY_IF_DISCARD_4.value),
+        ("AI-WIND-1D", "風信子スゥ", Attribute.WIND, None, 1, AiEffect.CHARGE_DRAW_IF_DISCARD_AI.value),
+        ("AI-EARTH-1D", "骨集めコロ", Attribute.EARTH, None, 1, AiEffect.RECOVER_AI_ON_SUCCESSFUL_DEFENSE.value),
+        ("AI-FIRE-2D", "焔喰いガルル", Attribute.FIRE, None, 2, AiEffect.DISCARD_COMMANDS_ATTACK_PLUS_1.value),
+        ("AI-WATER-2D", "潮汲みモネ", Attribute.WATER, None, 2, AiEffect.DRAW_ON_PLAY_DEFENSE_DRAW.value),
+        ("AI-WIND-2D", "旋律鳥カナタ", Attribute.WIND, None, 2, AiEffect.READY_ALLY_ON_PLAY_ENTERS_SPENT.value),
+        ("AI-EARTH-2D", "苔纏いドルモ", Attribute.EARTH, None, 2, AiEffect.DEFENSE_PLUS_1_WITH_MEMORY.value),
+        ("AI-FIRE-3D", "焔角のグレンド", Attribute.FIRE, None, 3, AiEffect.HAND_DEFENSE_PIERCE.value),
+        ("AI-WATER-3D", "深響のセレナ", Attribute.WATER, None, 3, AiEffect.BLOCKED_ATTACK_DRAW.value),
+        ("AI-WIND-3C", "翠嵐鷹ハヤテ", Attribute.WIND, None, 3, AiEffect.CHARGE_SPEND_ENEMY_READY_ALLY.value),
+        ("AI-EARTH-3C", "古磐熊ゴロン", Attribute.EARTH, None, 3, AiEffect.CHARGE_RECOVER_DISCARD_ANY.value),
+        ("AI-WATER-3C", "潮渦のシラス", Attribute.WATER, None, 3, AiEffect.CHARGE_FILTER_DRAW.value),
+        ("AI-FIRE-3C", "燐火獅子レオン", Attribute.FIRE, None, 3, AiEffect.CHARGE_PRESSURE_ANY.value),
+        ("AI-WATER-4D", "海淵帝グランマーレ", Attribute.WATER, None, 4, AiEffect.RETURN_AFTER_OVERHEAT_OPPONENT_DRAW_ON_PLAY.value),
+        ("AI-FIRE-4D", "灰滅竜ヴァレン", Attribute.FIRE, None, 4, AiEffect.DISCARD_AI_ATTACK_PLUS_1.value),
+        ("AI-WIND-4D", "天嵐王ジェイル", Attribute.WIND, None, 4, AiEffect.CHARGE_SPEND_ALL_ENEMIES.value),
+        ("AI-EARTH-4D", "城塞獣ガリオン", Attribute.EARTH, None, 4, AiEffect.RECOVER_MEMORY_ON_PLAY_DEFENSE_PLUS_1.value),
+    ]
+    return [
+        Card(
+            id=card_id,
+            name=name,
+            type=CardType.AI,
+            attribute=attribute,
+            sub_attribute=sub_attribute,
+            power=power,
+            effect=effect,
+            card_set=2,
+        )
+        for card_id, name, attribute, sub_attribute, power, effect in rows
+    ]
 
 
 def build_command_card_pool() -> list[Card]:
@@ -579,6 +717,62 @@ def build_command_card_pool() -> list[Card]:
             type=CardType.EVENT,
             effect=CommandEffect.COMEBACK_RITE.value,
         ),
+        Card(
+            id="CMD-WAR-CRY",
+            name="猛りの号令",
+            type=CardType.EVENT,
+            effect=CommandEffect.WAR_CRY.value,
+            card_set=2,
+        ),
+        Card(
+            id="CMD-TIDE-EDGE",
+            name="潮刃の付与",
+            type=CardType.EVENT,
+            effect=CommandEffect.TIDE_EDGE.value,
+            card_set=2,
+        ),
+        Card(
+            id="CMD-PIERCE-SIGHT",
+            name="貫きの眼光",
+            type=CardType.EVENT,
+            effect=CommandEffect.PIERCE_SIGHT.value,
+            card_set=2,
+        ),
+        Card(
+            id="CMD-GRAVE-CALL",
+            name="残響召喚",
+            type=CardType.EVENT,
+            effect=CommandEffect.GRAVE_CALL.value,
+            card_set=2,
+        ),
+        Card(
+            id="CMD-SALVAGE",
+            name="遺灰回収",
+            type=CardType.EVENT,
+            effect=CommandEffect.SALVAGE.value,
+            card_set=2,
+        ),
+        Card(
+            id="CMD-OVERDRIVE",
+            name="過負荷解放",
+            type=CardType.EVENT,
+            effect=CommandEffect.OVERDRIVE.value,
+            card_set=2,
+        ),
+        Card(
+            id="CMD-RELIC-CRUSH",
+            name="遺物砕き",
+            type=CardType.EVENT,
+            effect=CommandEffect.RELIC_CRUSH.value,
+            card_set=2,
+        ),
+        Card(
+            id="CMD-DEEP-CURRENT",
+            name="深流呼び",
+            type=CardType.EVENT,
+            effect=CommandEffect.DEEP_CURRENT.value,
+            card_set=2,
+        ),
     ]
 
 
@@ -631,6 +825,34 @@ def build_memory_card_pool() -> list[Card]:
             name="大樹の寝床",
             type=CardType.MEMORY,
             effect=MemoryEffect.GROVE_REST.value,
+        ),
+        Card(
+            id="MEM-ECHO-URN",
+            name="残響の骨壺",
+            type=CardType.MEMORY,
+            effect=MemoryEffect.ECHO_URN.value,
+            card_set=2,
+        ),
+        Card(
+            id="MEM-STORM-CORE",
+            name="嵐核の環",
+            type=CardType.MEMORY,
+            effect=MemoryEffect.STORM_CORE.value,
+            card_set=2,
+        ),
+        Card(
+            id="MEM-TIDAL-MIRROR",
+            name="潮鏡の祭具",
+            type=CardType.MEMORY,
+            effect=MemoryEffect.TIDAL_MIRROR.value,
+            card_set=2,
+        ),
+        Card(
+            id="MEM-DUAL-BANNER",
+            name="双色の軍旗",
+            type=CardType.MEMORY,
+            effect=MemoryEffect.DUAL_BANNER.value,
+            card_set=2,
         ),
     ]
 
@@ -750,8 +972,8 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
     if archetype == DeckArchetype.WATER:
         return _deck_from_ids(
             [
-                "AI-WATER-1",
-                "AI-WATER-1",
+                "AI-WATER-2D",
+                "AI-WATER-2D",
                 "AI-WATER-1C",
                 "AI-WATER-1C",
                 "AI-WATER-2",
@@ -865,6 +1087,36 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-PURGE",
                 "MEM-FIREWALL",
                 "MEM-RECOVERY-CACHE",
+            ]
+        )
+    if archetype == DeckArchetype.ECHOES:
+        return _deck_from_ids(
+            [
+                "AI-WATER-1D",
+                "AI-WATER-1D",
+                "AI-EARTH-1D",
+                "AI-EARTH-1D",
+                "AI-WATER-2D",
+                "AI-WATER-2D",
+                "AI-WIND-2D",
+                "AI-WIND-2D",
+                "AI-EARTH-2D",
+                "AI-EARTH-2D",
+                "AI-WATER-3D",
+                "AI-WATER-3C",
+                "AI-EARTH-3C",
+                "AI-WATER-4D",
+                "AI-WATER-4D",
+                "CMD-GRAVE-CALL",
+                "CMD-GRAVE-CALL",
+                "CMD-DEEP-CURRENT",
+                "CMD-DEEP-CURRENT",
+                "CMD-PURGE",
+                "CMD-DISRUPT",
+                "CMD-TIDE-EDGE",
+                "MEM-CACHE",
+                "MEM-ECHO-URN",
+                "MEM-ECHO-URN",
             ]
         )
     raise ValueError(f"Unsupported deck archetype: {archetype}")

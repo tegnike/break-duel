@@ -8,6 +8,7 @@ import {
   type GameState,
   activeCardPool,
   aiEffectText,
+  applyEchoUrnDraw,
   applyEndTurnGroveRest,
   applyTurnStartMemory,
   attackCombatValue,
@@ -308,12 +309,20 @@ const CARD_EFFECT_CASES = {
     },
   },
   draw_on_successful_defense: {
-    cardId: "AI-EARTH-4B",
-    description: "場防御成功時ドロー対象になる",
+    cardId: "AI-EARTH-1B",
+    description: "場防御時ドロー対象になる",
     run: () => {
-      const target = card("AI-EARTH-4B");
+      const target = card("AI-EARTH-1B");
       expect(drawsOnSuccessfulDefense(target)).toBe(true);
       expect(entersSpentOnPlay(target)).toBe(false);
+      const game = blankGame();
+      game.players[1].field = [card("AI-FIRE-2")];
+      game.players[0].field = [target];
+      game.players[0].deck = [card("AI-WATER-1")];
+      game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
+      resolveDefenseInDraft(game, { type: "field", index: 0 }, {});
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-WATER-1"]);
+      expect(game.players[0].field).toHaveLength(0);
     },
   },
   charge_pressure: {
@@ -747,6 +756,427 @@ const CARD_EFFECT_CASES = {
       expect(ahead.players[0].spentFieldIndexes).toEqual(new Set([0, 1]));
     },
   },
+  trash_enemy_memory_on_play: {
+    cardId: "AI-FIRE-1D",
+    description: "CPU登場時、相手の遺物を自動でトラッシュへ送り、自身は消耗する（人間は任意選択、別テストで検証）",
+    run: () => {
+      const game = blankGame();
+      game.players[0].isHuman = false;
+      const target = card("AI-FIRE-1D");
+      game.players[0].field = [target];
+      game.players[1].memory = card("MEM-CACHE");
+      applyPlayEffects(game, game.players[0], target, 0, 1);
+      expect(game.players[1].memory).toBeNull();
+      expect(game.players[1].discard.map((item) => item.id)).toEqual(["MEM-CACHE"]);
+      expect(game.players[0].spentFieldIndexes.has(0)).toBe(true);
+      expect(game.pendingTarget).toBeNull();
+
+      const noRelic = blankGame();
+      noRelic.players[0].isHuman = false;
+      const idle = card("AI-FIRE-1D");
+      noRelic.players[0].field = [idle];
+      applyPlayEffects(noRelic, noRelic.players[0], idle, 0, 1);
+      expect(noRelic.players[0].spentFieldIndexes.has(0)).toBe(false);
+    },
+  },
+  draw_on_play_if_discard_4: {
+    cardId: "AI-WATER-1D",
+    description: "トラッシュ4枚以上の時だけ登場時に1枚引く",
+    run: () => {
+      const game = blankGame();
+      game.players[0].discard = [card("AI-FIRE-1"), card("AI-FIRE-2"), card("CMD-OPTIMIZE"), card("AI-WATER-1")];
+      game.players[0].deck = [card("AI-FIRE-1B")];
+      applyPlayEffects(game, game.players[0], card("AI-WATER-1D"), 0, 1);
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1B"]);
+
+      const shallow = blankGame();
+      shallow.players[0].discard = [card("AI-FIRE-1"), card("AI-FIRE-2"), card("CMD-OPTIMIZE")];
+      shallow.players[0].deck = [card("AI-FIRE-1B")];
+      applyPlayEffects(shallow, shallow.players[0], card("AI-WATER-1D"), 0, 1);
+      expect(shallow.players[0].hand).toHaveLength(0);
+    },
+  },
+  charge_draw_if_discard_ai: {
+    cardId: "AI-WIND-1D",
+    description: "チャージ時、トラッシュに他の召喚獣があれば1枚引く。自分自身は数えない",
+    run: () => {
+      const game = playableChargeGame("AI-WIND-1D");
+      game.players[0].discard = [card("AI-FIRE-1")];
+      game.players[0].deck = [card("AI-FIRE-2")];
+      chargeHandCardInDraft(game, 0, 0);
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-2"]);
+
+      const selfOnly = playableChargeGame("AI-WIND-1D");
+      selfOnly.players[0].deck = [card("AI-FIRE-2")];
+      chargeHandCardInDraft(selfOnly, 0, 0);
+      expect(selfOnly.players[0].hand).toHaveLength(0);
+    },
+  },
+  recover_ai_on_successful_defense: {
+    cardId: "AI-EARTH-1D",
+    description: "場防御時にトラッシュの召喚獣を手札に戻す",
+    run: () => {
+      const game = blankGame();
+      game.players[1].field = [card("AI-FIRE-2")];
+      game.players[0].field = [card("AI-EARTH-1D")];
+      game.players[0].discard = [card("AI-WATER-3")];
+      game.players[0].deck = [];
+      game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
+      resolveDefenseInDraft(game, { type: "field", index: 0 }, {});
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-WATER-3"]);
+      expect(game.players[0].field).toHaveLength(0);
+    },
+  },
+  discard_commands_attack_plus_1: {
+    cardId: "AI-FIRE-2D",
+    description: "自分のトラッシュに術式が2枚以上ある時だけ戦闘時攻撃値+2",
+    run: () => {
+      const game = blankGame();
+      const attacker = game.players[0];
+      const target = card("AI-FIRE-2D");
+      expect(attackCombatValue(target, { attacker })).toBe(2);
+      attacker.discard = [card("CMD-OPTIMIZE"), card("CMD-PURGE")];
+      expect(attackCombatValue(target, { attacker })).toBe(4);
+      expect(attackCombatValue(target)).toBe(2);
+      expect(attackDamage(target)).toBe(2);
+    },
+  },
+  draw_on_play_defense_draw: {
+    cardId: "AI-WATER-2D",
+    description: "登場時ドローと場防御時ドローの両方を持つ",
+    run: () => {
+      const game = blankGame();
+      game.players[0].deck = [card("AI-FIRE-1")];
+      applyPlayEffects(game, game.players[0], card("AI-WATER-2D"), 0, 2);
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+      expect(drawsOnSuccessfulDefense(card("AI-WATER-2D"))).toBe(true);
+    },
+  },
+  ready_ally_on_play_enters_spent: {
+    cardId: "AI-WIND-2D",
+    description: "登場時に他の消耗召喚獣を回復し、自身は消耗で出る。自分自身は回復できない",
+    run: () => {
+      const game = blankGame();
+      const player = game.players[1];
+      const target = card("AI-WIND-2D");
+      player.field = [card("AI-WIND-1"), target];
+      player.spentFieldIndexes = new Set([0, 1]);
+      expect(entersSpentOnPlay(target)).toBe(true);
+      expect(readiesAllyOnPlay(target)).toBe(true);
+      applyPlayEffects(game, player, target, 1, 2);
+      expect(player.spentFieldIndexes.has(0)).toBe(false);
+      expect(player.spentFieldIndexes.has(1)).toBe(true);
+    },
+  },
+  defense_plus_1_with_memory: {
+    cardId: "AI-EARTH-2D",
+    description: "自分の遺物がある間だけ場防御値+2",
+    run: () => {
+      const game = blankGame();
+      const attacker = card("AI-FIRE-2");
+      const defenderCard = card("AI-EARTH-2D");
+      const defender = game.players[0];
+      expect(defenseCombatValue(attacker, defenderCard, defender, { fieldIndex: 0 })).toBe(2);
+      defender.memory = card("MEM-CACHE");
+      expect(defenseCombatValue(attacker, defenderCard, defender, { fieldIndex: 0 })).toBe(4);
+      expect(defenseCombatValue(attacker, defenderCard, defender, { fieldDefense: false })).toBe(2);
+    },
+  },
+  blocked_attack_draw: {
+    cardId: "AI-WATER-3D",
+    description: "攻撃が防御された時に1枚引く。登場時のドローはない",
+    run: () => {
+      const target = card("AI-WATER-3D");
+      expect(drawsOnPlay(target)).toBe(false);
+      expect(drawsOnBlockedAttack(target)).toBe(true);
+      expect(piercesHandDefense(target)).toBe(false);
+      const game = blankGame();
+      game.players[0].deck = [card("AI-FIRE-1")];
+      applyPlayEffects(game, game.players[0], target, 0, 3);
+      expect(game.players[0].hand).toHaveLength(0);
+    },
+  },
+  charge_spend_enemy_ready_ally: {
+    cardId: "AI-WIND-3C",
+    description: "チャージ時に相手の最高power未消耗召喚獣を消耗させ、自分の最高power消耗中召喚獣を回復する（旋風転身術と同じ自動対象規則）",
+    run: () => {
+      const game = playableChargeGame("AI-WIND-3C");
+      game.players[0].field = [card("AI-WIND-1")];
+      game.players[0].spentFieldIndexes = new Set([0]);
+      game.players[1].field = [card("AI-FIRE-2"), card("AI-FIRE-1")];
+      chargeHandCardInDraft(game, 0, 0);
+      expect(game.players[1].spentFieldIndexes).toEqual(new Set([0]));
+      expect(game.players[0].spentFieldIndexes.size).toBe(0);
+    },
+  },
+  charge_recover_discard_any: {
+    cardId: "AI-EARTH-3C",
+    description: "チャージ時に手札枚数条件なしでトラッシュの召喚獣を回収する。チャージした自分自身は対象外",
+    run: () => {
+      const game = playableChargeGame("AI-EARTH-3C");
+      game.players[0].hand.push(card("AI-FIRE-1"), card("AI-FIRE-2"), card("AI-WATER-1"));
+      game.players[0].discard = [card("AI-EARTH-2")];
+      chargeHandCardInDraft(game, 0, 0);
+      expect(game.players[0].hand.map((item) => item.id)).toContain("AI-EARTH-2");
+
+      const selfOnly = playableChargeGame("AI-EARTH-3C");
+      selfOnly.players[0].discard = [];
+      chargeHandCardInDraft(selfOnly, 0, 0);
+      expect(selfOnly.players[0].hand).toHaveLength(0);
+      expect(selfOnly.players[0].discard.map((item) => item.id)).toEqual(["AI-EARTH-3C"]);
+    },
+  },
+  charge_filter_draw: {
+    cardId: "AI-WATER-3C",
+    description: "チャージ時に2枚引き、手札1枚をトラッシュへ送る",
+    run: () => {
+      const game = playableChargeGame("AI-WATER-3C");
+      game.players[0].deck = [card("AI-FIRE-1"), card("AI-FIRE-2")];
+      chargeHandCardInDraft(game, 0, 0);
+      expect(game.players[0].hand).toHaveLength(1);
+      expect(game.players[0].discard).toHaveLength(2);
+    },
+  },
+  charge_pressure_any: {
+    cardId: "AI-FIRE-3C",
+    description: "チャージ時に相手の手札枚数に関係なく1枚トラッシュさせる",
+    run: () => {
+      const game = playableChargeGame("AI-FIRE-3C");
+      game.players[1].hand = [card("AI-WATER-1")];
+      chargeHandCardInDraft(game, 0, 0);
+      expect(game.players[1].hand).toHaveLength(0);
+      expect(game.players[1].discard).toHaveLength(1);
+    },
+  },
+  return_after_overheat_opponent_draw_on_play: {
+    cardId: "AI-WATER-4D",
+    description: "登場時に自分と相手が1枚ずつ引き、攻撃後退場時に手札へ戻る",
+    run: () => {
+      const target = card("AI-WATER-4D");
+      expect(returnsAfterOverheat(target)).toBe(true);
+      expect(opponentDrawsOnPlay(target)).toBe(true);
+      const game = blankGame();
+      game.players[0].deck = [card("AI-FIRE-1")];
+      game.players[1].deck = [card("AI-WATER-1")];
+      applyPlayEffects(game, game.players[0], target, 0, 4);
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+      expect(game.players[1].hand.map((item) => item.id)).toEqual(["AI-WATER-1"]);
+    },
+  },
+  discard_ai_attack_plus_1: {
+    cardId: "AI-FIRE-4D",
+    description: "トラッシュに召喚獣3枚以上で戦闘時攻撃値+1。攻撃後退場時のドローはなし",
+    run: () => {
+      const game = blankGame();
+      const attacker = game.players[0];
+      const target = card("AI-FIRE-4D");
+      expect(attackCombatValue(target, { attacker })).toBe(4);
+      attacker.discard = [card("AI-FIRE-1"), card("AI-FIRE-2"), card("AI-WATER-1")];
+      expect(attackCombatValue(target, { attacker })).toBe(5);
+      expect(drawsAfterOverheat(target)).toBe(false);
+      expect(attackDamage(target)).toBe(4);
+    },
+  },
+  charge_spend_all_enemies: {
+    cardId: "AI-WIND-4D",
+    description: "チャージ時に相手の未消耗召喚獣をすべて消耗させる",
+    run: () => {
+      const game = playableChargeGame("AI-WIND-4D");
+      game.players[1].field = [card("AI-FIRE-1"), card("AI-FIRE-2"), card("AI-WATER-1")];
+      game.players[1].spentFieldIndexes = new Set([2]);
+      chargeHandCardInDraft(game, 0, 0);
+      expect(game.players[1].spentFieldIndexes).toEqual(new Set([0, 1, 2]));
+    },
+  },
+  recover_memory_on_play_defense_plus_1: {
+    cardId: "AI-EARTH-4D",
+    description: "登場時にトラッシュの遺物を手札に戻し、場防御時防御値+1",
+    run: () => {
+      const game = blankGame();
+      game.players[0].discard = [card("AI-FIRE-1"), card("MEM-CACHE")];
+      const target = card("AI-EARTH-4D");
+      applyPlayEffects(game, game.players[0], target, 0, 4);
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["MEM-CACHE"]);
+      expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+      expect(defenseCombatValue(card("AI-FIRE-2"), target, null, { fieldIndex: 0 })).toBe(5);
+    },
+  },
+  war_cry: {
+    cardId: "CMD-WAR-CRY",
+    description: "このターン自分の召喚獣すべての戦闘時攻撃値を+1する",
+    run: () => {
+      const game = blankGame();
+      game.players[0].hand = [card("CMD-WAR-CRY")];
+      game.players[0].field = [card("AI-FIRE-1")];
+      useCommandAtInDraft(game, 0, null);
+      expectCommandUsed(game, "CMD-WAR-CRY");
+      expect(game.players[0].turnGlobalAttackBonus).toBe(1);
+      expect(attackCombatValue(game.players[0].field[0], { attacker: game.players[0], attackerFieldIndex: 0 })).toBe(2);
+    },
+  },
+  tide_edge: {
+    cardId: "CMD-TIDE-EDGE",
+    description: "自分の召喚獣1体のこのターンの戦闘時攻撃値を+2する",
+    run: () => {
+      const game = blankGame();
+      game.players[0].hand = [card("CMD-TIDE-EDGE")];
+      game.players[0].field = [card("AI-WATER-1"), card("AI-WATER-2")];
+      useCommandAtInDraft(game, 0, 1);
+      expectCommandUsed(game, "CMD-TIDE-EDGE");
+      expect(game.players[0].turnFieldAttackBonuses.get(1)).toBe(2);
+      expect(game.players[0].turnFieldAttackBonuses.get(0)).toBeUndefined();
+    },
+  },
+  pierce_sight: {
+    cardId: "CMD-PIERCE-SIGHT",
+    description: "このターンの自分の次の攻撃を手札防御不可にする",
+    run: () => {
+      const game = blankGame();
+      game.players[0].hand = [card("CMD-PIERCE-SIGHT")];
+      game.players[0].field = [card("AI-FIRE-1")];
+      useCommandAtInDraft(game, 0, null);
+      expectCommandUsed(game, "CMD-PIERCE-SIGHT");
+      expect(game.players[0].nextAttackUnblockable).toBe(true);
+    },
+  },
+  grave_call: {
+    cardId: "CMD-GRAVE-CALL",
+    description: "トラッシュのpower 2以下の召喚獣を消耗状態で場に出す。power 3以上は選ばない",
+    run: () => {
+      const game = blankGame();
+      game.players[0].hand = [card("CMD-GRAVE-CALL")];
+      game.players[0].discard = [card("AI-FIRE-4"), card("AI-FIRE-3"), card("AI-FIRE-2")];
+      useCommandAtInDraft(game, 0, null);
+      expectCommandUsed(game, "CMD-GRAVE-CALL");
+      expect(game.players[0].field.map((item) => item.id)).toEqual(["AI-FIRE-2"]);
+      expect(game.players[0].spentFieldIndexes.has(0)).toBe(true);
+      expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-FIRE-4", "AI-FIRE-3", "CMD-GRAVE-CALL"]);
+    },
+  },
+  salvage: {
+    cardId: "CMD-SALVAGE",
+    description: "トラッシュの術式1枚を手札に戻す。遺灰回収自身は対象にできない",
+    run: () => {
+      const game = blankGame();
+      game.players[0].hand = [card("CMD-SALVAGE")];
+      game.players[0].discard = [card("CMD-SALVAGE"), card("CMD-OPTIMIZE")];
+      useCommandAtInDraft(game, 0, null);
+      expectCommandUsed(game, "CMD-SALVAGE");
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["CMD-OPTIMIZE"]);
+    },
+  },
+  overdrive: {
+    cardId: "CMD-OVERDRIVE",
+    description: "チャージ済みターンにだけ発動でき、2枚引く",
+    run: () => {
+      const game = blankGame();
+      game.players[0].hand = [card("CMD-OVERDRIVE")];
+      game.players[0].deck = [card("AI-FIRE-1"), card("AI-FIRE-2")];
+      expect(commandUsable(game, game.players[0].hand[0], game.players[0], game.players[1])).toBe(false);
+      game.players[0].chargeUsed = true;
+      expect(commandUsable(game, game.players[0].hand[0], game.players[0], game.players[1])).toBe(true);
+      useCommandAtInDraft(game, 0, null);
+      expectCommandUsed(game, "CMD-OVERDRIVE");
+      expect(game.players[0].hand).toHaveLength(2);
+    },
+  },
+  relic_crush: {
+    cardId: "CMD-RELIC-CRUSH",
+    description: "相手の遺物があるときしか使えず、使うと相手の遺物をトラッシュへ送る",
+    run: () => {
+      const game = blankGame();
+      game.players[0].hand = [card("CMD-RELIC-CRUSH")];
+      game.players[1].memory = card("MEM-CACHE");
+      expect(commandUsable(game, card("CMD-RELIC-CRUSH"), game.players[0], game.players[1])).toBe(true);
+      useCommandAtInDraft(game, 0, null);
+      expectCommandUsed(game, "CMD-RELIC-CRUSH");
+      expect(game.players[1].memory).toBeNull();
+      expect(game.players[1].discard.map((item) => item.id)).toEqual(["MEM-CACHE"]);
+
+      const noRelic = blankGame();
+      noRelic.players[0].hand = [card("CMD-RELIC-CRUSH")];
+      noRelic.players[0].deck = [card("AI-FIRE-1")];
+      expect(commandUsable(noRelic, card("CMD-RELIC-CRUSH"), noRelic.players[0], noRelic.players[1])).toBe(false);
+      useCommandAtInDraft(noRelic, 0, null);
+      expect(noRelic.players[0].hand.map((item) => item.id)).toEqual(["CMD-RELIC-CRUSH"]);
+      expect(noRelic.players[0].deck.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+    },
+  },
+  deep_current: {
+    cardId: "CMD-DEEP-CURRENT",
+    description: "水2体以上で3枚引き、1枚トラッシュへ送る",
+    run: () => {
+      const game = blankGame();
+      game.players[0].isHuman = false;
+      game.players[0].hand = [card("CMD-DEEP-CURRENT")];
+      game.players[0].field = [card("AI-WATER-1"), card("AI-WATER-3D")];
+      game.players[0].deck = [card("AI-FIRE-1"), card("AI-FIRE-2"), card("AI-FIRE-3")];
+      useCommandAtInDraft(game, 0, null);
+      expectCommandUsed(game, "CMD-DEEP-CURRENT");
+      expect(game.players[0].hand).toHaveLength(2);
+      expect(game.players[0].discard).toHaveLength(2);
+    },
+  },
+  echo_urn: {
+    cardId: "MEM-ECHO-URN",
+    description: "1ターンに1回、トラッシュから手札にカードが戻った時に1枚引く",
+    run: () => {
+      const game = blankGame();
+      game.players[0].memory = card("MEM-ECHO-URN");
+      game.players[0].hand = [card("CMD-EARTH-RITE")];
+      game.players[0].field = [card("AI-EARTH-1")];
+      game.players[0].discard = [card("AI-FIRE-2")];
+      game.players[0].deck = [card("AI-WATER-1")];
+      useCommandAtInDraft(game, 0, 0);
+      expect(game.players[0].hand.map((item) => item.id).sort()).toEqual(["AI-FIRE-2", "AI-WATER-1"]);
+      expect(game.players[0].echoUrnUsed).toBe(true);
+      expect(applyEchoUrnDraw(game.players[0])).toHaveLength(0);
+    },
+  },
+  storm_core: {
+    cardId: "MEM-STORM-CORE",
+    description: "自分がチャージした後、相手の未消耗召喚獣1体を消耗させる",
+    run: () => {
+      const game = playableChargeGame("AI-FIRE-1");
+      game.players[0].memory = card("MEM-STORM-CORE");
+      game.players[1].field = [card("AI-FIRE-1"), card("AI-FIRE-4")];
+      chargeHandCardInDraft(game, 0, 0);
+      expect(game.players[1].spentFieldIndexes).toEqual(new Set([1]));
+    },
+  },
+  tidal_mirror: {
+    cardId: "MEM-TIDAL-MIRROR",
+    description: "自分の召喚獣が場防御した時に1枚引く",
+    run: () => {
+      const game = blankGame();
+      game.players[0].memory = card("MEM-TIDAL-MIRROR");
+      game.players[0].field = [card("AI-EARTH-1")];
+      game.players[0].deck = [card("AI-WATER-1")];
+      game.players[1].field = [card("AI-FIRE-2")];
+      game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
+      resolveDefenseInDraft(game, { type: "field", index: 0 }, {});
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-WATER-1"]);
+      expect(game.players[0].life).toBe(CONFIG.life - 2);
+      expect(game.players[0].field).toHaveLength(0);
+    },
+  },
+  dual_banner: {
+    cardId: "MEM-DUAL-BANNER",
+    description: "ターン開始時、場に2属性以上あり手札2枚以下なら2枚引く",
+    run: () => {
+      const game = blankGame();
+      game.players[0].memory = card("MEM-DUAL-BANNER");
+      game.players[0].field = [card("AI-FIRE-1"), card("AI-WATER-1")];
+      game.players[0].deck = [card("AI-WATER-1"), card("AI-WATER-2")];
+      expect(applyTurnStartMemory(game.players[0]).map((item) => item.id)).toEqual(["AI-WATER-2", "AI-WATER-1"]);
+
+      const mono = blankGame();
+      mono.players[0].memory = card("MEM-DUAL-BANNER");
+      mono.players[0].field = [card("AI-FIRE-1"), card("AI-FIRE-2")];
+      mono.players[0].deck = [card("AI-WATER-1")];
+      expect(applyTurnStartMemory(mono.players[0])).toHaveLength(0);
+    },
+  },
 } satisfies Partial<Record<ActiveEffect, EffectCase>>;
 
 describe("card effect coverage", () => {
@@ -782,6 +1212,46 @@ describe("registered card effect behavior", () => {
     it(`${effect}: ${testCase.description}`, () => {
       testCase.run();
     });
+  });
+});
+
+describe("AI-FIRE-1D relic thief is optional for human players", () => {
+  it("raises a pending confirm target for a human instead of auto-trashing", () => {
+    const game = blankGame();
+    const target = card("AI-FIRE-1D");
+    game.players[0].isHuman = true;
+    game.players[0].field = [target];
+    game.players[1].memory = card("MEM-CACHE");
+    applyPlayEffects(game, game.players[0], target, 0, 1);
+    expect(game.players[1].memory).not.toBeNull();
+    expect(game.players[0].spentFieldIndexes.has(0)).toBe(false);
+    expect(game.pendingTarget?.kind).toBe("confirm");
+    expect(game.pendingTarget && "reason" in game.pendingTarget ? game.pendingTarget.reason : null).toBe("relic-thief-trash");
+  });
+
+  it("does not raise a pending target when the opponent has no relic", () => {
+    const game = blankGame();
+    const target = card("AI-FIRE-1D");
+    game.players[0].isHuman = true;
+    game.players[0].field = [target];
+    applyPlayEffects(game, game.players[0], target, 0, 1);
+    expect(game.pendingTarget).toBeNull();
+    expect(game.players[0].spentFieldIndexes.has(0)).toBe(false);
+  });
+});
+
+describe("AI-FIRE-3D shares the hand_defense_pierce effect", () => {
+  it("pierces hand defense for 1 damage with no attack bonus, damage stays power-based", () => {
+    const target = card("AI-FIRE-3D");
+    expect(attackCombatValue(target)).toBe(3);
+    expect(piercesHandDefense(target)).toBe(true);
+    expect(attackDamage(target)).toBe(3);
+    const game = blankGame();
+    game.players[0].field = [target];
+    game.players[1].hand = [card("AI-WATER-4")];
+    game.pendingAttack = { attackerIndex: 0, defenderIndex: 1, fieldIndex: 0 };
+    resolveDefenseInDraft(game, { type: "hand", index: 0 }, {});
+    expect(game.players[1].life).toBe(CONFIG.life - 1);
   });
 });
 
