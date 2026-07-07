@@ -1041,16 +1041,16 @@ const CARD_EFFECT_CASES = {
   },
   grave_call: {
     cardId: "CMD-GRAVE-CALL",
-    description: "トラッシュのpower 3以下の召喚獣を消耗状態で場に出す。power 4は選ばない",
+    description: "トラッシュのpower 2以下の召喚獣を消耗状態で場に出す。power 3以上は選ばない",
     run: () => {
       const game = blankGame();
       game.players[0].hand = [card("CMD-GRAVE-CALL")];
-      game.players[0].discard = [card("AI-FIRE-4"), card("AI-FIRE-3")];
+      game.players[0].discard = [card("AI-FIRE-4"), card("AI-FIRE-3"), card("AI-FIRE-2")];
       useCommandAtInDraft(game, 0, null);
       expectCommandUsed(game, "CMD-GRAVE-CALL");
-      expect(game.players[0].field.map((item) => item.id)).toEqual(["AI-FIRE-3"]);
+      expect(game.players[0].field.map((item) => item.id)).toEqual(["AI-FIRE-2"]);
       expect(game.players[0].spentFieldIndexes.has(0)).toBe(true);
-      expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-FIRE-4", "CMD-GRAVE-CALL"]);
+      expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-FIRE-4", "AI-FIRE-3", "CMD-GRAVE-CALL"]);
     },
   },
   salvage: {
@@ -1156,6 +1156,7 @@ const CARD_EFFECT_CASES = {
       game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
       resolveDefenseInDraft(game, { type: "field", index: 0 }, {});
       expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-WATER-1"]);
+      expect(game.players[0].life).toBe(CONFIG.life - 2);
       expect(game.players[0].field).toHaveLength(0);
     },
   },

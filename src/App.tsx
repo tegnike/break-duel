@@ -2429,7 +2429,7 @@ export default function App() {
           zone: "discard",
           playerIndex: draft.active,
           title: `${command.name}で場に出すカードを選択`,
-          prompt: "消耗状態で場に出す power 3 以下の召喚獣を1枚選んでください。",
+          prompt: "消耗状態で場に出す power 2 以下の召喚獣を1枚選んでください。",
           confirmLabel: "このカードを場に出す",
           min: 1,
           max: 1,

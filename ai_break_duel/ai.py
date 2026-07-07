@@ -1139,7 +1139,7 @@ def _command_is_usable(state: GameState, source_index: int) -> bool:
         return _highest_power_ready_ai(player) is not None
     if card.effect == CommandEffect.GRAVE_CALL.value:
         return len(player.field_ai) < state.config.field_ai_limit and any(
-            item.type == CardType.AI and (item.power or 0) <= 3 for item in player.discard
+            item.type == CardType.AI and (item.power or 0) <= 2 for item in player.discard
         )
     if card.effect == CommandEffect.SALVAGE.value:
         return any(

@@ -342,7 +342,7 @@ export function roleText(card: Card): string {
   if (card.effect === "war_cry") return "このターン、自分の召喚獣すべては戦闘時、攻撃値+1";
   if (card.effect === "tide_edge") return "自分の場に水の召喚獣がいるときしか使用できない。自分の召喚獣1体を選ぶ。このターン、その召喚獣は戦闘時、攻撃値+2";
   if (card.effect === "pierce_sight") return "このターン、自分の次の攻撃は手札防御されない";
-  if (card.effect === "grave_call") return "場に空きがあるときしか使用できない。トラッシュのpower3以下の召喚獣1枚を消耗状態で場に出す";
+  if (card.effect === "grave_call") return "場に空きがあるときしか使用できない。トラッシュのpower2以下の召喚獣1枚を消耗状態で場に出す";
   if (card.effect === "salvage") return "トラッシュの術式1枚を手札に戻す。ただし、遺灰回収は選択できない。";
   if (card.effect === "overdrive") return "このターンに自分がチャージしていなければ使用できない。山札からカードを2枚引く";
   if (card.effect === "relic_crush") return "相手の遺物をトラッシュする";

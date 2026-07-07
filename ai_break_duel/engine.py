@@ -836,23 +836,24 @@ def _attack(state: GameState, action: Action) -> None:
             ),
             attack_power_bonus=attack_bonus,
         ):
-            state.stats.successful_defenses += 1
-            state.stats.record_card_usage(defense_ai.id, "defended_success")
+            defense_bonus = _defense_power_bonus(
+                state,
+                defender,
+                defense_ai,
+                attack_ai,
+                field_index=defense_index,
+                attack_power_bonus=attack_bonus,
+            )
             defense_value = defense_combat_value(
                 attack_ai,
                 defense_ai,
                 advantage_bonus=state.config.defense_advantage_bonus,
                 disadvantage_penalty=state.config.defense_disadvantage_penalty,
-                defense_power_bonus=_defense_power_bonus(
-                    state,
-                    defender,
-                    defense_ai,
-                    attack_ai,
-                    field_index=defense_index,
-                    attack_power_bonus=attack_bonus,
-                ),
+                defense_power_bonus=defense_bonus,
             )
             attack_value = attack_combat_value(attack_ai, attack_power_bonus=attack_bonus)
+            state.stats.successful_defenses += 1
+            state.stats.record_card_usage(defense_ai.id, "defended_success")
             defense_result = "success_trade" if defense_value == attack_value else "success"
             firewall_discarded_card = _discard_firewall_fuel(
                 state,
@@ -911,13 +912,29 @@ def _attack(state: GameState, action: Action) -> None:
             lost_ai = lost_cards[0]
             defender.discard.extend(lost_cards)
             defender.ai_lost += len(lost_cards)
-            damage = _attack_damage(state, attack_ai)
+            defense_bonus = _defense_power_bonus(
+                state,
+                defender,
+                defense_ai,
+                attack_ai,
+                field_index=defense_index,
+                attack_power_bonus=attack_bonus,
+            )
+            defense_value = defense_combat_value(
+                attack_ai,
+                defense_ai,
+                advantage_bonus=state.config.defense_advantage_bonus,
+                disadvantage_penalty=state.config.defense_disadvantage_penalty,
+                defense_power_bonus=defense_bonus,
+            )
+            attack_value = attack_combat_value(attack_ai, attack_power_bonus=attack_bonus)
+            damage = max(0, attack_value - defense_value)
             _deal_damage(defender, damage)
             _post_damage_draw(state, defender, damage)
             war_banner_draw_count += _apply_war_banner_draw(state, attacker)
             state.stats.failed_defenses += 1
-            state.stats.record_card_usage(defense_ai.id, "defended_failed")
-            defense_result = "failed"
+            state.stats.record_card_usage(defense_ai.id, "defended_partial_failed")
+            defense_result = "partial_failed"
             outcome = "damage"
 
     if damage == 0 and defense_result.startswith("success"):
@@ -1465,10 +1482,10 @@ def _use_command(state: GameState, action: Action) -> None:
             or revive_index < 0
             or revive_index >= len(player.discard)
             or player.discard[revive_index].type != CardType.AI
-            or (player.discard[revive_index].power or 0) > 3
+            or (player.discard[revive_index].power or 0) > 2
         ):
             player.hand.insert(action.source_index, command)
-            raise ValueError("Grave call requires a power 3 or lower summon in discard.")
+            raise ValueError("Grave call requires a power 2 or lower summon in discard.")
         player.discard.append(command)
         revived = revive_ai_from_discard(state, player, revive_index)
         result |= {"revived_ai": revived.id if revived else None}
@@ -2184,8 +2201,8 @@ def _apply_echo_urn_draw(state: GameState, player: PlayerState) -> int:
     return drawn
 
 
-def _best_revive_target_in_discard(player: PlayerState, max_power: int = 3) -> int | None:
-    """残響召喚の自動対象: power 3 以下の召喚獣のうち最高 power、同 power なら ID 降順。"""
+def _best_revive_target_in_discard(player: PlayerState, max_power: int = 2) -> int | None:
+    """残響召喚の自動対象: power 2 以下の召喚獣のうち最高 power、同 power なら ID 降順。"""
     candidates = [
         (index, card)
         for index, card in enumerate(player.discard)

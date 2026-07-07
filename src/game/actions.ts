@@ -560,7 +560,7 @@ export function useCommandAtInDraft(
     if (
       reviveTarget === null
       || player.discard[reviveTarget]?.type !== "ai"
-      || (player.discard[reviveTarget].power ?? 0) > 3
+      || (player.discard[reviveTarget].power ?? 0) > 2
       || player.field.length >= CONFIG.fieldLimit
     ) return;
   }
@@ -881,7 +881,7 @@ export function resolveDefenseInDraft(
       }
     }
     const mirrorDrawnCards = defender.memory?.effect === "tidal_mirror" ? drawCards(defender, 1) : [];
-    const damage = isFailure ? attackDamage(attackCard) : 0;
+    const damage = isFailure ? Math.max(0, attackValue - defenseValue) : 0;
     if (damage > 0) defender.life -= damage;
     const breakDrawnCards = damage > 0 && CONFIG.drawOnAttackDamage !== "none"
       ? drawCards(defender, CONFIG.drawOnAttackDamage === "event" ? 1 : damage)

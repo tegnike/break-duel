@@ -1114,8 +1114,8 @@ def build_deck(archetype: DeckArchetype) -> list[Card]:
                 "CMD-PURGE",
                 "CMD-DISRUPT",
                 "CMD-TIDE-EDGE",
-                "MEM-TIDAL-MIRROR",
-                "MEM-TIDAL-MIRROR",
+                "MEM-CACHE",
+                "MEM-ECHO-URN",
                 "MEM-ECHO-URN",
             ]
         )

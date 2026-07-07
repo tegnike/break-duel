@@ -4,6 +4,84 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
+## 2026-07-07 場防御失敗の差分ダメージ化 + echoes 再調整: 採用
+
+### 背景
+
+直前の「場防御時効果の失敗場防御対応」では、防御値不足でも場防御を選べるようにしたが、防御失敗時は攻撃召喚獣の power 分ダメージがそのまま通っていた。ユーザーレビューを受け、弱い場防御でも攻撃を完全には止めないが、差分だけダメージを受ける案を検証した。
+
+案2（防御値不足の場防御は防御召喚獣をトラッシュし、攻撃値 - 防御値の差分ダメージを受ける）は全体のワンサイド率を悪化させなかった一方、現行 `echoes` のままだと長期戦リソースが過剰になり、`echoes` が 69.2% まで上振れした。原因は `潮鏡の祭具` / `潮汲みモネ` の場防御ドローと、power 3 まで蘇生できる `残響召喚` が差分ダメージ環境で強くなりすぎること。
+
+### 採用変更 / 変更内容
+
+Python / TypeScript 両実装に以下を同期した。
+
+1. **場防御失敗時のダメージを差分化**: 防御値不足の場防御は、防御召喚獣をトラッシュし、攻撃値 - 防御値の差分ダメージを受ける。`場防御時` 効果は従来通り発動し、`攻撃が防御された時` の攻撃側効果は発動しない。手札防御の仕様は変更なし。
+2. **`CMD-GRAVE-CALL` 残響召喚を弱体化**: 蘇生対象を power 3 以下から **power 2 以下** に戻した。自動選択、発動可否、UI 文言、テストを同期。
+3. **`echoes` デッキ調整**: `MEM-TIDAL-MIRROR` ×2 を `MEM-CACHE` ×1 + `MEM-ECHO-URN` ×1 に差し替え。これにより `echoes` は `MEM-CACHE` ×1 / `MEM-ECHO-URN` ×2 構成になる。`AI-WATER-2D` は水軸の個性として維持。
+
+### 検証
+
+**事前候補比較**（8 デッキ総当たり、challenger 同士、案2固定。100 games/ordered pair × 3 シード = 16800 戦、seed 2026070701 / 2026070702 / 907771）:
+
+| 条件 | echoes | water | apex | 先攻勝率 | ワンサイド率 | 平均ターン |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 案2のみ | 69.2% | 48.1% | 65.5% | 47.2% | 49.2% | 16.57 |
+| 案2 + 採用調整 | **57.4%** | **50.1%** | 68.2% | 46.6% | **48.5%** | 16.59 |
+
+**実装後リーグ**（Python CLI 既定条件、8 デッキ総当たり、100 games/ordered pair × 3 シード = 16800 戦、seed 2026070701 / 2026070702 / 907771）:
+
+| デッキ | 勝率 |
+| --- | ---: |
+| apex | 67.4% |
+| echoes | **57.4%** |
+| water | **53.0%** |
+| earth | 50.0% |
+| fire | 45.3% |
+| wind | 43.5% |
+| control | 42.2% |
+| break | 40.3% |
+| 先攻勝率 | 49.6% |
+| ワンサイド率 | 49.3% |
+
+採用調整後の `echoes` 相手別勝率（3シード合算、各600戦）: apex 31.3% / break 64.7% / control 59.7% / earth 69.5% / fire 54.2% / water 55.8% / wind 66.7%。`echoes` は earth / wind にまだ強いが、案2のみの 69.2% からは大きく低下し、全体ワンサイド率は 49.3% で大きな悪化なし。
+
+旧6デッキ同士だけの切り出し（9000 戦）では break 43.6% / control 46.5% / fire 46.3% / water 59.3% / wind 48.2% / earth 55.8%、先攻 49.5%、ワンサイド率 45.6%。water は差分ダメージ環境でやや高くなっているため監視点に追加。
+
+**固定対戦 simulate 1000 戦**:
+
+- `echoes vs water`（seed 2026070791）: echoes 55.6%、ワンサイド率 61.3%、平均 21.3 ターン。2点ビハインド逆転 48.2%、先に2点差をつけた側の勝率 59.4%
+- `echoes vs apex`（seed 2026070792）: echoes 38.7%、ワンサイド率 65.3%、平均 23.4 ターン。2点ビハインド逆転 48.3%、先に2点差をつけた側の勝率 60.1%
+
+card_usage では `AI-WATER-2D` は `echoes vs water` で登場 2739 回・防御ドロー 1314 回・防御値不足場防御 978 回、`CMD-GRAVE-CALL` は使用 899 回。`潮鏡の祭具` を抜いても、潮汲みモネと残響召喚はデッキの動きとして機能している。
+
+### 判断
+
+採用する。案2は「下位パワーでも防御に意味がある」直感に合い、場防御の選択肢を増やす。案2単独では `echoes` が過剰に強くなるため、`残響召喚` の power 2 以下化と `echoes` の遺物調整をセットで採用する。
+
+監視点:
+
+- `echoes` は 57.4% で、目安 52〜56% より少し高い。earth / wind への相性差は次回調整候補。
+- 旧6デッキ切り出しで water 59.3%、8デッキ拡張リーグで wind 43.5% が出ている。どちらも今回の主目的ではないが、次回調整候補。
+- `apex` 67.4% の突出は継続課題。今回の主目的ではないため据え置き。
+- 場防御失敗時のブレイクドロー枚数は差分ダメージに連動する。プレイフィール上、弱い防御で軽減した分だけドローも減る挙動として扱う。
+
+### 検証コマンド
+
+```bash
+python3 tmp/field_defense_variant_audit.py --mode diff_damage --games-per-pair 100 --seeds 2026070701 2026070702 907771 --decks break control fire water wind earth apex echoes --simulate-games 1000 --simulate-seed 2026070741 --out tmp/field-defense-audit-challenger-diff-damage
+python3 tmp/field_defense_retune_probe.py --retune two_tidal_to_cache_urn_grave_power2 --games-per-pair 100 --seeds 2026070701 2026070702 907771 --simulate-games 1000 --simulate-seed 2026070791 --out tmp/field-defense-retune-candidate-final
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070701 --decks break control fire water wind earth apex echoes --out tmp/field-defense-final-2026070701
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070702 --decks break control fire water wind earth apex echoes --out tmp/field-defense-final-2026070702
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 907771 --decks break control fire water wind earth apex echoes --out tmp/field-defense-final-907771
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/field-defense-final-2026070701 tmp/field-defense-final-2026070702 tmp/field-defense-final-907771
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070791 --first-deck echoes --second-deck water --out tmp/field-defense-final-ew
+python3 -m ai_break_duel.cli simulate --games 1000 --seed 2026070792 --first-deck echoes --second-deck apex --out tmp/field-defense-final-ea
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/field-defense-final-ew
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/field-defense-final-ea
+PATH="/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH" npm run check
+```
+
 ## 2026-07-07 場防御時効果の失敗場防御対応: 採用
 
 ### 背景

@@ -935,10 +935,11 @@ class CoreRuleTests(unittest.TestCase):
         state.players[1].field_ai = [card("AI-EARTH-2B")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
-        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual(state.players[1].life, 6)
         self.assertEqual(state.players[1].field_ai, [])
         self.assertEqual([item.id for item in state.players[1].discard], ["AI-EARTH-2B"])
         self.assertEqual(state.stats.failed_defenses, 1)
+        self.assertEqual(state.log[-1]["defense_result"], "partial_failed")
 
     def test_defense_plus_1_ai_does_not_get_hand_defense_bonus(self) -> None:
         state = new_game(1, no_opening_hands())
@@ -2484,20 +2485,20 @@ class Set2CardTests(unittest.TestCase):
     def test_grave_call_revives_low_power_summon_spent(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].hand = [command("CMD-GRAVE-CALL")]
-        state.players[0].discard = [card("AI-FIRE-4"), card("AI-FIRE-3")]
+        state.players[0].discard = [card("AI-FIRE-4"), card("AI-FIRE-3"), card("AI-FIRE-2")]
         start_turn(state)
         apply_action(state, Action(ActionType.USE_COMMAND, 0))
-        self.assertEqual([item.id for item in state.players[0].field_ai], ["AI-FIRE-3"])
+        self.assertEqual([item.id for item in state.players[0].field_ai], ["AI-FIRE-2"])
         self.assertIn(0, state.players[0].spent_field_ai)
         self.assertEqual(
             [item.id for item in state.players[0].discard],
-            ["AI-FIRE-4", "CMD-GRAVE-CALL"],
+            ["AI-FIRE-4", "AI-FIRE-3", "CMD-GRAVE-CALL"],
         )
 
-    def test_grave_call_rejects_power_four_target(self) -> None:
+    def test_grave_call_rejects_power_three_or_higher_target(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].hand = [command("CMD-GRAVE-CALL")]
-        state.players[0].discard = [card("AI-FIRE-4"), card("AI-FIRE-2")]
+        state.players[0].discard = [card("AI-FIRE-3"), card("AI-FIRE-2")]
         start_turn(state)
         with self.assertRaises(ValueError):
             apply_action(state, Action(ActionType.USE_COMMAND, 0, 0))

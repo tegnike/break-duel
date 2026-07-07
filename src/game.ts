@@ -762,8 +762,8 @@ export const DECKS = {
       "CMD-PURGE",
       "CMD-DISRUPT",
       "CMD-TIDE-EDGE",
-      "MEM-TIDAL-MIRROR",
-      "MEM-TIDAL-MIRROR",
+      "MEM-CACHE",
+      "MEM-ECHO-URN",
       "MEM-ECHO-URN",
     ],
   },
@@ -1734,8 +1734,8 @@ export function highestPowerAiInDiscard(player: PlayerState, excludedCard?: Card
   return options[0].index;
 }
 
-/** 残響召喚の自動対象: トラッシュの power 3 以下の召喚獣のうち最高 power、同 power なら ID 降順 */
-export function bestReviveTargetInDiscard(player: PlayerState, maxPower = 3): number | null {
+/** 残響召喚の自動対象: トラッシュの power 2 以下の召喚獣のうち最高 power、同 power なら ID 降順 */
+export function bestReviveTargetInDiscard(player: PlayerState, maxPower = 2): number | null {
   const options = player.discard
     .map((card, index) => ({ card, index }))
     .filter(({ card }) => card.type === "ai" && (card.power ?? 0) <= maxPower);
@@ -1927,7 +1927,7 @@ export function commandBlockedReason(game: GameState, command: Card | null | und
   if (command.effect === "pierce_sight") return "自分の未消耗召喚獣が必要です。";
   if (command.effect === "grave_call") {
     if (player.field.length >= CONFIG.fieldLimit) return "場に空きが必要です。";
-    return "自分のトラッシュに power 3 以下の召喚獣が必要です。";
+    return "自分のトラッシュに power 2 以下の召喚獣が必要です。";
   }
   if (command.effect === "salvage") return "自分のトラッシュに遺灰回収以外の術式が必要です。";
   if (command.effect === "relic_crush") return "相手に遺物が必要です。";
