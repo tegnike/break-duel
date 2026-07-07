@@ -106,10 +106,9 @@ describe("renderSummonSfxSamples", () => {
     const rendered = ALL_SFX_KINDS.map((kind) => renderSummonSfxSamples(kind, 44100));
     for (let left = 0; left < rendered.length; left += 1) {
       for (let right = left + 1; right < rendered.length; right += 1) {
-        const sameLength = rendered[left].length === rendered[right].length;
-        if (!sameLength) continue;
+        const overlap = Math.min(rendered[left].length, rendered[right].length);
         let difference = 0;
-        for (let i = 0; i < rendered[left].length; i += 1) {
+        for (let i = 0; i < overlap; i += 1) {
           difference += Math.abs(rendered[left][i] - rendered[right][i]);
         }
         expect(difference).toBeGreaterThan(1);

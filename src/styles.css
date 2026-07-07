@@ -2204,182 +2204,15 @@ h2 {
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.46), 0 0 32px var(--aura-color, rgba(254, 0, 254, 0.24));
 }
 
-/* 属性召喚/遺物配置: 着地バースト */
-.summon-burst {
-  position: fixed;
-  z-index: 37;
-  width: 0;
-  height: 0;
-  pointer-events: none;
-}
-
-/* 着地カードの positioned 親に Portal 描画する場合（レイアウト座標基準でズレない） */
-.summon-burst.in-slot {
+/* 属性召喚/遺物配置: 着地バーストは Canvas 2D パーティクルエンジン（summonParticles.ts）が描画する。
+   盤面全体を覆う透明なcanvasを複数枚重ね、同時多発の着地でも取り合いにならないようにする。 */
+.summon-burst-canvas {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   z-index: 6;
-}
-
-.summon-burst-flash {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 190px;
-  height: 190px;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, var(--burst-highlight, var(--burst-color)) 34%, transparent 66%);
-  opacity: 0;
-  mix-blend-mode: screen;
-  will-change: opacity, transform;
-  animation: summon-burst-flash 340ms ease-out forwards;
-}
-
-@keyframes summon-burst-flash {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.2);
-  }
-  24% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(0.85);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(1.15);
-  }
-}
-
-.summon-burst-glow {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 220px;
-  height: 220px;
-  border-radius: 999px;
-  background: radial-gradient(circle, var(--burst-highlight, var(--burst-color)) 0%, transparent 62%);
-  opacity: 0;
-  mix-blend-mode: screen;
-  will-change: opacity, transform;
-  animation: summon-burst-glow 900ms ease-out forwards;
-}
-
-@keyframes summon-burst-glow {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.4);
-  }
-  20% {
-    opacity: 0.92;
-    transform: translate(-50%, -50%) scale(0.9);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(1.3);
-  }
-}
-
-.summon-burst-ring {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 188px;
-  height: 188px;
-  border: 3px solid var(--burst-color);
-  border-radius: 999px;
-  opacity: 0;
-  box-shadow: 0 0 20px var(--burst-color), inset 0 0 12px var(--burst-color);
-  will-change: opacity, transform;
-  animation: summon-burst-ring 760ms cubic-bezier(0.18, 0.8, 0.3, 1) forwards;
-}
-
-.summon-burst-ring.ring-late {
-  border-color: var(--burst-color-2, var(--burst-color));
-  box-shadow: 0 0 14px var(--burst-color-2, var(--burst-color));
-  animation-delay: 150ms;
-}
-
-@keyframes summon-burst-ring {
-  0% {
-    opacity: 0.95;
-    transform: translate(-50%, -50%) scale(0.16);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(1.18);
-  }
-}
-
-.summon-burst-particles i {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: var(--p-size, 6px);
-  height: var(--p-size, 6px);
-  border-radius: 999px;
-  background: var(--particle-color, var(--burst-color));
-  opacity: 0;
-  box-shadow: 0 0 9px var(--particle-color, var(--burst-color));
-  will-change: opacity, transform;
-  animation: summon-burst-particle 940ms cubic-bezier(0.16, 0.7, 0.3, 1) forwards;
-  animation-delay: var(--p-delay, 0ms);
-}
-
-@keyframes summon-burst-particle {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) rotate(var(--p-rot, 0deg)) scale(0.35);
-  }
-  14% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translate(calc(-50% + var(--p-x, 0px)), calc(-50% + var(--p-y, 0px))) rotate(var(--p-rot, 0deg)) scale(1.05);
-  }
-}
-
-/* 火: 上向きに舞う火の粉（明滅つき） */
-.summon-burst.attr-fire .summon-burst-particles i {
-  animation-name: summon-burst-particle-fire;
-  animation-duration: 1040ms;
-}
-
-@keyframes summon-burst-particle-fire {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) rotate(var(--p-rot, 0deg)) scale(0.35);
-  }
-  14% {
-    opacity: 1;
-  }
-  42% {
-    opacity: 0.62;
-  }
-  58% {
-    opacity: 0.95;
-  }
-  100% {
-    opacity: 0;
-    transform: translate(calc(-50% + var(--p-x, 0px)), calc(-50% + var(--p-y, 0px))) rotate(var(--p-rot, 0deg)) scale(0.8);
-  }
-}
-
-/* 水: 泡（輪郭のみの粒） */
-.summon-burst.attr-water .summon-burst-particles i {
-  background: transparent;
-  border: 2px solid var(--particle-color, var(--burst-color));
-  box-shadow: 0 0 8px var(--particle-color, var(--burst-color));
-}
-
-/* 風: 左右へ流れる風の筋 */
-.summon-burst.attr-wind .summon-burst-particles i {
-  width: calc(var(--p-size, 6px) * 3.4);
-  height: 3px;
-}
-
-/* 土: 砕け散る岩片 */
-.summon-burst.attr-earth .summon-burst-particles i {
-  border-radius: 2px;
-  box-shadow: 0 0 6px var(--particle-color, var(--burst-color));
+  pointer-events: none;
 }
 
 /* 着地したカード自体の属性発光（スロット要素に直接付くため座標ズレの影響を受けない主演出） */
@@ -2402,15 +2235,6 @@ h2 {
     filter: brightness(1) saturate(1);
     box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
   }
-}
-
-
-/* 遺物: 四芒星の煌めき */
-.summon-burst.relic .summon-burst-particles i {
-  border-radius: 0;
-  clip-path: polygon(50% 0%, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0% 50%, 38% 38%);
-  box-shadow: none;
-  filter: drop-shadow(0 0 6px var(--particle-color, var(--burst-color)));
 }
 
 .duel-action-backdrop {

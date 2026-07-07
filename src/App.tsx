@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { createPortal } from "react-dom";
 import {
   CONFIG,
   BATTLE_DECK_IDS,
@@ -92,8 +91,9 @@ import { MATCH_LOSE_COINS, MATCH_WIN_COINS, PACK_COST, addCoins, loadCoins, spen
 import { CardArtPreview, CardView } from "./components/CardView";
 import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
-import { DuelActionReel, EventToast, GameBanner, SummonBurstLayer, type Banner, type SummonBurst, type Toast } from "./components/Overlays";
+import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
 import { SYNTH_SFX_PREFIX, renderSummonSfxSamples, summonArrivalForCard, summonAuraColor, summonSfxKind, type SummonArrival, type SummonSfxKind } from "./summonFx";
+import { attributeBurstTheme, runSummonBurst, type SummonBurstTheme } from "./summonParticles";
 import { duelEventDurationMs, type DuelEvent, type DuelEventPayload } from "./duelEvents";
 import { RIVAL_VOICE_LINES, type RivalVoiceLineId } from "./rivalVoiceLines";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
@@ -163,13 +163,14 @@ type CardFlight = {
 };
 
 const SUMMON_BURST_DURATION_MS = 1300;
+const CPU_CARD_PLAY_FLIGHT_DURATION_MS = 1700;
+const CPU_CARD_PLAY_COMMIT_DELAY_MS = 1400;
 // 音+エフェクトをカード飛行の終了(100%)より前倒しする猶予。
-// CPU側は commitDelay=1400ms でゲーム状態(実カードDOM)が確定するため、
-// durationMs(1700ms) - この値が 1400ms を上回るように抑える必要がある。
+// CPU側は commitDelay でゲーム状態(実カードDOM)が確定するため、
+// flightDuration - この値が commitDelay を上回るように抑える必要がある。
 const SUMMON_ARRIVAL_LEAD_MS = 180;
-
-// container があればスロット要素内に Portal 描画（座標非依存）、なければビューポート座標で描画
-type ActiveSummonBurst = SummonBurst & { container: HTMLElement | null };
+// 着地バースト用 canvas の並列枠数。同時多発の着地でも取り合いにならない程度の余裕を持たせる
+const SUMMON_BURST_CANVAS_POOL_SIZE = 3;
 
 type FlightRect = {
   left: number;
@@ -315,7 +316,7 @@ const SFX_ASSETS: Record<string, { src: string; volume: number }> = {
   "card-flip": { src: sfxSelect, volume: 0.92 },
   "pack-tear": { src: sfxPackTear, volume: 0.74 },
   "rare-reveal": { src: sfxRareReveal, volume: 0.78 },
-  // 属性召喚/遺物配置の着地音。src が synth: のものは summonFx.ts でその場合成する
+  // 属性召喚/遺物配置の着地音。src が synth: のものは summonFx.ts でその場で合成する
   "summon-fire": { src: `${SYNTH_SFX_PREFIX}summon-fire`, volume: 0.5 },
   "summon-water": { src: `${SYNTH_SFX_PREFIX}summon-water`, volume: 0.5 },
   "summon-wind": { src: `${SYNTH_SFX_PREFIX}summon-wind`, volume: 0.46 },
@@ -709,7 +710,6 @@ export default function App() {
   const [coins, setCoins] = useState(() => loadCoins());
   const [duelEvent, setDuelEvent] = useState<DuelEvent | null>(null);
   const [cardFlights, setCardFlights] = useState<CardFlight[]>([]);
-  const [summonBursts, setSummonBursts] = useState<ActiveSummonBurst[]>([]);
   const [trashFlash, setTrashFlash] = useState<TrashFlash | null>(null);
   const [lifeImpact, setLifeImpact] = useState<LifeImpact | null>(null);
   const [leaderReactions, setLeaderReactions] = useState<LeaderReactionState>({ 0: null, 1: null });
@@ -744,6 +744,10 @@ export default function App() {
   const duelEventTimer = useRef<number | null>(null);
   const cardFlightTimers = useRef<number[]>([]);
   const summonBurstTimers = useRef<number[]>([]);
+  const battlefieldRef = useRef<HTMLElement | null>(null);
+  const summonBurstCanvasRefs = useRef<(HTMLCanvasElement | null)[]>(Array.from({ length: SUMMON_BURST_CANVAS_POOL_SIZE }, () => null));
+  const summonBurstCancelRefs = useRef<(() => void)[]>(Array.from({ length: SUMMON_BURST_CANVAS_POOL_SIZE }, () => () => {}));
+  const summonBurstCanvasCursor = useRef(0);
   const aiCommitTimer = useRef<number | null>(null);
   const trashFlashTimer = useRef<number | null>(null);
   const lifeImpactTimer = useRef<number | null>(null);
@@ -1008,6 +1012,16 @@ export default function App() {
     lifeImpactScheduleTimers.current = [];
   }
 
+  function clearSummonLandingEffects() {
+    summonBurstTimers.current.forEach((timer) => window.clearTimeout(timer));
+    summonBurstTimers.current = [];
+    summonBurstCancelRefs.current.forEach((cancel) => cancel());
+    document.querySelectorAll<HTMLElement>(".summon-landed").forEach((element) => {
+      element.classList.remove("summon-landed");
+      element.style.removeProperty("--landed-color");
+    });
+  }
+
   function resetDuelEvents() {
     if (duelEventScheduler.current !== null) window.clearTimeout(duelEventScheduler.current);
     if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
@@ -1026,8 +1040,7 @@ export default function App() {
     if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
     cardFlightTimers.current = [];
     aiCommitTimer.current = null;
-    summonBurstTimers.current.forEach((timer) => window.clearTimeout(timer));
-    summonBurstTimers.current = [];
+    clearSummonLandingEffects();
     if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
     trashFlashTimer.current = null;
     clearLifeImpactScheduleTimers();
@@ -1042,7 +1055,6 @@ export default function App() {
     recentLifeDamageImpact.current = null;
     setAiAnimating(false);
     setCardFlights([]);
-    setSummonBursts([]);
     setTrashFlash(null);
     setLifeImpact(null);
     setBreakDrawPulse(null);
@@ -1200,40 +1212,38 @@ export default function App() {
     if (sfx) playSfx(sfx);
     const landedElement = document.querySelector(cardSelector(to.ownerIndex, to.zone, to.index));
     pulseLandedCard(landedElement, arrival);
-    // 原則は着地カードの positioned 親（field-grid 等）への Portal 描画。
-    // offsetLeft/Top はレイアウト座標なので、祖先の transform 遷移でビューポート座標が
-    // 狂う瞬間でも正しい位置に出る。カード自身は overflow: hidden のため親に置く。
-    // 親が取れないときだけビューポート座標にフォールバックする。
-    const container = landedElement instanceof HTMLElement && landedElement.offsetParent instanceof HTMLElement
-      ? landedElement.offsetParent
+    launchSummonBurstCanvas(arrival, landedElement, fallbackRect);
+  }
+
+  // 盤面全体を覆う canvas プール（Canvas 2D パーティクルエンジン）にバーストを1つ描画させる。
+  // 座標は盤面セクション基準のローカル座標に変換する（PackOpening のキラカード演出と同じ手法）。
+  function launchSummonBurstCanvas(arrival: SummonArrival, landedElement: Element | null, fallbackRect: FlightRect) {
+    const stage = battlefieldRef.current;
+    if (!stage) return;
+    const theme: SummonBurstTheme | null = arrival.kind === "relic"
+      ? "relic"
+      : arrival.attribute
+        ? attributeBurstTheme(arrival.attribute)
+        : null;
+    if (!theme) return;
+    const secondaryTheme = arrival.kind === "summon" && arrival.subAttribute && arrival.subAttribute !== arrival.attribute
+      ? attributeBurstTheme(arrival.subAttribute)
       : null;
-    const rect = container && landedElement instanceof HTMLElement
-      ? {
-          left: landedElement.offsetLeft,
-          top: landedElement.offsetTop,
-          width: landedElement.offsetWidth,
-          height: landedElement.offsetHeight,
-        }
-      : fallbackRect;
-    if (!container) {
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      if (centerX < 0 || centerY < 0 || centerX > window.innerWidth || centerY > window.innerHeight) return;
-    }
-    const burst: ActiveSummonBurst = {
-      id: eventId++,
-      kind: arrival.kind,
-      attribute: arrival.attribute,
-      subAttribute: arrival.subAttribute,
-      rect,
-      container,
+    const stageRect = stage.getBoundingClientRect();
+    const cardRect = landedElement instanceof HTMLElement ? landedElement.getBoundingClientRect() : null;
+    const originRect = cardRect ?? fallbackRect;
+    const origin = {
+      x: originRect.left + originRect.width / 2 - stageRect.left,
+      y: originRect.top + originRect.height / 2 - stageRect.top,
     };
-    setSummonBursts((current) => [...current.slice(-3), burst]);
-    const timer = window.setTimeout(() => {
-      setSummonBursts((current) => current.filter((item) => item.id !== burst.id));
-      summonBurstTimers.current = summonBurstTimers.current.filter((item) => item !== timer);
-    }, SUMMON_BURST_DURATION_MS);
-    summonBurstTimers.current.push(timer);
+    const margin = 80;
+    if (origin.x < -margin || origin.y < -margin || origin.x > stageRect.width + margin || origin.y > stageRect.height + margin) return;
+    const index = summonBurstCanvasCursor.current;
+    summonBurstCanvasCursor.current = (index + 1) % SUMMON_BURST_CANVAS_POOL_SIZE;
+    const canvas = summonBurstCanvasRefs.current[index];
+    if (!canvas) return;
+    summonBurstCancelRefs.current[index]?.();
+    summonBurstCancelRefs.current[index] = runSummonBurst(canvas, origin, theme, SUMMON_BURST_DURATION_MS, secondaryTheme);
   }
 
   // 着地スロットのカード自体も属性色で発光させる（オーバーレイ座標に依存しない保険の演出）
@@ -1248,6 +1258,7 @@ export default function App() {
     element.classList.add("summon-landed");
     const timer = window.setTimeout(() => {
       element.classList.remove("summon-landed");
+      element.style.removeProperty("--landed-color");
       summonBurstTimers.current = summonBurstTimers.current.filter((item) => item !== timer);
     }, 900);
     summonBurstTimers.current.push(timer);
@@ -1417,12 +1428,12 @@ export default function App() {
         to: { ownerIndex: 1, zone: "field", index: ai.field.length },
         label: "CPU 場へ",
         tone: "ai",
-        durationMs: 1700,
+        durationMs: CPU_CARD_PLAY_FLIGHT_DURATION_MS,
         arrival: summonArrivalForCard(card),
       });
       const recovered = recoverOnPlayPreview(ai, card);
       if (recovered) launchRecoverFlight(recovered.card, 1, recovered.index);
-      return 1400;
+      return CPU_CARD_PLAY_COMMIT_DELAY_MS;
     }
     if (action.type === "memory") {
       const card = ai.hand[action.index];
@@ -1438,10 +1449,10 @@ export default function App() {
         to: { ownerIndex: 1, zone: "memory", index: 0 },
         label: "ライバル 遺物",
         tone: "ai",
-        durationMs: 1700,
+        durationMs: CPU_CARD_PLAY_FLIGHT_DURATION_MS,
         arrival: summonArrivalForCard(card),
       });
-      return 1400;
+      return CPU_CARD_PLAY_COMMIT_DELAY_MS;
     }
     if (action.type === "upgrade") {
       const card = ai.hand[action.handIndex];
@@ -1454,12 +1465,12 @@ export default function App() {
         to: { ownerIndex: 1, zone: "field", index: action.fieldIndex },
         label: "CPU 更新",
         tone: "ai",
-        durationMs: 1700,
+        durationMs: CPU_CARD_PLAY_FLIGHT_DURATION_MS,
         arrival: summonArrivalForCard(card),
       });
       const recovered = recoverOnPlayPreview(ai, card, source);
       if (recovered) launchRecoverFlight(recovered.card, 1, recovered.index);
-      return 1400;
+      return CPU_CARD_PLAY_COMMIT_DELAY_MS;
     }
     if (action.type === "memory-effect") {
       const card = ai.field[action.fieldIndex];
@@ -1879,8 +1890,7 @@ export default function App() {
       if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
       cardFlightTimers.current.forEach((timer) => window.clearTimeout(timer));
       cardFlightTimers.current = [];
-      summonBurstTimers.current.forEach((timer) => window.clearTimeout(timer));
-      summonBurstTimers.current = [];
+      clearSummonLandingEffects();
       if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
       aiCommitTimer.current = null;
       if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
@@ -3588,7 +3598,7 @@ export default function App() {
         </div>
       </header>
 
-      <section className="stitch-battlefield" aria-label="対戦盤面">
+      <section className="stitch-battlefield" aria-label="対戦盤面" ref={(el) => { battlefieldRef.current = el; }}>
         <LeaderPortrait
           player={ai}
           tone="rival"
@@ -3610,6 +3620,14 @@ export default function App() {
         </div>
         <LeaderPortrait player={human} tone="human" image={leaderHumanImage} label="YOU" reaction={leaderReactions[0]} />
         <FieldGrid player={human} ownerIndex={0} game={game} trashSurge={ownerHasTrashSurge(0)} tutorialStep={tutorialStep} tutorialFocus={tutorialStep?.focus} tutorialLocked={tutorialActive} onSelectField={selectField} onSelectMemory={selectMemory} />
+        {summonBurstCanvasRefs.current.map((_, index) => (
+          <canvas
+            key={index}
+            className="summon-burst-canvas"
+            aria-hidden="true"
+            ref={(el) => { summonBurstCanvasRefs.current[index] = el; }}
+          />
+        ))}
       </section>
 
       {matchResult && <MatchResultSpotlight result={matchResult} onRestart={openStarterDeckSetup} />}
@@ -3746,9 +3764,6 @@ export default function App() {
       {!showDefenseInDuelEvent && defensePanel}
       <EventToast toast={toast} />
       {cardFlights.map((flight) => <CardFlightLayer key={flight.id} flight={flight} />)}
-      {summonBursts.map((burst) => burst.container
-        ? createPortal(<SummonBurstLayer key={burst.id} burst={burst} mode="slot" />, burst.container)
-        : <SummonBurstLayer key={burst.id} burst={burst} />)}
       {lifeImpact && <DamageImpactLayer impact={lifeImpact} />}
       {breakDrawPulse && <BreakDrawLayer pulse={breakDrawPulse} />}
       {trashSurge && <TrashSurgeLayer surge={trashSurge} eventId={duelEvent?.id ?? trashFlash?.id ?? 0} />}

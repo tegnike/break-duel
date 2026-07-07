@@ -1,4 +1,4 @@
-import { ATTRIBUTES, type Attribute, type Card } from "./game";
+import type { Attribute, Card } from "./game";
 
 // 召喚獣/遺物の着地演出（属性バースト+属性SFX）のための共有定義。
 // 効果音は音声アセットを追加せず、WebAudio 用のサンプル列をその場で合成する。
@@ -51,10 +51,6 @@ export const RELIC_FX_HIGHLIGHT = "#ffd166";
 export function summonAuraColor(arrival: SummonArrival): string | null {
   if (arrival.kind === "relic") return RELIC_FX_HIGHLIGHT;
   return arrival.attribute ? ATTRIBUTE_FX_HIGHLIGHT[arrival.attribute] : null;
-}
-
-export function attributeBurstColor(attribute: Attribute): string {
-  return ATTRIBUTES[attribute].color;
 }
 
 // --- 効果音の合成 ---
