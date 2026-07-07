@@ -1391,6 +1391,30 @@ describe("life damage event metadata", () => {
     });
   });
 
+  it("clamps attack damage at zero life", () => {
+    const game = blankGame();
+    game.players[0].field = [card("AI-FIRE-4")];
+    game.players[1].life = 1;
+    game.pendingAttack = { attackerIndex: 0, defenderIndex: 1, fieldIndex: 0 };
+
+    resolveDefenseInDraft(game, { type: "none" });
+
+    expect(game.players[1].life).toBe(0);
+    expect(game.winner).toBe(0);
+  });
+
+  it("clamps command damage at zero life", () => {
+    const game = blankGame();
+    game.players[0].hand = [card("CMD-TRINITY")];
+    game.players[0].field = [card("AI-FIRE-1"), card("AI-WATER-1"), card("AI-WIND-1")];
+    game.players[1].life = 0;
+
+    useCommandAtInDraft(game, 0, null);
+
+    expect(game.players[1].life).toBe(0);
+    expect(game.winner).toBe(0);
+  });
+
   it("moves stacked upgrade cards with the top field card", () => {
     const game = blankGame();
     const player = game.players[0];
@@ -1426,5 +1450,44 @@ describe("life damage event metadata", () => {
     });
     expect(recoverEvent?.cards[0]?.card.id).toBe("AI-FIRE-2");
     expect(game.players[1].hand.map((item) => item.id)).toContain("AI-FIRE-2");
+  });
+
+  it("keeps power 4 play events as normal summon events", () => {
+    const game = blankGame();
+    const events: DuelEventPayload[] = [];
+    game.active = 1;
+    game.actionsRemaining = 4;
+    game.players[1].hand = [card("AI-FIRE-4")];
+
+    performAiActionInDraft(game, { type: "play", index: 0 }, {
+      showDuelEvent: (event) => events.push(event),
+    });
+
+    expect(events[0]).toMatchObject({
+      kind: "play",
+      title: "ライバルが場に出す",
+      cards: [{ label: "登場", state: "neutral" }],
+    });
+    expect(events[0]?.emphasis).toBeUndefined();
+  });
+
+  it("keeps power 4 upgrade events as normal upgrade events", () => {
+    const game = blankGame();
+    const events: DuelEventPayload[] = [];
+    game.active = 1;
+    game.actionsRemaining = 4;
+    game.players[1].hand = [card("AI-FIRE-4")];
+    game.players[1].field = [card("AI-FIRE-3")];
+
+    performAiActionInDraft(game, { type: "upgrade", handIndex: 0, fieldIndex: 0 }, {
+      showDuelEvent: (event) => events.push(event),
+    });
+
+    expect(events[0]).toMatchObject({
+      kind: "upgrade",
+      title: "ライバルがアップグレード",
+    });
+    expect(events[0]?.emphasis).toBeUndefined();
+    expect(events[0]?.cards[1]).toMatchObject({ label: "新", state: "winner" });
   });
 });

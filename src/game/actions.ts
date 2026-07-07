@@ -93,6 +93,10 @@ export type ChargeTargetOptions = {
   recoverTargetIndex?: number | null;
 };
 
+function dealLifeDamage(player: PlayerState, amount = 1): void {
+  player.life = Math.max(0, player.life - Math.max(0, amount));
+}
+
 export function afterAction(draft: GameState, cost = 1, kind: "normal" | "attack" = "normal"): void {
   useAction(draft, cost, kind);
   checkWinner(draft);
@@ -343,7 +347,7 @@ export function applyPlayEffects(
     }
   }
   if (selfDamagesOnPlay(card)) {
-    player.life -= 1;
+    dealLifeDamage(player);
     text += " 代償として自分に1ダメージ。";
   }
   if (opponentDrawsOnPlay(card)) {
@@ -632,7 +636,7 @@ export function useCommandAtInDraft(
       trinityTrashed.unshift(...removeFieldStack(player, index));
     }
     player.discard.push(...trinityTrashed);
-    opponent.life -= 1;
+    dealLifeDamage(opponent);
     impact = { kind: "life-damage", sourcePlayerIndex: playerIndex >= 0 ? playerIndex : null, targetPlayerIndex: opponentIndex, amount: 1, fatal: opponent.life <= 0 };
     text += ` ${cardNameList(trinityTrashed)}をすべてトラッシュし、${opponent.name}のライフを1減らした。`;
   } else if (used.effect === "fire_rite") {
@@ -641,7 +645,7 @@ export function useCommandAtInDraft(
     if (discarded.length > 0) {
       text += ` ${opponent.name}の手札を1枚トラッシュ。`;
     } else {
-      opponent.life -= 1;
+      dealLifeDamage(opponent);
       impact = { kind: "life-damage", sourcePlayerIndex: playerIndex >= 0 ? playerIndex : null, targetPlayerIndex: opponentIndex, amount: 1, fatal: opponent.life <= 0 };
       text += ` ${opponent.name}の手札がないため、ライフを1減らした。`;
     }
@@ -909,7 +913,7 @@ export function resolveDefenseInDraft(
     }
     const mirrorDrawnCards = defender.memory?.effect === "tidal_mirror" ? drawCards(defender, 1) : [];
     const damage = isFailure ? Math.max(0, attackValue - defenseValue) : 0;
-    if (damage > 0) defender.life -= damage;
+    if (damage > 0) dealLifeDamage(defender, damage);
     const breakDrawnCards = damage > 0 && CONFIG.drawOnAttackDamage !== "none"
       ? drawCards(defender, CONFIG.drawOnAttackDamage === "event" ? 1 : damage)
       : [];
@@ -1000,7 +1004,7 @@ export function resolveDefenseInDraft(
     defender.handDefensesUsed += 1;
     defender.discard.push(defenseCard);
     const pierced = piercesHandDefense(attackCard);
-    if (pierced) defender.life -= 1;
+    if (pierced) dealLifeDamage(defender);
     const pierceBreakDrawnCards = pierced && CONFIG.drawOnAttackDamage !== "none" ? drawCards(defender, 1) : [];
     const pierceBannerDrawnCards = pierced ? applyWarBannerDraw(attacker) : [];
     const shouldChoosePressureDiscard = !pierced && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
@@ -1062,7 +1066,7 @@ export function resolveDefenseInDraft(
   } else {
     draft.pendingTarget = null;
     const damage = attackDamage(attackCard);
-    defender.life -= damage;
+    dealLifeDamage(defender, damage);
     const breakDrawnCards = CONFIG.drawOnAttackDamage === "none"
       ? []
       : drawCards(defender, CONFIG.drawOnAttackDamage === "event" ? 1 : damage);
@@ -1357,7 +1361,7 @@ export function resolveStrikeHandDefenseInDraft(
   defender.handDefensesUsed += 1;
   defender.discard.push(defenseCard);
   const pierced = piercesHandDefense(attackCard);
-  if (pierced) defender.life -= 1;
+  if (pierced) dealLifeDamage(defender);
   const pierceBreakDrawnCards = pierced && CONFIG.drawOnAttackDamage !== "none" ? drawCards(defender, 1) : [];
   const pierceBannerDrawnCards = pierced ? applyWarBannerDraw(attacker) : [];
   const shouldChoosePressureDiscard = !pierced && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
@@ -1504,14 +1508,13 @@ export function performAiActionInDraft(
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "play",
-      title: card.power === 4 ? `${player.name}の切札登場!!` : `${player.name}が場に出す`,
+      title: `${player.name}が場に出す`,
       detail: text,
       fromLabel: "手札",
       toLabel: "場",
       tone: player.isHuman ? "magenta" : "cyan",
-      emphasis: card.power === 4 ? "peak" : undefined,
       rivalVoiceLine: player.isHuman ? undefined : "play_summon",
-      cards: [{ card, label: card.power === 4 ? "切札" : "登場", state: card.power === 4 ? "winner" : "neutral" }],
+      cards: [{ card, label: "登場", state: "neutral" }],
     });
     if (!draft.pendingTarget) afterAction(draft, cost);
   } else if (action.type === "upgrade") {
@@ -1531,12 +1534,11 @@ export function performAiActionInDraft(
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "upgrade",
-      title: card.power === 4 ? `${player.name}の切札へアップグレード!!` : `${player.name}がアップグレード`,
+      title: `${player.name}がアップグレード`,
       detail: `${source.name}を元に${card.name}へ。元カードは下に重ねます。`,
       fromLabel: "手札 + 場",
       toLabel: "場",
       tone: player.isHuman ? "magenta" : "cyan",
-      emphasis: card.power === 4 ? "peak" : undefined,
       rivalVoiceLine: player.isHuman ? undefined : "upgrade",
       cards: [
         { card: source, label: "元", state: "neutral" },

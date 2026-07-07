@@ -172,6 +172,18 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.log[-1]["result"], "forced_loss")
         self.assertEqual(state.log[-1]["losers"], ["player_1"])
 
+    def test_life_damage_clamps_at_zero(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-FIRE-4")]
+        state.players[1].deck = [card("AI-WATER-1")]
+        state.players[1].life = 1
+        start_turn(state)
+
+        apply_action(state, Action(ActionType.ATTACK, 0))
+
+        self.assertEqual(state.players[1].life, 0)
+        self.assertEqual(state.winner, 0)
+
     def test_resource_exhaustion_draws_when_both_players_are_empty(self) -> None:
         state = new_game(1, no_opening_hands())
         for player in state.players:
@@ -188,17 +200,17 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.log[-1]["result"], "mutual_forced_loss")
         self.assertEqual(state.log[-1]["losers"], ["player_1", "player_2"])
 
-    def test_turn_limit_uses_life_judgement(self) -> None:
+    def test_turn_limit_draws_regardless_of_life(self) -> None:
         state = new_game(1, no_opening_hands(max_turns=10))
         state.turn = 10
         state.players[0].life = 2
         state.players[1].life = 4
         finish_if_turn_limit_reached(state)
-        self.assertEqual(state.winner, 1)
-        self.assertFalse(state.draw)
+        self.assertIsNone(state.winner)
+        self.assertTrue(state.draw)
         self.assertEqual(state.phase, "finished")
         self.assertEqual(state.log[-1]["event"], "max_turns_reached")
-        self.assertEqual(state.log[-1]["result"], "life_judgement")
+        self.assertEqual(state.log[-1]["result"], "draw")
 
     def test_turn_limit_draws_on_equal_life(self) -> None:
         state = new_game(1, no_opening_hands(max_turns=10))
@@ -306,6 +318,25 @@ class CoreRuleTests(unittest.TestCase):
         start_turn(state)
 
         self.assertEqual(choose_action(state).type, ActionType.END_TURN)
+
+    def test_challenger_attacks_to_open_lethal_followup_when_resources_are_empty(self) -> None:
+        state = new_game(1, no_opening_hands(ai_profiles=("challenger", "challenger")))
+        state.active_player = 1
+        state.players[0].deck = []
+        state.players[0].hand = []
+        state.players[0].field_ai = [card("AI-EARTH-2D")]
+        state.players[0].memory = memory("MEM-ECHO-URN")
+        state.players[0].life = 2
+        state.players[1].deck = []
+        state.players[1].hand = []
+        state.players[1].field_ai = [card("AI-EARTH-1C"), card("AI-EARTH-3"), card("AI-EARTH-1C")]
+        state.players[1].memory = memory("MEM-FIREWALL")
+        start_turn(state)
+
+        action = choose_action(state)
+
+        self.assertEqual(action.type, ActionType.ATTACK)
+        self.assertIn(action.source_index, {0, 2})
 
     def test_challenger_skips_charge_without_followup_or_immediate_value(self) -> None:
         state = new_game(1, no_opening_hands(ai_profiles=("challenger", "challenger")))
@@ -852,7 +883,7 @@ class CoreRuleTests(unittest.TestCase):
         state.players[1].hand = [card("AI-EARTH-4B")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
-        self.assertEqual(state.players[1].life, -2)
+        self.assertEqual(state.players[1].life, 0)
         self.assertEqual(state.players[1].hand[0].id, "AI-EARTH-4B")
         self.assertEqual(len(state.players[1].hand), 5)
 

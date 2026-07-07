@@ -278,7 +278,7 @@ def apply_action(state: GameState, action: Action) -> None:
 
 def finish_if_turn_limit_reached(state: GameState) -> None:
     if state.winner is None and not state.draw and state.turn >= state.config.max_turns:
-        _finish_by_life_judgement(state, "max_turns_reached")
+        _finish_by_draw(state, "max_turns_reached")
 
 
 def result_summary(state: GameState) -> dict[str, Any]:
@@ -1716,7 +1716,7 @@ def _use_command(state: GameState, action: Action) -> None:
 
 
 def _deal_damage(player: PlayerState, amount: int = 1) -> None:
-    player.life -= amount
+    player.life = max(0, player.life - max(0, amount))
 
 
 def _apply_end_turn_grove_rest(state: GameState) -> str | None:
@@ -1869,14 +1869,8 @@ def _has_live_resources(player: PlayerState) -> bool:
     return bool(player.deck or player.hand or player.field_ai)
 
 
-def _finish_by_life_judgement(state: GameState, event: str) -> None:
-    life = [player.life for player in state.players]
-    if life[0] == life[1]:
-        state.draw = True
-        result = "draw"
-    else:
-        state.winner = 0 if life[0] > life[1] else 1
-        result = "life_judgement"
+def _finish_by_draw(state: GameState, event: str) -> None:
+    state.draw = True
     state.phase = "finished"
     state.actions_remaining = 0
     state.charged_actions_remaining = 0
@@ -1884,9 +1878,9 @@ def _finish_by_life_judgement(state: GameState, event: str) -> None:
         {
             "turn": state.turn,
             "event": event,
-            "result": result,
-            "winner": None if state.winner is None else state.players[state.winner].name,
-            "life": life,
+            "result": "draw",
+            "winner": None,
+            "life": [player.life for player in state.players],
             "field": _field_state(state),
         }
     )

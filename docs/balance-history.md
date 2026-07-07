@@ -4,6 +4,77 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
+## 2026-07-07 終盤の犠牲攻撃評価 + 40手番引き分け: 採用
+
+### 背景
+
+両者の山札・手札が空で、場の召喚獣だけが残る終盤に、CPU が防御される攻撃や倒せないモンスター攻撃を避け続け、人間側もターン終了を押すと双方ターン終了だけが続く局面が確認された。スクリーンショット相当の局面では、CPU が防御役を1回防御に使わせれば後続2体の攻撃が通るため、単発評価だけで攻撃を避けるのは不自然だった。
+
+また、長期戦の終局処理として、最大手番到達時のライフ判定は勝敗を強く付けすぎるため、十分な手番を超えた場合は引き分けにする方針に変更した。
+
+### 採用変更 / 変更内容
+
+Python / TypeScript 両実装に以下を同期した。
+
+1. `challenger` CPU は、両者の山札・手札が空で、相手の防御役を消耗させると後続攻撃が通る場合、強い場防御に潰される攻撃でも犠牲攻撃として評価する。
+2. 通常局面では従来通り、強い場防御に潰される攻撃は避ける。
+3. 最大手番数を 60 から 40 に変更し、最大手番到達時はライフ判定ではなく引き分けにする。
+
+### 検証
+
+**決着ターン分布（変更前、challenger 同士、2000 戦、seed 2026070718、max_turns 60）**:
+
+| 指標 | 値 |
+| --- | ---: |
+| 平均 / 中央値 | 19.54 / 20 |
+| p90 / p95 / p99 | 25 / 26 / 29 |
+| p99.5 / p99.9 | 30 / 33 |
+| 40 手番以上 | 1 / 2000（0.05%） |
+
+40 手番は p99.9 の 33 手番より十分後ろで、通常の勝負はほぼ終わっていると判断した。
+
+**変更後 simulate（2000 戦、seed 2026070718、max_turns 40）**:
+
+- 勝敗: player_1 896 / player_2 1100 / draw 4
+- 平均 / 中央値: 19.53 / 20
+- p99 / p99.9: 29 / 33
+- 40 手番到達: 1 / 2000（0.05%）
+
+**6デッキリーグ（break/control/fire/water/wind/earth、100 games/ordered pair × 2 シード、seed 2026070719 / 2026070720、max_turns 40）**:
+
+| デッキ | 変更前 | 変更後 | 差分 |
+| --- | ---: | ---: | ---: |
+| break | 50.85% | 50.85% | +0.00pt |
+| control | 57.10% | 57.01% | -0.09pt |
+| fire | 49.10% | 49.10% | +0.00pt |
+| water | 53.35% | 53.31% | -0.05pt |
+| wind | 42.20% | 42.20% | +0.00pt |
+| earth | 47.39% | 47.54% | +0.15pt |
+
+`wind` は 42.2% で基準外だが、変更前も同値のため今回変更由来ではない。CPU変更による弱体化は見えない。
+
+### 判断
+
+採用する。ルールを「山札・手札なし連続パスでライフ判定」に変える案は取り下げ、CPUが終盤の明らかな後続攻撃価値を評価する形にした。40手番引き分けは、決着分布上ほぼ通常の勝負が終わった後の保険として妥当。
+
+### 検証コマンド
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+BASELINE_WORKTREE=$(mktemp -d "${TMPDIR:-/tmp}/break-duel-baseline.XXXXXX")
+git worktree add --detach "$BASELINE_WORKTREE" origin/develop
+cd "$BASELINE_WORKTREE"
+python3 -m ai_break_duel.cli simulate --games 2000 --seed 2026070718 --max-turns 60 --out tmp/turn-limit-baseline-2026070718
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070719 --decks break control fire water wind earth --max-turns 40 --out tmp/baseline-turn40-league-2026070719
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070720 --decks break control fire water wind earth --max-turns 40 --out tmp/baseline-turn40-league-2026070720
+cd "$REPO_ROOT"
+python3 -m ai_break_duel.cli simulate --games 2000 --seed 2026070718 --out tmp/cpu-followup-turn40-2026070718-rerun
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070719 --decks break control fire water wind earth --out tmp/cpu-followup-turn40-league-2026070719-rerun
+python3 -m ai_break_duel.cli league --games-per-pair 100 --seed 2026070720 --decks break control fire water wind earth --out tmp/cpu-followup-turn40-league-2026070720-rerun
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/cpu-followup-turn40-league-2026070719-rerun tmp/cpu-followup-turn40-league-2026070720-rerun
+git worktree remove "$BASELINE_WORKTREE"
+```
+
 ## 2026-07-07 モンスター攻撃への場防御追加: 採用（要監視）
 
 ### 背景

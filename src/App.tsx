@@ -91,7 +91,10 @@ import { MATCH_LOSE_COINS, MATCH_WIN_COINS, PACK_COST, addCoins, loadCoins, spen
 import { CardArtPreview, CardView } from "./components/CardView";
 import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
+import { DevPanel } from "./components/DevPanel";
 import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
+import { SYNTH_SFX_PREFIX, renderSummonSfxSamples, summonArrivalForCard, summonAuraColor, summonSfxKind, type SummonArrival, type SummonSfxKind } from "./summonFx";
+import { attributeBurstTheme, hasCardMaterialBurst, runCardMaterialBurst, type CardMaterialTheme, type CardRect, type SummonBurstTheme } from "./summonParticles";
 import { duelEventDurationMs, type DuelEvent, type DuelEventPayload } from "./duelEvents";
 import { RIVAL_VOICE_LINES, type RivalVoiceLineId } from "./rivalVoiceLines";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
@@ -155,8 +158,19 @@ type CardFlight = {
   tone: "human" | "ai";
   from: FlightRect;
   to: FlightRect;
+  render: FlightRect;
+  stableSize: boolean;
   durationMs: number;
+  /** 着地時に属性バースト+属性SFXを出す場合の情報 */
+  arrival?: SummonArrival;
 };
+
+const CPU_CARD_PLAY_FLIGHT_DURATION_MS = 1700;
+const CPU_CARD_PLAY_COMMIT_DELAY_MS = 1400;
+// 音+エフェクトをカード飛行の終了(100%)より前倒しする猶予。
+// CPU側は commitDelay でゲーム状態(実カードDOM)が確定するため、
+// flightDuration - この値が commitDelay を上回るように抑える必要がある。
+const SUMMON_ARRIVAL_LEAD_MS = 180;
 
 type FlightRect = {
   left: number;
@@ -190,6 +204,7 @@ type BreakDrawPulse = {
 };
 
 const AUTO_DISMISS_STORAGE_KEY = "break-duel:auto-dismiss-duel-events";
+const AUDIO_ENABLED_STORAGE_KEY = "break-duel:audio-enabled";
 
 function loadAutoDismissPreference(): boolean {
   if (typeof localStorage === "undefined") return true;
@@ -215,6 +230,24 @@ function saveAutoDismissPreference(value: boolean): void {
   if (typeof localStorage === "undefined") return;
   try {
     localStorage.setItem(AUTO_DISMISS_STORAGE_KEY, value ? "true" : "false");
+  } catch {
+    // storage unavailable
+  }
+}
+
+function loadAudioEnabledPreference(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  try {
+    return localStorage.getItem(AUDIO_ENABLED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function saveAudioEnabledPreference(value: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(AUDIO_ENABLED_STORAGE_KEY, value ? "true" : "false");
   } catch {
     // storage unavailable
   }
@@ -302,13 +335,19 @@ const SFX_ASSETS: Record<string, { src: string; volume: number }> = {
   "card-flip": { src: sfxSelect, volume: 0.92 },
   "pack-tear": { src: sfxPackTear, volume: 0.74 },
   "rare-reveal": { src: sfxRareReveal, volume: 0.78 },
+  // 属性召喚/遺物配置の着地音。src が synth: のものは summonFx.ts でその場で合成する
+  "summon-fire": { src: `${SYNTH_SFX_PREFIX}summon-fire`, volume: 0.5 },
+  "summon-water": { src: `${SYNTH_SFX_PREFIX}summon-water`, volume: 0.5 },
+  "summon-wind": { src: `${SYNTH_SFX_PREFIX}summon-wind`, volume: 0.46 },
+  "summon-earth": { src: `${SYNTH_SFX_PREFIX}summon-earth`, volume: 0.56 },
+  "relic-place": { src: `${SYNTH_SFX_PREFIX}relic-place`, volume: 0.55 },
 };
 
 const TRASH_SFX_PRIMARY_GRACE_MS = 450;
 const RIVAL_LINE_REPEAT_COOLDOWN_MS = 6000;
 const RIVAL_ACTION_VOICE_GROUP_SIZE = RIVAL_ACTION_VOICE_LINE_IDS.length / 2;
 const RIVAL_HIGH_FREQUENCY_ACTION_LINES: readonly [RivalActionVoiceLineId, RivalActionVoiceLineId] = ["play_summon", "attack"];
-const PRIMARY_SFX_KINDS = new Set(["play", "block", "damage", "damage-heavy", "charge"]);
+const PRIMARY_SFX_KINDS = new Set(["play", "block", "damage", "damage-heavy", "charge", "summon-fire", "summon-water", "summon-wind", "summon-earth", "relic-place"]);
 const SFX_PRIORITY: Record<string, number> = {
   hover: 0,
   select: 1,
@@ -323,6 +362,11 @@ const SFX_PRIORITY: Record<string, number> = {
   charge: 4,
   block: 4,
   damage: 4,
+  "summon-fire": 4,
+  "summon-water": 4,
+  "summon-wind": 4,
+  "summon-earth": 4,
+  "relic-place": 4,
   "damage-heavy": 5,
   "rare-reveal": 5,
 };
@@ -700,8 +744,8 @@ export default function App() {
       : `Seed ${INITIAL_SEED} / 先攻: あなた / ${CONFIG.maxTurns}手番制限`,
     id: eventId++,
   }));
-  const [audioEnabled, setAudioEnabled] = useState(false);
-  const audioEnabledRef = useRef(false);
+  const [audioEnabled, setAudioEnabled] = useState(() => loadAudioEnabledPreference());
+  const audioEnabledRef = useRef(audioEnabled);
   const audioContext = useRef<AudioContext | null>(null);
   const bgmAudio = useRef<HTMLAudioElement | null>(null);
   const bgmSrc = useRef<string | null>(null);
@@ -718,6 +762,9 @@ export default function App() {
   const duelEventScheduler = useRef<number | null>(null);
   const duelEventTimer = useRef<number | null>(null);
   const cardFlightTimers = useRef<number[]>([]);
+  const summonBurstTimers = useRef<number[]>([]);
+  // カード着地演出は動的に canvas を生成/破棄するため固定プールではなく可変配列で cancel を保持する
+  const cardMaterialCancelRefs = useRef<(() => void)[]>([]);
   const aiCommitTimer = useRef<number | null>(null);
   const trashFlashTimer = useRef<number | null>(null);
   const lifeImpactTimer = useRef<number | null>(null);
@@ -982,6 +1029,17 @@ export default function App() {
     lifeImpactScheduleTimers.current = [];
   }
 
+  function clearSummonLandingEffects() {
+    summonBurstTimers.current.forEach((timer) => window.clearTimeout(timer));
+    summonBurstTimers.current = [];
+    cardMaterialCancelRefs.current.forEach((cancel) => cancel());
+    cardMaterialCancelRefs.current = [];
+    document.querySelectorAll<HTMLElement>(".summon-landed").forEach((element) => {
+      element.classList.remove("summon-landed");
+      element.style.removeProperty("--landed-color");
+    });
+  }
+
   function resetDuelEvents() {
     if (duelEventScheduler.current !== null) window.clearTimeout(duelEventScheduler.current);
     if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
@@ -1000,6 +1058,7 @@ export default function App() {
     if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
     cardFlightTimers.current = [];
     aiCommitTimer.current = null;
+    clearSummonLandingEffects();
     if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
     trashFlashTimer.current = null;
     clearLifeImpactScheduleTimers();
@@ -1104,6 +1163,7 @@ export default function App() {
     label,
     tone = "human",
     durationMs = 760,
+    arrival,
   }: {
     card: Card | null;
     back?: boolean;
@@ -1112,6 +1172,7 @@ export default function App() {
     label: string;
     tone?: "human" | "ai";
     durationMs?: number;
+    arrival?: SummonArrival | null;
   }) {
     const fromElement = document.querySelector(cardSelector(from.ownerIndex, from.zone, from.index));
     const toElement = document.querySelector(cardSelector(to.ownerIndex, to.zone, to.index));
@@ -1128,7 +1189,9 @@ export default function App() {
           height: 124,
         }
       : rectLike(rawFrom);
-    const flight = {
+    const renderRect = to.zone === "field" || to.zone === "memory" ? targetRect : fromRect;
+    const stableSize = renderRect === targetRect;
+    const flight: CardFlight = {
       id: eventId++,
       card,
       back,
@@ -1136,7 +1199,10 @@ export default function App() {
       tone,
       from: fromRect,
       to: targetRect,
+      render: renderRect,
+      stableSize,
       durationMs,
+      arrival: arrival ?? undefined,
     };
     setCardFlights((current) => [...current.slice(-5), flight]);
     const timer = window.setTimeout(() => {
@@ -1144,6 +1210,74 @@ export default function App() {
       cardFlightTimers.current = cardFlightTimers.current.filter((item) => item !== timer);
     }, durationMs);
     cardFlightTimers.current.push(timer);
+    if (flight.arrival) {
+      // card-flight-move は64%地点で既に着地位置に到達し、以降は微調整の余韻。
+      // 音とエフェクトは飛行の終了(100%)を待たず、この着地の瞬間に合わせて先出しする。
+      const arrivalDelayMs = Math.max(0, durationMs - SUMMON_ARRIVAL_LEAD_MS);
+      const arrival = flight.arrival;
+      const arrivalTimer = window.setTimeout(() => {
+        triggerSummonArrival(arrival, flight.to, to);
+        cardFlightTimers.current = cardFlightTimers.current.filter((item) => item !== arrivalTimer);
+      }, arrivalDelayMs);
+      cardFlightTimers.current.push(arrivalTimer);
+    }
+  }
+
+  // カードが場/遺物スロットに着地した瞬間、属性色のバーストと属性SFXを重ねる。
+  // 座標はフライト開始時のものだとレイアウト変化でズレることがあるため、着地時点で取り直す。
+  function triggerSummonArrival(
+    arrival: SummonArrival,
+    fallbackRect: FlightRect,
+    to: { ownerIndex: number; zone: string; index: number },
+  ) {
+    const sfx = summonSfxKind(arrival);
+    if (sfx) playSfx(sfx);
+    const landedElement = document.querySelector(cardSelector(to.ownerIndex, to.zone, to.index));
+    pulseLandedCard(landedElement, arrival);
+    const theme: SummonBurstTheme | null = arrival.kind === "relic"
+      ? "relic"
+      : arrival.attribute
+        ? attributeBurstTheme(arrival.attribute)
+        : null;
+    // 遺物は専用canvas演出を持たない。pulseLandedCard の枠発光だけで十分という判断（紋章演出は撤去）。
+    if (!theme || !hasCardMaterialBurst(theme)) return;
+    launchCardMaterialBurst(theme, landedElement, fallbackRect);
+  }
+
+  // カード自体を発生源にした着地演出（属性ごとに「カードという素材が反応する」見た目）。
+  // カードの positioned 親にレイアウト座標で動的に canvas を生成し、
+  // アニメーション終了後は自動で取り除かれる。座標が取れない場合はフォールバック矩形を使う。
+  function launchCardMaterialBurst(theme: CardMaterialTheme, landedElement: Element | null, fallbackRect: FlightRect) {
+    if (!(landedElement instanceof HTMLElement)) return;
+    const container = landedElement.offsetParent;
+    if (!(container instanceof HTMLElement)) return;
+    const width = landedElement.offsetWidth || fallbackRect.width;
+    const height = landedElement.offsetHeight || fallbackRect.height;
+    const rect: CardRect = {
+      left: landedElement.offsetLeft,
+      top: landedElement.offsetTop,
+      width,
+      height,
+    };
+    cardMaterialCancelRefs.current.push(runCardMaterialBurst(container, rect, theme));
+  }
+
+  // 着地スロットのカード自体も属性色で発光させる（オーバーレイ座標に依存しない保険の演出）
+  function pulseLandedCard(element: Element | null, arrival: SummonArrival) {
+    if (!(element instanceof HTMLElement)) return;
+    const color = summonAuraColor(arrival);
+    if (!color) return;
+    element.classList.remove("summon-landed");
+    // 連続着地でもアニメーションを再スタートさせるためリフローを挟む
+    void element.offsetWidth;
+    element.style.setProperty("--landed-color", color);
+    element.classList.add("summon-landed");
+    const timer = window.setTimeout(() => {
+      element.classList.remove("summon-landed");
+      element.style.removeProperty("--landed-color");
+      summonBurstTimers.current = summonBurstTimers.current.filter((item) => item !== timer);
+    }, 900);
+    summonBurstTimers.current.push(timer);
   }
 
   function rectLike(rect: DOMRect): FlightRect {
@@ -1310,11 +1444,12 @@ export default function App() {
         to: { ownerIndex: 1, zone: "field", index: ai.field.length },
         label: "CPU 場へ",
         tone: "ai",
-        durationMs: 1700,
+        durationMs: CPU_CARD_PLAY_FLIGHT_DURATION_MS,
+        arrival: summonArrivalForCard(card),
       });
       const recovered = recoverOnPlayPreview(ai, card);
       if (recovered) launchRecoverFlight(recovered.card, 1, recovered.index);
-      return 1400;
+      return CPU_CARD_PLAY_COMMIT_DELAY_MS;
     }
     if (action.type === "memory") {
       const card = ai.hand[action.index];
@@ -1330,9 +1465,10 @@ export default function App() {
         to: { ownerIndex: 1, zone: "memory", index: 0 },
         label: "ライバル 遺物",
         tone: "ai",
-        durationMs: 1700,
+        durationMs: CPU_CARD_PLAY_FLIGHT_DURATION_MS,
+        arrival: summonArrivalForCard(card),
       });
-      return 1400;
+      return CPU_CARD_PLAY_COMMIT_DELAY_MS;
     }
     if (action.type === "upgrade") {
       const card = ai.hand[action.handIndex];
@@ -1345,11 +1481,12 @@ export default function App() {
         to: { ownerIndex: 1, zone: "field", index: action.fieldIndex },
         label: "CPU 更新",
         tone: "ai",
-        durationMs: 1700,
+        durationMs: CPU_CARD_PLAY_FLIGHT_DURATION_MS,
+        arrival: summonArrivalForCard(card),
       });
       const recovered = recoverOnPlayPreview(ai, card, source);
       if (recovered) launchRecoverFlight(recovered.card, 1, recovered.index);
-      return 1400;
+      return CPU_CARD_PLAY_COMMIT_DELAY_MS;
     }
     if (action.type === "memory-effect") {
       const card = ai.field[action.fieldIndex];
@@ -1769,6 +1906,7 @@ export default function App() {
       if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
       cardFlightTimers.current.forEach((timer) => window.clearTimeout(timer));
       cardFlightTimers.current = [];
+      clearSummonLandingEffects();
       if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
       aiCommitTimer.current = null;
       if (trashFlashTimer.current !== null) window.clearTimeout(trashFlashTimer.current);
@@ -1826,6 +1964,15 @@ export default function App() {
 
   function loadSfxBuffer(kind: string, config: { src: string; volume: number }) {
     if (sfxBuffers.current[kind]) return Promise.resolve();
+    if (config.src.startsWith(SYNTH_SFX_PREFIX)) {
+      const context = ensureAudioContext();
+      const synthKind = config.src.slice(SYNTH_SFX_PREFIX.length) as SummonSfxKind;
+      const samples = renderSummonSfxSamples(synthKind, context.sampleRate);
+      const buffer = context.createBuffer(1, samples.length, context.sampleRate);
+      buffer.copyToChannel(samples, 0);
+      sfxBuffers.current[kind] = buffer;
+      return Promise.resolve();
+    }
     if (pendingSfxBuffers.current[kind]) return pendingSfxBuffers.current[kind];
     const context = ensureAudioContext();
     const pending = fetch(config.src)
@@ -1977,6 +2124,7 @@ export default function App() {
     void audio.play().catch(() => {
       audioEnabledRef.current = false;
       setAudioEnabled(false);
+      saveAudioEnabledPreference(false);
       showToast("BGM再生失敗", "ブラウザの音声許可を確認してください");
     });
   }
@@ -2027,6 +2175,7 @@ export default function App() {
     const next = !audioEnabledRef.current;
     audioEnabledRef.current = next;
     setAudioEnabled(next);
+    saveAudioEnabledPreference(next);
     if (next) {
       void ensureAudioContext().resume();
       preloadSfx();
@@ -2167,6 +2316,7 @@ export default function App() {
       from: { ownerIndex: 0, zone: "hand", index: handIndex },
       to: { ownerIndex: 0, zone: "field", index: fieldIndex },
       label: "場へ",
+      arrival: summonArrivalForCard(card),
     });
     mutate((draft) => {
       if (draft.selected?.zone !== "hand") return;
@@ -2214,6 +2364,7 @@ export default function App() {
       from: { ownerIndex: 0, zone: "hand", index: game.selected.index },
       to: { ownerIndex: 0, zone: "memory", index: 0 },
       label: "遺物へ",
+      arrival: summonArrivalForCard(memoryCard),
     });
     mutate((draft) => {
       if (draft.selected?.zone !== "hand") return;
@@ -2283,6 +2434,7 @@ export default function App() {
       from: { ownerIndex: 0, zone: "hand", index: handIndex },
       to: { ownerIndex: 0, zone: "field", index: sourceIndex },
       label: "アップグレード",
+      arrival: summonArrivalForCard(target),
     });
     mutate((draft) => {
       const player = activePlayer(draft);
@@ -3634,6 +3786,7 @@ export default function App() {
       {game.discardViewerOwner !== null && (
         <DiscardModal game={game} onClose={closeDiscardViewer} onSelect={selectDiscardCard} />
       )}
+      {import.meta.env.DEV && <DevPanel game={game} busy={aiAnimating} onMutate={mutate} />}
     </main>
   );
 }
@@ -4302,21 +4455,26 @@ function BreakDrawLayer({ pulse }: { pulse: BreakDrawPulse }) {
 
 function CardFlightLayer({ flight }: { flight: CardFlight | null }) {
   if (!flight) return null;
-  const toX = flight.to.left + (flight.to.width - flight.from.width) / 2;
-  const toY = flight.to.top + (flight.to.height - flight.from.height) / 2;
-  const scale = Math.min(1.08, Math.max(0.76, flight.to.width / flight.from.width));
+  const fromX = flight.from.left + (flight.from.width - flight.render.width) / 2;
+  const fromY = flight.from.top + (flight.from.height - flight.render.height) / 2;
+  const toX = flight.to.left + (flight.to.width - flight.render.width) / 2;
+  const toY = flight.to.top + (flight.to.height - flight.render.height) / 2;
+  const scale = Math.min(1.08, Math.max(0.76, flight.to.width / flight.render.width));
+  const auraColor = flight.arrival ? summonAuraColor(flight.arrival) : null;
   const style = {
-    "--from-x": `${flight.from.left}px`,
-    "--from-y": `${flight.from.top}px`,
+    "--from-x": `${fromX}px`,
+    "--from-y": `${fromY}px`,
     "--to-x": `${toX}px`,
     "--to-y": `${toY}px`,
-    "--flight-w": `${flight.from.width}px`,
-    "--flight-h": `${flight.from.height}px`,
+    "--flight-w": `${flight.render.width}px`,
+    "--flight-h": `${flight.render.height}px`,
     "--flight-scale": scale,
+    "--flight-pop-scale": flight.stableSize ? 1 : 1.04,
     "--flight-duration": `${flight.durationMs}ms`,
+    ...(auraColor ? { "--aura-color": auraColor } : {}),
   } as CSSProperties;
   return (
-    <div className={`card-flight ${flight.tone}`} style={style} aria-hidden="true">
+    <div className={`card-flight ${flight.tone}${auraColor ? " has-aura" : ""}`} style={style} aria-hidden="true">
       <div className="card-flight-label">{flight.label}</div>
       {flight.back ? (
         <div className="card-flight-back">

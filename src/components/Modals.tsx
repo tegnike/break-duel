@@ -1,4 +1,4 @@
-import { type Card, type GameState } from "../game";
+import { CONFIG, type Card, type GameState } from "../game";
 import { CardView } from "./CardView";
 import { SelectedCardDetail } from "./DuelPanel";
 
@@ -8,7 +8,7 @@ const RULE_SECTIONS = [
     items: [
       "相手のライフを 0 にすると勝利。",
       "山札・手札・場の召喚獣がすべて空になったプレイヤーも敗北。両者同時なら引き分け。",
-      "60 手番で決着しない場合は残りライフが多い側の判定勝ち。同点なら引き分け。",
+      `${CONFIG.maxTurns} 手番で決着しない場合は引き分け。`,
     ],
   },
   {

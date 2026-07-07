@@ -53,6 +53,8 @@ CHALLENGER_WEIGHTS = {
     "strike_power4_penalty": 46,
     "purge_base": 40,
     "purge_target_power": 28,
+    "sacrificial_followup_damage": 80,
+    "sacrificial_attacker_penalty": 35,
 }
 CHALLENGER_SELF_DEFEAT_ATTACK_SCORE = -10000
 
@@ -588,7 +590,7 @@ def _score_action(state: GameState, action: Action, weights: dict[str, int]) -> 
 
     if action.type == ActionType.ATTACK and action.source_index is not None:
         attacker = player.field_ai[action.source_index]
-        return score + _attack_value(state, attacker, weights)
+        return score + _attack_value(state, attacker, action.source_index, weights)
 
     if (
         action.type == ActionType.STRIKE
@@ -634,11 +636,8 @@ def _board_score(player: PlayerState, opponent: PlayerState, weights: dict[str, 
     )
 
 
-def _attack_value(state: GameState, attacker, weights: dict[str, int]) -> float:
+def _attack_value(state: GameState, attacker, attacker_index: int, weights: dict[str, int]) -> float:
     opponent = state.opponent()
-    if _has_crushing_field_defender(state, attacker, opponent):
-        return CHALLENGER_SELF_DEFEAT_ATTACK_SCORE
-
     field_defense = choose_defender(
         attacker,
         opponent,
@@ -650,6 +649,8 @@ def _attack_value(state: GameState, attacker, weights: dict[str, int]) -> float:
         power_3_cannot_field_defend=state.config.power_3_cannot_field_defend,
         power_3_defense_modifier=state.config.power_3_defense_modifier,
     )
+    crushing_defender = False
+    sacrificial_followup_damage = 0
     hand_defense = _available_hand_defender(state, attacker, opponent)
     if pierces_hand_defense(attacker):
         hand_defense = None
@@ -706,6 +707,15 @@ def _attack_value(state: GameState, attacker, weights: dict[str, int]) -> float:
         ),
     )
     attack_value = attack_combat_value(attacker)
+    if defense_value > attack_value:
+        crushing_defender = True
+        sacrificial_followup_damage = _sacrificial_followup_damage_after_block(
+            state,
+            attacker_index=attacker_index,
+            blocker_index=field_defense,
+        )
+        if sacrificial_followup_damage <= 0:
+            return CHALLENGER_SELF_DEFEAT_ATTACK_SCORE
     if defense_value < attack_value:
         value += weights["damage"] + _card_value(defender) * 0.2
         if opponent.life <= _expected_attack_damage(state, attacker):
@@ -721,39 +731,56 @@ def _attack_value(state: GameState, attacker, weights: dict[str, int]) -> float:
         value += weights["trade_attack"] + _card_value(defender) * 0.35
     else:
         value += weights["bad_attack"]
+        if crushing_defender:
+            value += (
+                sacrificial_followup_damage * weights["sacrificial_followup_damage"]
+                - _card_value(attacker) * (weights["sacrificial_attacker_penalty"] / 100)
+            )
+            if opponent.life <= sacrificial_followup_damage:
+                value += weights["lethal"]
     if pressures_on_block(attacker):
         value += weights["blocked_value"]
     if draws_on_blocked_attack(attacker):
         value += 32
-    if keeps_ready_after_attack(attacker):
+    if not crushing_defender and keeps_ready_after_attack(attacker):
         value += 36
     return value
 
 
-def _has_crushing_field_defender(state: GameState, attacker, defender: PlayerState) -> bool:
-    attack_value = attack_combat_value(attacker)
-    for index, card in enumerate(defender.field_ai):
-        if not state.config.exhausted_ai_can_defend and index in defender.spent_field_ai:
-            continue
-        if state.config.power_3_cannot_field_defend and card.power == 3:
-            continue
-        defense_value = defense_combat_value(
-            attacker,
-            card,
-            advantage_bonus=state.config.defense_advantage_bonus,
-            disadvantage_penalty=state.config.defense_disadvantage_penalty,
-            defense_power_bonus=_defense_power_bonus(
-                card,
-                state.config.power_2_defense_bonus,
-                defender,
-                attacker,
-                field_index=index,
-                power_3_defense_modifier=state.config.power_3_defense_modifier,
-            ),
-        )
-        if defense_value > attack_value:
-            return True
-    return False
+def _sacrificial_followup_damage_after_block(
+    state: GameState,
+    *,
+    attacker_index: int,
+    blocker_index: int,
+) -> int:
+    player = state.active()
+    opponent = state.opponent()
+    if state.actions_remaining < 2:
+        return 0
+    if player.deck or player.hand or opponent.deck or opponent.hand:
+        return 0
+    if state.config.exhausted_ai_can_defend:
+        return 0
+    remaining_ready_defenders = [
+        index
+        for index, card in enumerate(opponent.field_ai)
+        if index != blocker_index
+        and index not in opponent.spent_field_ai
+        and not (state.config.power_3_cannot_field_defend and card.power == 3)
+    ]
+    if remaining_ready_defenders:
+        return 0
+    followup_damages = sorted(
+        (
+            _expected_attack_damage(state, card)
+            for index, card in enumerate(player.field_ai)
+            if index != attacker_index and index not in player.spent_field_ai
+        ),
+        reverse=True,
+    )
+    if not followup_damages:
+        return 0
+    return sum(followup_damages[: max(0, state.actions_remaining - 1)])
 
 
 def _available_hand_defender(state: GameState, attacker, defender: PlayerState) -> int | None:
