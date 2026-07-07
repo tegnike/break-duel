@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   CONFIG,
   BATTLE_DECK_IDS,
+  CARD_BY_ID,
   DECKS,
   type AiAction,
   type AiProfile,
@@ -26,6 +27,7 @@ import {
   canUseFirewall,
   canUpgrade,
   cloneGame,
+  cloneCard,
   commandUsable,
   strikeTargets,
   createGame,
@@ -267,6 +269,7 @@ const RIVAL_ACTION_VOICE_LINE_IDS = [
 ] as const satisfies readonly RivalVoiceLineId[];
 type RivalActionVoiceLineId = typeof RIVAL_ACTION_VOICE_LINE_IDS[number];
 type RivalVoiceTurnGroup = "odd" | "even";
+type DevScenario = "firewall";
 
 const TRASH_SPARKS = [
   { x: 12, y: 18, delay: 0 },
@@ -354,6 +357,75 @@ function readResultPreviewTone(): MatchResultTone | null {
   const hashTone = new URLSearchParams(window.location.hash.replace(/^#/, "")).get("resultPreview");
   const tone = searchTone ?? hashTone;
   return tone === "win" || tone === "lose" || tone === "draw" ? tone : null;
+}
+
+function readDevScenario(): DevScenario | null {
+  if (!import.meta.env.DEV || typeof window === "undefined") return null;
+  const scenario = new URLSearchParams(window.location.search).get("devScenario");
+  return scenario === "firewall" ? scenario : null;
+}
+
+function devCard(cardId: string): Card {
+  const card = CARD_BY_ID.get(cardId);
+  if (!card) throw new Error(`Unknown dev scenario card id: ${cardId}`);
+  return cloneCard(card);
+}
+
+function createFirewallDevScenario(seed: number, opponentAiProfile: AiProfile): GameState {
+  const game = createGame(seed, "fire", "water", opponentAiProfile);
+  const human = game.players[0];
+  const rival = game.players[1];
+  const defender = devCard("AI-WATER-1");
+  const attacker = devCard("AI-FIRE-2B");
+
+  human.deckName = "竜盾の紋章検証";
+  human.life = CONFIG.life;
+  human.deck = [devCard("AI-EARTH-1"), devCard("AI-WIND-1")];
+  human.hand = [devCard("AI-FIRE-1"), devCard("AI-EARTH-1")];
+  human.field = [defender];
+  human.fieldStacks = [[]];
+  human.memory = devCard("MEM-FIREWALL");
+  human.discard = [];
+  human.spentFieldIndexes.clear();
+  human.power3RecoveryDelayedFieldIndexes.clear();
+  human.chargeGuardedFieldIndexes.clear();
+  human.turnFieldAttackBonuses.clear();
+
+  rival.deckName = "竜盾の紋章検証攻撃側";
+  rival.life = CONFIG.life;
+  rival.deck = [devCard("AI-FIRE-1"), devCard("AI-WATER-1")];
+  rival.hand = [];
+  rival.field = [attacker];
+  rival.fieldStacks = [[]];
+  rival.memory = null;
+  rival.discard = [];
+  rival.spentFieldIndexes.clear();
+  rival.power3RecoveryDelayedFieldIndexes.clear();
+  rival.chargeGuardedFieldIndexes.clear();
+  rival.turnFieldAttackBonuses.clear();
+
+  game.active = 1;
+  game.turn = 6;
+  game.actionsRemaining = 1;
+  game.chargedActionsRemaining = 0;
+  game.winner = null;
+  game.draw = false;
+  game.selected = null;
+  game.pendingTarget = null;
+  game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
+  game.aiRunning = false;
+  game.discardViewerOwner = null;
+  game.discardViewerIndex = null;
+  game.log = [
+    `Seed ${seed} / 開発用: 竜盾の紋章 検証シナリオ。`,
+    `${rival.name}は${attacker.name}で攻撃。${human.name}は${defender.name}で場防御を選べます。`,
+  ];
+  return game;
+}
+
+function createInitialDuelGame(seed: number, opponentAiProfile: AiProfile): GameState {
+  if (readDevScenario() === "firewall") return createFirewallDevScenario(seed, opponentAiProfile);
+  return createGame(seed, "fire", undefined, opponentAiProfile);
 }
 
 function previewMatchResult(tone: MatchResultTone): MatchResultView {
@@ -601,10 +673,10 @@ export default function App() {
   const [opponentDeckSelection, setOpponentDeckSelection] = useState<DeckSelection>({ kind: "random" });
   const [opponentAiProfile, setOpponentAiProfile] = useState<AiProfile>("challenger");
   const [savedDecks, setSavedDecks] = useState<SavedDeck[]>(() => loadSavedDecks());
-  const [game, setGame] = useState<GameState>(() => createGame(INITIAL_SEED, "fire", undefined, "challenger"));
+  const [game, setGame] = useState<GameState>(() => createInitialDuelGame(INITIAL_SEED, "challenger"));
   const [lastHumanActionsRemaining, setLastHumanActionsRemaining] = useState(() => game.actionsRemaining);
   const [rulesOpen, setRulesOpen] = useState(false);
-  const [starterDeckSetupOpen, setStarterDeckSetupOpen] = useState(true);
+  const [starterDeckSetupOpen, setStarterDeckSetupOpen] = useState(() => readDevScenario() === null);
   const [tutorialActive, setTutorialActive] = useState(false);
   const [tutorialAiAdvanceKey, setTutorialAiAdvanceKey] = useState<string | null>(null);
   const [tutorialAiAdvancePending, setTutorialAiAdvancePending] = useState(false);
@@ -622,8 +694,10 @@ export default function App() {
   const [breakDrawPulse, setBreakDrawPulse] = useState<BreakDrawPulse | null>(null);
   const [banner, setBanner] = useState<Banner>(() => ({
     kind: "start",
-    title: "BREAK DUEL",
-    detail: `Seed ${INITIAL_SEED} / 先攻: あなた / ${CONFIG.maxTurns}手番制限`,
+    title: readDevScenario() === "firewall" ? "竜盾の紋章 検証" : "BREAK DUEL",
+    detail: readDevScenario() === "firewall"
+      ? `Seed ${INITIAL_SEED} / ライバル攻撃への場防御から開始`
+      : `Seed ${INITIAL_SEED} / 先攻: あなた / ${CONFIG.maxTurns}手番制限`,
     id: eventId++,
   }));
   const [audioEnabled, setAudioEnabled] = useState(false);
@@ -4019,7 +4093,7 @@ function combatPreviewForSelection(game: GameState): CombatPreview | null {
       : baseDefenseValue;
     const usesFirewall = baseDefenseValue < attackValue && paidDefenseValue >= attackValue;
     const defenseValue = usesFirewall ? paidDefenseValue : baseDefenseValue;
-    const defenseLabel = usesFirewall ? `竜盾 ${defenseValue}` : `DEF ${defenseValue}`;
+    const defenseLabel = usesFirewall ? `竜盾の紋章 ${defenseValue}` : `DEF ${defenseValue}`;
     fieldDefenses.set(index, defenseValue < attackValue ? {
       result: "fail",
       label: `${defenseLabel} / 失敗`,
