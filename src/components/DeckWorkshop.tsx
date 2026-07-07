@@ -82,8 +82,10 @@ export function CardLibraryPage({ playSfx = () => undefined }: { playSfx?: PlayS
   const [attributeFilter, setAttributeFilter] = useState<AttributeFilter>("all");
   const [setFilter, setSetFilter] = useState<SetFilter>("all");
   const [owned] = useState(() => loadCollection());
-  const [selectedId, setSelectedId] = useState(CARD_LIST[0]?.id ?? "");
-  const selectedCard = CARD_BY_ID.get(selectedId) ?? CARD_LIST[0] ?? null;
+  const [hoverId, setHoverId] = useState(CARD_LIST[0]?.id ?? "");
+  const [pinnedId, setPinnedId] = useState<string | null>(null);
+  const displayedId = pinnedId ?? hoverId;
+  const selectedCard = CARD_BY_ID.get(displayedId) ?? CARD_LIST[0] ?? null;
   const setCards = setFilter === "all" ? CARD_LIST : CARD_LIST.filter((card) => cardSet(card) === setFilter);
   const aiCount = setCards.filter((card) => card.type === "ai").length;
   const eventCount = setCards.filter((card) => card.type === "event").length;
@@ -127,14 +129,20 @@ export function CardLibraryPage({ playSfx = () => undefined }: { playSfx?: PlayS
               key={card.id}
               ownerIndex={2}
               ownedCount={ownedCountForCard(card, owned)}
-              selected={selectedCard?.id === card.id}
+              selected={displayedId === card.id}
               onSelect={() => {
-                if (selectedId !== card.id) playSfx("select");
-                setSelectedId(card.id);
+                if (pinnedId === card.id) {
+                  setPinnedId(null);
+                  return;
+                }
+                if (displayedId !== card.id) playSfx("select");
+                setPinnedId(card.id);
+                setHoverId(card.id);
               }}
               onPreview={() => {
-                if (selectedId !== card.id) playSfx("hover");
-                setSelectedId(card.id);
+                if (pinnedId) return;
+                if (hoverId !== card.id) playSfx("hover");
+                setHoverId(card.id);
               }}
             />
           ))}
@@ -359,7 +367,7 @@ export function DeckBuilderPage({ playSfx = () => undefined }: { playSfx?: PlayS
                     setSelectedId(card.id);
                   }}
                 >
-                  <CardView card={card} ownerIndex={4} zone="hand" index={index} showCost />
+                  <CardView card={card} ownerIndex={4} zone="hand" index={index} showCost tiltEnabled />
                 </button>
               );
             })}
@@ -432,7 +440,7 @@ function CardPoolButton({
       onFocus={onPreview}
       title={title}
     >
-      <CardView card={card} ownerIndex={ownerIndex} zone="hand" index={index} showCost />
+      <CardView card={card} ownerIndex={ownerIndex} zone="hand" index={index} showCost tiltEnabled />
       <span className={`owned-count-badge ${unowned ? "empty" : ""}`}>
         {unowned ? "未所持" : `所持 ${ownedCount}枚`}
       </span>

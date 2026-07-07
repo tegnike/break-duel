@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "react-parallax-tilt": "^1.7.333"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",
