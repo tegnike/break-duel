@@ -56,7 +56,7 @@ export function DuelActionReel({
               {index > 0 && <div className="duel-action-vs">{event.kind === "battle" ? "VS" : "→"}</div>}
               <div className={`duel-action-card card-${index} ${state ?? "neutral"}`}>
                 <div className="duel-action-card-role">{label}</div>
-                <CardView card={card} ownerIndex={9} zone="field" index={index} showCost={false} />
+                <CardView card={card} ownerIndex={9} zone="field" index={index} showCost={false} showSetBadge={false} />
               </div>
             </React.Fragment>
           ))}

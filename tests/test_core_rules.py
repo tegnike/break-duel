@@ -929,15 +929,16 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.players[1].discard[0].id, "AI-EARTH-2")
         self.assertEqual(state.stats.successful_defenses, 1)
 
-    def test_earth_2b_has_no_effect(self) -> None:
+    def test_earth_2b_attempts_field_defense_even_when_attack_breaks_through(self) -> None:
         state = new_game(1, no_opening_hands())
         state.players[0].field_ai = [card("AI-WATER-4")]
         state.players[1].field_ai = [card("AI-EARTH-2B")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
         self.assertEqual(state.players[1].life, 4)
-        self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-EARTH-2B"])
-        self.assertEqual(state.stats.undefended_attacks, 1)
+        self.assertEqual(state.players[1].field_ai, [])
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-EARTH-2B"])
+        self.assertEqual(state.stats.failed_defenses, 1)
 
     def test_defense_plus_1_ai_does_not_get_hand_defense_bonus(self) -> None:
         state = new_game(1, no_opening_hands())
@@ -2239,7 +2240,7 @@ class Set2MechanicsTests(unittest.TestCase):
         self.assertEqual(turn_attack_bonus(attacker, 1), 0)
         life_before = defender.life
         apply_action(state, Action(ActionType.ATTACK, 0))
-        # 防御値1 < 攻撃値2 で場防御不可。ダメージは power 由来のまま1点
+        # 防御値1 < 攻撃値2 で攻撃は通る。ダメージは power 由来のまま1点
         self.assertEqual(defender.life, life_before - 1)
         self.assertEqual(len(defender.field_ai), 1)
 
@@ -2614,15 +2615,18 @@ class Set2CardTests(unittest.TestCase):
         apply_action(state, Action(ActionType.CHARGE, 0))
         self.assertEqual(state.players[1].spent_field_ai, {0})
 
-    def test_tidal_mirror_draws_on_successful_field_defense(self) -> None:
+    def test_tidal_mirror_draws_on_field_defense_even_when_attack_breaks_through(self) -> None:
         state = new_game(1, no_opening_hands())
-        state.players[0].field_ai = [card("AI-FIRE-1")]
+        state.players[0].field_ai = [card("AI-FIRE-2")]
         state.players[1].memory = memory("MEM-TIDAL-MIRROR")
-        state.players[1].field_ai = [card("AI-EARTH-2")]
+        state.players[1].field_ai = [card("AI-EARTH-1")]
         state.players[1].deck = [card("AI-WATER-1")]
         start_turn(state)
+        life_before = state.players[1].life
         apply_action(state, Action(ActionType.ATTACK, 0))
         self.assertEqual([item.id for item in state.players[1].hand], ["AI-WATER-1"])
+        self.assertEqual(state.players[1].life, life_before - 2)
+        self.assertEqual(len(state.players[1].field_ai), 0)
 
     def test_dual_banner_draws_at_turn_start_with_two_attributes(self) -> None:
         state = new_game(1, no_opening_hands())
@@ -2698,13 +2702,17 @@ class Set2CardTests(unittest.TestCase):
 
     def test_earth_bone_collector_recovers_summon_on_field_defense(self) -> None:
         state = new_game(1, no_opening_hands())
-        state.players[0].field_ai = [card("AI-FIRE-1")]
+        state.players[0].field_ai = [card("AI-FIRE-2")]
         state.players[1].field_ai = [card("AI-EARTH-1D")]
         state.players[1].discard = [card("AI-WATER-3")]
+        state.players[1].deck = []
         start_turn(state)
+        life_before = state.players[1].life
         apply_action(state, Action(ActionType.ATTACK, 0))
-        # 相打ちでも場防御成功なので回収が発動する
+        # 防御値不足でも、場防御した時点で回収が発動する
         self.assertEqual([item.id for item in state.players[1].hand], ["AI-WATER-3"])
+        self.assertEqual(state.players[1].life, life_before - 2)
+        self.assertEqual(len(state.players[1].field_ai), 0)
 
     def test_orca_charge_filters_and_wind_1d_charge_draw_needs_other_summon(self) -> None:
         state = new_game(1, no_opening_hands())

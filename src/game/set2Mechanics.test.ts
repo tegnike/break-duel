@@ -25,6 +25,7 @@ import {
   reviveAiFromDiscard,
   setNextAttackUnblockable,
   sharesAttribute,
+  strikeTargets,
   trashMemory,
   turnAttackBonus,
 } from "../game";
@@ -154,13 +155,27 @@ describe("turn-scoped attack buffs", () => {
     const context = { attacker, attackerFieldIndex: 0 };
     expect(legalFieldDefenders(defender, attacker.field[0], context)).toHaveLength(1);
     addTurnFieldAttackBonus(attacker, 0, 1);
-    expect(legalFieldDefenders(defender, attacker.field[0], context)).toHaveLength(0);
+    expect(legalFieldDefenders(defender, attacker.field[0], context)).toHaveLength(1);
 
     const lifeBefore = defender.life;
     beginAttackInDraft(game, 0, 0);
     // ダメージは power 由来のまま（攻撃値補正はダメージに影響しない）
     expect(defender.life).toBe(lifeBefore - 1);
     expect(defender.field).toHaveLength(1);
+  });
+
+  it("buffed monster attack uses the source field index when listing valid strike targets", () => {
+    const game = makeTestGame();
+    const attacker = game.players[0];
+    const defender = game.players[1];
+    attacker.field = [card("AI-FIRE-1")];
+    defender.field = [card("AI-WATER-2")];
+    expect(strikeTargets(attacker.field[0], defender, { attacker, attackerFieldIndex: 0 })).toHaveLength(0);
+
+    addTurnFieldAttackBonus(attacker, 0, 1);
+    const targets = strikeTargets(attacker.field[0], defender, { attacker, attackerFieldIndex: 0 });
+    expect(targets).toHaveLength(1);
+    expect(targets[0]).toMatchObject({ index: 0, attackValue: 2, defenseValue: 2, trade: true });
   });
 
   it("next-attack-unblockable disables hand defense and is consumed by the attack", () => {

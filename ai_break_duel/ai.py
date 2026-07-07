@@ -20,6 +20,7 @@ from .cards import (
     opponent_draws_on_play,
     pierces_hand_defense,
     pressures_on_block,
+    recovers_ai_on_successful_defense,
     shares_attribute,
 )
 from .models import Action, ActionType, AiProfile, GameState, PlayerState
@@ -215,7 +216,7 @@ def choose_defender(
     attack_power_bonus: int = 0,
 ) -> int | None:
     attack_value = attack_combat_value(attack_ai, attack_power_bonus=attack_power_bonus)
-    successful = [
+    candidates = [
         (
             index,
             card,
@@ -238,18 +239,22 @@ def choose_defender(
         for index, card in enumerate(defender.field_ai)
         if (exhausted_ai_can_defend or index not in defender.spent_field_ai)
         and not (power_3_cannot_field_defend and card.power == 3)
-        and can_defend(
+    ]
+    successful = [
+        item
+        for item in candidates
+        if can_defend(
             attack_ai,
-            card,
+            item[1],
             advantage_bonus=advantage_bonus,
             disadvantage_penalty=disadvantage_penalty,
             same_attribute_strict=same_attribute_strict,
             defense_power_bonus=_defense_power_bonus(
-                card,
+                item[1],
                 power_2_defense_bonus,
                 defender,
                 attack_ai,
-                field_index=index,
+                field_index=item[0],
                 power_3_defense_modifier=power_3_defense_modifier,
                 attack_power_bonus=attack_power_bonus,
             ),
@@ -257,7 +262,21 @@ def choose_defender(
         )
     ]
     if not successful:
-        return None
+        failed_with_trigger = [
+            item
+            for item in candidates
+            if (
+                draws_on_successful_defense(item[1])
+                or recovers_ai_on_successful_defense(item[1])
+                or (
+                    defender.memory is not None
+                    and defender.memory.effect == MemoryEffect.TIDAL_MIRROR.value
+                )
+            )
+        ]
+        if not failed_with_trigger:
+            return None
+        return min(failed_with_trigger, key=lambda item: (item[1].power or 0, item[1].id))[0]
     return min(
         successful,
         key=lambda item: (
@@ -388,19 +407,31 @@ def _best_damaging_attacker(
     for index, card in enumerate(player.field_ai):
         if index in player.spent_field_ai:
             continue
-        if (
-            choose_defender(
-                card,
+        defender_index = choose_defender(
+            card,
+            opponent,
+            advantage_bonus=advantage_bonus,
+            disadvantage_penalty=disadvantage_penalty,
+            same_attribute_strict=same_attribute_strict,
+            exhausted_ai_can_defend=exhausted_ai_can_defend,
+            power_2_defense_bonus=power_2_defense_bonus,
+            power_3_cannot_field_defend=power_3_cannot_field_defend,
+            power_3_defense_modifier=power_3_defense_modifier,
+        )
+        if defender_index is None or not can_defend(
+            card,
+            opponent.field_ai[defender_index],
+            advantage_bonus=advantage_bonus,
+            disadvantage_penalty=disadvantage_penalty,
+            same_attribute_strict=same_attribute_strict,
+            defense_power_bonus=_defense_power_bonus(
+                opponent.field_ai[defender_index],
+                power_2_defense_bonus,
                 opponent,
-                advantage_bonus=advantage_bonus,
-                disadvantage_penalty=disadvantage_penalty,
-                same_attribute_strict=same_attribute_strict,
-                exhausted_ai_can_defend=exhausted_ai_can_defend,
-                power_2_defense_bonus=power_2_defense_bonus,
-                power_3_cannot_field_defend=power_3_cannot_field_defend,
+                card,
+                field_index=defender_index,
                 power_3_defense_modifier=power_3_defense_modifier,
-            )
-            is None
+            ),
         ):
             candidates.append((index, card))
     if not candidates:
@@ -619,7 +650,25 @@ def _attack_value(state: GameState, attacker, weights: dict[str, int]) -> float:
     if pierces_hand_defense(attacker):
         hand_defense = None
     elif field_defense is not None:
-        hand_defense = None
+        field_card = opponent.field_ai[field_defense]
+        if can_defend(
+            attacker,
+            field_card,
+            advantage_bonus=state.config.defense_advantage_bonus,
+            disadvantage_penalty=state.config.defense_disadvantage_penalty,
+            same_attribute_strict=state.config.same_attribute_strict_defense,
+            defense_power_bonus=_defense_power_bonus(
+                field_card,
+                state.config.power_2_defense_bonus,
+                opponent,
+                attacker,
+                field_index=field_defense,
+                power_3_defense_modifier=state.config.power_3_defense_modifier,
+            ),
+        ):
+            hand_defense = None
+        elif hand_defense is not None:
+            field_defense = None
 
     value = weights["attack_power"] * (attack_combat_value(attacker) or 0)
     if field_defense is None and hand_defense is None:
@@ -652,7 +701,19 @@ def _attack_value(state: GameState, attacker, weights: dict[str, int]) -> float:
             power_3_defense_modifier=state.config.power_3_defense_modifier,
         ),
     )
-    if defense_value == attack_combat_value(attacker):
+    attack_value = attack_combat_value(attacker)
+    if defense_value < attack_value:
+        value += weights["damage"] + _card_value(defender) * 0.2
+        if opponent.life <= _expected_attack_damage(state, attacker):
+            value += weights["lethal"]
+        if draws_on_successful_defense(defender):
+            value -= 20
+        if recovers_ai_on_successful_defense(defender):
+            value -= 28
+        if opponent.memory is not None and opponent.memory.effect == MemoryEffect.TIDAL_MIRROR.value:
+            value -= 20
+        return value
+    if defense_value == attack_value:
         value += weights["trade_attack"] + _card_value(defender) * 0.35
     else:
         value += weights["bad_attack"]

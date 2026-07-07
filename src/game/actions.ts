@@ -22,7 +22,6 @@ import {
   canChargeCard,
   canUseCharge,
   canDefend,
-  canDefendWithOptionalFirewall,
   canUseAcceleratorMemory,
   canUpgrade,
   checkResourceExhaustion,
@@ -51,6 +50,7 @@ import {
   highestPowerSpentAiByAttribute,
   hasAttribute,
   hasAttributeAi,
+  legalFieldDefenders,
   legalHandDefenders,
   lowestPriorityHand,
   keepsReadyAfterAttack,
@@ -835,7 +835,7 @@ export function resolveDefenseInDraft(
 
   if (choice.type === "field") {
     const defenseCard = defender.field[choice.index];
-    if (!defenseCard || !canDefendWithOptionalFirewall(attackCard, defenseCard, defender, choice.index, attackContext)) return;
+    if (!defenseCard || !legalFieldDefenders(defender, attackCard, attackContext).some((option) => option.index === choice.index)) return;
     draft.pendingTarget = null;
     if (defender.isHuman && needsFirewallFuel(defender, defenseCard, attackCard, choice.index, attackContext) && choice.firewallDiscardIndex === undefined) {
       const baseCanDefend = canDefend(attackCard, defenseCard, defender, { fieldIndex: choice.index, attackContext });
@@ -862,9 +862,11 @@ export function resolveDefenseInDraft(
       : choice.firewallDiscardIndex === null
         ? null
         : discardFirewallFuel(defender, defenseCard, attackCard, choice.index, attackContext);
-    const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: Boolean(firewallFuel), fieldIndex: choice.index });
+    const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid: Boolean(firewallFuel), fieldIndex: choice.index, attackContext });
     const attackValue = attackCombatValue(attackCard, attackContext);
+    const blocked = defenseValue >= attackValue;
     const isTrade = defenseValue === attackValue;
+    const isFailure = defenseValue < attackValue;
     const fuelText = firewallFuel ? ` ${defender.memory!.name}で${firewallFuel.name}をトラッシュ。` : "";
     const defenseDrawnCards = drawsOnSuccessfulDefense(defenseCard) ? drawCards(defender, 1) : [];
     let defenseRecoverText = "";
@@ -879,44 +881,71 @@ export function resolveDefenseInDraft(
       }
     }
     const mirrorDrawnCards = defender.memory?.effect === "tidal_mirror" ? drawCards(defender, 1) : [];
-    const shouldChoosePressureDiscard = pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
-    const pressureDiscarded = pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
+    const damage = isFailure ? attackDamage(attackCard) : 0;
+    if (damage > 0) defender.life -= damage;
+    const breakDrawnCards = damage > 0 && CONFIG.drawOnAttackDamage !== "none"
+      ? drawCards(defender, CONFIG.drawOnAttackDamage === "event" ? 1 : damage)
+      : [];
+    const bannerDrawnCards = damage > 0 ? applyWarBannerDraw(attacker) : [];
+    const shouldChoosePressureDiscard = blocked && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
+    const pressureDiscarded = blocked && pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
       ? discardLowPriorityCards(defender, 1)[0] ?? null
       : null;
-    const blockedDrawnCards = drawsOnBlockedAttack(attackCard) ? drawCards(attacker, 1) : [];
+    const blockedDrawnCards = blocked && drawsOnBlockedAttack(attackCard) ? drawCards(attacker, 1) : [];
     const extraText = [
       defenseDrawnCards.length > 0 ? `${defenseCard.name}の効果で${defender.name}は${visibleDrawText(defender, defenseDrawnCards)}。` : "",
       defenseRecoverText,
       mirrorDrawnCards.length > 0 ? `${defender.memory?.name ?? "遺物"}で${defender.name}は${visibleDrawText(defender, mirrorDrawnCards)}。` : "",
       pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}をトラッシュへ送った。` : "",
       blockedDrawnCards.length > 0 ? `${attackCard.name}の効果で${attacker.name}は${visibleDrawText(attacker, blockedDrawnCards)}。` : "",
+      breakDrawnCards.length > 0 ? `ブレイクドローで${defender.name}は${visibleDrawText(defender, breakDrawnCards)}。` : "",
+      bannerDrawnCards.length > 0 ? `${attacker.memory?.name ?? "遺物"}で${attacker.name}は${visibleDrawText(attacker, bannerDrawnCards)}。` : "",
     ].filter(Boolean).join(" ");
     addLog(
       draft,
-      isTrade
+      isFailure
+        ? `${defender.name}は場の${defenseCard.name}で防御したが、攻撃を止められなかった。防御値${defenseValue}が攻撃値${attackValue}を下回り、${defenseCard.name}はトラッシュ。${defender.name}は${damage}ダメージ。${fuelText}${extraText ? ` ${extraText}` : ""}`
+        : isTrade
         ? `${defender.name}は場の${defenseCard.name}で防御成功。防御値${defenseValue}と攻撃値${attackValue}が同値で相打ち。両方トラッシュ。${fuelText}${extraText ? ` ${extraText}` : ""}`
         : `${defender.name}は場の${defenseCard.name}で防御成功。防御値${defenseValue}が攻撃値${attackValue}を上回り、${attackCard.name}は退場。${defenseCard.name}は場に残って消耗。${fuelText}${extraText ? ` ${extraText}` : ""}`,
     );
     effects.showDuelEvent?.({
       kind: "battle",
-      title: isTrade ? "相打ち" : `${defender.name}の防御成功`,
-      detail: `${attackCard.name} 攻撃値${attackValue} vs 場の${defenseCard.name} 防御${defenseValue}。${isTrade ? "同値なので両方トラッシュ。" : "防御側は場に残ります。"}${fuelText}${extraText ? ` ${extraText}` : ""}`,
+      title: isFailure ? "場防御失敗" : isTrade ? "相打ち" : `${defender.name}の防御成功`,
+      detail: `${attackCard.name} 攻撃値${attackValue} vs 場の${defenseCard.name} 防御${defenseValue}。${isFailure ? `攻撃は通り、${defender.name}に${damage}ダメージ。防御召喚獣はトラッシュ。` : isTrade ? "同値なので両方トラッシュ。" : "防御側は場に残ります。"}${fuelText}${extraText ? ` ${extraText}` : ""}`,
       fromLabel: `${attacker.name}の場`,
-      toLabel: isTrade ? "両方トラッシュ" : `${attackCard.name}はトラッシュ`,
-      resultLabel: isTrade ? "相打ち" : "防御側が残る",
-      tone: isTrade ? "warning" : defender.isHuman ? "magenta" : "cyan",
-      emphasis: isTrade ? "high" : undefined,
+      toLabel: isFailure ? `${defenseCard.name}はトラッシュ` : isTrade ? "両方トラッシュ" : `${attackCard.name}はトラッシュ`,
+      resultLabel: isFailure ? "攻撃成功" : isTrade ? "相打ち" : "防御側が残る",
+      tone: isFailure ? "danger" : isTrade ? "warning" : defender.isHuman ? "magenta" : "cyan",
+      emphasis: isFailure ? "high" : isTrade ? "high" : undefined,
+      impact: isFailure ? {
+        kind: "life-damage",
+        sourcePlayerIndex: attackerIndex,
+        targetPlayerIndex: defenderIndex,
+        amount: damage,
+        fatal: defender.life <= 0,
+      } : undefined,
+      breakDraw: breakDrawnCards.length > 0 ? { targetPlayerIndex: defenderIndex, count: breakDrawnCards.length } : undefined,
       rivalVoiceLine: defender.isHuman ? undefined : "field_defense",
       cards: [
-        { card: attackCard, label: "攻撃", state: "trash" },
-        { card: defenseCard, label: "防御", state: isTrade ? "trash" : "winner" },
+        { card: attackCard, label: "攻撃", state: isFailure ? "winner" : "trash" },
+        { card: defenseCard, label: "防御", state: isFailure || isTrade ? "trash" : "winner" },
       ],
     });
-    attacker.discard.push(...removeFieldStack(attacker, fieldIndex));
-    if (isTrade) {
+    if (isFailure) {
       defender.discard.push(...removeFieldStack(defender, choice.index));
     } else {
-      defender.spentFieldIndexes.add(choice.index);
+      attacker.discard.push(...removeFieldStack(attacker, fieldIndex));
+      if (isTrade) {
+        defender.discard.push(...removeFieldStack(defender, choice.index));
+      } else {
+        defender.spentFieldIndexes.add(choice.index);
+      }
+    }
+    if (isFailure) {
+      effects.playSfx?.(damage >= 2 ? "damage-heavy" : "damage");
+    } else {
+      effects.playSfx?.("block");
     }
     if (shouldChoosePressureDiscard) {
       draft.pendingTarget = {
@@ -936,7 +965,6 @@ export function resolveDefenseInDraft(
         cancelable: false,
       };
     }
-    effects.playSfx?.("block");
   } else if (choice.type === "hand") {
     const defenseCard = defender.hand[choice.index];
     if (!defenseCard || !legalHandDefenders(defender, attackCard, attackContext).some((option) => option.index === choice.index)) return;

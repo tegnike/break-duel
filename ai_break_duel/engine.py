@@ -751,7 +751,26 @@ def _attack(state: GameState, action: Action) -> None:
         if pierces_hand_defense(attack_ai):
             hand_defense_index = None
         else:
-            hand_defense_index = None
+            defense_ai = defender.field_ai[defense_index]
+            if can_defend(
+                attack_ai,
+                defense_ai,
+                advantage_bonus=state.config.defense_advantage_bonus,
+                disadvantage_penalty=state.config.defense_disadvantage_penalty,
+                same_attribute_strict=state.config.same_attribute_strict_defense,
+                defense_power_bonus=_defense_power_bonus(
+                    state,
+                    defender,
+                    defense_ai,
+                    attack_ai,
+                    field_index=defense_index,
+                    attack_power_bonus=attack_bonus,
+                ),
+                attack_power_bonus=attack_bonus,
+            ):
+                hand_defense_index = None
+            else:
+                defense_index = None
     defense_ai_id = None
     firewall_discarded_card = None
     block_pressure_discarded_card = None
@@ -870,7 +889,24 @@ def _attack(state: GameState, action: Action) -> None:
             else:
                 defender.spent_field_ai.add(defense_index)
         else:
-            # The phase-1 automated player should not choose this, but the engine supports it.
+            if draws_on_successful_defense(defense_ai):
+                defense_draw_count = defender.draw(1, state.rng)
+                state.stats.record_card_usage(defense_ai.id, "defense_draw")
+            if recovers_ai_on_successful_defense(defense_ai):
+                recover_index = _highest_power_ai_in_discard(defender)
+                if recover_index is not None:
+                    recovered = defender.discard.pop(recover_index)
+                    defender.hand.append(recovered)
+                    defense_recovered_ai = recovered.id
+                    defense_echo_urn_draw_count = _apply_echo_urn_draw(state, defender)
+                    state.stats.record_card_usage(defense_ai.id, "defense_recover")
+            if (
+                defender.memory is not None
+                and defender.memory.effect == MemoryEffect.TIDAL_MIRROR.value
+            ):
+                tidal_mirror_draw_count = defender.draw(1, state.rng)
+                if tidal_mirror_draw_count:
+                    state.stats.record_card_usage(defender.memory.id, "defense_draw")
             lost_cards = _remove_field_stack(defender, defense_index)
             lost_ai = lost_cards[0]
             defender.discard.extend(lost_cards)

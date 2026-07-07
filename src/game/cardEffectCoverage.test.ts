@@ -309,12 +309,20 @@ const CARD_EFFECT_CASES = {
     },
   },
   draw_on_successful_defense: {
-    cardId: "AI-EARTH-4B",
-    description: "場防御成功時ドロー対象になる",
+    cardId: "AI-EARTH-1B",
+    description: "場防御時ドロー対象になる",
     run: () => {
-      const target = card("AI-EARTH-4B");
+      const target = card("AI-EARTH-1B");
       expect(drawsOnSuccessfulDefense(target)).toBe(true);
       expect(entersSpentOnPlay(target)).toBe(false);
+      const game = blankGame();
+      game.players[1].field = [card("AI-FIRE-2")];
+      game.players[0].field = [target];
+      game.players[0].deck = [card("AI-WATER-1")];
+      game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
+      resolveDefenseInDraft(game, { type: "field", index: 0 }, {});
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-WATER-1"]);
+      expect(game.players[0].field).toHaveLength(0);
     },
   },
   charge_pressure: {
@@ -806,15 +814,17 @@ const CARD_EFFECT_CASES = {
   },
   recover_ai_on_successful_defense: {
     cardId: "AI-EARTH-1D",
-    description: "場防御成功時にトラッシュの召喚獣を手札に戻す",
+    description: "場防御時にトラッシュの召喚獣を手札に戻す",
     run: () => {
       const game = blankGame();
-      game.players[1].field = [card("AI-FIRE-1")];
+      game.players[1].field = [card("AI-FIRE-2")];
       game.players[0].field = [card("AI-EARTH-1D")];
       game.players[0].discard = [card("AI-WATER-3")];
+      game.players[0].deck = [];
       game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
       resolveDefenseInDraft(game, { type: "field", index: 0 }, {});
       expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-WATER-3"]);
+      expect(game.players[0].field).toHaveLength(0);
     },
   },
   discard_commands_attack_plus_1: {
@@ -833,7 +843,7 @@ const CARD_EFFECT_CASES = {
   },
   draw_on_play_defense_draw: {
     cardId: "AI-WATER-2D",
-    description: "登場時ドローと場防御成功時ドローの両方を持つ",
+    description: "登場時ドローと場防御時ドローの両方を持つ",
     run: () => {
       const game = blankGame();
       game.players[0].deck = [card("AI-FIRE-1")];
@@ -1136,16 +1146,17 @@ const CARD_EFFECT_CASES = {
   },
   tidal_mirror: {
     cardId: "MEM-TIDAL-MIRROR",
-    description: "自分の召喚獣が場防御に成功した時に1枚引く",
+    description: "自分の召喚獣が場防御した時に1枚引く",
     run: () => {
       const game = blankGame();
       game.players[0].memory = card("MEM-TIDAL-MIRROR");
-      game.players[0].field = [card("AI-EARTH-2")];
+      game.players[0].field = [card("AI-EARTH-1")];
       game.players[0].deck = [card("AI-WATER-1")];
-      game.players[1].field = [card("AI-FIRE-1")];
+      game.players[1].field = [card("AI-FIRE-2")];
       game.pendingAttack = { attackerIndex: 1, defenderIndex: 0, fieldIndex: 0 };
       resolveDefenseInDraft(game, { type: "field", index: 0 }, {});
       expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-WATER-1"]);
+      expect(game.players[0].field).toHaveLength(0);
     },
   },
   dual_banner: {

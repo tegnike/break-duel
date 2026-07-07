@@ -1,8 +1,42 @@
 # Break Duel バランス履歴
 
-最終更新: 2026-07-06
+最終更新: 2026-07-07
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
+
+## 2026-07-07 場防御時効果の失敗場防御対応: 採用
+
+### 背景
+
+`場防御成功時` の効果は、特に power 1 召喚獣では「攻撃を止められる場面が少なく、カード効果として機能しづらい」というレビューがあった。プレイヤー向けには、場の召喚獣を差し出してでも1ドロー/回収する判断を作る方が分かりやすいため、条件を `場防御時` に変更した。
+
+### 採用変更 / 変更内容
+
+Python/TypeScript 両方で、場防御は防御値不足でも選択可能に変更。防御値不足の場合、防御召喚獣はトラッシュされ、攻撃は通り、攻撃召喚獣の power 分ダメージとブレイクドローが発生する。
+
+`場防御時` 効果は防御値不足でも発動する。対象は `AI-EARTH-1B` / `AI-EARTH-2B` / `AI-EARTH-4B` / `AI-EARTH-1D` / `AI-WATER-2D` / `MEM-TIDAL-MIRROR`。一方、`攻撃が防御された時` の攻撃側効果は、攻撃を止めた場合だけ発動する。
+
+### 検証
+
+今回は裁定変更の実装同期と回帰確認のみ。勝率・盛り上がり指標の数値評価は未実施のため、バランス上の優劣は主張しない。
+
+- TypeScript typecheck: pass
+- TypeScript unit: 231 passed
+- Python unittest: 228 passed
+- Vite build: pass
+
+### 判断
+
+採用。1コストの場防御時効果が「止められる時だけ」ではなく「場の召喚獣を差し出して資源化する」役割を持つようになり、カード本文とプレイ判断が一致する。
+
+### 検証コマンド
+
+```bash
+PATH="/Users/user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH" node node_modules/typescript/bin/tsc --noEmit
+PATH="/Users/user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH" node node_modules/vitest/vitest.mjs run
+python3 -m unittest
+PATH="/Users/user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH" node node_modules/vite/bin/vite.js build
+```
 
 ## 2026-07-06 ユーザーレビュー反映13件のカード効果修正後の再検証: 採用（現状維持）
 

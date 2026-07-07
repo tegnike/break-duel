@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { CARD_BY_ID, cloneCard, createGame, type Card } from "../game";
+import { addTurnFieldAttackBonus, CARD_BY_ID, cloneCard, createGame, type Card } from "../game";
 import { CardView } from "./CardView";
 
 function card(id: string): Card {
@@ -18,6 +18,24 @@ describe("CardView", () => {
 
     expect(html).toContain("aria-label=\"戦闘時、攻撃値 +1\"");
     expect(html).toContain("<b>+1</b>");
+  });
+
+  it("shows a temporary attack bonus badge on tide-edge buffed field cards", () => {
+    const attacker = card("AI-WATER-2");
+    const game = createGame(
+      1,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-WATER-2"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-FIRE-1"] },
+    );
+    game.players[0].field = [attacker];
+    addTurnFieldAttackBonus(game.players[0], 0, 2);
+
+    const html = renderToStaticMarkup(
+      <CardView card={attacker} ownerIndex={0} zone="field" index={0} game={game} showCost={false} />,
+    );
+
+    expect(html).toContain("aria-label=\"戦闘時、攻撃値 +2\"");
+    expect(html).toContain("<b>+2</b>");
   });
 
   it("does not show attack or defense bonus badges while the card is in hand", () => {
@@ -62,6 +80,24 @@ describe("CardView", () => {
     expect(html).toContain("<b>+1</b>");
   });
 
+  it("shows Dolmo's conditional field defense badge while its owner has a memory", () => {
+    const defender = card("AI-EARTH-2D");
+    const game = createGame(
+      1,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-EARTH-2D"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-FIRE-1"] },
+    );
+    game.players[0].field = [defender];
+    game.players[0].memory = card("MEM-CACHE");
+
+    const html = renderToStaticMarkup(
+      <CardView card={defender} ownerIndex={0} zone="field" index={0} game={game} showCost={false} />,
+    );
+
+    expect(html).toContain("aria-label=\"場防御値 +2\"");
+    expect(html).toContain("<b>+2</b>");
+  });
+
   it("stacks charge guard with the card's own field defense bonus", () => {
     const defender = card("AI-EARTH-2");
     const game = createGame(
@@ -87,6 +123,16 @@ describe("CardView", () => {
     );
 
     expect(html).not.toContain(">1A</span>");
+  });
+
+  it("can hide the card set badge for in-duel card faces", () => {
+    const target = card("AI-FIRE-1");
+    const html = renderToStaticMarkup(
+      <CardView card={target} ownerIndex={0} zone="field" index={0} showCost={false} showSetBadge={false} />,
+    );
+
+    expect(html).not.toContain("card-set-badge");
+    expect(html).not.toContain("1弾");
   });
 
   it("does not render action-state or spent text badges on the card face", () => {

@@ -97,6 +97,7 @@ export function DiscardModal({ game, onClose, onSelect }: { game: GameState; onC
                   selected={pending ? pending.selectedIndexes.includes(index) : selectedIndex === index}
                   selectable={!pending || !pending.excludeIndexes.includes(index)}
                   showCost={false}
+                  showSetBadge={false}
                   actionState={pending && pending.excludeIndexes.includes(index) ? "idle" : "usable"}
                   onClick={pending?.excludeIndexes.includes(index) ? undefined : () => onSelect(index)}
                 />

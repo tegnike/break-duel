@@ -5,6 +5,7 @@ import {
   DECKS,
   type AiAction,
   type AiProfile,
+  type AttackContext,
   type DefenseChoice,
   type Card,
   type DeckId,
@@ -18,7 +19,6 @@ import {
   bestUpgradeSource,
   canActivePlayerAttack,
   canChargeCard,
-  canDefendWithOptionalFirewall,
   canHumanAct,
   canHumanEndTurn,
   canUseAcceleratorMemory,
@@ -318,7 +318,7 @@ type CombatPreview = {
   attackerIndex: number;
   attackValue: number;
   fieldDefenses: Map<number, {
-    result: "trade" | "hold";
+    result: "fail" | "trade" | "hold";
     label: string;
   }>;
   handDefenseCount: number;
@@ -1182,15 +1182,19 @@ export default function App() {
     const defender = game.players[defenderIndex];
     const attackCard = attacker?.field[fieldIndex];
     if (!attacker || !defender || !attackCard) return;
+    const attackContext: AttackContext = { attacker, attackerFieldIndex: fieldIndex };
     if (choice.type === "field") {
       const defenseCard = defender.field[choice.index];
-      if (!defenseCard || !canDefendWithOptionalFirewall(attackCard, defenseCard, defender, choice.index)) return;
-      if (defender.isHuman && needsFirewallFuel(defender, defenseCard, attackCard, choice.index) && choice.firewallDiscardIndex === undefined) return;
-      launchTrashFlight(attackCard, { ownerIndex: attackerIndex, zone: "field", index: fieldIndex }, attackerIndex, "攻撃札退場", 760);
+      if (!defenseCard || !legalFieldDefenders(defender, attackCard, attackContext).some((option) => option.index === choice.index)) return;
+      if (defender.isHuman && needsFirewallFuel(defender, defenseCard, attackCard, choice.index, attackContext) && choice.firewallDiscardIndex === undefined) return;
       const firewallPaid = typeof choice.firewallDiscardIndex === "number";
-      const isTrade = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid, fieldIndex: choice.index }) === attackCombatValue(attackCard);
-      if (isTrade) {
-        launchTrashFlight(defenseCard, { ownerIndex: defenderIndex, zone: "field", index: choice.index }, defenderIndex, "相打ち", 760);
+      const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid, fieldIndex: choice.index, attackContext });
+      const attackValue = attackCombatValue(attackCard, attackContext);
+      if (defenseValue >= attackValue) {
+        launchTrashFlight(attackCard, { ownerIndex: attackerIndex, zone: "field", index: fieldIndex }, attackerIndex, "攻撃札退場", 760);
+      }
+      if (defenseValue <= attackValue) {
+        launchTrashFlight(defenseCard, { ownerIndex: defenderIndex, zone: "field", index: choice.index }, defenderIndex, defenseValue === attackValue ? "相打ち" : "防御失敗", 760);
       }
       return;
     }
@@ -1990,7 +1994,7 @@ export default function App() {
       }
       const attacker = game.players[0].field[pending.sourceIndex];
       if (!attacker) return;
-      if (!strikeTargets(attacker, game.players[1]).some((target) => target.index === index)) return;
+      if (!strikeTargets(attacker, game.players[1], { attacker: game.players[0], attackerFieldIndex: pending.sourceIndex }).some((target) => target.index === index)) return;
       performStrike(pending.sourceIndex, index);
       return;
     }
@@ -2524,7 +2528,7 @@ export default function App() {
     if (tutorialBlocks("attack")) return;
     const fieldIndex = game.selected.index;
     const attackCard = game.players[0].field[fieldIndex];
-    if ((!tutorialStep || tutorialStep.id === "strike-monster") && CONFIG.monsterCombat && attackCard && strikeTargets(attackCard, game.players[1]).length > 0) {
+    if ((!tutorialStep || tutorialStep.id === "strike-monster") && CONFIG.monsterCombat && attackCard && strikeTargets(attackCard, game.players[1], { attacker: game.players[0], attackerFieldIndex: fieldIndex }).length > 0) {
       mutate((draft) => {
         draft.pendingTarget = { kind: "strike", sourceIndex: fieldIndex };
       });
@@ -3424,6 +3428,7 @@ export default function App() {
                 game={game}
                 visualEffect={tutorialFocusMatchesCard(tutorialStep?.focus, 0, "hand", card, index) ? "tutorial-focus" : ""}
                 showCost={false}
+                showSetBadge={false}
                 onClick={handSelectable ? () => selectHand(index) : undefined}
                 onMouseEnter={() => playSfx("hover")}
               />
@@ -3958,6 +3963,7 @@ function TrashPileButton({
               zone="discard"
               index={Math.max(0, player.discard.length - 1)}
               showCost={false}
+              showSetBadge={false}
             />
           </span>
         ) : (
@@ -3981,10 +3987,11 @@ function combatPreviewForSelection(game: GameState): CombatPreview | null {
   if (!attacker || attacker.type !== "ai") return null;
   if (!canHumanAct(game) || !canActivePlayerAttack(game) || human.spentFieldIndexes.has(selected.index)) return null;
 
-  const attackValue = attackCombatValue(attacker);
-  const fieldDefenses = new Map<number, { result: "trade" | "hold"; label: string }>();
-  legalFieldDefenders(defender, attacker).forEach(({ card, index }) => {
-    const defenseOptions = { fieldDefense: true, fieldIndex: index };
+  const attackContext: AttackContext = { attacker: human, attackerFieldIndex: selected.index };
+  const attackValue = attackCombatValue(attacker, attackContext);
+  const fieldDefenses = new Map<number, { result: "fail" | "trade" | "hold"; label: string }>();
+  legalFieldDefenders(defender, attacker, attackContext).forEach(({ card, index }) => {
+    const defenseOptions = { fieldDefense: true, fieldIndex: index, attackContext };
     const baseDefenseValue = defenseCombatValue(attacker, card, defender, defenseOptions);
     const paidDefenseValue = canUseFirewall(defender, card, attacker)
       ? defenseCombatValue(attacker, card, defender, { ...defenseOptions, firewallPaid: true })
@@ -3992,7 +3999,10 @@ function combatPreviewForSelection(game: GameState): CombatPreview | null {
     const usesFirewall = baseDefenseValue < attackValue && paidDefenseValue >= attackValue;
     const defenseValue = usesFirewall ? paidDefenseValue : baseDefenseValue;
     const defenseLabel = usesFirewall ? `竜盾 ${defenseValue}` : `DEF ${defenseValue}`;
-    fieldDefenses.set(index, {
+    fieldDefenses.set(index, defenseValue < attackValue ? {
+      result: "fail",
+      label: `${defenseLabel} / 失敗`,
+    } : {
       result: defenseValue > attackValue ? "hold" : "trade",
       label: defenseValue > attackValue ? `${defenseLabel} / 残る` : `${defenseLabel} / 相打ち`,
     });
@@ -4002,7 +4012,7 @@ function combatPreviewForSelection(game: GameState): CombatPreview | null {
     attackerIndex: selected.index,
     attackValue,
     fieldDefenses,
-    handDefenseCount: legalHandDefenders(defender, attacker).length,
+    handDefenseCount: legalHandDefenders(defender, attacker, attackContext).length,
     direct: fieldDefenses.size === 0,
   };
 }
@@ -4045,12 +4055,13 @@ function FieldGrid({
           && ownerIndex === 1 - game.active
           && player.spentFieldIndexes.has(index);
         const strikePending = game.pendingTarget?.kind === "strike" ? game.pendingTarget : null;
-        const strikeAttacker = strikePending ? game.players[game.active]?.field[strikePending.sourceIndex] : null;
+        const strikePlayer = strikePending ? game.players[game.active] : null;
+        const strikeAttacker = strikePending && strikePlayer ? strikePlayer.field[strikePending.sourceIndex] : null;
         const isStrikeTarget = Boolean(
           strikePending
             && ownerIndex === 1 - game.active
             && strikeAttacker
-            && strikeTargets(strikeAttacker, player).some((target) => target.index === index),
+            && strikeTargets(strikeAttacker, player, { attacker: strikePlayer, attackerFieldIndex: strikePending.sourceIndex }).some((target) => target.index === index),
         );
         const pendingCardTarget = pendingTargetCardState(game, ownerIndex, "field", index);
         const isSelected = game.selected?.zone === "field"
@@ -4080,6 +4091,7 @@ function FieldGrid({
             extraBadges={defensePreview ? [defensePreview.label] : isAttackerPreview ? [`ATK ${combatPreview.attackValue}`] : []}
             game={game}
             showCost={false}
+            showSetBadge={false}
             onClick={fieldSelectable ? () => onSelectField(ownerIndex, index) : undefined}
           />
         );
@@ -4118,6 +4130,7 @@ function MemorySlot({
         actionState={ownerIndex === 0 && canUseAcceleratorMemory(game, player) ? "usable" : "idle"}
         visualEffect={trashSurge ? "trash-alert" : ""}
         showCost={false}
+        showSetBadge={false}
         onClick={tutorialLocked ? undefined : () => onSelectMemory(ownerIndex)}
       />
     );
@@ -4215,7 +4228,7 @@ function CardFlightLayer({ flight }: { flight: CardFlight | null }) {
           <img src={cardBackImage} alt="" draggable={false} />
         </div>
       ) : (
-        flight.card && <CardView card={flight.card} ownerIndex={flight.tone === "ai" ? 1 : 0} zone="hand" index={0} showCost={false} />
+        flight.card && <CardView card={flight.card} ownerIndex={flight.tone === "ai" ? 1 : 0} zone="hand" index={0} showCost={false} showSetBadge={false} />
       )}
     </div>
   );
