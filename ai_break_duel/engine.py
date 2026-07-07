@@ -614,6 +614,68 @@ def choose_strike_hand_defender(
     return index
 
 
+def choose_strike_field_defender(
+    state: GameState,
+    attack_ai,
+    defender: PlayerState,
+    target_index: int,
+    *,
+    attacker: PlayerState | None = None,
+    attacker_field_index: int | None = None,
+) -> int | None:
+    """検証用: モンスター攻撃を場の別召喚獣でかばう自動防御判断。"""
+    mode = state.config.hand_defense_vs_strike
+    if mode not in ("eager", "value"):
+        return None
+    attack_bonus = (
+        turn_attack_bonus(attacker, attacker_field_index)
+        + conditional_attack_bonus(attack_ai, attacker.discard if attacker is not None else None)
+    )
+    attack_value = attack_combat_value(attack_ai, attack_power_bonus=attack_bonus)
+    candidates = []
+    for index, card in enumerate(defender.field_ai):
+        if index == target_index:
+            continue
+        if not state.config.exhausted_ai_can_defend and index in defender.spent_field_ai:
+            continue
+        if state.config.power_3_cannot_field_defend and card.power == 3:
+            continue
+        defense_value = defense_combat_value(
+            attack_ai,
+            card,
+            advantage_bonus=state.config.defense_advantage_bonus,
+            disadvantage_penalty=state.config.defense_disadvantage_penalty,
+            defense_power_bonus=_defense_power_bonus(
+                state,
+                defender,
+                card,
+                attack_ai,
+                field_index=index,
+                attack_power_bonus=attack_bonus,
+            ),
+        )
+        candidates.append((index, card, defense_value))
+    if not candidates:
+        return None
+    best = min(
+        candidates,
+        key=lambda item: (
+            0 if item[2] >= attack_value else 1,
+            item[1].power or 0,
+            item[1].id,
+        ),
+    )
+    if mode == "value":
+        stacks = _ensure_field_stacks(defender)
+        target_cards = [defender.field_ai[target_index], *stacks[target_index]]
+        saved_power = sum(int(card.power or 1) for card in target_cards)
+        blocker_cards = [best[1], *stacks[best[0]]]
+        blocker_power = sum(int(card.power or 1) for card in blocker_cards)
+        if saved_power < blocker_power:
+            return None
+    return best[0]
+
+
 def _strike(state: GameState, action: Action) -> None:
     attacker = state.active()
     defender = state.opponent()
@@ -636,7 +698,15 @@ def _strike(state: GameState, action: Action) -> None:
     if attack_value < defense_value:
         raise ValueError("Strike target is too sturdy.")
 
-    hand_defense_index = choose_strike_hand_defender(
+    field_defense_index = choose_strike_field_defender(
+        state,
+        attack_ai,
+        defender,
+        action.target_index,
+        attacker=attacker,
+        attacker_field_index=action.source_index,
+    )
+    hand_defense_index = None if field_defense_index is not None else choose_strike_hand_defender(
         state,
         attack_ai,
         defender,
@@ -652,6 +722,100 @@ def _strike(state: GameState, action: Action) -> None:
         attacker.spent_field_ai.add(action.source_index)
         if state.config.power_3_attack_recovery_delay and attack_ai.power == 3:
             attacker.power_3_recovery_delayed_field_ai.add(action.source_index)
+
+    if field_defense_index is not None:
+        defense_ai = defender.field_ai[field_defense_index]
+        defense_bonus = _defense_power_bonus(
+            state,
+            defender,
+            defense_ai,
+            attack_ai,
+            field_index=field_defense_index,
+            attack_power_bonus=turn_attack_bonus(attacker, action.source_index)
+            + conditional_attack_bonus(attack_ai, attacker.discard),
+        )
+        strike_attack_value = attack_combat_value(
+            attack_ai,
+            attack_power_bonus=turn_attack_bonus(attacker, action.source_index)
+            + conditional_attack_bonus(attack_ai, attacker.discard),
+        )
+        strike_defense_value = defense_combat_value(
+            attack_ai,
+            defense_ai,
+            advantage_bonus=state.config.defense_advantage_bonus,
+            disadvantage_penalty=state.config.defense_disadvantage_penalty,
+            defense_power_bonus=defense_bonus,
+        )
+        blocked = strike_defense_value >= strike_attack_value
+        trade = strike_defense_value == strike_attack_value
+        if blocked:
+            state.stats.successful_defenses += 1
+            state.stats.record_card_usage(defense_ai.id, "field_defended_strike")
+            defense_result = "success_trade" if trade else "success"
+        else:
+            state.stats.failed_defenses += 1
+            state.stats.record_card_usage(defense_ai.id, "field_defended_strike_failed")
+            defense_result = "partial_failed"
+        if draws_on_successful_defense(defense_ai):
+            defender.draw(1, state.rng)
+            state.stats.record_card_usage(defense_ai.id, "defense_draw")
+        if recovers_ai_on_successful_defense(defense_ai):
+            recover_index = _highest_power_ai_in_discard(defender)
+            if recover_index is not None:
+                recovered = defender.discard.pop(recover_index)
+                defender.hand.append(recovered)
+                state.stats.record_card_usage(defense_ai.id, "defense_recover")
+                _apply_echo_urn_draw(state, defender)
+        if (
+            defender.memory is not None
+            and defender.memory.effect == MemoryEffect.TIDAL_MIRROR.value
+        ):
+            if defender.draw(1, state.rng):
+                state.stats.record_card_usage(defender.memory.id, "defense_draw")
+        if blocked and pressures_on_block(attack_ai):
+            discarded = _discard_low_priority_cards(defender, 1)
+            if discarded:
+                state.stats.record_card_usage(attack_ai.id, "block_pressure")
+        if blocked and draws_on_blocked_attack(attack_ai):
+            attacker.draw(1, state.rng)
+            state.stats.record_card_usage(attack_ai.id, "blocked_attack_draw")
+        if blocked:
+            attacker_lost = _remove_field_stack(attacker, action.source_index)
+            attacker.discard.extend(attacker_lost)
+            attacker.ai_lost += len(attacker_lost)
+            attacker_lost_ids = [card.id for card in attacker_lost]
+            if trade:
+                defender_lost = _remove_field_stack(defender, field_defense_index)
+                defender.discard.extend(defender_lost)
+                defender.ai_lost += len(defender_lost)
+            else:
+                defender.spent_field_ai.add(field_defense_index)
+        else:
+            defender_lost = _remove_field_stack(defender, field_defense_index)
+            defender.discard.extend(defender_lost)
+            defender.ai_lost += len(defender_lost)
+            attacker_lost_ids = []
+        overheat = (
+            {"overheated": False, "sandbox_command_used": None, "overheat_draw_count": 0}
+            if blocked
+            else _overheat_attacker_after_attack(state, attacker, action.source_index, attack_ai)
+        )
+        state.log.append(
+            _action_log_base(state, action)
+            | {
+                "result": "strike",
+                "attack_ai": attack_ai.id,
+                "strike_target": target.id,
+                "trade": trade if blocked else False,
+                "field_defense_ai": defense_ai.id,
+                "defense_result": defense_result,
+                "attacker_lost": attacker_lost_ids,
+                "attacker_overheated": overheat["overheated"],
+                "life": [player.life for player in state.players],
+                "field": _field_state(state),
+            }
+        )
+        return
 
     if hand_defense_index is not None:
         defense_ai = defender.hand.pop(hand_defense_index)

@@ -39,6 +39,7 @@ import {
   highestPowerSpentAiByAttribute,
   legalFieldDefenders,
   legalHandDefenders,
+  legalStrikeFieldDefenders,
   makeRng,
   needsFirewallFuel,
   opponentPlayer,
@@ -1195,7 +1196,10 @@ export default function App() {
     const attackContext: AttackContext = { attacker, attackerFieldIndex: fieldIndex };
     if (choice.type === "field") {
       const defenseCard = defender.field[choice.index];
-      if (!defenseCard || !legalFieldDefenders(defender, attackCard, attackContext).some((option) => option.index === choice.index)) return;
+      const fieldOptions = game.pendingAttack?.strikeTargetIndex !== undefined
+        ? legalStrikeFieldDefenders(defender, attackCard, game.pendingAttack.strikeTargetIndex, attackContext)
+        : legalFieldDefenders(defender, attackCard, attackContext);
+      if (!defenseCard || !fieldOptions.some((option) => option.index === choice.index)) return;
       if (defender.isHuman && needsFirewallFuel(defender, defenseCard, attackCard, choice.index, attackContext) && choice.firewallDiscardIndex === undefined) return;
       const firewallPaid = typeof choice.firewallDiscardIndex === "number";
       const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, { firewallPaid, fieldIndex: choice.index, attackContext });

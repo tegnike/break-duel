@@ -1545,6 +1545,11 @@ export function legalFieldDefenders(defender: PlayerState, attackCard: Card, att
     .filter(({ card, index }) => canAttemptFieldDefense(card, defender, index));
 }
 
+export function legalStrikeFieldDefenders(defender: PlayerState, attackCard: Card, targetIndex: number, attackContext?: AttackContext): { card: Card; index: number }[] {
+  return legalFieldDefenders(defender, attackCard, attackContext)
+    .filter(({ index }) => index !== targetIndex);
+}
+
 export function successfulFieldDefenders(defender: PlayerState, attackCard: Card, attackContext?: AttackContext): { card: Card; index: number }[] {
   return legalFieldDefenders(defender, attackCard, attackContext)
     .filter(({ card, index }) => canDefendWithOptionalFirewall(attackCard, card, defender, index, attackContext));
@@ -1823,6 +1828,35 @@ export function chooseStrikeHandDefense(defender: PlayerState, attackCard: Card,
     const savedPower = (defender.field[targetIndex]?.power || 1)
       + stack.reduce((sum, card) => sum + (card.power || 1), 0);
     if (savedPower < (best.card.power || 1)) return null;
+  }
+  return best.index;
+}
+
+export function chooseStrikeFieldDefense(defender: PlayerState, attackCard: Card, targetIndex: number, attackContext?: AttackContext): number | null {
+  const mode = CONFIG.handDefenseVsStrike;
+  if (mode !== "eager" && mode !== "value") return null;
+  const options = legalStrikeFieldDefenders(defender, attackCard, targetIndex, attackContext);
+  if (options.length === 0) return null;
+  const ranked = [...options].sort((a, b) => {
+    const aValue = defenseCombatValue(attackCard, a.card, defender, { fieldDefense: true, fieldIndex: a.index, attackContext });
+    const bValue = defenseCombatValue(attackCard, b.card, defender, { fieldDefense: true, fieldIndex: b.index, attackContext });
+    const attackValue = attackCombatValue(attackCard, attackContext);
+    const aBlocks = aValue >= attackValue ? 0 : 1;
+    const bBlocks = bValue >= attackValue ? 0 : 1;
+    return aBlocks - bBlocks
+      || (a.card.power ?? 0) - (b.card.power ?? 0)
+      || a.card.id.localeCompare(b.card.id);
+  });
+  const best = ranked[0];
+  if (!best) return null;
+  if (mode === "value") {
+    const stack = defender.fieldStacks?.[targetIndex] ?? [];
+    const savedPower = (defender.field[targetIndex]?.power || 1)
+      + stack.reduce((sum, card) => sum + (card.power || 1), 0);
+    const blockerStack = defender.fieldStacks?.[best.index] ?? [];
+    const blockerPower = (best.card.power || 1)
+      + blockerStack.reduce((sum, card) => sum + (card.power || 1), 0);
+    if (savedPower < blockerPower) return null;
   }
   return best.index;
 }

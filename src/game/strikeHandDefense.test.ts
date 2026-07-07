@@ -4,6 +4,7 @@ import {
   CONFIG,
   type Card,
   type GameState,
+  chooseStrikeFieldDefense,
   chooseStrikeHandDefense,
   cloneCard,
   createGame,
@@ -34,6 +35,20 @@ function setupGame(): GameState {
 }
 
 describe("モンスター攻撃への手札防御", () => {
+  it("CPU防御側はvalue基準で価値のある対象を場防御でかばう", () => {
+    const game = setupGame();
+    game.players[0].field = [card("AI-WATER-4")];
+    game.players[1].field = [card("AI-WIND-3"), card("AI-WATER-4")];
+    game.players[1].fieldStacks = [[card("AI-WIND-2")], []];
+
+    strikeInDraft(game, 0, 0, 0);
+
+    expect(game.players[1].field.map((item) => item.id)).toEqual(["AI-WIND-3"]);
+    expect(game.players[1].discard.map((item) => item.id)).toEqual(["AI-WATER-4"]);
+    expect(game.players[0].field).toEqual([]);
+    expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-WATER-4"]);
+  });
+
   it("CPU防御側はvalue基準で価値のあるスタックを手札防御で守る", () => {
     const game = setupGame();
     game.players[0].field = [card("AI-WATER-4")];
@@ -130,7 +145,7 @@ describe("モンスター攻撃への手札防御", () => {
     expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-WATER-4"]);
   });
 
-  it("モンスター攻撃の保留中は場防御を選べない", () => {
+  it("人間防御側は場の別召喚獣で対象をかばえる", () => {
     const game = setupGame();
     game.active = 1;
     game.players[1].field = [card("AI-WATER-4")];
@@ -142,9 +157,48 @@ describe("モンスター攻撃への手札防御", () => {
 
     resolveDefenseInDraft(game, { type: "field", index: 1 });
 
-    // 場防御は無効なので保留のまま
+    expect(game.pendingAttack).toBeNull();
+    expect(game.players[0].field.map((item) => item.id)).toEqual(["AI-WIND-3"]);
+    expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-EARTH-2"]);
+    expect(game.players[1].field).toEqual([]);
+    expect(game.players[1].hand.map((item) => item.id)).toEqual(["AI-WATER-4"]);
+    expect(game.players[1].discard).toEqual([]);
+  });
+
+  it("場の別召喚獣でかばって防御失敗しても場防御時効果は発動する", () => {
+    const game = setupGame();
+    game.active = 1;
+    game.players[1].field = [card("AI-WATER-4")];
+    game.players[0].field = [card("AI-WIND-3"), card("AI-EARTH-1B")];
+    game.players[0].fieldStacks = [[card("AI-WIND-2")], []];
+    game.players[0].deck = [card("AI-FIRE-1")];
+
+    strikeInDraft(game, 1, 0, 0);
+    expect(game.pendingAttack?.strikeTargetIndex).toBe(0);
+
+    resolveDefenseInDraft(game, { type: "field", index: 1 });
+
+    expect(game.pendingAttack).toBeNull();
+    expect(game.players[0].field.map((item) => item.id)).toEqual(["AI-WIND-3"]);
+    expect(game.players[0].discard.map((item) => item.id)).toEqual(["AI-EARTH-1B"]);
+    expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+    expect(game.players[0].life).toBe(8);
+  });
+
+  it("モンスター攻撃の対象自身は場防御に選べない", () => {
+    const game = setupGame();
+    game.active = 1;
+    game.players[1].field = [card("AI-WATER-4")];
+    game.players[0].field = [card("AI-WIND-3"), card("AI-EARTH-2")];
+
+    strikeInDraft(game, 1, 0, 0);
+    expect(game.pendingAttack?.strikeTargetIndex).toBe(0);
+
+    resolveDefenseInDraft(game, { type: "field", index: 0 });
+
     expect(game.pendingAttack).not.toBeNull();
-    expect(game.players[0].field.length).toBe(2);
+    expect(game.players[0].field.map((item) => item.id)).toEqual(["AI-WIND-3", "AI-EARTH-2"]);
+    expect(game.players[0].discard).toEqual([]);
   });
 
   it("chooseStrikeHandDefenseはモード別に判断する", () => {
@@ -164,5 +218,14 @@ describe("モンスター攻撃への手札防御", () => {
     } finally {
       CONFIG.handDefenseVsStrike = original;
     }
+  });
+
+  it("chooseStrikeFieldDefenseは攻撃対象自身を候補にしない", () => {
+    const game = setupGame();
+    game.players[0].field = [card("AI-WATER-4")];
+    game.players[1].field = [card("AI-WIND-3"), card("AI-WATER-4")];
+    game.players[1].fieldStacks = [[card("AI-WIND-2")], []];
+
+    expect(chooseStrikeFieldDefense(game.players[1], game.players[0].field[0], 0)).toBe(1);
   });
 });
