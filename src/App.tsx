@@ -158,6 +158,8 @@ type CardFlight = {
   tone: "human" | "ai";
   from: FlightRect;
   to: FlightRect;
+  render: FlightRect;
+  stableSize: boolean;
   durationMs: number;
   /** 着地時に属性バースト+属性SFXを出す場合の情報 */
   arrival?: SummonArrival;
@@ -202,6 +204,7 @@ type BreakDrawPulse = {
 };
 
 const AUTO_DISMISS_STORAGE_KEY = "break-duel:auto-dismiss-duel-events";
+const AUDIO_ENABLED_STORAGE_KEY = "break-duel:audio-enabled";
 
 function loadAutoDismissPreference(): boolean {
   if (typeof localStorage === "undefined") return true;
@@ -227,6 +230,24 @@ function saveAutoDismissPreference(value: boolean): void {
   if (typeof localStorage === "undefined") return;
   try {
     localStorage.setItem(AUTO_DISMISS_STORAGE_KEY, value ? "true" : "false");
+  } catch {
+    // storage unavailable
+  }
+}
+
+function loadAudioEnabledPreference(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  try {
+    return localStorage.getItem(AUDIO_ENABLED_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function saveAudioEnabledPreference(value: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(AUDIO_ENABLED_STORAGE_KEY, value ? "true" : "false");
   } catch {
     // storage unavailable
   }
@@ -723,8 +744,8 @@ export default function App() {
       : `Seed ${INITIAL_SEED} / 先攻: あなた / ${CONFIG.maxTurns}手番制限`,
     id: eventId++,
   }));
-  const [audioEnabled, setAudioEnabled] = useState(false);
-  const audioEnabledRef = useRef(false);
+  const [audioEnabled, setAudioEnabled] = useState(() => loadAudioEnabledPreference());
+  const audioEnabledRef = useRef(audioEnabled);
   const audioContext = useRef<AudioContext | null>(null);
   const bgmAudio = useRef<HTMLAudioElement | null>(null);
   const bgmSrc = useRef<string | null>(null);
@@ -1168,6 +1189,8 @@ export default function App() {
           height: 124,
         }
       : rectLike(rawFrom);
+    const renderRect = to.zone === "field" || to.zone === "memory" ? targetRect : fromRect;
+    const stableSize = renderRect === targetRect;
     const flight: CardFlight = {
       id: eventId++,
       card,
@@ -1176,6 +1199,8 @@ export default function App() {
       tone,
       from: fromRect,
       to: targetRect,
+      render: renderRect,
+      stableSize,
       durationMs,
       arrival: arrival ?? undefined,
     };
@@ -2099,6 +2124,7 @@ export default function App() {
     void audio.play().catch(() => {
       audioEnabledRef.current = false;
       setAudioEnabled(false);
+      saveAudioEnabledPreference(false);
       showToast("BGM再生失敗", "ブラウザの音声許可を確認してください");
     });
   }
@@ -2149,6 +2175,7 @@ export default function App() {
     const next = !audioEnabledRef.current;
     audioEnabledRef.current = next;
     setAudioEnabled(next);
+    saveAudioEnabledPreference(next);
     if (next) {
       void ensureAudioContext().resume();
       preloadSfx();
@@ -4428,18 +4455,21 @@ function BreakDrawLayer({ pulse }: { pulse: BreakDrawPulse }) {
 
 function CardFlightLayer({ flight }: { flight: CardFlight | null }) {
   if (!flight) return null;
-  const toX = flight.to.left + (flight.to.width - flight.from.width) / 2;
-  const toY = flight.to.top + (flight.to.height - flight.from.height) / 2;
-  const scale = Math.min(1.08, Math.max(0.76, flight.to.width / flight.from.width));
+  const fromX = flight.from.left + (flight.from.width - flight.render.width) / 2;
+  const fromY = flight.from.top + (flight.from.height - flight.render.height) / 2;
+  const toX = flight.to.left + (flight.to.width - flight.render.width) / 2;
+  const toY = flight.to.top + (flight.to.height - flight.render.height) / 2;
+  const scale = Math.min(1.08, Math.max(0.76, flight.to.width / flight.render.width));
   const auraColor = flight.arrival ? summonAuraColor(flight.arrival) : null;
   const style = {
-    "--from-x": `${flight.from.left}px`,
-    "--from-y": `${flight.from.top}px`,
+    "--from-x": `${fromX}px`,
+    "--from-y": `${fromY}px`,
     "--to-x": `${toX}px`,
     "--to-y": `${toY}px`,
-    "--flight-w": `${flight.from.width}px`,
-    "--flight-h": `${flight.from.height}px`,
+    "--flight-w": `${flight.render.width}px`,
+    "--flight-h": `${flight.render.height}px`,
     "--flight-scale": scale,
+    "--flight-pop-scale": flight.stableSize ? 1 : 1.04,
     "--flight-duration": `${flight.durationMs}ms`,
     ...(auraColor ? { "--aura-color": auraColor } : {}),
   } as CSSProperties;

@@ -172,6 +172,18 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual(state.log[-1]["result"], "forced_loss")
         self.assertEqual(state.log[-1]["losers"], ["player_1"])
 
+    def test_life_damage_clamps_at_zero(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-FIRE-4")]
+        state.players[1].deck = [card("AI-WATER-1")]
+        state.players[1].life = 1
+        start_turn(state)
+
+        apply_action(state, Action(ActionType.ATTACK, 0))
+
+        self.assertEqual(state.players[1].life, 0)
+        self.assertEqual(state.winner, 0)
+
     def test_resource_exhaustion_draws_when_both_players_are_empty(self) -> None:
         state = new_game(1, no_opening_hands())
         for player in state.players:
@@ -871,7 +883,7 @@ class CoreRuleTests(unittest.TestCase):
         state.players[1].hand = [card("AI-EARTH-4B")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
-        self.assertEqual(state.players[1].life, -2)
+        self.assertEqual(state.players[1].life, 0)
         self.assertEqual(state.players[1].hand[0].id, "AI-EARTH-4B")
         self.assertEqual(len(state.players[1].hand), 5)
 
