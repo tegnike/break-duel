@@ -13,6 +13,7 @@ import {
   spendCoins,
 } from "./collection";
 import type { Card } from "./game";
+import { RARITY_LABELS, baseCardRarity } from "./rarity";
 
 // node 環境（localStorage なし）ではメモリフォールバックが使われる。
 // テスト間で状態をリセットするため、残高を読み取ってゼロに寄せる。
@@ -88,6 +89,24 @@ describe("collection", () => {
     const snapshot = loadCollection();
     snapshot["TEST-CARD-C"] = 999;
     expect(ownedCount("TEST-CARD-C")).not.toBe(999);
+  });
+
+});
+
+describe("rarity", () => {
+  it("第1弾カードはレアリティを持たない", () => {
+    const starter: Card = { id: "AI-FIRE-1", name: "スターター", type: "ai", power: 4, effect: "", status: "active" };
+    expect(baseCardRarity(starter)).toBeNull();
+  });
+
+  it("第2弾以降はカード種別とpowerから基本レアリティを導出する", () => {
+    expect(baseCardRarity({ ...set2Card("RARITY-N", "N"), power: 1 })).toBe("n");
+    expect(baseCardRarity(set2Card("RARITY-R", "R"))).toBe("r");
+    expect(baseCardRarity({ ...set2Card("RARITY-SR", "SR"), power: 3 })).toBe("sr");
+    expect(baseCardRarity({ ...set2Card("RARITY-UR", "UR"), power: 4 })).toBe("ur");
+    expect(baseCardRarity({ id: "RARITY-EVENT", name: "術式", type: "event", effect: "optimize", status: "active", set: 2 })).toBe("n");
+    expect(baseCardRarity({ id: "RARITY-MEMORY", name: "遺物", type: "memory", effect: "cache", status: "active", set: 2 })).toBe("r");
+    expect(RARITY_LABELS.ur).toBe("UR");
   });
 });
 

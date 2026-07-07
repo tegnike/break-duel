@@ -1,7 +1,7 @@
 // パック開封の確定演出用 Canvas 2D パーティクルエンジン。
 // 加算合成（lighter）でグロースプライトを重ね、光の蓄積による白飛びを再現する。
 
-export type OmenTheme = "sr" | "sec";
+export type OmenTheme = "sr" | "ur";
 
 type Particle = {
   x: number;
@@ -37,23 +37,23 @@ function makeGlowSprite(inner: string, mid: string): HTMLCanvasElement {
 }
 
 function buildSprites(theme: OmenTheme): SpriteSet {
-  if (theme === "sec") {
-    // パック（残響の胎動）の紫×シアンの結晶カラーに合わせる
+  if (theme === "ur") {
+    // カード種別色と混ざらないよう、URは白銀の高密度グローで表現する
     return {
-      core: makeGlowSprite("rgba(255, 255, 255, 0.95)", "rgba(168, 85, 247, 0.45)"),
+      core: makeGlowSprite("rgba(255, 255, 255, 0.98)", "rgba(226, 232, 240, 0.42)"),
       sparks: [
-        makeGlowSprite("rgba(255, 255, 255, 1)", "rgba(196, 132, 252, 0.55)"),
-        makeGlowSprite("rgba(255, 255, 255, 1)", "rgba(34, 211, 238, 0.5)"),
-        makeGlowSprite("rgba(240, 231, 255, 1)", "rgba(129, 140, 248, 0.5)"),
+        makeGlowSprite("rgba(255, 255, 255, 1)", "rgba(255, 255, 255, 0.52)"),
+        makeGlowSprite("rgba(255, 255, 255, 1)", "rgba(226, 232, 240, 0.48)"),
+        makeGlowSprite("rgba(248, 250, 252, 1)", "rgba(203, 213, 225, 0.42)"),
       ],
     };
   }
   return {
-    core: makeGlowSprite("rgba(255, 250, 235, 0.95)", "rgba(255, 198, 96, 0.42)"),
+    core: makeGlowSprite("rgba(255, 255, 255, 0.94)", "rgba(226, 232, 240, 0.34)"),
     sparks: [
-      makeGlowSprite("rgba(255, 252, 240, 1)", "rgba(255, 206, 112, 0.55)"),
-      makeGlowSprite("rgba(255, 240, 200, 1)", "rgba(245, 158, 11, 0.5)"),
-      makeGlowSprite("rgba(255, 248, 225, 1)", "rgba(255, 176, 32, 0.5)"),
+      makeGlowSprite("rgba(255, 255, 255, 1)", "rgba(248, 250, 252, 0.45)"),
+      makeGlowSprite("rgba(248, 250, 252, 1)", "rgba(226, 232, 240, 0.4)"),
+      makeGlowSprite("rgba(241, 245, 249, 1)", "rgba(203, 213, 225, 0.36)"),
     ],
   };
 }

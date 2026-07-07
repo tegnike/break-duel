@@ -3,39 +3,23 @@ import { activeCardPool, cardSet, type Card } from "../game";
 import { CardView } from "./CardView";
 import { runPackBurst } from "./packParticles";
 import { PACK_COST, addToCollection } from "../collection";
+import { RARITY_LABELS, baseCardRarity, type CardRarity } from "../rarity";
 import cardBackImage from "../assets/card-back.webp";
 import packArtImage from "../assets/pack-set2-echoes.png";
 import brandMark from "../assets/mark.svg";
 
 const PACK_SET_LABEL = "残響の胎動";
 const PACK_SIZE = 5;
-const SR_RATE = 0.4;
-const SECRET_UPGRADE_RATE = 0.25;
+const FIFTH_SLOT_UR_RATE = 0.1;
+const FIFTH_SLOT_SR_RATE = 0.3;
 const TEAR_COMPLETE_THRESHOLD = 0.6;
 const TEAR_SETTLE_MS = 720;
 const TEAR_SETTLE_OMEN_MS = 1750;
 
-type Rarity = "n" | "r" | "sr" | "sec";
 type PackPhase = "sealed" | "torn" | "opened";
-type PackCard = { key: number; card: Card; rarity: Rarity; isNew?: boolean };
-type PackOmen = "none" | "sr" | "sec";
+type PackCard = { key: number; card: Card; rarity: CardRarity; isNew?: boolean };
+type PackOmen = "none" | "sr" | "ur";
 type PlaySfx = (kind: string) => void;
-
-const RARITY_LABELS: Record<Rarity, string> = {
-  n: "N",
-  r: "R",
-  sr: "SR",
-  sec: "SECRET",
-};
-
-function baseRarity(card: Card): Rarity {
-  if (card.type === "ai") {
-    if ((card.power ?? 0) >= 4) return "sr";
-    if ((card.power ?? 0) === 3) return "r";
-    return "n";
-  }
-  return card.type === "memory" ? "r" : "n";
-}
 
 function drawFrom(pool: Card[], usedIds: Set<string>): Card {
   const candidates = pool.filter((card) => !usedIds.has(card.id));
@@ -47,9 +31,10 @@ function drawFrom(pool: Card[], usedIds: Set<string>): Card {
 function rollPack(): PackCard[] {
   // 第2弾パック: 収録は set 2 のカードのみ
   const pool = activeCardPool().filter((card) => cardSet(card) === 2);
-  const commons = pool.filter((card) => baseRarity(card) === "n");
-  const rares = pool.filter((card) => baseRarity(card) === "r");
-  const supers = pool.filter((card) => baseRarity(card) === "sr");
+  const commons = pool.filter((card) => baseCardRarity(card) === "n");
+  const rares = pool.filter((card) => baseCardRarity(card) === "r");
+  const supers = pool.filter((card) => baseCardRarity(card) === "sr");
+  const ultras = pool.filter((card) => baseCardRarity(card) === "ur");
   const usedIds = new Set<string>();
   const cards: PackCard[] = [];
   for (let slot = 0; slot < PACK_SIZE; slot += 1) {
@@ -57,11 +42,15 @@ function rollPack(): PackCard[] {
       cards.push({ key: slot, card: drawFrom(commons, usedIds), rarity: "n" });
     } else if (slot === 3) {
       cards.push({ key: slot, card: drawFrom(rares, usedIds), rarity: "r" });
-    } else if (Math.random() < SR_RATE) {
-      const secret = Math.random() < SECRET_UPGRADE_RATE;
-      cards.push({ key: slot, card: drawFrom(supers, usedIds), rarity: secret ? "sec" : "sr" });
     } else {
-      cards.push({ key: slot, card: drawFrom(rares, usedIds), rarity: "r" });
+      const highRoll = Math.random();
+      if (highRoll < FIFTH_SLOT_UR_RATE) {
+        cards.push({ key: slot, card: drawFrom(ultras, usedIds), rarity: "ur" });
+      } else if (highRoll < FIFTH_SLOT_UR_RATE + FIFTH_SLOT_SR_RATE) {
+        cards.push({ key: slot, card: drawFrom(supers, usedIds), rarity: "sr" });
+      } else {
+        cards.push({ key: slot, card: drawFrom(rares, usedIds), rarity: "r" });
+      }
     }
   }
   return cards;
@@ -73,7 +62,7 @@ function clamp01(value: number): number {
 
 function omenOf(cards: PackCard[] | null): PackOmen {
   if (!cards) return "none";
-  if (cards.some((entry) => entry.rarity === "sec")) return "sec";
+  if (cards.some((entry) => entry.rarity === "ur")) return "ur";
   if (cards.some((entry) => entry.rarity === "sr")) return "sr";
   return "none";
 }
@@ -192,7 +181,7 @@ export function PackOpeningPage({
       next.add(key);
       return next;
     });
-    if (!isFresh || (entry.rarity !== "sr" && entry.rarity !== "sec")) return;
+    if (!isFresh || (entry.rarity !== "sr" && entry.rarity !== "ur")) return;
     // キラカード確定: ステージ暗転 + カード背面からのバースト
     const rarity = entry.rarity;
     setRevealFocus(rarity);
@@ -251,7 +240,7 @@ export function PackOpeningPage({
   const canAfford = coins >= PACK_COST;
   const allFlipped = pack !== null && flippedKeys.size === pack.length;
   const packOmen = omenOf(pack);
-  const bestRarity: Rarity = packOmen === "none" ? "r" : packOmen;
+  const bestRarity: CardRarity = packOmen === "none" ? "r" : packOmen;
   const newCount = pack?.filter((entry) => entry.isNew).length ?? 0;
 
   useEffect(() => {
@@ -371,7 +360,7 @@ export function PackOpeningPage({
                       onMouseEnter={() => playSfx("hover")}
                       aria-label={flipped ? `${entry.card.name}（公開済み）` : `${index + 1} 枚目のカードをめくる`}
                     >
-                      {(entry.rarity === "sr" || entry.rarity === "sec") && (
+                      {(entry.rarity === "sr" || entry.rarity === "ur") && (
                         <span className={`pack-card-rays rays-${entry.rarity}`} aria-hidden="true" />
                       )}
                       <span className="pack-card-inner">
@@ -379,8 +368,8 @@ export function PackOpeningPage({
                           <img src={cardBackImage} alt="" draggable={false} />
                         </span>
                         <span className="pack-card-face pack-card-back">
-                          <CardView card={entry.card} ownerIndex={0} zone="hand" index={index} showCost={false} />
-                          {entry.rarity === "sec" && <span className="pack-holo-overlay" aria-hidden="true" />}
+                          <CardView card={entry.card} ownerIndex={0} zone="hand" index={index} showCost={false} showRarityBadge={false} />
+                          {entry.rarity === "ur" && <span className="pack-holo-overlay" aria-hidden="true" />}
                         </span>
                       </span>
                       <span className={`pack-rarity-chip ${flipped ? "shown" : ""}`}>{RARITY_LABELS[entry.rarity]}</span>
@@ -393,7 +382,7 @@ export function PackOpeningPage({
             {allFlipped ? (
               <div className={`pack-summary best-${bestRarity}`}>
                 <strong>
-                  {bestRarity === "sec" ? "シークレット出現！！" : bestRarity === "sr" ? "スーパーレア確保！" : "開封完了"}
+                  {bestRarity === "ur" ? "ウルトラレア出現！！" : bestRarity === "sr" ? "スーパーレア確保！" : "開封完了"}
                 </strong>
                 <ul className="pack-summary-cards">
                   {pack.map((entry) => (
