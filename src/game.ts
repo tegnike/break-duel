@@ -285,7 +285,7 @@ export const CONFIG = {
   secondPlayerInitialHand: 5,
   actionsPerTurn: 3,
   fieldLimit: 3,
-  maxTurns: 60,
+  maxTurns: 40,
   advantageBonus: 1,
   disadvantagePenalty: 1,
   firstPlayerFirstTurnActions: 1,
@@ -2340,6 +2340,8 @@ const CHALLENGER_WEIGHTS = {
   strikePower4Penalty: 46,
   purgeBase: 40,
   purgeTargetPower: 28,
+  sacrificialFollowupDamage: 80,
+  sacrificialAttackerPenalty: 35,
 };
 const CHALLENGER_SELF_DEFEAT_ATTACK_SCORE = -10000;
 
@@ -2438,7 +2440,6 @@ function boardAiScore(ai: PlayerState, opponent: PlayerState): number {
 function attackAiValue(game: GameState, attacker: Card, attackerFieldIndex: number): number {
   const defender = opponentPlayer(game);
   const attackContext: AttackContext = { attacker: activePlayer(game), attackerFieldIndex };
-  if (hasCrushingFieldDefender(defender, attacker, attackContext)) return CHALLENGER_SELF_DEFEAT_ATTACK_SCORE;
 
   const defense = chooseAiDefense(defender, attacker, "challenger", attackContext);
   let value = CHALLENGER_WEIGHTS.attackPower * attackCombatValue(attacker, attackContext);
@@ -2457,6 +2458,11 @@ function attackAiValue(game: GameState, attacker: Card, attackerFieldIndex: numb
   if (!card) return value + CHALLENGER_WEIGHTS.badAttack;
   const defenseValue = defenseCombatValue(attacker, card, defender, { fieldIndex: defense.index, attackContext });
   const attackValue = attackCombatValue(attacker, attackContext);
+  const crushingDefender = defenseValue > attackValue;
+  const sacrificialFollowupDamage = crushingDefender
+    ? sacrificialFollowupDamageAfterBlock(game, attackerFieldIndex, defense.index)
+    : 0;
+  if (crushingDefender && sacrificialFollowupDamage <= 0) return CHALLENGER_SELF_DEFEAT_ATTACK_SCORE;
   if (defenseValue < attackValue) {
     value += CHALLENGER_WEIGHTS.damage + aiCardValue(card) * 0.2;
     if (defender.life <= attackDamage(attacker)) value += CHALLENGER_WEIGHTS.lethal;
@@ -2466,22 +2472,35 @@ function attackAiValue(game: GameState, attacker: Card, attackerFieldIndex: numb
     return value;
   }
   if (defenseValue === attackValue) value += CHALLENGER_WEIGHTS.tradeAttack + aiCardValue(card) * 0.35;
-  else value += CHALLENGER_WEIGHTS.badAttack;
+  else {
+    value += CHALLENGER_WEIGHTS.badAttack;
+    if (crushingDefender) {
+      value += sacrificialFollowupDamage * CHALLENGER_WEIGHTS.sacrificialFollowupDamage
+        - aiCardValue(attacker) * (CHALLENGER_WEIGHTS.sacrificialAttackerPenalty / 100);
+      if (defender.life <= sacrificialFollowupDamage) value += CHALLENGER_WEIGHTS.lethal;
+    }
+  }
   if (pressuresOnBlock(attacker)) value += CHALLENGER_WEIGHTS.blockedValue;
   if (drawsOnBlockedAttack(attacker)) value += 32;
   if (keepsReadyAfterAttack(attacker)) value += 36;
   return value;
 }
 
-function hasCrushingFieldDefender(defender: PlayerState, attacker: Card, attackContext: AttackContext): boolean {
-  const attackValue = attackCombatValue(attacker, attackContext);
-  return legalFieldDefenders(defender, attacker, attackContext).some(({ card, index }) => {
-    const baseValue = defenseCombatValue(attacker, card, defender, { fieldIndex: index, attackContext });
-    const paidValue = canUseFirewall(defender, card, attacker)
-      ? defenseCombatValue(attacker, card, defender, { firewallPaid: true, fieldIndex: index, attackContext })
-      : baseValue;
-    return Math.max(baseValue, paidValue) > attackValue;
-  });
+function sacrificialFollowupDamageAfterBlock(game: GameState, attackerFieldIndex: number, blockerIndex: number): number {
+  const attacker = activePlayer(game);
+  const defender = opponentPlayer(game);
+  if (game.actionsRemaining < 2) return 0;
+  if (attacker.deck.length > 0 || attacker.hand.length > 0 || defender.deck.length > 0 || defender.hand.length > 0) return 0;
+  if (CONFIG.exhaustedCanDefend) return 0;
+  const remainingReadyDefenders = legalFieldDefenders(defender, defender.field[blockerIndex], { attacker, attackerFieldIndex })
+    .filter(({ index }) => index !== blockerIndex);
+  if (remainingReadyDefenders.length > 0) return 0;
+  const followupDamages = attacker.field
+    .map((card, index) => ({ card, index }))
+    .filter(({ index }) => index !== attackerFieldIndex && !attacker.spentFieldIndexes.has(index))
+    .map(({ card }) => attackDamage(card))
+    .sort((a, b) => b - a);
+  return followupDamages.slice(0, Math.max(0, game.actionsRemaining - 1)).reduce((sum, damage) => sum + damage, 0);
 }
 
 function aiCardValue(card: Card): number {
@@ -2713,7 +2732,10 @@ function hasLiveResources(player: PlayerState): boolean {
 
 export function checkTurnLimit(game: GameState): void {
   if (game.winner !== null || game.draw || game.turn < CONFIG.maxTurns) return;
-  finishByLifeJudgement(game, `${CONFIG.maxTurns}手番に到達したため`);
+  game.actionsRemaining = 0;
+  game.chargedActionsRemaining = 0;
+  game.draw = true;
+  addLog(game, `${CONFIG.maxTurns}手番に到達したため引き分け。`);
 }
 
 export function finishByLifeJudgement(game: GameState, reason: string): void {

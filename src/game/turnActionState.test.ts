@@ -4,6 +4,7 @@ import {
   CONFIG,
   actionsForTurn,
   type Card,
+  checkTurnLimit,
   chooseAiAction,
   chooseAiDefense,
   cloneCard,
@@ -70,6 +71,47 @@ describe("turn action state", () => {
     game.players[1].spentFieldIndexes.clear();
 
     expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
+  });
+
+  it("lets challenger attack to open lethal follow-up when decks and hands are empty", () => {
+    const game = createGame(
+      15,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-EARTH-2D", "MEM-ECHO-URN"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-EARTH-1C", "AI-EARTH-3", "AI-EARTH-1C", "MEM-FIREWALL"] },
+    );
+    game.active = 1;
+    game.turn = 20;
+    game.actionsRemaining = CONFIG.actionsPerTurn;
+    game.chargedActionsRemaining = 0;
+    game.players[0].deck = [];
+    game.players[0].hand = [];
+    game.players[0].field = [card("AI-EARTH-2D")];
+    game.players[0].memory = card("MEM-ECHO-URN");
+    game.players[0].life = 2;
+    game.players[1].deck = [];
+    game.players[1].hand = [];
+    game.players[1].field = [card("AI-EARTH-1C"), card("AI-EARTH-3"), card("AI-EARTH-1C")];
+    game.players[1].memory = card("MEM-FIREWALL");
+    game.players[1].spentFieldIndexes.clear();
+
+    expect(chooseAiAction(game, "challenger").type).toBe("attack");
+  });
+
+  it("draws when the turn limit is reached regardless of life totals", () => {
+    const game = createGame(
+      16,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-FIRE-1"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-WATER-1"] },
+    );
+    game.turn = CONFIG.maxTurns;
+    game.players[0].life = 2;
+    game.players[1].life = 7;
+
+    checkTurnLimit(game);
+
+    expect(game.winner).toBeNull();
+    expect(game.draw).toBe(true);
+    expect(game.log[game.log.length - 1]).toContain(`${CONFIG.maxTurns}手番に到達したため引き分け`);
   });
 
   it("keeps challenger from charging without a follow-up or immediate value", () => {
