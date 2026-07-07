@@ -135,18 +135,25 @@ export function ownedCountForCard(card: Card, owned: Record<string, number> = lo
  * cards はデッキの中身（重複はそのまま複数要素）。
  */
 export function collectionLimitMessages(cards: Card[], owned: Record<string, number>): string[] {
-  const counts = new Map<string, number>();
+  const counts = new Map<string, { count: number; name: string }>();
   for (const card of cards) {
     if (cardSet(card) === 1) continue;
-    counts.set(card.id, (counts.get(card.id) ?? 0) + 1);
+    const current = counts.get(card.id);
+    counts.set(card.id, { count: (current?.count ?? 0) + 1, name: current?.name ?? card.name });
   }
-  const messages: string[] = [];
-  for (const [cardId, count] of counts) {
+  const exceeded: { name: string; have: number }[] = [];
+  for (const [cardId, { count, name }] of counts) {
     const have = owned[cardId] ?? 0;
     if (count > have) {
-      const name = CARD_BY_ID.get(cardId)?.name ?? cardId;
-      messages.push(`${name} は所持 ${have} 枚までしかデッキに入れられません`);
+      exceeded.push({ name: CARD_BY_ID.get(cardId)?.name ?? name, have });
     }
   }
-  return messages;
+  if (exceeded.length === 0) return [];
+  if (exceeded.length === 1) {
+    const [{ name, have }] = exceeded;
+    return [`${name} は所持 ${have} 枚までしかデッキに入れられません`];
+  }
+  const examples = exceeded.slice(0, 3).map(({ name }) => name).join("、");
+  const suffix = exceeded.length > 3 ? `、ほか${exceeded.length - 3}種類` : "";
+  return [`所持枚数を超えるカードが${exceeded.length}種類あります（${examples}${suffix}）`];
 }
