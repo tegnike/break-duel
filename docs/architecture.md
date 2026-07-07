@@ -113,6 +113,26 @@ APEX 候補探索:
 python3 scripts/tune_apex_deck.py --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 810101 --out tmp/apex-tuning.json
 ```
 
+## 開発用ツール（DEV ビルド限定）
+
+いずれも `import.meta.env.DEV` でガードされており、本番ビルドには含まれません。
+
+URL パラメータ:
+
+- `/duel?devScenario=firewall`: 竜盾の紋章の検証シナリオ（固定盤面）で開始する
+- `/duel?resultPreview=win|lose|draw`: 決着演出をプレビュー表示する
+
+盤面エディタ（DevPanel）:
+
+開発サーバーの対戦画面では右下に `DEV` ボタンが表示され、クリックすると盤面エディタが開きます。通常対戦で特定の状況まで進めなくても、UI/UX を手動テストするための盤面を直接作れます。
+
+- カード配置: 任意のカードを両プレイヤーの手札・場・メモリー・山札（上/下）・トラッシュへ追加/削除。場のカードは行動済み/未行動も切り替え可能
+- 数値系: ライフ、ターン数、残りアクション、チャージ、手番プレイヤーの直接編集
+- 状況トリガー: ライバルの場の召喚獣による即時攻撃（防御選択 UI が開く）、勝利/敗北/引き分け演出の発火と解除
+- ターン内フラグ（召喚済み・チャージ済み・手札防御回数など）の一括リセット
+
+実装は `src/components/DevPanel.tsx`（UI）と `src/game/devTools.ts`（状態ミューテータ）。ミューテータは `cloneGame` 済みの draft に対して呼ぶ前提で、`fieldStacks` やインデックス系 Set/Map の同期を内部で処理します（テスト: `src/game/devTools.test.ts`）。
+
 ## 状態管理
 
 React 側は外部状態管理ライブラリを使っていません。`App.tsx` が `useState<GameState>` を持ち、更新時は `cloneGame` でコピーした draft を変更してから `setGame` します。

@@ -91,6 +91,7 @@ import { MATCH_LOSE_COINS, MATCH_WIN_COINS, PACK_COST, addCoins, loadCoins, spen
 import { CardArtPreview, CardView } from "./components/CardView";
 import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
+import { DevPanel } from "./components/DevPanel";
 import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
 import { duelEventDurationMs, type DuelEvent, type DuelEventPayload } from "./duelEvents";
 import { RIVAL_VOICE_LINES, type RivalVoiceLineId } from "./rivalVoiceLines";
@@ -3634,6 +3635,7 @@ export default function App() {
       {game.discardViewerOwner !== null && (
         <DiscardModal game={game} onClose={closeDiscardViewer} onSelect={selectDiscardCard} />
       )}
+      {import.meta.env.DEV && <DevPanel game={game} busy={aiAnimating} onMutate={mutate} />}
     </main>
   );
 }
