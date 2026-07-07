@@ -93,6 +93,10 @@ export type ChargeTargetOptions = {
   recoverTargetIndex?: number | null;
 };
 
+function dealLifeDamage(player: PlayerState, amount = 1): void {
+  player.life = Math.max(0, player.life - Math.max(0, amount));
+}
+
 export function afterAction(draft: GameState, cost = 1, kind: "normal" | "attack" = "normal"): void {
   useAction(draft, cost, kind);
   checkWinner(draft);
@@ -343,7 +347,7 @@ export function applyPlayEffects(
     }
   }
   if (selfDamagesOnPlay(card)) {
-    player.life -= 1;
+    dealLifeDamage(player);
     text += " 代償として自分に1ダメージ。";
   }
   if (opponentDrawsOnPlay(card)) {
@@ -632,7 +636,7 @@ export function useCommandAtInDraft(
       trinityTrashed.unshift(...removeFieldStack(player, index));
     }
     player.discard.push(...trinityTrashed);
-    opponent.life -= 1;
+    dealLifeDamage(opponent);
     impact = { kind: "life-damage", sourcePlayerIndex: playerIndex >= 0 ? playerIndex : null, targetPlayerIndex: opponentIndex, amount: 1, fatal: opponent.life <= 0 };
     text += ` ${cardNameList(trinityTrashed)}をすべてトラッシュし、${opponent.name}のライフを1減らした。`;
   } else if (used.effect === "fire_rite") {
@@ -641,7 +645,7 @@ export function useCommandAtInDraft(
     if (discarded.length > 0) {
       text += ` ${opponent.name}の手札を1枚トラッシュ。`;
     } else {
-      opponent.life -= 1;
+      dealLifeDamage(opponent);
       impact = { kind: "life-damage", sourcePlayerIndex: playerIndex >= 0 ? playerIndex : null, targetPlayerIndex: opponentIndex, amount: 1, fatal: opponent.life <= 0 };
       text += ` ${opponent.name}の手札がないため、ライフを1減らした。`;
     }
@@ -909,7 +913,7 @@ export function resolveDefenseInDraft(
     }
     const mirrorDrawnCards = defender.memory?.effect === "tidal_mirror" ? drawCards(defender, 1) : [];
     const damage = isFailure ? Math.max(0, attackValue - defenseValue) : 0;
-    if (damage > 0) defender.life -= damage;
+    if (damage > 0) dealLifeDamage(defender, damage);
     const breakDrawnCards = damage > 0 && CONFIG.drawOnAttackDamage !== "none"
       ? drawCards(defender, CONFIG.drawOnAttackDamage === "event" ? 1 : damage)
       : [];
@@ -1000,7 +1004,7 @@ export function resolveDefenseInDraft(
     defender.handDefensesUsed += 1;
     defender.discard.push(defenseCard);
     const pierced = piercesHandDefense(attackCard);
-    if (pierced) defender.life -= 1;
+    if (pierced) dealLifeDamage(defender);
     const pierceBreakDrawnCards = pierced && CONFIG.drawOnAttackDamage !== "none" ? drawCards(defender, 1) : [];
     const pierceBannerDrawnCards = pierced ? applyWarBannerDraw(attacker) : [];
     const shouldChoosePressureDiscard = !pierced && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
@@ -1062,7 +1066,7 @@ export function resolveDefenseInDraft(
   } else {
     draft.pendingTarget = null;
     const damage = attackDamage(attackCard);
-    defender.life -= damage;
+    dealLifeDamage(defender, damage);
     const breakDrawnCards = CONFIG.drawOnAttackDamage === "none"
       ? []
       : drawCards(defender, CONFIG.drawOnAttackDamage === "event" ? 1 : damage);
@@ -1357,7 +1361,7 @@ export function resolveStrikeHandDefenseInDraft(
   defender.handDefensesUsed += 1;
   defender.discard.push(defenseCard);
   const pierced = piercesHandDefense(attackCard);
-  if (pierced) defender.life -= 1;
+  if (pierced) dealLifeDamage(defender);
   const pierceBreakDrawnCards = pierced && CONFIG.drawOnAttackDamage !== "none" ? drawCards(defender, 1) : [];
   const pierceBannerDrawnCards = pierced ? applyWarBannerDraw(attacker) : [];
   const shouldChoosePressureDiscard = !pierced && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;

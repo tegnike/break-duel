@@ -1716,7 +1716,7 @@ def _use_command(state: GameState, action: Action) -> None:
 
 
 def _deal_damage(player: PlayerState, amount: int = 1) -> None:
-    player.life -= amount
+    player.life = max(0, player.life - max(0, amount))
 
 
 def _apply_end_turn_grove_rest(state: GameState) -> str | None:
