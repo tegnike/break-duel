@@ -482,6 +482,34 @@ class CoreRuleTests(unittest.TestCase):
         self.assertEqual([item.id for item in state.players[1].discard], ["AI-WATER-2"])
         self.assertEqual(state.log[-1]["defense_result"], "success_trade")
 
+    def test_ai_uses_best_low_field_defense_for_partial_block(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[1].field_ai = [card("AI-WATER-1"), card("AI-WATER-2")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 6)
+        self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-WATER-1"])
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-WATER-2"])
+        self.assertEqual(state.stats.failed_defenses, 1)
+        self.assertEqual(state.stats.undefended_attacks, 0)
+        self.assertEqual(state.log[-1]["defense_result"], "partial_failed")
+
+    def test_ai_prefers_failed_field_defense_with_trigger_when_values_tie(self) -> None:
+        state = new_game(1, no_opening_hands())
+        state.players[0].field_ai = [card("AI-WATER-4")]
+        state.players[1].field_ai = [card("AI-WATER-2"), card("AI-WATER-2D")]
+        state.players[1].deck = [card("AI-FIRE-1")]
+        start_turn(state)
+        apply_action(state, Action(ActionType.ATTACK, 0))
+        self.assertEqual(state.players[1].life, 6)
+        self.assertEqual([item.id for item in state.players[1].field_ai], ["AI-WATER-2"])
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-WATER-2D"])
+        self.assertEqual([item.id for item in state.players[1].hand], ["AI-FIRE-1"])
+        self.assertEqual(state.stats.failed_defenses, 1)
+        self.assertEqual(state.stats.undefended_attacks, 0)
+        self.assertEqual(state.log[-1]["defense_result"], "partial_failed")
+
     def test_hand_defense_is_limited_to_once_per_turn_by_default(self) -> None:
         state = new_game(
             1,
@@ -1018,9 +1046,11 @@ class CoreRuleTests(unittest.TestCase):
         state.players[1].field_ai = [card("AI-WATER-3")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
-        self.assertEqual(state.players[1].life, 5)
+        self.assertEqual(state.players[1].life, 7)
         self.assertEqual(state.players[0].field_ai, [card("AI-FIRE-3")])
-        self.assertEqual(state.players[1].field_ai, [card("AI-WATER-3")])
+        self.assertEqual(state.players[1].field_ai, [])
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-WATER-3"])
+        self.assertEqual(state.stats.failed_defenses, 1)
 
     def test_power_4_enters_ready(self) -> None:
         state = new_game(1, no_opening_hands(first_player_first_turn_actions=4))
@@ -1626,10 +1656,13 @@ class CoreRuleTests(unittest.TestCase):
         state.players[1].hand = [card("AI-EARTH-1")]
         start_turn(state)
         apply_action(state, Action(ActionType.ATTACK, 0))
-        self.assertEqual(state.stats.undefended_attacks, 1)
-        self.assertEqual(state.players[1].life, 4)
+        self.assertEqual(state.stats.failed_defenses, 1)
+        self.assertEqual(state.stats.undefended_attacks, 0)
+        self.assertEqual(state.players[1].life, 7)
+        self.assertEqual(state.players[1].field_ai, [])
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-WATER-3"])
         self.assertEqual(state.players[1].hand[0].id, "AI-EARTH-1")
-        self.assertEqual(len(state.players[1].hand), 5)
+        self.assertEqual(len(state.players[1].hand), 2)
 
     def test_sandbox_command_can_prevent_next_power_4_overheat(self) -> None:
         state = new_game(
@@ -2241,9 +2274,11 @@ class Set2MechanicsTests(unittest.TestCase):
         self.assertEqual(turn_attack_bonus(attacker, 1), 0)
         life_before = defender.life
         apply_action(state, Action(ActionType.ATTACK, 0))
-        # 防御値1 < 攻撃値2 で攻撃は通る。ダメージは power 由来のまま1点
+        # 防御値1 < 攻撃値2 で場防御は失敗し、差分1点を受ける
         self.assertEqual(defender.life, life_before - 1)
-        self.assertEqual(len(defender.field_ai), 1)
+        self.assertEqual(defender.field_ai, [])
+        self.assertEqual([item.id for item in defender.discard], ["AI-WATER-1"])
+        self.assertEqual(state.stats.failed_defenses, 1)
 
     def test_turn_global_attack_bonus_applies_to_all_own_summons(self) -> None:
         state = new_game(1, no_opening_hands())
@@ -2447,9 +2482,11 @@ class Set2CardTests(unittest.TestCase):
         start_turn(state)
         life_before = state.players[1].life
         apply_action(state, Action(ActionType.ATTACK, 0))
-        # 攻撃値4(power2+2) > 防御値2 で場防御不可。ダメージは power 由来の2点
+        # 攻撃値4(power2+2) > 防御値2 で場防御は失敗し、差分2点を受ける
         self.assertEqual(state.players[1].life, life_before - 2)
-        self.assertEqual(len(state.players[1].field_ai), 1)
+        self.assertEqual(state.players[1].field_ai, [])
+        self.assertEqual([item.id for item in state.players[1].discard], ["AI-WATER-2"])
+        self.assertEqual(state.stats.failed_defenses, 1)
 
     def test_valen_attack_bonus_without_overheat_draw(self) -> None:
         state = new_game(1, no_opening_hands())

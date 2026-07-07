@@ -2006,19 +2006,23 @@ export function chooseAiDefense(defender: PlayerState, attackCard: Card, profile
     ))[0];
     return { type: "hand", index: best.index };
   }
-  const failedTriggerOptions = fieldOptions.filter(({ card }) => (
-    drawsOnSuccessfulDefense(card)
-    || recoversAiOnSuccessfulDefense(card)
-    || defender.memory?.effect === "tidal_mirror"
-  ));
-  if (failedTriggerOptions.length > 0) {
-    const best = failedTriggerOptions.sort((a, b) => (
-      (a.card.power ?? 0) - (b.card.power ?? 0)
+  if (fieldOptions.length > 0) {
+    const best = fieldOptions.sort((a, b) => (
+      defenseCombatValue(attackCard, b.card, defender, { fieldIndex: b.index, attackContext })
+      - defenseCombatValue(attackCard, a.card, defender, { fieldIndex: a.index, attackContext })
+      || failedFieldDefenseTriggerPriority(b.card, defender) - failedFieldDefenseTriggerPriority(a.card, defender)
+      || (a.card.power ?? 0) - (b.card.power ?? 0)
       || a.card.id.localeCompare(b.card.id)
     ))[0];
     return { type: "field", index: best.index };
   }
   return { type: "none" };
+}
+
+function failedFieldDefenseTriggerPriority(card: Card, defender: PlayerState): number {
+  if (drawsOnSuccessfulDefense(card) || recoversAiOnSuccessfulDefense(card)) return 1;
+  if (defender.memory?.effect === "tidal_mirror") return 1;
+  return 0;
 }
 
 function fieldDefenseOutcomeRank(

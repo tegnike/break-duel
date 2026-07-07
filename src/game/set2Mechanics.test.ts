@@ -159,9 +159,10 @@ describe("turn-scoped attack buffs", () => {
 
     const lifeBefore = defender.life;
     beginAttackInDraft(game, 0, 0);
-    // ダメージは power 由来のまま（攻撃値補正はダメージに影響しない）
+    // 場防御は試みるが、防御値不足なので差分ダメージを受ける。
     expect(defender.life).toBe(lifeBefore - 1);
-    expect(defender.field).toHaveLength(1);
+    expect(defender.field).toHaveLength(0);
+    expect(defender.discard.map((item) => item.id)).toEqual(["AI-WATER-1"]);
   });
 
   it("buffed monster attack uses the source field index when listing valid strike targets", () => {
