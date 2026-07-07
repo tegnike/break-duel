@@ -87,7 +87,7 @@ class GameConfig:
     second_player_initial_hand: int | None = 5
     actions_per_turn: int = 3
     field_ai_limit: int = 3
-    max_turns: int = 60
+    max_turns: int = 40
     defense_advantage_bonus: int = 1
     defense_disadvantage_penalty: int = 1
     same_attribute_strict_defense: bool = True
