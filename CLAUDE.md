@@ -11,5 +11,5 @@ Break Duel リポジトリでの開発ルール。
 ## 基本事項
 
 - パッケージ管理は npm 標準。pnpm は使わない（vitest が壊れる。復旧は `npm ci`）。
-- 一括チェックは `npm run check`（typecheck + vitest + build + Python unittest）。
+- 一括チェックは `npm run check`（typecheck + vitest + build）。
 - ドキュメントは `docs/` 配下が正本。仕様変更時は docs も更新する。

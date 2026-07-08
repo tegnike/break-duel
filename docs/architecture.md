@@ -1,33 +1,27 @@
 # Break Duel アーキテクチャ
 
-最終更新: 2026-06-28
+最終更新: 2026-07-08
 
 この文書は、現在の `Break Duel` 実装を引き継ぐための開発者向け構成メモです。ゲームルールの正仕様は `docs/game-spec.md` を参照します。
 
 ## 全体構成
 
-`Break Duel` は、Python シミュレータと React + TypeScript ブラウザ UI の 2 系統で構成されています。
+`Break Duel` は TypeScript の単一実装です。`src/game.ts` / `src/game/actions.ts` のゲームエンジンを、ブラウザ UI（React）とヘッドレスシミュレーション CLI（`src/sim/`）が共有します。
 
-- Python 側: ルール検証、自動対戦、バランス確認、単体テスト
 - Browser 側: 実際に人間が対戦する UI
+- `src/sim/`: 同じエンジンを使うヘッドレスシミュレーション（バランス検証、自動対戦）
 - `docs/game-spec.md`: 現行ルールの正仕様
 - `web/`: `npm run build` で生成される配信成果物
 
-現時点では、Python 側と TypeScript 側でカード定義・ルール処理を一部二重管理しています。ルール変更時は `docs/game-spec.md` を先に更新し、Python と TypeScript の両方へ反映してください。
+かつて存在した Python シミュレータ（`ai_break_duel/`）は 2026-07-08 に廃止し、TypeScript 実装に統一しました（`docs/balance-history.md` 参照）。ルール変更時は `docs/game-spec.md` を先に更新し、`src/game.ts` / `src/game/actions.ts` へ反映してください。シミュレーションと UI は同じコードを使うため、二重反映は不要です。
 
 ## 主要ディレクトリ
 
 ```text
-ai_break_duel/
-  cards.py          Python 側カード定義とデッキ定義
-  models.py         Python 側状態型と設定
-  engine.py         Python 側ルール解決
-  ai.py             Python 側自動判断
-  cli.py            シミュレーションCLI
-
 scripts/
-  tune_ai_profiles.py CPU評価重みの自動探索
-  tune_apex_deck.py   APEX候補デッキの生成・スクリーニング・リーグ評価
+  tuneAiProfiles.ts CPU評価重みの自動探索
+  tuneApexDeck.ts   APEX候補デッキの生成・スクリーニング・リーグ評価
+  runCostBalance.ts ストレスデッキのコストバランス回帰
 
 src/
   main.tsx          React entry
@@ -36,9 +30,15 @@ src/
   summonFx.ts       属性召喚/遺物配置の着地演出定義と属性SFXのその場で合成
   summonParticles.ts 属性召喚/遺物配置の着地演出（カード素材が属性ごとに反応する Canvas 2D 演出）
   game/
-    actions.ts      TypeScript 側ゲーム状態を変更する操作処理
+    actions.ts      ゲーム状態を変更する操作処理
     selectors.ts    UI用の状態参照
-    cardEffectCoverage.test.ts TypeScript 側カード効果テスト
+    *.test.ts       vitest によるルール・カード効果・ガードレールテスト
+  sim/
+    cli.ts          ヘッドレスシミュレーション CLI（simulate / league）
+    runner.ts       1 試合の自動実行
+    stats.ts        試合結果の集計（summary.json / standings.json）
+    costBalance.ts  ストレスデッキ定義とコストバランス評価
+    random.ts       シード付き乱数
   components/
     CardView.tsx    カード表示
     PlayerPanel.tsx プレイヤー盤面
@@ -48,9 +48,6 @@ src/
     cardPresentation.ts カード表示ラベル、色、画像
     packParticles.ts パック開封確定演出（Canvas 2D パーティクルエンジン）
   styles.css        ブラウザUIスタイル
-
-tests/
-  test_core_rules.py Python 側ルールテスト
 
 docs/
   game-spec.md      現行ゲーム仕様（正本）
@@ -78,9 +75,8 @@ GitHub Actions の `CI` ワークフローが push / PR ごとに同じチェッ
 内訳:
 
 - `npm run typecheck`: TypeScript 型チェック
-- `npm run test:unit`: TypeScript 側カード効果テスト。効果 ID の登録漏れも検知する
+- `npm run test:unit`: vitest によるルール・カード効果・ガードレールテスト。効果 ID の登録漏れも検知する
 - `npm run build`: Vite 本番ビルド。成果物は `web/` に出力される
-- `python3 -m unittest`: Python 側ルールテスト
 
 ブラウザで遊ぶ:
 
@@ -96,24 +92,31 @@ python3 -m http.server 8017 --directory web
 npm run dev -- --host 127.0.0.1
 ```
 
-バランス確認:
+バランス確認（ヘッドレスシミュレーション）:
 
 ```bash
-python3 -m ai_break_duel.cli simulate --games 5000 --seed 4101 --out tmp/current_check
+npm run sim -- simulate --games 1000 --seed 4101 --out tmp/current_check
+npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/current_league
+```
+
+ストレスデッキのコストバランス回帰:
+
+```bash
+npm run balance:cost -- --games-per-order 500 --seed 3000000 --out tmp/cost-balance.json
 ```
 
 CPU プロファイル探索:
 
 ```bash
-python3 scripts/tune_ai_profiles.py --iterations 16 --games-per-seat 10 --seed 730101 --out tmp/ai-profile-tuning.json
+npm run tune:ai -- --iterations 16 --games-per-seat 10 --seed 730101 --out tmp/ai-profile-tuning.json
 ```
 
-`scripts/tune_ai_profiles.py` で採用する `CHALLENGER_WEIGHTS` は Python 側の `ai_break_duel/ai.py` とブラウザ側の `src/game.ts` の両方に反映します。探索後に片方だけ更新すると、CLI とブラウザで挑戦者CPUの判断がずれます。
+`npm run tune:ai` で採用する `CHALLENGER_WEIGHTS` は `src/game.ts` の 1 箇所だけを更新すれば、ブラウザとシミュレーションの両方に反映されます。
 
 APEX 候補探索:
 
 ```bash
-python3 scripts/tune_apex_deck.py --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 810101 --out tmp/apex-tuning.json
+npm run tune:apex -- --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 810101 --out tmp/apex-tuning.json
 ```
 
 ## 開発用ツール（DEV ビルド限定）
@@ -167,7 +170,7 @@ React 側は外部状態管理ライブラリを使っていません。`App.tsx
 - 自動行動選択
 - 勝敗判定
 
-CPU は Python 側 `ai_break_duel/ai.py` と TypeScript 側 `src/game.ts` の二重管理です。`beginner` / `challenger` の行動選択や防御選択を変える場合は、両方と `docs/game-spec.md` を同期してください。Python CLI は `GameConfig.ai_profiles` と `--first-ai` / `--second-ai` でプロファイルを切り替えます。ブラウザ UI は相手プレイヤーの `PlayerState.aiProfile` を使います。
+CPU（`beginner` / `challenger`）の行動選択・防御選択は `src/game.ts` に一元化されています。変更する場合は `docs/game-spec.md` を同期してください。シミュレーション CLI は `--first-ai` / `--second-ai`（beginner / challenger、省略時 challenger）でプロファイルを切り替えます。ブラウザ UI は相手プレイヤーの `PlayerState.aiProfile` を使います。
 
 `src/game/actions.ts` は、`GameState` を変更する操作処理を置きます。
 
@@ -195,12 +198,11 @@ CPU は Python 側 `ai_break_duel/ai.py` と TypeScript 側 `src/game.ts` の二
 ルールを変える場合:
 
 1. `docs/game-spec.md` を更新する。
-2. Python 側の `ai_break_duel/` を更新する。
-3. TypeScript 側の `src/game.ts` / `src/game/actions.ts` を更新する。
-4. カード効果を追加・変更した場合は `src/game/cardEffectCoverage.test.ts` に効果ケースを追加・更新する。
-5. 必要なら `tests/test_core_rules.py` を追加・更新する。
-6. `npm run check` を通す。
-7. ブラウザで主要操作を確認する。
+2. `src/game.ts` / `src/game/actions.ts` を更新する。
+3. カード効果を追加・変更した場合は `src/game/cardEffectCoverage.test.ts` に効果ケースを追加・更新する。
+4. 必要なら `src/game/*.test.ts` のルールテストを追加・更新する。
+5. `npm run check` を通す。
+6. ブラウザで主要操作を確認する。
 
 UIだけを変える場合:
 
@@ -212,19 +214,17 @@ UIだけを変える場合:
 バランスを変える場合:
 
 1. 変更理由を `docs/game-spec.md` または新しい検討メモに残す。
-2. Python 側シミュレーションを先に回す。
-3. 結果が目標に入ったら TypeScript 側へ反映する。
+2. `npm run sim -- simulate|league ...` でシミュレーションを回して検証する。
+3. 結果を `docs/balance-history.md` に記録する。
 
 ## 現在の既知の技術的負債
 
-- Python と TypeScript のカード定義が二重管理。
 - TypeScript 側は `useReducer` ではなく `useState + cloneGame` で状態更新している。
 - アニメーションは旧 JavaScript 版より簡略化されている。
 
 ## 将来の整理候補
 
 - カード定義とデッキ定義を共通 JSON 化する。
-- Python と TypeScript が同じカード定義を読むようにする。
 - `src/game.ts` を `cards.ts`、`rules.ts`、`ai.ts`、`config.ts` に分割する。
 - 状態更新が増えたら `useReducer` へ移行する。
 - ブラウザE2Eスモークテストを追加する。
