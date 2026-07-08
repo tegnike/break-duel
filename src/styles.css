@@ -12903,7 +12903,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 .duel-cut-in {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 60;
   overflow: hidden;
   pointer-events: auto;
   animation: cutin-layer var(--cut-in-duration, 1400ms) ease-in both;

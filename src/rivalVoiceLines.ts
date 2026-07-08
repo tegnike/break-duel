@@ -13,6 +13,7 @@ import rivalPlaySummonVoice from "./assets/audio/voice/rival_play_summon.wav";
 import rivalTurnStartVoice from "./assets/audio/voice/rival_turn_start.wav";
 import rivalUpgradeVoice from "./assets/audio/voice/rival_upgrade.wav";
 import rivalVictoryVoice from "./assets/audio/voice/rival_victory.wav";
+import { FINISHER_CUT_IN_LINE, TRUMP_CUT_IN_LINE } from "./duelEvents";
 
 export type RivalVoiceLineId =
   | "match_start"
@@ -82,11 +83,11 @@ export const RIVAL_VOICE_LINES: Record<RivalVoiceLineId, RivalVoiceLine> = {
     src: rivalCommandVoice,
   },
   cutin_trump: {
-    text: "ここで決めます…！！",
+    text: TRUMP_CUT_IN_LINE,
     src: rivalCutInTrumpVoice,
   },
   cutin_finisher: {
-    text: "これで最後です…！！",
+    text: FINISHER_CUT_IN_LINE,
     src: rivalCutInFinisherVoice,
   },
   victory: {
