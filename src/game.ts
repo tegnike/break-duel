@@ -2313,7 +2313,7 @@ function legalAiActions(game: GameState): AiAction[] {
   return actions;
 }
 
-const CHALLENGER_WEIGHTS = {
+export const CHALLENGER_WEIGHTS = {
   damage: 160,
   lethal: 310,
   attackPower: 13,
@@ -2503,7 +2503,7 @@ function sacrificialFollowupDamageAfterBlock(game: GameState, attackerFieldIndex
   return followupDamages.slice(0, Math.max(0, game.actionsRemaining - 1)).reduce((sum, damage) => sum + damage, 0);
 }
 
-function aiCardValue(card: Card): number {
+export function aiCardValue(card: Card): number {
   if (card.type === "memory") {
     const priority: Record<string, number> = { cache: 48, resonator: 45, recovery_cache: 42, echo_urn: 42, tidal_mirror: 40, war_banner: 40, pipeline: 38, storm_core: 38, dual_banner: 36, accelerator: 36, grove_rest: 34, firewall: 30 };
     return priority[card.effect ?? ""] ?? 12;

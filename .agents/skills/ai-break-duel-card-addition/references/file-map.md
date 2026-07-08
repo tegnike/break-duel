@@ -44,22 +44,16 @@ Use this file when adding or modifying cards in `ai-break-duel`.
 - `src/duelEvents.ts` and `src/components/Overlays.tsx`
   - Duel event payloads and emphasis levels (`low`/`high`/`peak`) for battle presentation.
 
-## Python Simulator
+## Headless Simulation (TypeScript)
 
-- `ai_break_duel/cards.py`
-  - Effect enums, card pools, deck definitions
+- `src/sim/cli.ts`, `src/sim/runner.ts`, `src/sim/stats.ts`
+  - Headless simulate/league CLI sharing the browser engine (`npm run sim`)
 
-- `ai_break_duel/models.py`
-  - `ActionType`, `Action`, player state fields
+- `src/sim/costBalance.ts` and `src/game/costBalance.guard.test.ts`
+  - Stress-deck definitions and cost-balance guardrails
 
-- `ai_break_duel/engine.py`
-  - Deterministic rule resolution and structured logs
-
-- `ai_break_duel/ai.py`
-  - Automated player action selection and effect priorities
-
-- `tests/test_core_rules.py`
-  - Focused regression tests for new rule behavior
+- `src/game/*.test.ts`
+  - Focused vitest regression tests for new rule behavior
 
 ## Documentation
 
