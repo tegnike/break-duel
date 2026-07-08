@@ -17,6 +17,7 @@ import {
   activePlayer,
   applyEchoUrnDraw,
   attackCombatValue,
+  attackDamage,
   bestUpgradeSource,
   canActivePlayerAttack,
   canChargeCard,
@@ -45,6 +46,7 @@ import {
   makeRng,
   needsFirewallFuel,
   opponentPlayer,
+  piercesHandDefense,
   playCost,
   recoversAiOnPlay,
   stackUpgradeCard,
@@ -968,10 +970,10 @@ export default function App() {
     setSavedDecks(loadSavedDecks());
   }
 
-  function queueDuelEvent(event: DuelEventPayload) {
+  function queueDuelEvent(event: DuelEventPayload, options: { suppressAutoCutIn?: boolean } = {}) {
     let queuedEvent = rivalVoiceLineEligibleForEvent(event);
-    // 相手（players[1]）の大ダメージ・致死攻撃には finisher カットインを付与する。
-    const cutIn = cutInForEvent(queuedEvent, 1);
+    // 相手（players[1]）の致死攻撃には finisher カットインを付与する。
+    const cutIn = options.suppressAutoCutIn ? null : cutInForEvent(queuedEvent, 1);
     if (cutIn && !queuedEvent.cutIn) queuedEvent = { ...queuedEvent, cutIn };
     const hasTrashSurge = trashSurgeForEvent(queuedEvent) !== null;
     if (queuedEvent.impact?.kind === "life-damage") {
@@ -1494,6 +1496,48 @@ export default function App() {
         720,
       );
     }
+  }
+
+  function finisherCutInBeforeDefenseResolution(choice: DefenseChoice): DuelCutIn | null {
+    const pending = game.pendingAttack;
+    if (!pending || pending.attackerIndex !== 1 || pending.defenderIndex !== 0) return null;
+    const attacker = game.players[pending.attackerIndex];
+    const defender = game.players[pending.defenderIndex];
+    const attackCard = attacker?.field[pending.fieldIndex];
+    if (!attacker || !defender?.isHuman || !attackCard) return null;
+    const attackContext: AttackContext = { attacker, attackerFieldIndex: pending.fieldIndex };
+
+    if (pending.strikeTargetIndex !== undefined) {
+      if (choice.type !== "hand") return null;
+      const defenseCard = defender.hand[choice.index];
+      if (!defenseCard || !legalHandDefenders(defender, attackCard, attackContext).some((option) => option.index === choice.index)) return null;
+      return piercesHandDefense(attackCard) && defender.life <= 1
+        ? { style: "finisher", line: FINISHER_CUT_IN_LINE }
+        : null;
+    }
+
+    let damage = 0;
+    if (choice.type === "none") {
+      damage = attackDamage(attackCard);
+    } else if (choice.type === "hand") {
+      const defenseCard = defender.hand[choice.index];
+      if (!defenseCard || !legalHandDefenders(defender, attackCard, attackContext).some((option) => option.index === choice.index)) return null;
+      damage = piercesHandDefense(attackCard) ? 1 : 0;
+    } else {
+      const defenseCard = defender.field[choice.index];
+      if (!defenseCard || !legalFieldDefenders(defender, attackCard, attackContext).some((option) => option.index === choice.index)) return null;
+      if (needsFirewallFuel(defender, defenseCard, attackCard, choice.index, attackContext) && choice.firewallDiscardIndex === undefined) return null;
+      const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, {
+        firewallPaid: typeof choice.firewallDiscardIndex === "number",
+        fieldIndex: choice.index,
+        attackContext,
+      });
+      damage = Math.max(0, attackCombatValue(attackCard, attackContext) - defenseValue);
+    }
+
+    return damage > 0 && defender.life <= damage
+      ? { style: "finisher", line: FINISHER_CUT_IN_LINE }
+      : null;
   }
 
   function cutInBeforeAiAction(action: AiAction): DuelCutIn | null {
@@ -2901,10 +2945,22 @@ export default function App() {
 
   function resolveDefense(choice: DefenseChoice) {
     if (tutorialBlocks("defend", { defenseChoice: choice })) return;
+    const finisherCutIn = finisherCutInBeforeDefenseResolution(choice);
+    if (finisherCutIn) {
+      playStandaloneCutIn(finisherCutIn, () => resolveDefenseAfterCutIn(choice, true));
+      return;
+    }
+    resolveDefenseAfterCutIn(choice);
+  }
+
+  function resolveDefenseAfterCutIn(choice: DefenseChoice, suppressAutoCutIn = false) {
     if (game.pendingAttack) {
       launchDefenseTrashFlights(game.pendingAttack.attackerIndex, game.pendingAttack.fieldIndex, choice);
     }
-    mutate((draft) => resolveDefenseInDraft(draft, choice, { playSfx, showDuelEvent: queueDuelEvent }));
+    mutate((draft) => resolveDefenseInDraft(draft, choice, {
+      playSfx,
+      showDuelEvent: (event) => queueDuelEvent(event, { suppressAutoCutIn }),
+    }));
     if (game.pendingAttack && duelEvent) dismissDuelEvent();
   }
 
