@@ -1,6 +1,8 @@
 import rivalAttackVoice from "./assets/audio/voice/rival_attack.wav";
 import rivalChargeVoice from "./assets/audio/voice/rival_charge.wav";
 import rivalCommandVoice from "./assets/audio/voice/rival_command.wav";
+import rivalCutInFinisherVoice from "./assets/audio/voice/rival_cutin_finisher.wav";
+import rivalCutInTrumpVoice from "./assets/audio/voice/rival_cutin_trump.wav";
 import rivalDamageTakenVoice from "./assets/audio/voice/rival_damage_taken.wav";
 import rivalDefeatVoice from "./assets/audio/voice/rival_defeat.wav";
 import rivalFieldDefenseVoice from "./assets/audio/voice/rival_field_defense.wav";
@@ -24,6 +26,8 @@ export type RivalVoiceLineId =
   | "hand_defense"
   | "damage_taken"
   | "command"
+  | "cutin_trump"
+  | "cutin_finisher"
   | "victory"
   | "defeat";
 
@@ -76,6 +80,14 @@ export const RIVAL_VOICE_LINES: Record<RivalVoiceLineId, RivalVoiceLine> = {
   command: {
     text: "盤面を支配します！自由にされると困ります。",
     src: rivalCommandVoice,
+  },
+  cutin_trump: {
+    text: "ここで決めます…！！",
+    src: rivalCutInTrumpVoice,
+  },
+  cutin_finisher: {
+    text: "これで最後です…！！",
+    src: rivalCutInFinisherVoice,
   },
   victory: {
     text: "私の…、勝ちです！……正直、かなり嬉しいです。",

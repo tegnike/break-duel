@@ -12924,3 +12924,117 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   width: var(--flight-w);
   flex-basis: var(--flight-w);
 }
+
+/* ===== 相手カットイン演出（切札/とどめ） ===== */
+
+.duel-cut-in {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+  pointer-events: auto;
+  animation: cutin-layer var(--cut-in-duration, 1400ms) ease-in both;
+}
+
+.duel-cut-in::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 62% 46%, rgba(255, 255, 255, 0.08), transparent 46%), rgba(3, 7, 12, 0.55);
+}
+
+.duel-cut-in-band {
+  position: absolute;
+  left: -14%;
+  right: -14%;
+  top: 50%;
+  height: min(44vh, 380px);
+  transform: translate(0, -50%) skewY(-6deg);
+  background:
+    repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.09) 0 3px, transparent 3px 46px),
+    linear-gradient(100deg, rgba(255, 0, 170, 0.9), rgba(96, 6, 128, 0.88) 52%, rgba(18, 4, 30, 0.94));
+  border-top: 2px solid rgba(255, 255, 255, 0.65);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 0 60px rgba(255, 0, 170, 0.4);
+  animation: cutin-band-sweep var(--cut-in-duration, 1400ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.duel-cut-in.finisher .duel-cut-in-band {
+  background:
+    repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.09) 0 3px, transparent 3px 46px),
+    linear-gradient(100deg, rgba(239, 68, 68, 0.92), rgba(128, 12, 24, 0.9) 52%, rgba(30, 4, 8, 0.94));
+  box-shadow: 0 0 60px rgba(239, 68, 68, 0.45);
+}
+
+.duel-cut-in-portrait {
+  position: absolute;
+  right: 7%;
+  top: 50%;
+  height: min(74vh, 700px);
+  filter: drop-shadow(0 18px 44px rgba(0, 0, 0, 0.6));
+  animation: cutin-portrait-slide var(--cut-in-duration, 1400ms) cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.duel-cut-in-line {
+  position: absolute;
+  left: 7%;
+  top: 50%;
+  display: grid;
+  gap: 8px;
+  max-width: 46vw;
+  transform: translateY(-52%);
+  animation: cutin-line-flash var(--cut-in-duration, 1400ms) ease-out both;
+}
+
+.duel-cut-in-kicker {
+  font-size: clamp(13px, 1.3vw, 17px);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.42em;
+  color: rgba(255, 255, 255, 0.82);
+  text-shadow: 0 0 14px rgba(255, 0, 170, 0.8);
+}
+
+.duel-cut-in.finisher .duel-cut-in-kicker {
+  text-shadow: 0 0 14px rgba(239, 68, 68, 0.85);
+}
+
+.duel-cut-in-text {
+  font-size: clamp(26px, 3.2vw, 42px);
+  font-weight: 900;
+  font-style: italic;
+  line-height: 1.28;
+  color: #fff;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 0 26px rgba(255, 0, 170, 0.55);
+}
+
+.duel-cut-in.finisher .duel-cut-in-text {
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.45), 0 0 26px rgba(239, 68, 68, 0.6);
+}
+
+@keyframes cutin-layer {
+  0% { opacity: 0; }
+  6%, 84% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes cutin-band-sweep {
+  0% { transform: translate(-116%, -50%) skewY(-6deg); }
+  15% { transform: translate(0, -50%) skewY(-6deg); }
+  85% { transform: translate(1.2%, -50%) skewY(-6deg); }
+  100% { transform: translate(118%, -50%) skewY(-6deg); }
+}
+
+@keyframes cutin-portrait-slide {
+  0% { transform: translate(46vw, -50%); opacity: 0; }
+  17% { transform: translate(0, -50%); opacity: 1; }
+  84% { transform: translate(-1.4vw, -50%); opacity: 1; }
+  100% { transform: translate(-12vw, -50%); opacity: 0; }
+}
+
+@keyframes cutin-line-flash {
+  0%, 16% { transform: translateY(-52%) translateX(-28px); opacity: 0; }
+  28% { transform: translateY(-52%) translateX(0); opacity: 1; }
+  82% { transform: translateY(-52%) translateX(0); opacity: 1; }
+  100% { transform: translateY(-52%) translateX(10px); opacity: 0; }
+}

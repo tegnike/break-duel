@@ -9,6 +9,7 @@ import {
   type GameState,
   type PlayerState,
 } from "../game";
+import type { DuelCutInStyle } from "../duelEvents";
 import {
   devAddCard,
   devCardLabel,
@@ -28,7 +29,13 @@ type DevPanelProps = {
   game: GameState;
   busy: boolean;
   onMutate: (mutator: (draft: GameState) => void) => void;
+  onPreviewCutIn: (style: DuelCutInStyle) => void;
 };
+
+const CUT_IN_PREVIEWS: { style: DuelCutInStyle; label: string }[] = [
+  { style: "trump", label: "切札カットイン" },
+  { style: "finisher", label: "とどめカットイン" },
+];
 
 const TYPE_LABELS: Record<CardType, string> = {
   ai: "AI（召喚獣）",
@@ -48,7 +55,7 @@ function clampInt(raw: string, min: number, max: number, fallback: number): numb
   return Math.min(max, Math.max(min, value));
 }
 
-export function DevPanel({ game, busy, onMutate }: DevPanelProps) {
+export function DevPanel({ game, busy, onMutate, onPreviewCutIn }: DevPanelProps) {
   const [open, setOpen] = useState(false);
   const [ownerIndex, setOwnerIndex] = useState(0);
   const cardsByType = useMemo(() => {
@@ -184,6 +191,14 @@ export function DevPanel({ game, busy, onMutate }: DevPanelProps) {
 
       <section>
         <h3>状況トリガー</h3>
+        <p className="dev-panel-note">カットイン演出プレビュー（ゲーム状態には影響しません）</p>
+        <div className="dev-panel-actions">
+          {CUT_IN_PREVIEWS.map(({ style, label }) => (
+            <button key={style} type="button" onClick={() => onPreviewCutIn(style)}>
+              {label}
+            </button>
+          ))}
+        </div>
         <p className="dev-panel-note">ライバルの場の召喚獣で即時攻撃（防御選択UIが開きます）</p>
         <div className="dev-panel-actions">
           {rival.field.length === 0 && <p className="dev-panel-empty">（ライバルの場が空です）</p>}
