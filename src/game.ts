@@ -2157,7 +2157,7 @@ export function bestDamagingAttacker(attacker: PlayerState, defender: PlayerStat
   const options = attackableField(attacker)
     .filter(({ card, index }) => {
       const attackContext: AttackContext = { attacker, attackerFieldIndex: index };
-      const defense = chooseAiDefense(defender, card, defender.aiProfile, attackContext);
+      const defense = chooseAttackEvaluationDefense(defender, card, attackContext);
       if (defense.type === "none") return true;
       if (defense.type !== "field") return false;
       const defenseCard = defender.field[defense.index];
@@ -2229,8 +2229,7 @@ function beginnerDamagingAttack(attacker: PlayerState, defender: PlayerState): n
   const options = attackableField(attacker)
     .filter(({ card, index }) => {
       const attackContext: AttackContext = { attacker, attackerFieldIndex: index };
-      return successfulFieldDefenders(defender, card, attackContext).length === 0
-        && legalHandDefenders(defender, card, attackContext).length === 0;
+      return successfulFieldDefenders(defender, card, attackContext).length === 0;
     });
   if (options.length === 0) return null;
   options.sort((a, b) => (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id));
@@ -2295,7 +2294,7 @@ function choosePlannedChallengerAiAction(game: GameState, beamWidth: number): Ai
     return {
       game: next,
       firstAction: action,
-      score: scorePlannedAction(game, action) + boardScoreForSeat(next, activeSeat),
+      score: scorePlannedAction(game, action),
       depth: 1,
     };
   });
@@ -2314,15 +2313,15 @@ function choosePlannedChallengerAiAction(game: GameState, beamWidth: number): Ai
         expanded.push({
           game: next,
           firstAction: node.firstAction,
-          score: node.score + scorePlannedAction(node.game, action) + boardScoreForSeat(next, activeSeat),
+          score: node.score + scorePlannedAction(node.game, action),
           depth: node.depth + 1,
         });
       }
     }
-    expanded.sort((a, b) => b.score - a.score || b.depth - a.depth || aiActionTieBreak(b.firstAction) - aiActionTieBreak(a.firstAction));
+    expanded.sort((a, b) => plannedNodeScore(b, activeSeat) - plannedNodeScore(a, activeSeat) || b.depth - a.depth || aiActionTieBreak(b.firstAction) - aiActionTieBreak(a.firstAction));
     beam = expanded.slice(0, beamWidth);
   }
-  beam.sort((a, b) => b.score - a.score || b.depth - a.depth || aiActionTieBreak(b.firstAction) - aiActionTieBreak(a.firstAction));
+  beam.sort((a, b) => plannedNodeScore(b, activeSeat) - plannedNodeScore(a, activeSeat) || b.depth - a.depth || aiActionTieBreak(b.firstAction) - aiActionTieBreak(a.firstAction));
   return beam[0]?.firstAction ?? chooseGreedyChallengerAiAction(game);
 }
 
@@ -2337,6 +2336,17 @@ function rankedAiActions(game: GameState): AiAction[] {
 
 function scorePlannedAction(game: GameState, action: AiAction): number {
   return scoreAiAction(game, action, chooseClassicAiAction(game));
+}
+
+function plannedNodeScore(node: PlanNode, seat: number): number {
+  return node.score + turnEndPlanScore(node.game, seat);
+}
+
+function turnEndPlanScore(game: GameState, seat: number): number {
+  if (game.winner === seat) return 10000;
+  if (game.winner === 1 - seat) return -10000;
+  const actionPenalty = game.active === seat ? game.actionsRemaining * 18 : 0;
+  return boardScoreForSeat(game, seat) - actionPenalty;
 }
 
 function boardScoreForSeat(game: GameState, seat: number): number {
@@ -2424,7 +2434,7 @@ export const CHALLENGER_WEIGHTS = {
   classicChargeActionCap: 3,
   strikeTieBreakPriority: 7,
   turnPlanBeamWidth: 1,
-  publicHandDefenseWeight: 0,
+  publicHandDefenseWeight: 1,
   memoryIndividualValueScale: 1,
   chargeFuturePlan: 0,
   lifeRacePressure: 0,
@@ -2508,11 +2518,8 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
     const { attackValue, defenseValue } = strikeValues(attacker, opponent, action.targetIndex, attackContext);
     if (attackValue < defenseValue) return -9999;
     if (CONFIG.handDefenseVsStrike !== "off") {
-      const blockerIndex = chooseStrikeHandDefense(opponent, attacker, action.targetIndex, attackContext);
-      if (blockerIndex !== null) {
-        const blocker = opponent.hand[blockerIndex];
-        return score + CHALLENGER_WEIGHTS.handTradeAttack + (blocker ? aiCardValue(blocker) * 0.35 : 0);
-      }
+      const estimatedValue = estimatePublicStrikeHandDefenseValue(opponent, attacker, action.targetIndex, attackContext);
+      if (estimatedValue !== null) return score + estimatedValue;
     }
     const trade = attackValue === defenseValue;
     let value = CHALLENGER_WEIGHTS.strikeBase + CHALLENGER_WEIGHTS.strikeTargetPower * (target.power ?? 0);
@@ -2639,9 +2646,6 @@ function chooseAttackEvaluationDefense(
   attackCard: Card,
   attackContext?: AttackContext,
 ): AttackEvaluationDefenseChoice {
-  if (CHALLENGER_WEIGHTS.publicHandDefenseWeight <= 0) {
-    return chooseAiDefense(defender, attackCard, "challenger", attackContext);
-  }
   const fieldOptions = legalFieldDefenders(defender, attackCard, attackContext);
   const successfulFieldOptions = fieldOptions.filter(({ card, index }) => canDefendWithOptionalFirewall(attackCard, card, defender, index, attackContext));
   if (successfulFieldOptions.length > 0) {
@@ -2668,11 +2672,17 @@ function chooseAttackEvaluationDefense(
   return { type: "none" };
 }
 
-export function estimatePublicHandDefenseValue(
+type PublicHandDefenseEstimateInput = {
+  hiddenCandidates: Card[];
+  legalCandidates: Card[];
+  handSize: number;
+};
+
+function publicHandDefenseEstimateInput(
   defender: PlayerState,
   attackCard: Card,
   attackContext?: AttackContext,
-): number | null {
+): PublicHandDefenseEstimateInput | null {
   if (attackContext?.attacker?.nextAttackUnblockable) return null;
   if (blocksLowLifeHandDefense(attackCard, defender)) return null;
   if (CONFIG.handDefenseLimit !== null) {
@@ -2709,7 +2719,16 @@ export function estimatePublicHandDefenseValue(
       && !(CONFIG.power3CannotHandDefend && card.power === 3)
       && canDefend(attackCard, card, defender, { fieldDefense: false, attackContext }));
   if (legalCandidates.length === 0) return null;
-  const handSize = Math.min(defender.hand.length, hiddenCandidates.length);
+  return {
+    hiddenCandidates,
+    legalCandidates,
+    handSize: Math.min(defender.hand.length, hiddenCandidates.length),
+  };
+}
+
+function estimatePublicHandDefenseCandidateValue(input: PublicHandDefenseEstimateInput): number | null {
+  const { hiddenCandidates, legalCandidates, handSize } = input;
+  if (legalCandidates.length === 0) return null;
   let probabilityNoDefense = 1;
   const nonDefenders = hiddenCandidates.length - legalCandidates.length;
   for (let drawIndex = 0; drawIndex < handSize; drawIndex += 1) {
@@ -2724,6 +2743,36 @@ export function estimatePublicHandDefenseValue(
   ))[0];
   const raw = CHALLENGER_WEIGHTS.handTradeAttack + aiCardValue(bestExpected) * 0.35;
   return raw * probabilityDefense * CHALLENGER_WEIGHTS.publicHandDefenseWeight;
+}
+
+export function estimatePublicHandDefenseValue(
+  defender: PlayerState,
+  attackCard: Card,
+  attackContext?: AttackContext,
+): number | null {
+  const input = publicHandDefenseEstimateInput(defender, attackCard, attackContext);
+  return input ? estimatePublicHandDefenseCandidateValue(input) : null;
+}
+
+function estimatePublicStrikeHandDefenseValue(
+  defender: PlayerState,
+  attackCard: Card,
+  targetIndex: number,
+  attackContext?: AttackContext,
+): number | null {
+  const mode = CONFIG.handDefenseVsStrike;
+  if (mode !== "eager" && mode !== "value") return null;
+  const { attackValue, defenseValue } = strikeValues(attackCard, defender, targetIndex, attackContext);
+  if (attackValue === defenseValue) return null;
+  const input = publicHandDefenseEstimateInput(defender, attackCard, attackContext);
+  if (!input) return null;
+  const stack = defender.fieldStacks?.[targetIndex] ?? [];
+  const savedPower = (defender.field[targetIndex]?.power || 1)
+    + stack.reduce((sum, card) => sum + (card.power || 1), 0);
+  const legalCandidates = mode === "value"
+    ? input.legalCandidates.filter((card) => savedPower >= (card.power || 1))
+    : input.legalCandidates;
+  return estimatePublicHandDefenseCandidateValue({ ...input, legalCandidates });
 }
 
 function sacrificialFollowupDamageAfterBlock(game: GameState, attackerFieldIndex: number, blockerIndex: number): number {

@@ -4,6 +4,142 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
+## 2026-07-08 CPU 公平化・再ベースライン: fair-gen001 維持
+
+### 背景
+
+CPU 公平化 F0 で challenger の攻撃評価から相手実手札の参照を除去したため、公平版を新しい計測器 `fair-gen001` として凍結し、基準値を取り直した。旧覗き見 `gen001` との勝率比較は公平性原則が違うため、以後の採用ゲートには使わない。
+
+### 採用変更 / 変更内容
+
+- `docs/assets/ai-champions/fair/fair-gen001.json` を公平系列の初期チャンピオンとして凍結
+- `npm run gauntlet:ai` / `npm run tune:ai` の既定チャンピオンプールを `docs/assets/ai-champions/fair` に切り替え
+- F2a/F2b/F2c の強化候補はすべて 55% 採用基準未達のため、出荷 challenger の既定重みは `fair-gen001` のまま維持
+
+### 検証
+
+**6 デッキリーグ**（100 games/ordered pair、seed 4101 / 730001、各 3000 戦）:
+
+| デッキ | seed 4101 | seed 730001 | 平均 |
+| --- | ---: | ---: | ---: |
+| break | 45.9% | 45.2% | 45.6% |
+| control | 72.5% | 70.8% | 71.6% |
+| fire | 50.6% | 54.1% | 52.4% |
+| water | 36.6% | 33.9% | 35.2% |
+| wind | 40.1% | 39.6% | 39.9% |
+| earth | 52.6% | 54.0% | 53.3% |
+| 先攻勝率 | 50.5% | 45.1% | 47.8% |
+
+判定は CHECK NEEDED。water / wind の低勝率、control の突出、先攻 47.8% は `docs/fair-cpu-followups.md` に分離して起票した。
+
+**盛り上がり指標**（1000 戦、seed 4101、標準対戦 break vs control）:
+
+| 指標 | fair-gen001 |
+| --- | ---: |
+| 平均ターン | 25.2（中央値 25） |
+| 先攻勝率（break 側） | 26.7% |
+| リード交代あり | 59.6%（平均 0.94 回） |
+| 2点ビハインド逆転 | 47.3% |
+| 先に2点差をつけた側の勝率 | 56.9% |
+| 最大スイング 3 点以上 | 88.2%（4 点以上 65.1%） |
+| 決着形態 | lifeout 64.0% / resource 35.8% / draw 0.2% |
+
+**ストレスデッキ回帰**（500 games/order、seed 3000000）:
+
+| 候補 | win rate | 判定 |
+| --- | ---: | --- |
+| p1 | 0.13% | OK |
+| p1-2 | 3.63% | OK |
+| p2 | 15.93% | OK |
+| p2-3 | 43.83% | OK |
+| p3 | 30.48% | OK |
+| p3-4 | 28.33% | OK |
+| p4 | 23.05% | OK |
+
+**apex 再探索**（seed 810101）:
+
+- best: `apex_mutation_056`、探索リーグ 54.8%
+- current_apex: 49.1%
+- current との直接ペア合算: 候補 120 / current 77 / draw 3
+- デッキ変更は CPU 計画に混ぜず、`docs/fair-cpu-followups.md` に分離
+
+**beginner 較正**:
+
+- 同一デッキ fire/water/earth、2 seed、先後 100 戦ずつ: beginner 勝率 27.8%
+- 5-20% 目安を超過。特に earth 同一デッキで 56-65% と高いため、`docs/fair-cpu-followups.md` に分離
+
+**F2 採否**:
+
+| フェーズ | 候補 | 結果 | 判断 |
+| --- | --- | ---: | --- |
+| F2a | 重み再探索 best | 50.4% / 51.5% | 55% 未達、採用なし |
+| F2b | `publicHandDefenseWeight=0.75` | 50.0% | 採用なし |
+| F2b | `publicHandDefenseWeight=1.25` | 49.9% | 採用なし |
+| F2c | 既存 beam2 / beam3 | 31.6% / 26.2% | 採用なし |
+| F2c | 終端盤面評価 beam2 / beam3 | 34.9% / 30.4% | 採用なし |
+
+### 判断
+
+`fair-gen001` を新しい公平基準として採用する。F2 の再強化候補はすべて採用基準未達のため、`fair-gen002` は追加しない。旧 `gen001` は参考スパーリング相手としてのみ扱い、以後の CPU 強化ゲート・探索プールは fair 系列を基準にする。
+
+旧覗き見版と fair 版の勝率を、強さの採用判断として直接比較してはいけない。公平化前後の差は「非公開情報を使っていた評価をやめた影響」であり、ゲームバランス判断の基準値としては本エントリの fair-gen001 数値を使う。
+
+### 検証コマンド
+
+```bash
+npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/fair-rebase-league-4101
+npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/fair-rebase-league-730001
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/fair-rebase-league-4101 tmp/fair-rebase-league-730001
+npm run sim -- simulate --games 1000 --seed 4101 --out tmp/fair-rebase-sim-4101
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/fair-rebase-sim-4101
+npm run balance:cost -- --games-per-order 500 --seed 3000000 --out tmp/fair-rebase-cost.json
+npm run tune:apex -- --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 810101 --out tmp/fair-rebase-apex.json
+npm run tune:ai -- --iterations 36 --passes 3 --elite-count 4 --games-per-seat 16 --seed 730001 --out tmp/fair-ai-tuning-pool.json
+npm run gauntlet:ai -- --candidate-json tmp/fair-ai-top1.json --games-per-seat 120 --seed 910001 --out tmp/fair-ai-top1-910001.json
+npm run gauntlet:ai -- --candidate-json tmp/fair-ai-top1.json --games-per-seat 120 --seed 920001 --out tmp/fair-ai-top1-920001.json
+npm run check
+```
+
+## 2026-07-08 CPU 公平化 F0: 非公開手札参照の除去
+
+### 背景
+
+最強 CPU 計画の検証中に、出荷 challenger の攻撃評価が相手の実手札を参照して防御予測していることが判明した。これは「CPU は公開情報のみで判断する」という公平性原則に反するため、強化候補ではなく原則修正として公平化する。
+
+### 採用変更 / 変更内容
+
+- 通常攻撃評価の `chooseAiDefense(defender, ...)` フォールバックを廃止し、公開デッキリスト・公開ゾーン・相手手札枚数からの `estimatePublicHandDefenseValue` を既定挙動にした
+- STRIKE 評価の `chooseStrikeHandDefense(opponent, ...)` を公開情報ベースの推定に置換した
+- classic 優先行動の `bestDamagingAttacker` と beginner の攻撃可否判定から、相手実手札の中身による分岐を除去した
+- `docs/assets/ai-champions/fair/fair-gen001.json` を公平系列の初期チャンピオンとして凍結し、AI ガントレット/探索の既定プールを fair ディレクトリへ切り替えた
+
+実際の防御解決で、防御側自身が自分の手札を読む `chooseAiDefense` / `chooseStrikeHandDefense` は合法経路として維持する。
+
+### 検証
+
+公平版 vs 旧覗き見版 `gen001` の直接対決（旧コード上で `publicHandDefenseWeight=1` 候補を評価）:
+
+| seed | pool win rate | deck floor |
+| --- | ---: | ---: |
+| 950001 | 43.9% | 38.5% |
+| 960001 | 45.1% | 37.0% |
+
+狭いガード確認:
+
+- `npx vitest run src/game/aiStrategy.test.ts src/game/tutorial.test.ts` green（13 tests）
+
+### 判断
+
+採用する。旧覗き見版に対して弱体化しているが、これは公平性原則の修正であり 55% 採用ゲートの対象外。以後の強化・採用判定は fair 系列のチャンピオンプールを基準にする。旧 `gen001` は参考スパーリング相手としてのみ扱い、ゲート判定には使わない。
+
+### 検証コマンド
+
+```bash
+npm run gauntlet:ai -- --candidate-json tmp/fair-gen001-candidate.json --games-per-seat 120 --seed 950001 --out tmp/fair-vs-peek-950001.json
+npm run gauntlet:ai -- --candidate-json tmp/fair-gen001-candidate.json --games-per-seat 120 --seed 960001 --out tmp/fair-vs-peek-960001.json
+npx vitest run src/game/aiStrategy.test.ts src/game/tutorial.test.ts
+```
+
 ## 2026-07-08 最強 CPU 計画 Phase 0-4: 計測基盤採用、強化候補は据え置き
 
 ### 背景

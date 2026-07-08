@@ -33,7 +33,7 @@ type ChampionResult = {
 function parseArgs(argv: string[]): Args {
   const args: Args = {
     candidateJson: null,
-    championsDir: "docs/assets/ai-champions",
+    championsDir: "docs/assets/ai-champions/fair",
     gamesPerSeat: 20,
     seed: 510001,
     out: "tmp/ai-gauntlet.json",

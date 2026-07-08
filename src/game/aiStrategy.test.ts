@@ -135,8 +135,8 @@ describe("ai strategy", () => {
       if (record.game.winner === 0) challengerWins += 1;
     }
     // WP4 (2026-07-04) 以降、初心者は防御と単純攻撃を行うため全勝は期待しない。
-    // 目標水準: 挑戦者が大きく勝ち越しつつ、初心者も 5-20% 程度勝てること。
-    expect(challengerWins / games).toBeGreaterThanOrEqual(0.7);
+    // 公平化後も挑戦者が小標本で明確に勝ち越すことを固定する。
+    expect(challengerWins / games).toBeGreaterThanOrEqual(0.6);
   });
 
   it("estimates hand defense from public zones and hand size, not actual hand identities", () => {
@@ -154,5 +154,39 @@ describe("ai strategy", () => {
 
     expect(estimatePublicHandDefenseValue(first.players[1], attackCard))
       .toBe(estimatePublicHandDefenseValue(second.players[1], attackCard));
+  });
+
+  it("challenger action choice ignores hidden opponent hand identities", () => {
+    const first = makeGame(49);
+    const second = makeGame(49);
+    for (const game of [first, second]) {
+      game.turn = 3;
+      game.actionsRemaining = CONFIG.actionsPerTurn;
+      game.players[0].field = [card("AI-FIRE-2")];
+      game.players[0].hand = [card("AI-FIRE-1"), card("AI-FIRE-4")];
+      game.players[1].deckName = "火単色デッキ";
+      game.players[1].field = [];
+      game.players[1].discard = [card("AI-FIRE-1")];
+    }
+    first.players[1].hand = [card("AI-FIRE-2"), card("CMD-OPTIMIZE")];
+    second.players[1].hand = [card("AI-FIRE-1"), card("MEM-CACHE")];
+
+    expect(chooseAiAction(first, "challenger")).toEqual(chooseAiAction(second, "challenger"));
+  });
+
+  it("beginner attack choice ignores hidden opponent hand identities", () => {
+    const first = makeGame(50);
+    const second = makeGame(50);
+    for (const game of [first, second]) {
+      game.turn = 3;
+      game.actionsRemaining = CONFIG.actionsPerTurn;
+      game.players[0].field = [card("AI-FIRE-2")];
+      game.players[1].deckName = "火単色デッキ";
+      game.players[1].field = [card("AI-FIRE-1")];
+    }
+    first.players[1].hand = [card("AI-FIRE-2"), card("CMD-OPTIMIZE")];
+    second.players[1].hand = [card("AI-FIRE-1"), card("MEM-CACHE")];
+
+    expect(chooseAiAction(first, "beginner")).toEqual(chooseAiAction(second, "beginner"));
   });
 });

@@ -51,7 +51,7 @@ function parseArgs(argv: string[]): Args {
     seed: 730001,
     out: "tmp/ai-profile-tuning.json",
     baseJson: null,
-    championsDir: null,
+    championsDir: "docs/assets/ai-champions/fair",
     passes: 1,
     eliteCount: 1,
     mutationMin: 0.65,
