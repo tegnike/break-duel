@@ -4,6 +4,116 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
+## 2026-07-08 beginner 手札防御較正 + fair-gen002 凍結: 採用
+
+### 背景
+
+公平 CPU + リバランス後の beginner 較正で、初心者側勝率が fire 28.7%、earth 53.3% まで上振れし、5-20% 目安を外れていた。S0 診断では、earth 敗北時の challenger は attack +2.86 / charge +2.90 / command +4.84（challenger - beginner）と行動自体は多い一方、beginner が防御と手札を大量に残し、challenger が deck 0.0 / hand 0.24 まで枯れて負ける形だった。既存重み、公開手札防御推定、classic 優先度、beam 幅のスクリーニングでは、fire/earth/water を同時に 5-20% 帯へ戻せなかった。
+
+### 採用変更 / 変更内容
+
+TypeScript 実装で、`beginner` の手札防御だけを較正した。
+
+- 成功する場防御は従来どおり使う
+- 水デッキは、デッキの粘りを保つため従来どおり手札防御を使う
+- 水以外の beginner は power 2 以下の手札防御だけ使い、power 3+ を守りに使い切る上級判断をしない
+- `CHALLENGER_WEIGHTS` に将来候補検証用の `chargeBeforeAttackPenalty` を追加したが、採用値は 0。challenger の既定重みは `fair-gen001` から変更しない
+- `docs/assets/ai-champions/fair/fair-gen002.json` を凍結。重みは fair-gen001 と同一で、CPU 較正後の基準世代として記録する
+
+### 検証
+
+**beginner 較正**（fire/water/earth 同一デッキ、seed 4101 / 730001、先後入替 100 戦ずつ、各 400 戦）:
+
+| デッキ | beginner 勝率 | 判定 |
+| --- | ---: | --- |
+| fire | 11.8% | 帯内 |
+| water | 12.0% | 帯内 |
+| earth | 15.5% | 帯内 |
+
+**fair-gen001 非退行ガントレット**（7デッキ同一ミラー、games-per-seat 120）:
+
+| seed | pool win rate | deck floor |
+| --- | ---: | ---: |
+| 910001 | 50.0% | 50.0% |
+| 920001 | 50.0% | 50.0% |
+
+challenger 重みと challenger 同士の挙動は変えていないため、fair-gen001 への非退行は完全な 50.0%。AI テスト（`src/game/aiStrategy.test.ts`）も green。
+
+**S2 重み再探索**（`iterations 36 / passes 3 / elite 4 / games-per-seat 16`、seed 730001）:
+
+- 探索内 best: pool 56.7%、pool floor 46.9%、h2h 48.7%、h2h floor 40.6%
+- 独立確認: seed 930001 pool 50.2% / floor 47.7%、seed 940001 pool 53.1% / floor 50.8%
+- 55% 直接対決ゲート未達のため `fair-gen003` は追加しない
+
+**S3 公開手札防御スケール確認**（games-per-seat 120、seed 950001）:
+
+| 候補 | pool win rate | deck floor | 判断 |
+| --- | ---: | ---: | --- |
+| `publicHandDefenseWeight=0.5` | 49.8% | 49.0% | 不採用 |
+| `publicHandDefenseWeight=1.5` | 50.2% | 49.8% | 不採用 |
+
+既存の公開情報推定（公開デッキリスト・可視ゾーン・手札枚数）を維持する。実手札を読む経路は `aiStrategy.test.ts` のガードで引き続き禁止する。
+
+**最終リーグ**（6デッキ、100 games/ordered pair、seed 4101 / 730001）:
+
+| デッキ | seed 4101 | seed 730001 | 平均 |
+| --- | ---: | ---: | ---: |
+| break | 49.4% | 49.0% | 49.2% |
+| control | 55.0% | 52.6% | 53.8% |
+| fire | 47.9% | 48.3% | 48.1% |
+| water | 48.1% | 47.7% | 47.9% |
+| wind | 46.9% | 48.6% | 47.8% |
+| earth | 51.0% | 51.9% | 51.4% |
+| 先攻勝率 | 48.0% | 47.4% | 47.7% |
+
+challenger 同士の挙動は変えていないため、リバランス時のリーグと同じ。先攻勝率 47.7% は既知の監視点として継続。
+
+**盛り上がり指標**（break vs control、1000戦、seed 4101）:
+
+- 平均ターン 23.1 / 中央値 24
+- リード交代あり 57.5%、平均交代 0.91 回
+- 2点ビハインド逆転 49.9%
+- 先に2点差をつけた側の勝率 54.5%
+- 最大スイング 3点以上 91.9%、4点以上 73.5%
+- 決着形態: lifeout 77.5% / resource 22.4% / draw 0.1%
+
+**ストレスデッキ回帰**（500 games/order、seed 3000000）:
+
+| 候補 | win rate | 判定 |
+| --- | ---: | --- |
+| p1 | 0.15% | OK |
+| p1-2 | 4.50% | OK |
+| p2 | 18.27% | OK |
+| p2-3 | 49.43% | OK |
+| p3 | 36.63% | OK |
+| p3-4 | 33.18% | OK |
+| p4 | 26.37% | OK |
+
+**apex 再探索**（pool-size 120、seed 810101）:
+
+best は `apex_mutation_004`、探索リーグ 51.6%。ただし current との直接ペアは 50-50 / 49-51 で明確な勝ち越しなし。apex は据え置く。
+
+### 判断
+
+採用する。これは challenger を強化する変更ではなく、beginner が高 power 手札防御まで最適に使ってしまう較正ズレの修正である。fire/earth の上振れを落としつつ、水デッキの最低限の粘りは維持できた。`fair-gen002` は重み面の新チャンピオンではなく、較正後 CPU ベースラインとして扱う。
+
+### 検証コマンド
+
+```bash
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npx tsx <tmp/strongest-cpu2-s1 calibration inline script>
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run gauntlet:ai -- --games-per-seat 120 --seed 910001 --out tmp/strongest-cpu2-s1/fair-gen002-gauntlet-910001.json
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run gauntlet:ai -- --games-per-seat 120 --seed 920001 --out tmp/strongest-cpu2-s1/fair-gen002-gauntlet-920001.json
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run tune:ai -- --iterations 36 --passes 3 --elite-count 4 --games-per-seat 16 --seed 730001 --out tmp/strongest-cpu2-s2/tuning.json
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/strongest-cpu2-final-league-4101
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/strongest-cpu2-final-league-730001
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/strongest-cpu2-final-league-4101 tmp/strongest-cpu2-final-league-730001
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run sim -- simulate --games 1000 --seed 4101 --out tmp/strongest-cpu2-final-sim-4101
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/strongest-cpu2-final-sim-4101
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run balance:cost -- --games-per-order 500 --seed 3000000 --out tmp/strongest-cpu2-final-cost-3000000.json
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run tune:apex -- --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 810101 --out tmp/strongest-cpu2-final-apex-810101.json
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npx vitest run src/game/aiStrategy.test.ts
+```
+
 ## 2026-07-08 公平基準リバランス: control 突出と water/wind 低勝率を是正
 
 ### 背景

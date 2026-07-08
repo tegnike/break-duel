@@ -4,6 +4,7 @@ import {
   CONFIG,
   type Card,
   chooseAiAction,
+  chooseAiDefense,
   cloneCard,
   createGame,
   estimatePublicHandDefenseValue,
@@ -107,6 +108,22 @@ describe("ai strategy", () => {
     beginAttackInDraft(game, 0, 0);
 
     expect(game.players[1].life).toBe(8);
+  });
+
+  it("beginner keeps high-power hand defenders outside water decks", () => {
+    const game = makeGame(4601);
+    game.players[1].deckName = "火単色デッキ";
+    game.players[1].hand = [card("AI-FIRE-4")];
+
+    expect(chooseAiDefense(game.players[1], card("AI-FIRE-2"), "beginner")).toEqual({ type: "none" });
+  });
+
+  it("beginner water decks can still use high-power hand defense", () => {
+    const game = makeGame(4602);
+    game.players[1].deckName = "水単色デッキ";
+    game.players[1].hand = [card("AI-WATER-4")];
+
+    expect(chooseAiDefense(game.players[1], card("AI-FIRE-2"), "beginner")).toEqual({ type: "hand", index: 0 });
   });
 
   it("beginner summons with field room", () => {

@@ -2022,7 +2022,6 @@ export function acceleratorSacrificeTarget(player: PlayerState): number | null {
 }
 
 export function chooseAiDefense(defender: PlayerState, attackCard: Card, profile: AiProfile = defender.aiProfile, attackContext?: AttackContext): DefenseChoice {
-  void profile;
   const fieldOptions = legalFieldDefenders(defender, attackCard, attackContext);
   const handOptions = legalHandDefenders(defender, attackCard, attackContext);
   const successfulFieldOptions = fieldOptions.filter(({ card, index }) => canDefendWithOptionalFirewall(attackCard, card, defender, index, attackContext));
@@ -2035,8 +2034,13 @@ export function chooseAiDefense(defender: PlayerState, attackCard: Card, profile
     ))[0];
     return { type: "field", index: best.index };
   }
-  if (handOptions.length > 0) {
-    const best = handOptions.sort((a, b) => (
+  const profileHandOptions = profile === "beginner"
+    ? defender.deckName.includes("水")
+      ? handOptions
+      : handOptions.filter(({ card }) => (card.power ?? 0) <= 2)
+    : handOptions;
+  if (profileHandOptions.length > 0) {
+    const best = profileHandOptions.sort((a, b) => (
       (a.card.power ?? 0) - (b.card.power ?? 0)
       || a.card.id.localeCompare(b.card.id)
     ))[0];
@@ -2437,6 +2441,7 @@ export const CHALLENGER_WEIGHTS = {
   publicHandDefenseWeight: 1,
   memoryIndividualValueScale: 1,
   chargeFuturePlan: 0,
+  chargeBeforeAttackPenalty: 0,
   lifeRacePressure: 0,
   deckOutPressure: 0,
   deckTypeConditionalBias: 0,
@@ -2503,6 +2508,7 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
       + effectValue
       + chargeFuturePlanValue(game, remaining)
       + deckTypeConditionalBias(ai, action)
+      - (canActivePlayerAttack(game) && attackableField(ai).length > 0 ? CHALLENGER_WEIGHTS.chargeBeforeAttackPenalty : 0)
       - aiCardValue(fuel) * 0.42;
   }
   if (action.type === "attack") {

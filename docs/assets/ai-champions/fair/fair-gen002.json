@@ -1,8 +1,8 @@
 {
-  "id": "fair-gen001",
+  "id": "fair-gen002",
   "date": "2026-07-08",
-  "source": "CHALLENGER_WEIGHTS after public-information fairness correction",
-  "notes": "Initial fair champion. Opponent hand defense is estimated from public deck list, visible zones, and hand size; old gen001 remains a reference sparring opponent only.",
+  "source": "beginner calibration after fair rebalance; challenger weights unchanged from fair-gen001",
+  "notes": "The challenger measurement weights are unchanged. This generation freezes the post-calibration CPU baseline where beginner hand defense is limited for non-water decks while water keeps full hand-defense use for deck identity and 5-20% calibration.",
   "weights": {
     "damage": 160,
     "lethal": 310,
