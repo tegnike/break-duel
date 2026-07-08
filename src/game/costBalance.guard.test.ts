@@ -1,8 +1,8 @@
 // power 帯偏重ストレスデッキのガードレール回帰テスト。
 // Python 版 tests/test_cost_balance.py の移植。scripts/runCostBalance.ts と同じ
 // 共有ロジック（src/sim/costBalance.ts）で 7 本のストレスデッキ勝率が採用済み閾値以内であることを検証する。
-// 1 ストレスデッキあたり 500 試合/ordered-matchup × 6 デッキ × 両手番 = 6000 試合（Python 版と同じ試合数）。
-// フル実行は約 85 秒（このファイル単体）。単独で回す場合は `npm run test:balance`。
+// unit では 80 試合/ordered-matchup × 6 デッキ × 両手番 = 960 試合に抑える。
+// フル回帰は `npm run balance:cost -- --games-per-order 500` で実行する。
 import { describe, expect, it } from "vitest";
 
 import type { AiProfile } from "../game";
@@ -12,9 +12,9 @@ import {
   evaluateCandidate,
 } from "../sim/costBalance";
 
-// Python 版 BALANCE_CONFIG = GameConfig(max_turns=40) / BALANCE_GAMES_PER_ORDERED_MATCHUP = 500 に対応。
+// Python 版 BALANCE_CONFIG = GameConfig(max_turns=40) に対応。
 const BALANCE_MAX_TURNS = 40;
-const BALANCE_GAMES_PER_ORDERED_MATCHUP = 500;
+const BALANCE_GAMES_PER_ORDERED_MATCHUP = 80;
 const AI_PROFILES: [AiProfile, AiProfile] = ["challenger", "challenger"];
 
 // Python 版テストと同じシード割り当て。

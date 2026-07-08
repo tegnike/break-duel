@@ -133,6 +133,7 @@ export type PlayerState = {
   life: number;
   deck: Card[];
   hand: Card[];
+  knownHandCards: Card[];
   field: Card[];
   fieldStacks: Card[][];
   memory: Card | null;
@@ -821,6 +822,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     life: CONFIG.life,
     deck,
     hand: [],
+    knownHandCards: [],
     field: [],
     fieldStacks: [],
     memory: null,
@@ -855,6 +857,7 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     life: CONFIG.life,
     deck,
     hand: [],
+    knownHandCards: [],
     field: [],
     fieldStacks: [],
     memory: null,
@@ -900,6 +903,7 @@ export function cloneGame(game: GameState): GameState {
       ...player,
       deck: [...player.deck],
       hand: [...player.hand],
+      knownHandCards: [...(player.knownHandCards ?? [])],
       field: [...player.field],
       fieldStacks: (player.fieldStacks ?? []).map((stack) => [...stack]),
       discard: [...player.discard],
@@ -986,6 +990,21 @@ export function drawCards(player: PlayerState, count: number): Card[] {
     player.cardsDrawn += 1;
   }
   return drawnCards;
+}
+
+export function knownHandCards(player: PlayerState): Card[] {
+  const seen = new Set<Card>();
+  return (player.knownHandCards ?? []).filter((card) => {
+    if (!player.hand.includes(card) || seen.has(card)) return false;
+    seen.add(card);
+    return true;
+  });
+}
+
+export function markKnownHandCard(player: PlayerState, card: Card): void {
+  if (!player.hand.includes(card)) return;
+  player.knownHandCards ??= [];
+  if (!player.knownHandCards.includes(card)) player.knownHandCards.push(card);
 }
 
 export function cardNameList(cards: Card[]): string {
@@ -1683,6 +1702,7 @@ export function recoverMemoryFromDiscard(player: PlayerState, discardIndex: numb
   if (!card || card.type !== "memory") return null;
   player.discard.splice(discardIndex, 1);
   player.hand.push(card);
+  markKnownHandCard(player, card);
   return card;
 }
 
@@ -2288,6 +2308,30 @@ type PlanNode = {
   depth: number;
 };
 
+export type AiActionPlanDebugEntry = {
+  action: AiAction;
+  immediateScore: number;
+  afterBoardScore: number;
+  afterTurnEndScore: number;
+  afterActionsRemaining: number;
+  afterActive: number;
+  afterWinner: number | null;
+  afterDraw: boolean;
+};
+
+export type AiPlanBeamDebugNode = {
+  firstAction: AiAction;
+  actions: AiAction[];
+  cumulativeScore: number;
+  turnEndScore: number;
+  totalScore: number;
+  depth: number;
+  active: number;
+  actionsRemaining: number;
+  winner: number | null;
+  draw: boolean;
+};
+
 function choosePlannedChallengerAiAction(game: GameState, beamWidth: number): AiAction {
   const activeSeat = game.active;
   const initialOptions = rankedAiActions(game).slice(0, beamWidth);
@@ -2302,7 +2346,7 @@ function choosePlannedChallengerAiAction(game: GameState, beamWidth: number): Ai
       depth: 1,
     };
   });
-  const maxDepth = Math.max(1, Math.min(CONFIG.actionsPerTurn + 1, game.actionsRemaining + 1));
+  const maxDepth = CONFIG.actionsPerTurn + 1;
   for (let depth = 1; depth < maxDepth; depth += 1) {
     const expanded: PlanNode[] = [];
     for (const node of beam) {
@@ -2322,11 +2366,104 @@ function choosePlannedChallengerAiAction(game: GameState, beamWidth: number): Ai
         });
       }
     }
-    expanded.sort((a, b) => plannedNodeScore(b, activeSeat) - plannedNodeScore(a, activeSeat) || b.depth - a.depth || aiActionTieBreak(b.firstAction) - aiActionTieBreak(a.firstAction));
+    expanded.sort((a, b) => plannedNodeScore(b, activeSeat) - plannedNodeScore(a, activeSeat) || a.depth - b.depth || aiActionTieBreak(b.firstAction) - aiActionTieBreak(a.firstAction));
     beam = expanded.slice(0, beamWidth);
   }
-  beam.sort((a, b) => plannedNodeScore(b, activeSeat) - plannedNodeScore(a, activeSeat) || b.depth - a.depth || aiActionTieBreak(b.firstAction) - aiActionTieBreak(a.firstAction));
+  beam.sort((a, b) => plannedNodeScore(b, activeSeat) - plannedNodeScore(a, activeSeat) || a.depth - b.depth || aiActionTieBreak(b.firstAction) - aiActionTieBreak(a.firstAction));
   return beam[0]?.firstAction ?? chooseGreedyChallengerAiAction(game);
+}
+
+export function debugChallengerActionScores(game: GameState): AiActionPlanDebugEntry[] {
+  const activeSeat = game.active;
+  const classic = chooseClassicAiAction(game);
+  return legalAiActions(game)
+    .map((action) => {
+      const next = cloneGame(game);
+      performAiActionInDraft(next, action);
+      return {
+        action,
+        immediateScore: scoreAiAction(game, action, classic),
+        afterBoardScore: boardScoreForSeat(next, activeSeat),
+        afterTurnEndScore: turnEndPlanScore(next, activeSeat),
+        afterActionsRemaining: next.actionsRemaining,
+        afterActive: next.active,
+        afterWinner: next.winner,
+        afterDraw: next.draw,
+      };
+    })
+    .sort((a, b) => b.immediateScore - a.immediateScore || aiActionTieBreak(b.action) - aiActionTieBreak(a.action));
+}
+
+export function debugChallengerBeam(game: GameState, beamWidth: number): AiPlanBeamDebugNode[] {
+  const activeSeat = game.active;
+  const initialOptions = rankedAiActions(game).slice(0, beamWidth);
+  let beam: AiPlanBeamDebugNode[] = initialOptions.map((action) => {
+    const next = cloneGame(game);
+    performAiActionInDraft(next, action);
+    const cumulativeScore = scorePlannedAction(game, action);
+    const turnEndScore = turnEndPlanScore(next, activeSeat);
+    return {
+      firstAction: action,
+      actions: [action],
+      cumulativeScore,
+      turnEndScore,
+      totalScore: turnEndScore,
+      depth: 1,
+      active: next.active,
+      actionsRemaining: next.actionsRemaining,
+      winner: next.winner,
+      draw: next.draw,
+    };
+  });
+  const games = new Map<AiPlanBeamDebugNode, GameState>();
+  for (const node of beam) {
+    const next = cloneGame(game);
+    for (const action of node.actions) performAiActionInDraft(next, action);
+    games.set(node, next);
+  }
+  const maxDepth = CONFIG.actionsPerTurn + 1;
+  for (let depth = 1; depth < maxDepth; depth += 1) {
+    const expanded: AiPlanBeamDebugNode[] = [];
+    const expandedGames = new Map<AiPlanBeamDebugNode, GameState>();
+    for (const node of beam) {
+      const nodeGame = games.get(node);
+      if (!nodeGame) continue;
+      if (nodeGame.winner !== null || nodeGame.draw || nodeGame.active !== activeSeat || nodeGame.actionsRemaining <= 0) {
+        expanded.push(node);
+        expandedGames.set(node, nodeGame);
+        continue;
+      }
+      const actions = rankedAiActions(nodeGame).slice(0, beamWidth);
+      for (const action of actions) {
+        const next = cloneGame(nodeGame);
+        performAiActionInDraft(next, action);
+        const cumulativeScore = node.cumulativeScore + scorePlannedAction(nodeGame, action);
+        const turnEndScore = turnEndPlanScore(next, activeSeat);
+        const nextNode: AiPlanBeamDebugNode = {
+          firstAction: node.firstAction,
+          actions: [...node.actions, action],
+          cumulativeScore,
+          turnEndScore,
+          totalScore: turnEndScore,
+          depth: node.depth + 1,
+          active: next.active,
+          actionsRemaining: next.actionsRemaining,
+          winner: next.winner,
+          draw: next.draw,
+        };
+        expanded.push(nextNode);
+        expandedGames.set(nextNode, next);
+      }
+    }
+    expanded.sort((a, b) => b.totalScore - a.totalScore || a.depth - b.depth || aiActionTieBreak(b.firstAction) - aiActionTieBreak(a.firstAction));
+    beam = expanded.slice(0, beamWidth);
+    games.clear();
+    for (const node of beam) {
+      const nodeGame = expandedGames.get(node);
+      if (nodeGame) games.set(node, nodeGame);
+    }
+  }
+  return [...beam].sort((a, b) => b.totalScore - a.totalScore || a.depth - b.depth || aiActionTieBreak(b.firstAction) - aiActionTieBreak(a.firstAction));
 }
 
 function rankedAiActions(game: GameState): AiAction[] {
@@ -2343,7 +2480,7 @@ function scorePlannedAction(game: GameState, action: AiAction): number {
 }
 
 function plannedNodeScore(node: PlanNode, seat: number): number {
-  return node.score + turnEndPlanScore(node.game, seat);
+  return turnEndPlanScore(node.game, seat);
 }
 
 function turnEndPlanScore(game: GameState, seat: number): number {
@@ -2437,7 +2574,7 @@ export const CHALLENGER_WEIGHTS = {
   pierceHandDefenseDamage: 0,
   classicChargeActionCap: 3,
   strikeTieBreakPriority: 7,
-  turnPlanBeamWidth: 1,
+  turnPlanBeamWidth: 3,
   publicHandDefenseWeight: 1,
   memoryIndividualValueScale: 1,
   chargeFuturePlan: 0,
@@ -2681,6 +2818,7 @@ function chooseAttackEvaluationDefense(
 type PublicHandDefenseEstimateInput = {
   hiddenCandidates: Card[];
   legalCandidates: Card[];
+  knownLegalCandidates: Card[];
   handSize: number;
 };
 
@@ -2708,6 +2846,8 @@ function publicHandDefenseEstimateInput(
   defender.fieldStacks?.forEach((stack) => stack.forEach(addVisible));
   defender.discard.forEach(addVisible);
   addVisible(defender.memory);
+  const knownHand = knownHandCards(defender);
+  knownHand.forEach(addVisible);
   const hiddenCandidates: Card[] = [];
   for (const cardId of deck.cards) {
     const used = visibleCounts.get(cardId) ?? 0;
@@ -2718,30 +2858,39 @@ function publicHandDefenseEstimateInput(
     const card = CARD_BY_ID.get(cardId);
     if (card) hiddenCandidates.push(card);
   }
-  if (hiddenCandidates.length === 0) return null;
+  const knownLegalCandidates = knownHand
+    .filter((card) => card.type === "ai"
+      && !cannotHandDefend(card)
+      && !(CONFIG.power3CannotHandDefend && card.power === 3)
+      && canDefend(attackCard, card, defender, { fieldDefense: false, attackContext }));
+  if (hiddenCandidates.length === 0 && knownLegalCandidates.length === 0) return null;
   const legalCandidates = hiddenCandidates
     .filter((card) => card.type === "ai"
       && !cannotHandDefend(card)
       && !(CONFIG.power3CannotHandDefend && card.power === 3)
       && canDefend(attackCard, card, defender, { fieldDefense: false, attackContext }));
-  if (legalCandidates.length === 0) return null;
+  if (legalCandidates.length === 0 && knownLegalCandidates.length === 0) return null;
   return {
     hiddenCandidates,
     legalCandidates,
-    handSize: Math.min(defender.hand.length, hiddenCandidates.length),
+    knownLegalCandidates,
+    handSize: Math.min(Math.max(0, defender.hand.length - knownHand.length), hiddenCandidates.length),
   };
 }
 
 function estimatePublicHandDefenseCandidateValue(input: PublicHandDefenseEstimateInput): number | null {
-  const { hiddenCandidates, legalCandidates, handSize } = input;
-  if (legalCandidates.length === 0) return null;
-  let probabilityNoDefense = 1;
-  const nonDefenders = hiddenCandidates.length - legalCandidates.length;
-  for (let drawIndex = 0; drawIndex < handSize; drawIndex += 1) {
-    probabilityNoDefense *= Math.max(0, nonDefenders - drawIndex) / Math.max(1, hiddenCandidates.length - drawIndex);
+  const { hiddenCandidates, legalCandidates, knownLegalCandidates, handSize } = input;
+  if (legalCandidates.length === 0 && knownLegalCandidates.length === 0) return null;
+  if (knownLegalCandidates.length > 0) {
+    const bestKnown = [...knownLegalCandidates].sort((a, b) => (
+      (a.power ?? 0) - (b.power ?? 0)
+      || aiCardValue(a) - aiCardValue(b)
+      || a.id.localeCompare(b.id)
+    ))[0];
+    return (CHALLENGER_WEIGHTS.handTradeAttack + aiCardValue(bestKnown) * 0.35) * CHALLENGER_WEIGHTS.publicHandDefenseWeight;
   }
-  const probabilityDefense = 1 - probabilityNoDefense;
-  if (probabilityDefense <= 0) return null;
+  const probabilityDefense = estimatePublicHandDefenseCandidateProbability(input);
+  if (probabilityDefense === null || probabilityDefense <= 0) return null;
   const bestExpected = [...legalCandidates].sort((a, b) => (
     (a.power ?? 0) - (b.power ?? 0)
     || aiCardValue(a) - aiCardValue(b)
@@ -2751,6 +2900,19 @@ function estimatePublicHandDefenseCandidateValue(input: PublicHandDefenseEstimat
   return raw * probabilityDefense * CHALLENGER_WEIGHTS.publicHandDefenseWeight;
 }
 
+function estimatePublicHandDefenseCandidateProbability(input: PublicHandDefenseEstimateInput): number | null {
+  const { hiddenCandidates, legalCandidates, knownLegalCandidates, handSize } = input;
+  if (knownLegalCandidates.length > 0) return 1;
+  if (legalCandidates.length === 0) return null;
+  let probabilityNoDefense = 1;
+  const nonDefenders = hiddenCandidates.length - legalCandidates.length;
+  for (let drawIndex = 0; drawIndex < handSize; drawIndex += 1) {
+    probabilityNoDefense *= Math.max(0, nonDefenders - drawIndex) / Math.max(1, hiddenCandidates.length - drawIndex);
+  }
+  const probabilityDefense = 1 - probabilityNoDefense;
+  return probabilityDefense > 0 ? probabilityDefense : null;
+}
+
 export function estimatePublicHandDefenseValue(
   defender: PlayerState,
   attackCard: Card,
@@ -2758,6 +2920,15 @@ export function estimatePublicHandDefenseValue(
 ): number | null {
   const input = publicHandDefenseEstimateInput(defender, attackCard, attackContext);
   return input ? estimatePublicHandDefenseCandidateValue(input) : null;
+}
+
+export function estimatePublicHandDefenseProbability(
+  defender: PlayerState,
+  attackCard: Card,
+  attackContext?: AttackContext,
+): number | null {
+  const input = publicHandDefenseEstimateInput(defender, attackCard, attackContext);
+  return input ? estimatePublicHandDefenseCandidateProbability(input) : null;
 }
 
 function estimatePublicStrikeHandDefenseValue(
@@ -2778,7 +2949,10 @@ function estimatePublicStrikeHandDefenseValue(
   const legalCandidates = mode === "value"
     ? input.legalCandidates.filter((card) => savedPower >= (card.power || 1))
     : input.legalCandidates;
-  return estimatePublicHandDefenseCandidateValue({ ...input, legalCandidates });
+  const knownLegalCandidates = mode === "value"
+    ? input.knownLegalCandidates.filter((card) => savedPower >= (card.power || 1))
+    : input.knownLegalCandidates;
+  return estimatePublicHandDefenseCandidateValue({ ...input, legalCandidates, knownLegalCandidates });
 }
 
 function sacrificialFollowupDamageAfterBlock(game: GameState, attackerFieldIndex: number, blockerIndex: number): number {

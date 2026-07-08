@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CARD_BY_ID,
+  CHALLENGER_WEIGHTS,
   CONFIG,
   type Card,
   chooseAiAction,
@@ -9,6 +10,7 @@ import {
   createGame,
   estimatePublicHandDefenseValue,
   type GameState,
+  markKnownHandCard,
 } from "../game";
 import { beginAttackInDraft, performAiActionInDraft } from "./actions";
 import { runMatch } from "../sim/runner";
@@ -40,17 +42,23 @@ describe("ai strategy", () => {
   it("uses optimize even without a useful effect, then ends the turn", () => {
     // 2026-07-06 のリワークで CMD-OPTIMIZE の「手札2枚以上」制約を撤廃したため、
     // 山札が空でも自分自身をトラッシュへ送るだけの発動が選ばれ得る。
-    const game = makeGame(41);
-    game.players[0].isHuman = false;
-    game.players[0].hand = [card("CMD-OPTIMIZE")];
+    const original = { ...CHALLENGER_WEIGHTS };
+    try {
+      CHALLENGER_WEIGHTS.turnPlanBeamWidth = 1;
+      const game = makeGame(41);
+      game.players[0].isHuman = false;
+      game.players[0].hand = [card("CMD-OPTIMIZE")];
 
-    const action = chooseAiAction(game, "challenger");
-    expect(action.type).toBe("command");
+      const action = chooseAiAction(game, "challenger");
+      expect(action.type).toBe("command");
 
-    performAiActionInDraft(game, action);
+      performAiActionInDraft(game, action);
 
-    expect(game.players[0].hand).toEqual([]);
-    expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
+      expect(game.players[0].hand).toEqual([]);
+      expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
+    } finally {
+      Object.assign(CHALLENGER_WEIGHTS, original);
+    }
   });
 
   it("can choose charge at zero actions", () => {
@@ -65,13 +73,42 @@ describe("ai strategy", () => {
     if (action.type === "charge") expect(action.index).toBe(0);
   });
 
-  it("ends at zero actions when charge is not useful", () => {
-    const game = makeGame(43);
-    game.players[0].hand = [card("CMD-OPTIMIZE")];
-    game.actionsRemaining = 0;
-    game.chargedActionsRemaining = 0;
+  it("beam planning does not prefer a support chain by double-counting board scores", () => {
+    const original = { ...CHALLENGER_WEIGHTS };
+    try {
+      CHALLENGER_WEIGHTS.turnPlanBeamWidth = 2;
+      const game = createGame(940001, "water", "water", "challenger");
+      game.players[0].isHuman = false;
+      game.players[0].aiProfile = "challenger";
 
-    expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
+      performAiActionInDraft(game, { type: "charge", index: 4 });
+      performAiActionInDraft(game, { type: "play", index: 3 });
+      performAiActionInDraft(game, { type: "play", index: 0 });
+      performAiActionInDraft(game, { type: "charge", index: 2 });
+      performAiActionInDraft(game, { type: "memory", index: 0 });
+
+      expect(game.turn).toBe(3);
+      expect(game.active).toBe(0);
+      expect(game.actionsRemaining).toBe(CONFIG.actionsPerTurn);
+      expect(chooseAiAction(game, "challenger")).toEqual({ type: "play", index: 0 });
+    } finally {
+      Object.assign(CHALLENGER_WEIGHTS, original);
+    }
+  });
+
+  it("ends at zero actions when charge is not useful", () => {
+    const original = { ...CHALLENGER_WEIGHTS };
+    try {
+      CHALLENGER_WEIGHTS.turnPlanBeamWidth = 1;
+      const game = makeGame(43);
+      game.players[0].hand = [card("CMD-OPTIMIZE")];
+      game.actionsRemaining = 0;
+      game.chargedActionsRemaining = 0;
+
+      expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
+    } finally {
+      Object.assign(CHALLENGER_WEIGHTS, original);
+    }
   });
 
   it("beginner attacks when the field cannot block", () => {
@@ -167,10 +204,27 @@ describe("ai strategy", () => {
     first.players[1].hand = [card("AI-WATER-4"), card("CMD-OPTIMIZE")];
     second.players[1].hand = [card("AI-EARTH-1"), card("MEM-CACHE")];
 
-    const attackCard = card("AI-FIRE-2");
+    const attackCard = card("AI-FIRE-1");
 
     expect(estimatePublicHandDefenseValue(first.players[1], attackCard))
       .toBe(estimatePublicHandDefenseValue(second.players[1], attackCard));
+  });
+
+  it("counts publicly known hand cards without reading hidden hand identities", () => {
+    const hidden = makeGame(51);
+    const known = makeGame(51);
+    for (const game of [hidden, known]) {
+      game.players[1].deckName = "火単色デッキ";
+      game.players[1].field = [];
+      game.players[1].discard = [];
+      game.players[1].hand = [card("AI-FIRE-2")];
+    }
+    markKnownHandCard(known.players[1], known.players[1].hand[0]);
+
+    const attackCard = card("AI-FIRE-1");
+
+    expect(estimatePublicHandDefenseValue(known.players[1], attackCard))
+      .toBeGreaterThan(estimatePublicHandDefenseValue(hidden.players[1], attackCard) ?? 0);
   });
 
   it("challenger action choice ignores hidden opponent hand identities", () => {

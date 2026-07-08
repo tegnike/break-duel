@@ -55,6 +55,7 @@ import {
   legalHandDefenders,
   legalStrikeFieldDefenders,
   lowestPriorityHand,
+  markKnownHandCard,
   keepsReadyAfterAttack,
   needsFirewallFuel,
   opponentPlayer,
@@ -246,6 +247,7 @@ function applyChargeEffects(
     if (recovered && recovered !== charged && recovered.type === "ai") {
       player.discard.splice(recoverIndex!, 1);
       player.hand.push(recovered);
+      markKnownHandCard(player, recovered);
       texts.push(`${recovered.name}をトラッシュから回収。`);
       const urnDrawnCards = applyEchoUrnDraw(player);
       if (urnDrawnCards.length > 0) texts.push(`${player.memory!.name}で${visibleDrawText(player, urnDrawnCards)}。`);
@@ -273,6 +275,7 @@ function applyChargeEffects(
     if (recovered && recovered !== charged && recovered.type === "ai") {
       player.discard.splice(recoverIndex!, 1);
       player.hand.push(recovered);
+      markKnownHandCard(player, recovered);
       texts.push(`${recovered.name}をトラッシュから回収。`);
       const urnDrawnCards = applyEchoUrnDraw(player);
       if (urnDrawnCards.length > 0) texts.push(`${player.memory!.name}で${visibleDrawText(player, urnDrawnCards)}。`);
@@ -394,6 +397,7 @@ export function applyPlayEffects(
     if (memoryIndex !== null) {
       const recovered = player.discard.splice(memoryIndex, 1)[0];
       player.hand.push(recovered);
+      markKnownHandCard(player, recovered);
       text += ` ${recovered.name}をトラッシュから回収。`;
       const urnDrawnCards = applyEchoUrnDraw(player);
       if (urnDrawnCards.length > 0) text += ` ${player.memory!.name}で${visibleDrawText(player, urnDrawnCards)}。`;
@@ -488,6 +492,7 @@ export function applyPlayEffects(
       } else {
         const recovered = player.discard.splice(targetIndex, 1)[0];
         player.hand.push(recovered);
+        markKnownHandCard(player, recovered);
         text += ` ${recovered.name}をトラッシュから回収。`;
         effects.showDuelEvent?.({
           kind: "trash",
@@ -623,6 +628,7 @@ export function useCommandAtInDraft(
         : discardLowPriorityCards(player, 1);
       const recovered = player.discard.splice(relearnTarget, 1)[0];
       player.hand.push(recovered);
+      markKnownHandCard(player, recovered);
       if (fuel.length > 0) text += ` ${fuel[0].name}を代償としてトラッシュへ送った。`;
       text += ` ${recovered.name}をトラッシュから回収。`;
       const urnDrawnCards = applyEchoUrnDraw(player);
@@ -672,6 +678,7 @@ export function useCommandAtInDraft(
     if (recoverIndex !== null && player.discard[recoverIndex]?.type === "ai") {
       const recovered = player.discard.splice(recoverIndex, 1)[0];
       player.hand.push(recovered);
+      markKnownHandCard(player, recovered);
       text += ` ${recovered.name}をトラッシュから回収。`;
       const urnDrawnCards = applyEchoUrnDraw(player);
       if (urnDrawnCards.length > 0) text += ` ${player.memory!.name}で${visibleDrawText(player, urnDrawnCards)}。`;
@@ -707,6 +714,7 @@ export function useCommandAtInDraft(
     if (salvageTarget !== null && player.discard[salvageTarget]?.type === "event" && player.discard[salvageTarget].effect !== "salvage") {
       const recovered = player.discard.splice(salvageTarget, 1)[0];
       player.hand.push(recovered);
+      markKnownHandCard(player, recovered);
       text += ` ${recovered.name}をトラッシュから回収。`;
       const urnDrawnCards = applyEchoUrnDraw(player);
       if (urnDrawnCards.length > 0) text += ` ${player.memory!.name}で${visibleDrawText(player, urnDrawnCards)}。`;
@@ -906,6 +914,7 @@ export function resolveDefenseInDraft(
       if (recoverIndex !== null) {
         const recovered = defender.discard.splice(recoverIndex, 1)[0];
         defender.hand.push(recovered);
+        markKnownHandCard(defender, recovered);
         defenseRecoverText = `${defenseCard.name}の効果で${defender.name}は${recovered.name}をトラッシュから回収。`;
         const urnDrawnCards = applyEchoUrnDraw(defender);
         if (urnDrawnCards.length > 0) defenseRecoverText += ` ${defender.memory!.name}で${visibleDrawText(defender, urnDrawnCards)}。`;
@@ -1127,6 +1136,7 @@ function overheatAttackerIfNeeded(
   if (returnsAfterOverheat(attackCard)) {
     const [returnedCard, ...stackedCards] = removeFieldStack(attacker, fieldIndex);
     attacker.hand.push(returnedCard);
+    markKnownHandCard(attacker, returnedCard);
     attacker.discard.push(...stackedCards);
     addLog(draft, `${attacker.name}の${attackCard.name}は攻撃後、風に乗って手札へ戻った。`);
     return;
@@ -1258,6 +1268,7 @@ export function resolveStrikeFieldDefenseInDraft(
     if (recoverIndex !== null) {
       const recovered = defender.discard.splice(recoverIndex, 1)[0];
       defender.hand.push(recovered);
+      markKnownHandCard(defender, recovered);
       defenseRecoverText = `${defenseCard.name}の効果で${defender.name}は${recovered.name}をトラッシュから回収。`;
       const urnDrawnCards = applyEchoUrnDraw(defender);
       if (urnDrawnCards.length > 0) defenseRecoverText += ` ${defender.memory!.name}で${visibleDrawText(defender, urnDrawnCards)}。`;

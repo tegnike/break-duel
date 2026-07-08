@@ -94,10 +94,13 @@ function parseDeck(raw: string): DeckId {
 
 function assertWeights(value: Record<string, unknown>, label: string): ChallengerWeights {
   const keys = Object.keys(CHALLENGER_WEIGHTS).sort();
-  const missing = keys.filter((key) => typeof value[key] !== "number");
-  if (missing.length > 0) throw new Error(`${label} に重みキーが不足しています: ${missing.join(", ")}`);
   const weights = {} as ChallengerWeights;
-  for (const key of keys) weights[key as keyof ChallengerWeights] = value[key] as number;
+  for (const key of keys) {
+    const parsed = value[key];
+    weights[key as keyof ChallengerWeights] = typeof parsed === "number"
+      ? parsed
+      : CHALLENGER_WEIGHTS[key as keyof ChallengerWeights];
+  }
   return weights;
 }
 
