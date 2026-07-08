@@ -92,10 +92,20 @@ import { CardArtPreview, CardView } from "./components/CardView";
 import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
 import { DevPanel } from "./components/DevPanel";
-import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
+import { DuelActionReel, DuelCutInOverlay, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
 import { SYNTH_SFX_PREFIX, renderSummonSfxSamples, summonArrivalForCard, summonAuraColor, summonSfxKind, type SummonArrival, type SummonSfxKind } from "./summonFx";
 import { attributeBurstTheme, hasCardMaterialBurst, runCardMaterialBurst, type CardMaterialTheme, type CardRect, type SummonBurstTheme } from "./summonParticles";
-import { duelEventDurationMs, type DuelEvent, type DuelEventPayload } from "./duelEvents";
+import {
+  cutInForEvent,
+  duelEventDurationMs,
+  DUEL_CUT_IN_DURATION_MS,
+  FINISHER_CUT_IN_LINE,
+  TRUMP_CUT_IN_LINE,
+  type DuelCutIn,
+  type DuelCutInStyle,
+  type DuelEvent,
+  type DuelEventPayload,
+} from "./duelEvents";
 import { RIVAL_VOICE_LINES, type RivalVoiceLineId } from "./rivalVoiceLines";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
 import finalBattleBgm from "./assets/audio/battle_music_final_loop.mp3";
@@ -728,6 +738,7 @@ export default function App() {
   const [toast, setToast] = useState<Toast>(null);
   const [coins, setCoins] = useState(() => loadCoins());
   const [duelEvent, setDuelEvent] = useState<DuelEvent | null>(null);
+  const [duelCutIn, setDuelCutIn] = useState<(DuelCutIn & { id: number }) | null>(null);
   const [cardFlights, setCardFlights] = useState<CardFlight[]>([]);
   const [trashFlash, setTrashFlash] = useState<TrashFlash | null>(null);
   const [lifeImpact, setLifeImpact] = useState<LifeImpact | null>(null);
@@ -761,6 +772,7 @@ export default function App() {
   const duelEventPlaying = useRef(false);
   const duelEventScheduler = useRef<number | null>(null);
   const duelEventTimer = useRef<number | null>(null);
+  const duelCutInTimer = useRef<number | null>(null);
   const cardFlightTimers = useRef<number[]>([]);
   const summonBurstTimers = useRef<number[]>([]);
   // カード着地演出は動的に canvas を生成/破棄するため固定プールではなく可変配列で cancel を保持する
@@ -957,7 +969,10 @@ export default function App() {
   }
 
   function queueDuelEvent(event: DuelEventPayload) {
-    const queuedEvent = rivalVoiceLineEligibleForEvent(event);
+    let queuedEvent = rivalVoiceLineEligibleForEvent(event);
+    // 相手（players[1]）の大ダメージ・致死攻撃には finisher カットインを付与する。
+    const cutIn = cutInForEvent(queuedEvent, 1);
+    if (cutIn && !queuedEvent.cutIn) queuedEvent = { ...queuedEvent, cutIn };
     const hasTrashSurge = trashSurgeForEvent(queuedEvent) !== null;
     if (queuedEvent.impact?.kind === "life-damage") {
       recentLifeDamageImpact.current = queuedEvent.impact;
@@ -969,6 +984,7 @@ export default function App() {
       && !hasTrashSurge
       && !queuedEvent.impact
       && queuedEvent.emphasis !== "peak"
+      && !queuedEvent.cutIn
     ) {
       if (queuedEvent.rivalVoiceLine) showRivalVoiceLine(queuedEvent.rivalVoiceLine, { skipTurnEligibility: true });
       return;
@@ -987,6 +1003,34 @@ export default function App() {
     if (!next) return;
     duelEventPlaying.current = true;
     const event = { ...next, id: eventId++ };
+    if (event.cutIn) {
+      // カットインを先に再生し、終了後に通常のリール表示へ直列で進む。カットイン中も入力ブロックは維持。
+      setDuelCutIn({ ...event.cutIn, id: eventId++ });
+      playSfx(event.cutIn.style === "trump" ? "charge" : "damage-heavy");
+      playRivalVoiceLine(event.cutIn.style === "trump" ? "cutin_trump" : "cutin_finisher");
+      duelCutInTimer.current = window.setTimeout(() => {
+        duelCutInTimer.current = null;
+        setDuelCutIn(null);
+        presentDuelEvent(event);
+      }, DUEL_CUT_IN_DURATION_MS);
+      return;
+    }
+    presentDuelEvent(event);
+  }
+
+  function playStandaloneCutIn(cutIn: DuelCutIn, onComplete?: () => void) {
+    clearDuelCutIn();
+    setDuelCutIn({ ...cutIn, id: eventId++ });
+    playSfx(cutIn.style === "trump" ? "charge" : "damage-heavy");
+    playRivalVoiceLine(cutIn.style === "trump" ? "cutin_trump" : "cutin_finisher");
+    duelCutInTimer.current = window.setTimeout(() => {
+      duelCutInTimer.current = null;
+      setDuelCutIn(null);
+      onComplete?.();
+    }, DUEL_CUT_IN_DURATION_MS);
+  }
+
+  function presentDuelEvent(event: DuelEvent) {
     setDuelEvent(event);
     if (event.rivalVoiceLine) showRivalVoiceLine(event.rivalVoiceLine, { skipTurnEligibility: true });
     if (!autoDismissDuelEvents) return;
@@ -995,9 +1039,27 @@ export default function App() {
     }, duelEventDurationMs(event));
   }
 
+  function clearDuelCutIn() {
+    if (duelCutInTimer.current !== null) window.clearTimeout(duelCutInTimer.current);
+    duelCutInTimer.current = null;
+    setDuelCutIn(null);
+  }
+
+  // 開発用パネルからカットインを単体プレビューする。演出キューは経由せず、見た目確認専用。
+  function previewDuelCutIn(style: DuelCutInStyle) {
+    clearDuelCutIn();
+    setDuelCutIn({ style, line: style === "trump" ? TRUMP_CUT_IN_LINE : FINISHER_CUT_IN_LINE, id: eventId++ });
+    playRivalVoiceLine(style === "trump" ? "cutin_trump" : "cutin_finisher");
+    duelCutInTimer.current = window.setTimeout(() => {
+      duelCutInTimer.current = null;
+      setDuelCutIn(null);
+    }, DUEL_CUT_IN_DURATION_MS);
+  }
+
   function dismissDuelEvent() {
     if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
     duelEventTimer.current = null;
+    clearDuelCutIn();
     setDuelEvent(null);
     duelEventPlaying.current = false;
     playNextDuelEvent();
@@ -1047,6 +1109,7 @@ export default function App() {
     duelEventTimer.current = null;
     duelEventQueue.current = [];
     duelEventPlaying.current = false;
+    clearDuelCutIn();
     setDuelEvent(null);
     if (rivalSpeechTimer.current !== null) window.clearTimeout(rivalSpeechTimer.current);
     rivalSpeechTimer.current = null;
@@ -1431,6 +1494,16 @@ export default function App() {
         720,
       );
     }
+  }
+
+  function cutInBeforeAiAction(action: AiAction): DuelCutIn | null {
+    const card = action.type === "play"
+      ? ai.hand[action.index]
+      : action.type === "upgrade"
+        ? ai.hand[action.handIndex]
+        : null;
+    if (!card || card.type !== "ai" || card.power !== 4) return null;
+    return { style: "trump", line: TRUMP_CUT_IN_LINE };
   }
 
   function prepareAiActionAnimation(action: AiAction) {
@@ -1868,14 +1941,13 @@ export default function App() {
     if (tutorialActive && tutorialStep?.id === "watch-rival" && tutorialAiAdvanceKey !== tutorialAiTurnKey(game, tutorialStep)) return undefined;
     if (active.isHuman || (game.actionsRemaining <= 0 && !canUseCharge(game, active))) return undefined;
     if (aiAnimating) {
-      // コミット遅延の最大値(約1700ms)を超えても aiAnimating が立ったままなら、
-      // タイマーが失われた(HMR等)とみなして回収する。正常時はコミットが先に完了して
-      // aiAnimating が false になり、このウォッチドッグはクリーンアップで消える。
+      // カットイン先出し + カード移動の最大待ち時間を超えても aiAnimating が立ったままなら、
+      // タイマーが失われた(HMR等)とみなして回収する。正常時はコミットが先に完了する。
       const watchdog = window.setTimeout(() => {
         if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
         aiCommitTimer.current = null;
         setAiAnimating(false);
-      }, 2600);
+      }, DUEL_CUT_IN_DURATION_MS + CPU_CARD_PLAY_COMMIT_DELAY_MS + 1200);
       return () => window.clearTimeout(watchdog);
     }
     if (duelEvent || duelEventPlaying.current || duelEventQueue.current.length > 0 || duelEventScheduler.current !== null) {
@@ -1887,14 +1959,22 @@ export default function App() {
     const tutorialManualAdvance = tutorialActive && tutorialStep?.id === "watch-rival";
     const timer = window.setTimeout(() => {
       const action = tutorialActive ? tutorialForcedAiAction(game) ?? chooseAiAction(game, active.aiProfile) : chooseAiAction(game, active.aiProfile);
-      const commitDelay = prepareAiActionAnimation(action);
       setAiAnimating(true);
-      aiCommitTimer.current = window.setTimeout(() => {
-        mutate((draft) => performAiActionInDraft(draft, action, { playSfx, showDuelEvent: queueDuelEvent }));
-        if (tutorialManualAdvance) setTutorialAiAdvancePending(false);
-        setAiAnimating(false);
-        aiCommitTimer.current = null;
-      }, commitDelay);
+      const preActionCutIn = cutInBeforeAiAction(action);
+      const commitAction = (suppressEntryCutIn = false) => {
+        const commitDelay = prepareAiActionAnimation(action);
+        aiCommitTimer.current = window.setTimeout(() => {
+          mutate((draft) => performAiActionInDraft(draft, action, { playSfx, showDuelEvent: queueDuelEvent, suppressEntryCutIn }));
+          if (tutorialManualAdvance) setTutorialAiAdvancePending(false);
+          setAiAnimating(false);
+          aiCommitTimer.current = null;
+        }, commitDelay);
+      };
+      if (preActionCutIn) {
+        playStandaloneCutIn(preActionCutIn, () => commitAction(true));
+        return;
+      }
+      commitAction();
     }, tutorialManualAdvance ? 80 : 720);
     return () => window.clearTimeout(timer);
   }, [page, game, duelEvent, aiAnimating, tutorialActive, tutorialStep?.id, tutorialStep?.kicker, tutorialStep?.title, tutorialAiAdvanceKey, starterDeckSetupOpen, aiGateRetryTick]);
@@ -1902,9 +1982,11 @@ export default function App() {
   useEffect(() => {
     return () => {
       stopBgm();
-      if (duelEventScheduler.current !== null) window.clearTimeout(duelEventScheduler.current);
-      if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
-      cardFlightTimers.current.forEach((timer) => window.clearTimeout(timer));
+	      if (duelEventScheduler.current !== null) window.clearTimeout(duelEventScheduler.current);
+	      if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
+	      if (duelCutInTimer.current !== null) window.clearTimeout(duelCutInTimer.current);
+	      duelCutInTimer.current = null;
+	      cardFlightTimers.current.forEach((timer) => window.clearTimeout(timer));
       cardFlightTimers.current = [];
       clearSummonLandingEffects();
       if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
@@ -3777,6 +3859,7 @@ export default function App() {
       {lifeImpact && <DamageImpactLayer impact={lifeImpact} />}
       {breakDrawPulse && <BreakDrawLayer pulse={breakDrawPulse} />}
       {trashSurge && <TrashSurgeLayer surge={trashSurge} eventId={duelEvent?.id ?? trashFlash?.id ?? 0} />}
+      <DuelCutInOverlay cutIn={duelCutIn} />
       <DuelActionReel event={duelEvent} autoDismiss={autoDismissDuelEvents} onClose={dismissDuelEvent}>
         {showDefenseInDuelEvent ? defensePanel : null}
       </DuelActionReel>
@@ -3786,7 +3869,9 @@ export default function App() {
       {game.discardViewerOwner !== null && (
         <DiscardModal game={game} onClose={closeDiscardViewer} onSelect={selectDiscardCard} />
       )}
-      {import.meta.env.DEV && <DevPanel game={game} busy={aiAnimating} onMutate={mutate} />}
+      {import.meta.env.DEV && (
+        <DevPanel game={game} busy={aiAnimating} onMutate={mutate} onPreviewCutIn={previewDuelCutIn} />
+      )}
     </main>
   );
 }

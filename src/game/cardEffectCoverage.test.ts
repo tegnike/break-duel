@@ -1452,7 +1452,7 @@ describe("life damage event metadata", () => {
     expect(game.players[1].hand.map((item) => item.id)).toContain("AI-FIRE-2");
   });
 
-  it("keeps power 4 play events as normal summon events without a cut-in", () => {
+  it("adds a trump cut-in when the rival plays a power 4 AI", () => {
     const game = blankGame();
     const events: DuelEventPayload[] = [];
     game.active = 1;
@@ -1469,10 +1469,10 @@ describe("life damage event metadata", () => {
       cards: [{ label: "登場", state: "neutral" }],
     });
     expect(events[0]?.emphasis).toBeUndefined();
-    expect(events[0]?.cutIn).toBeUndefined();
+    expect(events[0]?.cutIn).toEqual({ style: "trump", line: "ここで決めます…！！" });
   });
 
-  it("keeps power 4 upgrade events as normal upgrade events without a cut-in", () => {
+  it("adds a trump cut-in when the rival upgrades into a power 4 AI", () => {
     const game = blankGame();
     const events: DuelEventPayload[] = [];
     game.active = 1;
@@ -1490,6 +1490,37 @@ describe("life damage event metadata", () => {
     });
     expect(events[0]?.emphasis).toBeUndefined();
     expect(events[0]?.cards[1]).toMatchObject({ label: "新", state: "winner" });
+    expect(events[0]?.cutIn).toEqual({ style: "trump", line: "ここで決めます…！！" });
+  });
+
+  it("can suppress the power 4 entry cut-in when it was already played before the action", () => {
+    const game = blankGame();
+    const events: DuelEventPayload[] = [];
+    game.active = 1;
+    game.actionsRemaining = 4;
+    game.players[1].hand = [card("AI-FIRE-4")];
+
+    performAiActionInDraft(game, { type: "play", index: 0 }, {
+      showDuelEvent: (event) => events.push(event),
+      suppressEntryCutIn: true,
+    });
+
+    expect(events[0]?.kind).toBe("play");
+    expect(events[0]?.cutIn).toBeUndefined();
+  });
+
+  it("does not add a cut-in for plays below power 4", () => {
+    const game = blankGame();
+    const events: DuelEventPayload[] = [];
+    game.active = 1;
+    game.actionsRemaining = 4;
+    game.players[1].hand = [card("AI-FIRE-3")];
+
+    performAiActionInDraft(game, { type: "play", index: 0 }, {
+      showDuelEvent: (event) => events.push(event),
+    });
+
+    expect(events[0]?.kind).toBe("play");
     expect(events[0]?.cutIn).toBeUndefined();
   });
 });

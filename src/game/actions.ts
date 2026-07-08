@@ -79,12 +79,19 @@ import {
   useAction,
   visibleDrawText,
 } from "../game";
+import { TRUMP_CUT_IN_LINE } from "../duelEvents";
 import type { DuelEventPayload } from "../duelEvents";
 
 export type GameActionEffects = {
   playSfx?: (kind: string) => void;
   showDuelEvent?: (event: DuelEventPayload) => void;
+  suppressEntryCutIn?: boolean;
 };
+
+function trumpCutInForPower4Entry(player: PlayerState, card: Card): DuelEventPayload["cutIn"] | undefined {
+  if (player.isHuman || card.type !== "ai" || card.power !== 4) return undefined;
+  return { style: "trump", line: TRUMP_CUT_IN_LINE };
+}
 
 export type ChargeTargetOptions = {
   guardTargetIndex?: number | null;
@@ -1514,6 +1521,7 @@ export function performAiActionInDraft(
       toLabel: "場",
       tone: player.isHuman ? "magenta" : "cyan",
       rivalVoiceLine: player.isHuman ? undefined : "play_summon",
+      cutIn: effects.suppressEntryCutIn ? undefined : trumpCutInForPower4Entry(player, card),
       cards: [{ card, label: "登場", state: "neutral" }],
     });
     if (!draft.pendingTarget) afterAction(draft, cost);
@@ -1540,6 +1548,7 @@ export function performAiActionInDraft(
       toLabel: "場",
       tone: player.isHuman ? "magenta" : "cyan",
       rivalVoiceLine: player.isHuman ? undefined : "upgrade",
+      cutIn: effects.suppressEntryCutIn ? undefined : trumpCutInForPower4Entry(player, card),
       cards: [
         { card: source, label: "元", state: "neutral" },
         { card, label: "新", state: "winner" },
