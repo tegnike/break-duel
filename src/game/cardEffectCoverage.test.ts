@@ -1452,7 +1452,7 @@ describe("life damage event metadata", () => {
     expect(game.players[1].hand.map((item) => item.id)).toContain("AI-FIRE-2");
   });
 
-  it("keeps power 4 play events as normal summon events", () => {
+  it("keeps power 4 play events as normal summon events without a cut-in", () => {
     const game = blankGame();
     const events: DuelEventPayload[] = [];
     game.active = 1;
@@ -1469,9 +1469,10 @@ describe("life damage event metadata", () => {
       cards: [{ label: "登場", state: "neutral" }],
     });
     expect(events[0]?.emphasis).toBeUndefined();
+    expect(events[0]?.cutIn).toBeUndefined();
   });
 
-  it("keeps power 4 upgrade events as normal upgrade events", () => {
+  it("keeps power 4 upgrade events as normal upgrade events without a cut-in", () => {
     const game = blankGame();
     const events: DuelEventPayload[] = [];
     game.active = 1;
@@ -1489,5 +1490,6 @@ describe("life damage event metadata", () => {
     });
     expect(events[0]?.emphasis).toBeUndefined();
     expect(events[0]?.cards[1]).toMatchObject({ label: "新", state: "winner" });
+    expect(events[0]?.cutIn).toBeUndefined();
   });
 });
