@@ -1,3 +1,5 @@
+import { performAiActionInDraft } from "./game/actions";
+
 export type Attribute = "火" | "水" | "風" | "土";
 export type CardType = "ai" | "event" | "memory";
 export type CardStatus = "active" | "inactive";
@@ -2260,6 +2262,12 @@ function chooseBeginnerAiAction(game: GameState): AiAction {
 }
 
 function chooseChallengerAiAction(game: GameState): AiAction {
+  const beamWidth = Math.max(1, Math.floor(CHALLENGER_WEIGHTS.turnPlanBeamWidth));
+  if (beamWidth > 1) return choosePlannedChallengerAiAction(game, beamWidth);
+  return chooseGreedyChallengerAiAction(game);
+}
+
+function chooseGreedyChallengerAiAction(game: GameState): AiAction {
   const classic = chooseClassicAiAction(game);
   const options = legalAiActions(game);
   if (options.length === 0) return { type: "end" };
@@ -2268,6 +2276,71 @@ function chooseChallengerAiAction(game: GameState): AiAction {
     || aiActionTieBreak(b) - aiActionTieBreak(a)
   ));
   return options[0];
+}
+
+type PlanNode = {
+  game: GameState;
+  firstAction: AiAction;
+  score: number;
+  depth: number;
+};
+
+function choosePlannedChallengerAiAction(game: GameState, beamWidth: number): AiAction {
+  const activeSeat = game.active;
+  const initialOptions = rankedAiActions(game).slice(0, beamWidth);
+  if (initialOptions.length === 0) return { type: "end" };
+  let beam: PlanNode[] = initialOptions.map((action) => {
+    const next = cloneGame(game);
+    performAiActionInDraft(next, action);
+    return {
+      game: next,
+      firstAction: action,
+      score: scorePlannedAction(game, action) + boardScoreForSeat(next, activeSeat),
+      depth: 1,
+    };
+  });
+  const maxDepth = Math.max(1, Math.min(CONFIG.actionsPerTurn + 1, game.actionsRemaining + 1));
+  for (let depth = 1; depth < maxDepth; depth += 1) {
+    const expanded: PlanNode[] = [];
+    for (const node of beam) {
+      if (node.game.winner !== null || node.game.draw || node.game.active !== activeSeat || node.game.actionsRemaining <= 0) {
+        expanded.push(node);
+        continue;
+      }
+      const actions = rankedAiActions(node.game).slice(0, beamWidth);
+      for (const action of actions) {
+        const next = cloneGame(node.game);
+        performAiActionInDraft(next, action);
+        expanded.push({
+          game: next,
+          firstAction: node.firstAction,
+          score: node.score + scorePlannedAction(node.game, action) + boardScoreForSeat(next, activeSeat),
+          depth: node.depth + 1,
+        });
+      }
+    }
+    expanded.sort((a, b) => b.score - a.score || b.depth - a.depth || aiActionTieBreak(b.firstAction) - aiActionTieBreak(a.firstAction));
+    beam = expanded.slice(0, beamWidth);
+  }
+  beam.sort((a, b) => b.score - a.score || b.depth - a.depth || aiActionTieBreak(b.firstAction) - aiActionTieBreak(a.firstAction));
+  return beam[0]?.firstAction ?? chooseGreedyChallengerAiAction(game);
+}
+
+function rankedAiActions(game: GameState): AiAction[] {
+  const classic = chooseClassicAiAction(game);
+  return legalAiActions(game)
+    .sort((a, b) => (
+      scoreAiAction(game, b, classic) - scoreAiAction(game, a, classic)
+      || aiActionTieBreak(b) - aiActionTieBreak(a)
+    ));
+}
+
+function scorePlannedAction(game: GameState, action: AiAction): number {
+  return scoreAiAction(game, action, chooseClassicAiAction(game));
+}
+
+function boardScoreForSeat(game: GameState, seat: number): number {
+  return boardAiScore(game.players[seat], game.players[1 - seat]);
 }
 
 function legalAiActions(game: GameState): AiAction[] {
@@ -2342,6 +2415,21 @@ export const CHALLENGER_WEIGHTS = {
   purgeTargetPower: 28,
   sacrificialFollowupDamage: 80,
   sacrificialAttackerPenalty: 35,
+  cardValueDrawsOnPlay: 0,
+  cardValueFiltersOnPlay: 0,
+  cardValueOpponentDrawsOnPlay: 0,
+  cardValueDrawsOnSuccessfulDefense: 0,
+  playAiFieldPressurePenalty: 0,
+  pierceHandDefenseDamage: 0,
+  classicChargeActionCap: 3,
+  strikeTieBreakPriority: 7,
+  turnPlanBeamWidth: 1,
+  publicHandDefenseWeight: 0,
+  memoryIndividualValueScale: 1,
+  chargeFuturePlan: 0,
+  lifeRacePressure: 0,
+  deckOutPressure: 0,
+  deckTypeConditionalBias: 0,
 };
 const CHALLENGER_SELF_DEFEAT_ATTACK_SCORE = -10000;
 
@@ -2355,18 +2443,24 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
   if (action.type === "play") {
     const card = ai.hand[action.index];
     if (!card) return -9999;
-    return score + CHALLENGER_WEIGHTS.playAi + aiCardValue(card) + (ai.field.length === 0 ? CHALLENGER_WEIGHTS.emptyFieldPlay : 0);
+    const fieldPressure = ai.field.length >= CONFIG.fieldLimit - 1 ? CHALLENGER_WEIGHTS.playAiFieldPressurePenalty : 0;
+    return score
+      + CHALLENGER_WEIGHTS.playAi
+      + aiCardValue(card)
+      + fieldPressure
+      + deckTypeConditionalBias(ai, action)
+      + (ai.field.length === 0 ? CHALLENGER_WEIGHTS.emptyFieldPlay : 0);
   }
   if (action.type === "upgrade") {
     const target = ai.hand[action.handIndex];
     const source = ai.field[action.fieldIndex];
     if (!target || !source) return -9999;
-    return score + CHALLENGER_WEIGHTS.upgrade + aiCardValue(target) - aiCardValue(source) * 0.45;
+    return score + CHALLENGER_WEIGHTS.upgrade + aiCardValue(target) - aiCardValue(source) * 0.45 + deckTypeConditionalBias(ai, action);
   }
   if (action.type === "memory") {
     const card = ai.hand[action.index];
     if (!card) return -9999;
-    return score + CHALLENGER_WEIGHTS.memory + aiCardValue(card) - (ai.memory ? 24 : 0);
+    return score + CHALLENGER_WEIGHTS.memory + aiCardValue(card) - (ai.memory ? 24 : 0) + deckTypeConditionalBias(ai, action);
   }
   if (action.type === "memory-effect") {
     const sacrificed = ai.field[action.fieldIndex];
@@ -2378,7 +2472,7 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
   if (action.type === "command") {
     const command = ai.hand[action.index];
     if (!command) return -9999;
-    return score + CHALLENGER_WEIGHTS.command + commandAiValue(game, command);
+    return score + CHALLENGER_WEIGHTS.command + commandAiValue(game, command) + deckTypeConditionalBias(ai, action);
   }
   if (action.type === "charge") {
     const fuel = ai.hand[action.index];
@@ -2392,12 +2486,19 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
     const hasImmediateValue = chargeFuelHasImmediateValue(ai, opponent, fuel, remaining);
     const effectValue = chargeAiValue(game, fuel);
     if (!enablesPlay && !enablesTwoStep && !hasImmediateValue) return score - 130;
-    return score + CHALLENGER_WEIGHTS.charge + (enablesPlay ? 55 : 0) + (enablesTwoStep ? 28 : 0) + effectValue - aiCardValue(fuel) * 0.42;
+    return score
+      + CHALLENGER_WEIGHTS.charge
+      + (enablesPlay ? 55 : 0)
+      + (enablesTwoStep ? 28 : 0)
+      + effectValue
+      + chargeFuturePlanValue(game, remaining)
+      + deckTypeConditionalBias(ai, action)
+      - aiCardValue(fuel) * 0.42;
   }
   if (action.type === "attack") {
     const attacker = ai.field[action.index];
     if (!attacker) return -9999;
-    return score + attackAiValue(game, attacker, action.index);
+    return score + attackAiValue(game, attacker, action.index) + deckTypeConditionalBias(ai, action);
   }
   if (action.type === "strike") {
     const attacker = ai.field[action.index];
@@ -2418,7 +2519,7 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
     if (!opponent.spentFieldIndexes.has(action.targetIndex)) value += CHALLENGER_WEIGHTS.strikeReadyTarget;
     if (trade) value -= CHALLENGER_WEIGHTS.strikeTradePenalty * (attacker.power ?? 0);
     else if ((attacker.power ?? 0) >= 4) value -= CHALLENGER_WEIGHTS.strikePower4Penalty;
-    return score + value;
+    return score + value + deckTypeConditionalBias(ai, action);
   }
   return score;
 }
@@ -2434,14 +2535,58 @@ function boardAiScore(ai: PlayerState, opponent: PlayerState): number {
     + ai.hand.length * CHALLENGER_WEIGHTS.handCard
     + ready * 18
     + opponentReady * CHALLENGER_WEIGHTS.opponentReady
+    + lifeRaceScore(ai, opponent) * CHALLENGER_WEIGHTS.lifeRacePressure
+    + (ai.deck.length - opponent.deck.length) * CHALLENGER_WEIGHTS.deckOutPressure
   );
+}
+
+function chargeFuturePlanValue(game: GameState, remainingHand: Card[]): number {
+  if (CHALLENGER_WEIGHTS.chargeFuturePlan === 0) return 0;
+  const ai = activePlayer(game);
+  if (ai.field.length >= CONFIG.fieldLimit) return 0;
+  const futureSummonValue = remainingHand
+    .filter((card) => card.type === "ai")
+    .reduce((best, card) => Math.max(best, Math.max(0, playCost(card, game) - game.actionsRemaining) * (card.power ?? 0)), 0);
+  return futureSummonValue * CHALLENGER_WEIGHTS.chargeFuturePlan;
+}
+
+function lifeRaceScore(ai: PlayerState, opponent: PlayerState): number {
+  const ownDamage = ai.field
+    .filter((_, index) => !ai.spentFieldIndexes.has(index))
+    .reduce((sum, card) => sum + attackDamage(card), 0);
+  const opponentDamage = opponent.field
+    .filter((_, index) => !opponent.spentFieldIndexes.has(index))
+    .reduce((sum, card) => sum + attackDamage(card), 0);
+  const ownClock = ownDamage > 0 ? Math.ceil(opponent.life / ownDamage) : 9;
+  const opponentClock = opponentDamage > 0 ? Math.ceil(ai.life / opponentDamage) : 9;
+  return opponentClock - ownClock;
+}
+
+function deckTypeConditionalBias(player: PlayerState, action: AiAction): number {
+  const weight = CHALLENGER_WEIGHTS.deckTypeConditionalBias;
+  if (weight === 0) return 0;
+  if (player.deckName.includes("火") || player.deckName.includes("突破") || player.deckName.includes("覇王")) {
+    if (action.type === "attack") return 24 * weight;
+    if (action.type === "strike") return 16 * weight;
+    if (action.type === "play") return 8 * weight;
+  }
+  if (player.deckName.includes("守護") || player.deckName.includes("土") || player.deckName.includes("水")) {
+    if (action.type === "memory") return 14 * weight;
+    if (action.type === "command") return 10 * weight;
+    if (action.type === "charge") return 8 * weight;
+  }
+  if (player.deckName.includes("風")) {
+    if (action.type === "upgrade") return 12 * weight;
+    if (action.type === "strike") return 10 * weight;
+  }
+  return 0;
 }
 
 function attackAiValue(game: GameState, attacker: Card, attackerFieldIndex: number): number {
   const defender = opponentPlayer(game);
   const attackContext: AttackContext = { attacker: activePlayer(game), attackerFieldIndex };
 
-  const defense = chooseAiDefense(defender, attacker, "challenger", attackContext);
+  const defense = chooseAttackEvaluationDefense(defender, attacker, attackContext);
   let value = CHALLENGER_WEIGHTS.attackPower * attackCombatValue(attacker, attackContext);
   if (defense.type === "none") {
     value += CHALLENGER_WEIGHTS.damage;
@@ -2451,7 +2596,8 @@ function attackAiValue(game: GameState, attacker: Card, attackerFieldIndex: numb
   }
   if (defense.type === "hand") {
     const card = defender.hand[defense.index];
-    value += CHALLENGER_WEIGHTS.handTradeAttack + (card ? aiCardValue(card) * 0.35 : 0);
+    value += defense.estimatedValue ?? (CHALLENGER_WEIGHTS.handTradeAttack + (card ? aiCardValue(card) * 0.35 : 0));
+    if (piercesHandDefense(attacker)) value += CHALLENGER_WEIGHTS.pierceHandDefenseDamage;
     return value;
   }
   const card = defender.field[defense.index];
@@ -2486,6 +2632,100 @@ function attackAiValue(game: GameState, attacker: Card, attackerFieldIndex: numb
   return value;
 }
 
+type AttackEvaluationDefenseChoice = DefenseChoice & { estimatedValue?: number };
+
+function chooseAttackEvaluationDefense(
+  defender: PlayerState,
+  attackCard: Card,
+  attackContext?: AttackContext,
+): AttackEvaluationDefenseChoice {
+  if (CHALLENGER_WEIGHTS.publicHandDefenseWeight <= 0) {
+    return chooseAiDefense(defender, attackCard, "challenger", attackContext);
+  }
+  const fieldOptions = legalFieldDefenders(defender, attackCard, attackContext);
+  const successfulFieldOptions = fieldOptions.filter(({ card, index }) => canDefendWithOptionalFirewall(attackCard, card, defender, index, attackContext));
+  if (successfulFieldOptions.length > 0) {
+    const attackValue = attackCombatValue(attackCard, attackContext);
+    const best = successfulFieldOptions.sort((a, b) => (
+      fieldDefenseOutcomeRank(defender, attackCard, a, attackValue, attackContext) - fieldDefenseOutcomeRank(defender, attackCard, b, attackValue, attackContext)
+      || (a.card.power ?? 0) - (b.card.power ?? 0)
+      || a.card.id.localeCompare(b.card.id)
+    ))[0];
+    return { type: "field", index: best.index };
+  }
+  const estimatedValue = estimatePublicHandDefenseValue(defender, attackCard, attackContext);
+  if (estimatedValue !== null) return { type: "hand", index: -1, estimatedValue };
+  if (fieldOptions.length > 0) {
+    const best = fieldOptions.sort((a, b) => (
+      defenseCombatValue(attackCard, b.card, defender, { fieldIndex: b.index, attackContext })
+      - defenseCombatValue(attackCard, a.card, defender, { fieldIndex: a.index, attackContext })
+      || failedFieldDefenseTriggerPriority(b.card, defender) - failedFieldDefenseTriggerPriority(a.card, defender)
+      || (a.card.power ?? 0) - (b.card.power ?? 0)
+      || a.card.id.localeCompare(b.card.id)
+    ))[0];
+    return { type: "field", index: best.index };
+  }
+  return { type: "none" };
+}
+
+export function estimatePublicHandDefenseValue(
+  defender: PlayerState,
+  attackCard: Card,
+  attackContext?: AttackContext,
+): number | null {
+  if (attackContext?.attacker?.nextAttackUnblockable) return null;
+  if (blocksLowLifeHandDefense(attackCard, defender)) return null;
+  if (CONFIG.handDefenseLimit !== null) {
+    if (CONFIG.handDefenseLimit <= 0) return null;
+    if (defender.handDefensesUsed >= CONFIG.handDefenseLimit) return null;
+  }
+  if (CONFIG.handDefenseEmptyOnly && defender.field.length > 0) return null;
+  if (defender.hand.length <= 0) return null;
+  const deck = Object.values(DECKS).find((entry) => entry.name === defender.deckName);
+  if (!deck) return null;
+  const visibleCounts = new Map<string, number>();
+  const addVisible = (card: Card | null | undefined) => {
+    if (!card) return;
+    visibleCounts.set(card.id, (visibleCounts.get(card.id) ?? 0) + 1);
+  };
+  defender.field.forEach(addVisible);
+  defender.fieldStacks?.forEach((stack) => stack.forEach(addVisible));
+  defender.discard.forEach(addVisible);
+  addVisible(defender.memory);
+  const hiddenCandidates: Card[] = [];
+  for (const cardId of deck.cards) {
+    const used = visibleCounts.get(cardId) ?? 0;
+    if (used > 0) {
+      visibleCounts.set(cardId, used - 1);
+      continue;
+    }
+    const card = CARD_BY_ID.get(cardId);
+    if (card) hiddenCandidates.push(card);
+  }
+  if (hiddenCandidates.length === 0) return null;
+  const legalCandidates = hiddenCandidates
+    .filter((card) => card.type === "ai"
+      && !cannotHandDefend(card)
+      && !(CONFIG.power3CannotHandDefend && card.power === 3)
+      && canDefend(attackCard, card, defender, { fieldDefense: false, attackContext }));
+  if (legalCandidates.length === 0) return null;
+  const handSize = Math.min(defender.hand.length, hiddenCandidates.length);
+  let probabilityNoDefense = 1;
+  const nonDefenders = hiddenCandidates.length - legalCandidates.length;
+  for (let drawIndex = 0; drawIndex < handSize; drawIndex += 1) {
+    probabilityNoDefense *= Math.max(0, nonDefenders - drawIndex) / Math.max(1, hiddenCandidates.length - drawIndex);
+  }
+  const probabilityDefense = 1 - probabilityNoDefense;
+  if (probabilityDefense <= 0) return null;
+  const bestExpected = [...legalCandidates].sort((a, b) => (
+    (a.power ?? 0) - (b.power ?? 0)
+    || aiCardValue(a) - aiCardValue(b)
+    || a.id.localeCompare(b.id)
+  ))[0];
+  const raw = CHALLENGER_WEIGHTS.handTradeAttack + aiCardValue(bestExpected) * 0.35;
+  return raw * probabilityDefense * CHALLENGER_WEIGHTS.publicHandDefenseWeight;
+}
+
 function sacrificialFollowupDamageAfterBlock(game: GameState, attackerFieldIndex: number, blockerIndex: number): number {
   const attacker = activePlayer(game);
   const defender = opponentPlayer(game);
@@ -2506,7 +2746,8 @@ function sacrificialFollowupDamageAfterBlock(game: GameState, attackerFieldIndex
 export function aiCardValue(card: Card): number {
   if (card.type === "memory") {
     const priority: Record<string, number> = { cache: 48, resonator: 45, recovery_cache: 42, echo_urn: 42, tidal_mirror: 40, war_banner: 40, pipeline: 38, storm_core: 38, dual_banner: 36, accelerator: 36, grove_rest: 34, firewall: 30 };
-    return priority[card.effect ?? ""] ?? 12;
+    const base = 12;
+    return base + ((priority[card.effect ?? ""] ?? base) - base) * CHALLENGER_WEIGHTS.memoryIndividualValueScale;
   }
   if (card.type !== "ai") return 12;
   const effectBonus: Record<string, number> = {
@@ -2563,7 +2804,12 @@ export function aiCardValue(card: Card): number {
     charge_spend_all_enemies: 26,
     recover_memory_on_play_defense_plus_1: 20,
   };
-  return (card.power ?? 0) * 20 + (effectBonus[card.effect ?? ""] ?? 0);
+  return (card.power ?? 0) * 20
+    + (effectBonus[card.effect ?? ""] ?? 0)
+    + (drawsOnPlay(card) ? CHALLENGER_WEIGHTS.cardValueDrawsOnPlay : 0)
+    + (filtersOnPlay(card) ? CHALLENGER_WEIGHTS.cardValueFiltersOnPlay : 0)
+    + (opponentDrawsOnPlay(card) ? CHALLENGER_WEIGHTS.cardValueOpponentDrawsOnPlay : 0)
+    + (drawsOnSuccessfulDefense(card) ? CHALLENGER_WEIGHTS.cardValueDrawsOnSuccessfulDefense : 0);
 }
 
 function commandAiValue(game: GameState, command: Card): number {
@@ -2653,6 +2899,7 @@ function aiActionTieBreak(action: AiAction): number {
     memory: 1,
     end: 0,
   };
+  priority.strike = CHALLENGER_WEIGHTS.strikeTieBreakPriority;
   return priority[action.type] * 1000 - ("index" in action ? action.index : "handIndex" in action ? action.handIndex : "fieldIndex" in action ? action.fieldIndex : 0);
 }
 
@@ -2662,7 +2909,7 @@ export function bestChargeFuel(game: GameState, player: PlayerState): number | n
   const playerIndex = game.players.indexOf(player);
   const opponent = playerIndex >= 0 ? game.players[1 - playerIndex] : null;
   const before = game.actionsRemaining;
-  const after = Math.min(3, before + 1);
+  const after = Math.min(CHALLENGER_WEIGHTS.classicChargeActionCap, before + 1);
   const fieldHasRoom = player.field.length < CONFIG.fieldLimit;
   const candidates = player.hand
     .map((card, index) => ({ card, index }))

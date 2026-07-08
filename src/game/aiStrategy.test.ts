@@ -6,6 +6,7 @@ import {
   chooseAiAction,
   cloneCard,
   createGame,
+  estimatePublicHandDefenseValue,
   type GameState,
 } from "../game";
 import { beginAttackInDraft, performAiActionInDraft } from "./actions";
@@ -136,5 +137,22 @@ describe("ai strategy", () => {
     // WP4 (2026-07-04) 以降、初心者は防御と単純攻撃を行うため全勝は期待しない。
     // 目標水準: 挑戦者が大きく勝ち越しつつ、初心者も 5-20% 程度勝てること。
     expect(challengerWins / games).toBeGreaterThanOrEqual(0.7);
+  });
+
+  it("estimates hand defense from public zones and hand size, not actual hand identities", () => {
+    const first = makeGame(48);
+    const second = makeGame(48);
+    for (const game of [first, second]) {
+      game.players[1].deckName = "火単色デッキ";
+      game.players[1].field = [card("AI-FIRE-1")];
+      game.players[1].discard = [card("AI-FIRE-2")];
+    }
+    first.players[1].hand = [card("AI-WATER-4"), card("CMD-OPTIMIZE")];
+    second.players[1].hand = [card("AI-EARTH-1"), card("MEM-CACHE")];
+
+    const attackCard = card("AI-FIRE-2");
+
+    expect(estimatePublicHandDefenseValue(first.players[1], attackCard))
+      .toBe(estimatePublicHandDefenseValue(second.players[1], attackCard));
   });
 });

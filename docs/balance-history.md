@@ -4,6 +4,92 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
+## 2026-07-08 最強 CPU 計画 Phase 0-4: 計測基盤採用、強化候補は据え置き
+
+### 背景
+
+TS 統一後の challenger を、今後のバランス検証に使う「計測器」として強化できるかを検証した。単一 baseline への過学習を避けるため、現行重みを `docs/assets/ai-champions/gen001.json` として凍結し、候補重みをチャンピオンプールとミラーデッキ先後ペアで比較するガントレットを新設した。
+
+### 採用変更 / 変更内容
+
+採用したのは計測基盤のみ。出荷される challenger の既定挙動は変えていない。
+
+- `npm run gauntlet:ai`（`scripts/aiGauntlet.ts`）を追加。候補 JSON と `docs/assets/ai-champions/` のチャンピオンプールを、7 デッキ（break/control/fire/water/wind/earth/apex）× 先後ペア × N 試合で評価する
+- `npm run tune:ai` をチャンピオンプール適応度、複数パス、エリート継承、変異幅の段階縮小に対応
+- Phase 2/3/3.5 の候補を、既定値では現行挙動が変わらない `CHALLENGER_WEIGHTS` の追加項目として実装。候補 JSON でのみ有効化して検証した
+
+### 検証
+
+**Phase 0 ガントレット健全性**:
+
+- `npm run gauntlet:ai -- --games-per-seat 20 --seed 510001 --out tmp/ai-gauntlet-self-paired.json`
+- 現行 challenger vs `gen001`: pool win rate 50.0%、全デッキ 50.0%
+
+**Phase 1 重み探索**:
+
+- 探索: `--iterations 36 --passes 3 --elite-count 4 --games-per-seat 16 --seed 730001`
+- 小標本 best は pool 56.1% だったが、直接対決確認では seed 910001: 51.5%、seed 920001: 51.8%
+- 55% 基準未達のため重み差し替えなし
+
+**Phase 2 初期仮説**（各 120 games/seat、seed 930001 / 970001）:
+
+| 候補 | pool win rate | 判断 |
+| --- | ---: | --- |
+| カード価値ボーナス（draw/filter/opponent-draw/defense-draw） | 50.0% | 不採用 |
+| `PLAY_AI` 場圧迫ペナルティ | 49.9% | 不採用 |
+| pierce 手札防御素通り評価 | 51.4% | 不採用 |
+| classic `bestChargeFuel` action cap 4 | 49.7% | 不採用 |
+| STRIKE タイブレーク低優先 | 50.0% | 不採用 |
+| メモリ個別評価を平坦化（現行個別評価の対照実験） | 49.7% | 不採用。現行の個別 priority を維持 |
+| チャージ将来価値 | 49.8% | 不採用 |
+| ライフレース推定 | 50.0% | 不採用 |
+| 山札残量・デッキ切れ距離 | 50.0% | 不採用 |
+| デッキタイプ条件つきバイアス | 49.3% | 不採用 |
+
+**Phase 3 自ターン内プランニング**:
+
+- 幅1は現行貪欲と等価。自己ガントレット 50.0%、`src/game/tutorial.test.ts` green
+- 幅2: 35.0%、幅3: 29.3%（100 games/seat、seed 940001）
+- 簡易思考時間（120 初期局面）: 幅1 avg 2.1ms / max 53.6ms、幅2 avg 8.0ms / max 773.9ms、幅3 avg 1.4ms / max 35.6ms
+- 思考時間は条件内だが勝率が大幅悪化したため不採用
+
+**Phase 3.5 公開情報ベースの手札防御推定**:
+
+- 実手札の中身ではなく、公開ゾーン・公開デッキリスト・手札枚数だけから防御期待値を推定する純粋関数を追加
+- `publicHandDefenseWeight=1`: 43.9%（120 games/seat、seed 950001）
+- 既存の実手札参照評価より弱く、55% 基準未達のため不採用
+
+Phase 4 は Phase 3 と Phase 3.5 がどちらも不採用で、返しターン読みの前提精度が不足するため着手しない判断。
+
+### 判断
+
+計測基盤は採用する。CPU 強化候補はすべて 55% 採用基準に届かない、または大幅に弱体化したため、現行 challenger の既定重み・既定挙動は据え置く。追加した候補重みは既定値で現行挙動を変えないため、今後の探索・再提案用の実験基盤として残す。
+
+### 検証コマンド
+
+```bash
+npm run gauntlet:ai -- --games-per-seat 20 --seed 510001 --out tmp/ai-gauntlet-self-paired.json
+npm run tune:ai -- --champions-dir docs/assets/ai-champions --iterations 36 --passes 3 --elite-count 4 --games-per-seat 16 --seed 730001 --out tmp/ai-tuning-pool.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-candidates/top1.json --games-per-seat 120 --seed 910001 --out tmp/ai-gauntlet-top1-910001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-candidates/top1.json --games-per-seat 120 --seed 920001 --out tmp/ai-gauntlet-top1-920001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase2-candidates/card_value_bonuses.json --games-per-seat 120 --seed 930001 --out tmp/ai-gauntlet-card-value-930001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase2-candidates/field_pressure.json --games-per-seat 120 --seed 930001 --out tmp/ai-gauntlet-field-pressure-930001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase2-candidates/pierce_damage.json --games-per-seat 120 --seed 930001 --out tmp/ai-gauntlet-pierce-930001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase2-candidates/classic_charge_cap.json --games-per-seat 120 --seed 930001 --out tmp/ai-gauntlet-charge-cap-930001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase2-candidates/strike_tiebreak_low.json --games-per-seat 120 --seed 930001 --out tmp/ai-gauntlet-strike-tiebreak-930001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase2-table-candidates/memory_flattened.json --games-per-seat 120 --seed 970001 --out tmp/ai-gauntlet-memory-flattened-970001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase2-table-candidates/charge_future_plan.json --games-per-seat 120 --seed 970001 --out tmp/ai-gauntlet-charge-future-970001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase2-table-candidates/life_race_pressure.json --games-per-seat 120 --seed 970001 --out tmp/ai-gauntlet-life-race-970001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase2-table-candidates/deck_out_pressure.json --games-per-seat 120 --seed 970001 --out tmp/ai-gauntlet-deck-out-970001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase2-table-candidates/deck_type_bias.json --games-per-seat 120 --seed 970001 --out tmp/ai-gauntlet-deck-type-970001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase3-candidates/beam2.json --games-per-seat 100 --seed 940001 --out tmp/ai-gauntlet-beam2-940001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase3-candidates/beam3.json --games-per-seat 100 --seed 940001 --out tmp/ai-gauntlet-beam3-940001.json
+npm run gauntlet:ai -- --candidate-json tmp/ai-phase35-candidates/public-hand-defense.json --games-per-seat 120 --seed 950001 --out tmp/ai-gauntlet-public-hand-950001.json
+npx vitest run src/game/aiStrategy.test.ts
+npx vitest run src/game/tutorial.test.ts
+npm run check
+```
+
 ## 2026-07-08 Python シミュレータ廃止・TypeScript 統一
 
 ### 背景
