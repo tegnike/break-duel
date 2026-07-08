@@ -568,15 +568,15 @@ const CARD_EFFECT_CASES = {
   },
   water_rite: {
     cardId: "CMD-WATER-RITE",
-    description: "水召喚獣がいれば1枚引く",
+    description: "水召喚獣がいれば2枚引く",
     run: () => {
       const game = blankGame();
       game.players[0].hand = [card("CMD-WATER-RITE")];
       game.players[0].field = [card("AI-WATER-1")];
-      game.players[0].deck = [card("AI-FIRE-1")];
+      game.players[0].deck = [card("AI-FIRE-1"), card("AI-FIRE-2")];
       useCommandAtInDraft(game, 0, null);
       expectCommandUsed(game, "CMD-WATER-RITE");
-      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-2", "AI-FIRE-1"]);
     },
   },
   wind_rite: {

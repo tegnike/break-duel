@@ -651,7 +651,7 @@ export function useCommandAtInDraft(
     }
   } else if (used.effect === "water_rite") {
     if (!hasAttributeAi(player, "水")) return;
-    const drawnCards = drawCards(player, 1);
+    const drawnCards = drawCards(player, 2);
     text += ` ${visibleDrawText(player, drawnCards)}。`;
   } else if (used.effect === "wind_rite") {
     if (!hasAttributeAi(player, "風")) return;

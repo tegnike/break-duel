@@ -4,6 +4,106 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
+## 2026-07-08 公平基準リバランス: control 突出と water/wind 低勝率を是正
+
+### 背景
+
+CPU 公平化後の `fair-gen001` 再ベースラインで、control 71.6%、water 35.2%、wind 39.9% となり、単色 45-55% 基準から外れた。旧覗き見版との比較は使わず、`fair-gen001` の公開情報基準だけを採用判断に使った。
+
+### 採用変更 / 変更内容
+
+- control: `CMD-PURGE` → `AI-WIND-1`、`AI-EARTH-4` → `AI-EARTH-1C`、`CMD-EARTH-RITE` → `AI-EARTH-1`
+- fire: `AI-FIRE-3` 1 枚 → `AI-FIRE-1B`
+- water: `AI-WATER-1B` → `CMD-DEEP-CURRENT`
+- earth: `CMD-EARTH-RITE` 1 枚 → `AI-EARTH-1`
+- `CMD-WATER-RITE`: 1 ドロー → 2 ドロー
+
+実装は TypeScript 単一実装の `src/game.ts` / `src/game/actions.ts`、表示文言、仕様書、カード効果テストへ反映した。
+
+### 検証
+
+**6 デッキリーグ**（100 games/ordered pair、seed 4101 / 730001、各 3000 戦）:
+
+| デッキ | seed 4101 | seed 730001 | 平均 |
+| --- | ---: | ---: | ---: |
+| break | 49.4% | 49.0% | 49.2% |
+| control | 55.0% | 52.6% | 53.8% |
+| fire | 47.9% | 48.3% | 48.1% |
+| water | 48.1% | 47.7% | 47.9% |
+| wind | 46.9% | 48.6% | 47.8% |
+| earth | 51.0% | 51.9% | 51.4% |
+| 先攻勝率 | 48.0% | 47.4% | 47.7% |
+
+デッキ別勝率は全て 45-55% 帯に収束。先攻勝率は平均 47.7% で 48% を 0.3pt 下回るため、独立監視課題として残す。
+
+**盛り上がり指標**（1000 戦、seed 4101、標準対戦 break vs control）:
+
+| 指標 | 調整後 |
+| --- | ---: |
+| 平均ターン | 23.1（中央値 24） |
+| 先攻勝率（break 側） | 40.2% |
+| リード交代あり | 57.5%（平均 0.91 回） |
+| 2点ビハインド逆転 | 49.9% |
+| 先に2点差をつけた側の勝率 | 54.5% |
+| 最大スイング 3 点以上 | 91.9%（4 点以上 73.5%） |
+| 決着形態 | lifeout 77.5% / resource 22.4% / draw 0.1% |
+
+resource 決着は fair 再ベースラインの 35.8% から下がったが、過去基準よりは高いため監視継続。
+
+**ストレスデッキ回帰**（500 games/order、seed 3000000）:
+
+| 候補 | win rate | 判定 |
+| --- | ---: | --- |
+| p1 | 0.15% | OK |
+| p1-2 | 4.50% | OK |
+| p2 | 18.27% | OK |
+| p2-3 | 49.43% | OK |
+| p3 | 36.63% | OK |
+| p3-4 | 33.18% | OK |
+| p4 | 26.37% | OK |
+
+**beginner 較正**（fire/water/earth 同一デッキ、2 seed、先後 100 戦ずつ）:
+
+- fire: 28.7%
+- water: 11.8%
+- earth: 53.3%
+
+water は帯内だが fire/earth は未達。特に earth は beginner が勝ち越しており、challenger の earth 運用弱点として CPU 側の独立課題に分離する。
+
+**apex 再探索**（seed 810101）:
+
+- best: `apex_mutation_004`、探索リーグ 51.6%
+- current_apex: 50.6%
+- current との直接ペアは 50-50 / 49-51 で明確な勝ち越しなし
+- apex は据え置き
+
+### 却下した候補
+
+- control `MEM-RECOVERY-CACHE` → `AI-WIND-1`: control 72.8% / 73.6% で突出が解消せず
+- control `CMD-PURGE` → `AI-WIND-1` 単独: control 65.8% / 63.9% で不足
+- R1-B + `CMD-WIND-RITE` → `AI-WIND-1`: control 67.5% / 62.8% で不採用
+- R1-D から `AI-WIND-3B` または `AI-EARTH-3` を追加弱体: control 40% 前後まで落ち過剰
+- `AI-WATER-4B` / `AI-WATER-4D` / `AI-EARTH-1D`: water 崩れまたは earth 過強化で不採用
+- apex 差し替え: 再探索候補が current_apex に対して明確な勝ち越しを示さず不採用
+
+### 判断
+
+採用する。control の突出と water/wind の低勝率は解消し、デッキ別勝率は公平基準で帯内に戻った。残る先攻勝率 47.7%、beginner fire/earth 較正、resource 決着率 22.4% は、カード/デッキ調整とは別の監視・CPU課題として起票する。
+
+### 検証コマンド
+
+```bash
+PATH=/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/fair-r2h-league-4101
+PATH=/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/fair-r2h-league-730001
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/fair-r2h-league-4101 tmp/fair-r2h-league-730001
+PATH=/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run sim -- simulate --games 1000 --seed 4101 --out tmp/fair-final-sim-4101
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/fair-final-sim-4101
+PATH=/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run balance:cost -- --games-per-order 500 --seed 3000000 --out tmp/fair-final-cost-3000000.json
+PATH=/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run tune:apex -- --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 810101 --out tmp/fair-final-apex-810101.json
+PATH=/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run check
+PATH=/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run test:balance
+```
+
 ## 2026-07-08 CPU 公平化・再ベースライン: fair-gen001 維持
 
 ### 背景
