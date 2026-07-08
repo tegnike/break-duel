@@ -3660,7 +3660,6 @@ export default function App() {
           page={page}
           onChangePage={changePage}
           coins={coins}
-          seed={seed}
           onStartNewGame={openStarterDeckSetup}
           onStartTutorial={startTutorialGame}
           onOpenRules={() => setRulesOpen(true)}
@@ -3687,7 +3686,6 @@ export default function App() {
           page={page}
           onChangePage={changePage}
           coins={coins}
-          seed={seed}
           onStartNewGame={openStarterDeckSetup}
           onStartTutorial={startTutorialGame}
           onOpenRules={() => setRulesOpen(true)}
@@ -3728,10 +3726,6 @@ export default function App() {
         <div className="duel-top-controls">
           <PageTabs page={page} onChange={changePage} />
           <CoinChip coins={coins} />
-          <label className="duel-seed">
-            <span>Seed</span>
-            <input type="number" value={seed} readOnly aria-label="現在のSeed" />
-          </label>
           <button type="button" onClick={openStarterDeckSetup}>再戦</button>
           <button type="button" onClick={startTutorialGame}>チュートリアル</button>
           <button type="button" onClick={() => setRulesOpen(true)}>ルール</button>
@@ -4187,7 +4181,6 @@ function WorkspaceHeader({
   page,
   onChangePage,
   coins,
-  seed,
   onStartNewGame,
   onStartTutorial,
   onOpenRules,
@@ -4197,7 +4190,6 @@ function WorkspaceHeader({
   page: AppPage;
   onChangePage: (page: AppPage) => void;
   coins: number;
-  seed: number;
   onStartNewGame: () => void;
   onStartTutorial: () => void;
   onOpenRules: () => void;
@@ -4216,10 +4208,6 @@ function WorkspaceHeader({
       <PageTabs page={page} onChange={onChangePage} />
       <div className="workspace-tools">
         <CoinChip coins={coins} />
-        <label className="duel-seed">
-          <span>Seed</span>
-          <input type="number" value={seed} readOnly aria-label="現在のSeed" />
-        </label>
         <button type="button" onClick={onStartNewGame}>{page === "duel" ? "対戦準備" : "再戦"}</button>
         <button type="button" onClick={onStartTutorial}>チュートリアル</button>
         <button type="button" onClick={onOpenRules}>ルール</button>

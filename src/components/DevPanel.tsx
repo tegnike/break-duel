@@ -130,6 +130,10 @@ export function DevPanel({ game, busy, onMutate, onPreviewCutIn }: DevPanelProps
       <section>
         <h3>ゲーム全体</h3>
         <div className="dev-panel-grid">
+          <label className="dev-panel-seed">
+            Seed
+            <input type="number" value={game.seed} readOnly aria-label="現在のSeed" />
+          </label>
           <label>
             ターン
             <input

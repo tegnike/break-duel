@@ -117,25 +117,6 @@ select {
   box-shadow: 0 0 18px rgba(0, 240, 255, 0.18);
 }
 
-.duel-seed {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #849495;
-  font-family: var(--app-font);
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.duel-seed input {
-  width: 76px;
-  min-height: 32px;
-  border-radius: 5px;
-  padding: 0 8px;
-  color: #f7fbfb;
-  background: rgba(14, 14, 16, 0.72);
-}
-
 .workspace-shell {
   min-height: 100vh;
   color: #e5e1e4;
@@ -8417,13 +8398,8 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   white-space: nowrap;
 }
 
-.duel-top-controls .duel-seed,
 .duel-top-controls .page-tabs {
   flex: 0 0 auto;
-}
-
-.duel-top-controls .duel-seed input {
-  width: 78px;
 }
 
 .page-tabs button.active,
@@ -8907,11 +8883,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     min-height: 32px;
     padding-inline: 8px;
     font-size: 12px;
-  }
-
-  .duel-top-controls .duel-seed input {
-    width: 70px;
-    min-height: 32px;
   }
 
   .stitch-battlefield {
@@ -10123,8 +10094,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 .action-token,
 .stitch-log-sidebar .log,
 .log-event-icon,
-.duel-seed,
-.duel-seed input,
 .page-tabs button,
 .duel-top-controls button,
 .event-mode-toggle,
@@ -12811,6 +12780,10 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 .dev-panel input[type="number"] {
   width: 64px;
+}
+
+.dev-panel-seed input[type="number"] {
+  width: 112px;
 }
 
 .dev-panel button {
