@@ -6,7 +6,7 @@
 
 ## 実施結果サマリ（2026-07-08）
 
-詳細な読み物としての結果まとめは `docs/strongest-cpu-results.md` に分離した。
+詳細な読み物としての結果まとめは `docs/archive/strongest-cpu-results.md` に分離した。
 
 - 採用: `scripts/aiGauntlet.ts` / `npm run gauntlet:ai`、`docs/assets/ai-champions/gen001.json`、`npm run tune:ai` のチャンピオンプール対応
 - 据え置き: 現行 `CHALLENGER_WEIGHTS` の既定値と出荷CPU挙動
@@ -17,7 +17,7 @@
 - Phase 4: Phase 3/3.5 が不採用のため着手しない
 - **後続計画**: 実施中に「出荷 CPU の攻撃評価が相手の実手札を参照している（§9 の公平性原則と矛盾）」
   ことが判明。ユーザー決定により公平化を実施した上で再強化する **B案** を
-  `docs/fair-cpu-plan.md` として起案（2026-07-08）。なお Phase 3.5 の 43.9% は
+  `docs/archive/fair-cpu-plan.md` として起案（2026-07-08）。なお Phase 3.5 の 43.9% は
   覗き見版プールとの比較値であり、公平な土俵での手札推定の価値はそちらで再評価する
 
 > **別セッションで着手する人へ（最初に読む）**

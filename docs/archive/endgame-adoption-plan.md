@@ -101,7 +101,7 @@ water `CMD-WATER-RITE → CMD-TIDE-EDGE`, `AI-WATER-4 → AI-WATER-3D` / wind `A
       `npm run check` green（typecheck + unit 19 files / 308 tests + build）。
 - [x] 0-2. 採用パッケージ定義（§1）と第五弾の不採用判断を確認 → 確認:
       採用対象は A1 なしの `C0 + P1 + P4c3 + 第四弾デッキ変更 3 件`。
-      `docs/endgame-redesign5-plan.md` で A1 2回版 / 3回版 / STRIKE込み版がいずれも
+      `docs/archive/endgame-redesign5-plan.md` で A1 2回版 / 3回版 / STRIKE込み版がいずれも
       p2-3 を 50% 以下へ落とせず、副作用も伴ったため不採用となった経緯を確認。
 
 ### Step 1 — 完成ゲート計測（§2。A1 なしで全部取り直し）

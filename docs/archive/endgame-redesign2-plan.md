@@ -3,8 +3,8 @@
 作成日: 2026-07-09
 ステータス: Step 3-2 承認待ち（採用構成なし）
 進行状況: **§7 のチェックリストが正**。作業を進めたら必ず §7 を更新すること
-前提: 第一弾 `docs/endgame-redesign-plan.md`（完了・採用構成なし）と
-その結果 `docs/endgame-redesign-results.md` を先に読むこと
+前提: 第一弾 `docs/archive/endgame-redesign-plan.md`（完了・採用構成なし）と
+その結果 `docs/archive/endgame-redesign-results.md` を先に読むこと
 
 > **別セッションで着手する人へ（最初に読む）**
 >

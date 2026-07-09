@@ -63,7 +63,7 @@ npm run gauntlet:ai -- --candidate-json <candidate.json> --games-per-seat 120 --
 ## 3. 進め方 — 計画書駆動のターム
 
 改善は「計画書 1 枚 = 1 ターム」で回す。過去の計画書（`docs/strongest-cpu*-plan.md` /
-`docs/fair-cpu-plan.md`）が形式の見本。必須要素:
+`docs/archive/fair-cpu-plan.md`）が形式の見本。必須要素:
 
 1. **冒頭**: ステータス / 「別セッションで着手する人へ」の注意書き（ブランチ・基準・ゲート）
 2. **§チェックリストが進行の正**: 1 step 終えるごとにチェック + 判断を行末に追記。
@@ -72,7 +72,7 @@ npm run gauntlet:ai -- --candidate-json <candidate.json> --games-per-seat 120 --
    例外は check/ガードテスト破損とユーザー判断が要る場合のみ。
    コンテキストが苦しくなったら「チェックリスト更新 → コミット → 新セッションが再開」
 4. **再試行禁止リスト**: 過去に実証済みの失敗形を計画書に明記する（現行リストは
-   `docs/strongest-cpu3-plan.md` §1 と v1 レポート §5 を参照）
+   `docs/archive/strongest-cpu3-plan.md` §1 と v1 レポート §5 を参照）
 5. **順序の原則**: CPU 強化とゲーム側修正が両方あるタームでは、**強化を全部撃ち切ってから
    世界（リーグ・ストレス・較正）を 1 回で直す**（ガントレットはリーグ崩壊の影響を受けないため）
 
@@ -133,5 +133,5 @@ npm run sim -- simulate --games 100 --seed <seed> --first-ai challenger --second
 
 - `docs/strongest-cpu-v1-report.md` — 全史・世代の系譜・教訓（最初に読む）
 - `docs/fair-cpu-followups.md` — 課題台帳（既知の悪手・監視項目）
-- `docs/fair-cpu-plan.md` §1 — 公平性の定義（何が公開情報か）
+- `docs/archive/fair-cpu-plan.md` §1 — 公平性の定義（何が公開情報か）
 - `.agents/skills/ai-break-duel-balance-tuning/SKILL.md` — ゲーム側（カード/デッキ/ルール）の調整

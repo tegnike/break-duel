@@ -8,7 +8,7 @@
 
 `fair-gen005` を採用する。候補(a)「beam 候補へ `end` を常時強制包含」は、遺物連続置き換えの再現局面で `end` を選べるようになり、fair プールへの 2 シード非退行も満たした。
 
-前回 `docs/fair-gen005-end-beam-results.md` では beginner 較正割れを理由に不採用としたが、2026-07-09 のユーザー決定により、この割れは「challenger が本当に強くなった」シグナルとして扱う。今回は beginner 側を追従再較正し、fire / water / earth をすべて 5-20% 帯に戻したため採用する。
+前回 `docs/archive/fair-gen005-end-beam-results.md` では beginner 較正割れを理由に不採用としたが、2026-07-09 のユーザー決定により、この割れは「challenger が本当に強くなった」シグナルとして扱う。今回は beginner 側を追従再較正し、fire / water / earth をすべて 5-20% 帯に戻したため採用する。
 
 `docs/assets/ai-champions/fair/fair-gen005.json` は `fair-gen004` と同じ重みで凍結した。世代差分はエンジン側の beam 候補生成と beginner プロファイル較正である。
 

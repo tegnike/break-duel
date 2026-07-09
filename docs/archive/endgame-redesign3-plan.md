@@ -3,7 +3,7 @@
 作成日: 2026-07-09
 ステータス: 完了（2026-07-09 全構成不合格。§6 の3択判断待ち）
 進行状況: **§7 のチェックリストが正**。作業を進めたら必ず §7 を更新すること
-前提: 第一弾 `docs/endgame-redesign-plan.md`（完了）、第二弾 `docs/endgame-redesign2-plan.md`
+前提: 第一弾 `docs/archive/endgame-redesign-plan.md`（完了）、第二弾 `docs/archive/endgame-redesign2-plan.md`
 （完了・全構成不合格）。両方の結果数値を先に読むこと
 
 ## 最終判断（2026-07-09）

@@ -12,9 +12,9 @@
 - P3（シージ）は廃案（短期化 + water 爆発）。P2 は無攻撃世界では無風のため、攻撃が発生する
   世界（第二弾）でノブとして再検証する
 - **後続**: 防御の中間用量（セット防御 / 制限つき手札防御）を比較する
-  `docs/endgame-redesign2-plan.md`（第二弾）へ引き継ぎ。結果の一次記録は
-  `docs/endgame-redesign-results.md`
-前提: fair-gen005 採用済み（`docs/fair-gen005-results.md`）。本計画は**ゲーム側（ルール）の改訂**であり、
+  `docs/archive/endgame-redesign2-plan.md`（第二弾）へ引き継ぎ。結果の一次記録は
+  `docs/archive/endgame-redesign-results.md`
+前提: fair-gen005 採用済み（`docs/archive/fair-gen005-results.md`）。本計画は**ゲーム側（ルール）の改訂**であり、
 CPU は原則触らない（新ルールの最小限の評価対応のみ許可。§4 参照）
 
 > **別セッションで着手する人へ（最初に読む）**
@@ -152,7 +152,7 @@ fair-gen005（パスを覚えた最強 CPU）同士の対戦で、break vs contr
 ### Step 0 — 着手準備
 
 - [x] 0-1. 正本ブランチ確認 + `npm run check` green + ガードテスト green → ブランチ: `codex/fair-rebalance-from-public-info`（正本 worktree: `/Users/user/WorkSpace/ai-break-duel/.claude/worktrees/fair-cpu-public-info`）。`npm run check` green（typecheck / unit 19 files・292 tests / build）。`npm run test:balance` green（1 file・7 tests）。公開情報同一ガード + tutorial: `npx vitest run src/game/aiStrategy.test.ts src/game/tutorial.test.ts` green（2 files・22 tests）。
-- [x] 0-2. 現状の膠着ベースライン確認（draw 89.6% / 平均 38.5T / リード交代 13.7%）→ `docs/fair-gen005-results.md` と `docs/balance-history.md` の fair-gen005 採用エントリで確認。break vs control 1000 戦 seed 4101: 平均 38.5T / 中央値 40 / draw 89.6% / lifeout 10.4% / リード交代あり 13.7% / 2点ビハインド逆転 25.0% / 先に2点差側勝率 77.9%。
+- [x] 0-2. 現状の膠着ベースライン確認（draw 89.6% / 平均 38.5T / リード交代 13.7%）→ `docs/archive/fair-gen005-results.md` と `docs/balance-history.md` の fair-gen005 採用エントリで確認。break vs control 1000 戦 seed 4101: 平均 38.5T / 中央値 40 / draw 89.6% / lifeout 10.4% / リード交代あり 13.7% / 2点ビハインド逆転 25.0% / 先に2点差側勝率 77.9%。
 
 ### Step 1 — 実装（config/ルールフラグとして全パッケージを切替可能に）
 
@@ -172,7 +172,7 @@ fair-gen005（パスを覚えた最強 CPU）同士の対戦で、break vs contr
 - [x] 2-4. +P3（シージ）→ 同上: 0.0% / 14.5T / 52.3% / 21.0% / 79.9% / water 85.9%。短すぎ + water 過剰。
 - [x] 2-5. +P4a（手札防御全廃）→ 同上: 0.1% / 18.3T / 55.7% / 35.5% / 71.0% / water 45.0%。最有望だが平均T 20未満、先2点差側 65% 超。
 - [x] 2-6. 一次判定の通過構成を列挙 → 通過: 厳密 PASS なし。全構成 draw 2% 以下は満たすが、平均ターン 20-30 を満たせない（C0/P1/P2系は31T台、P3/P4a系は9.5-18.5T）。有望 P4a 系 stress 80/order は完走したが p2-3 stress RISK。
-- [x] 2-7. 有望モジュールの組み合わせ検証（2 個 → 3 個）→ 結果: 2個: P2a+P3 0.0%/14.4T/water86.8、P2a+P4a 0.1%/18.3T/water51.2、P2b+P3 0.0%/14.0T/water85.3、P2b+P4a 0.1%/14.9T/water60.3、P3+P4a 0.0%/10.9T/water79.0。3個: P2a+P3+P4a 0.0%/10.9T/water80.9、P2b+P3+P4a 0.0%/9.5T/water75.4。追加ノブ: P4a h7 0.0%/18.1T/water45.9、P4a h8 0.1%/18.1T/water46.8、P2a+P4a h7 0.0%/18.5T/water51.0、P2a+P4a h8 0.1%/18.5T/water51.8。詳細は `docs/endgame-redesign-results.md`。
+- [x] 2-7. 有望モジュールの組み合わせ検証（2 個 → 3 個）→ 結果: 2個: P2a+P3 0.0%/14.4T/water86.8、P2a+P4a 0.1%/18.3T/water51.2、P2b+P3 0.0%/14.0T/water85.3、P2b+P4a 0.1%/14.9T/water60.3、P3+P4a 0.0%/10.9T/water79.0。3個: P2a+P3+P4a 0.0%/10.9T/water80.9、P2b+P3+P4a 0.0%/9.5T/water75.4。追加ノブ: P4a h7 0.0%/18.1T/water45.9、P4a h8 0.1%/18.1T/water46.8、P2a+P4a h7 0.0%/18.5T/water51.0、P2a+P4a h8 0.1%/18.5T/water51.8。詳細は `docs/archive/endgame-redesign-results.md`。
 
 ### Step 3 — 採用判断
 

@@ -3,7 +3,7 @@
 作成日: 2026-07-08
 ステータス: 完了（最強 CPU v1 達成。先攻勝率のみ独立監視）
 進行状況: **§9 のチェックリストが正**。作業を進めたら必ず §9 を更新すること
-前提: `docs/strongest-cpu3-plan.md`（第 3 次・完了。fair-gen003 = beam3 採用）まで全て
+前提: `docs/archive/strongest-cpu3-plan.md`（第 3 次・完了。fair-gen003 = beam3 採用）まで全て
 
 > **別セッションで着手する人へ（最初に読む）**
 >
@@ -11,7 +11,7 @@
 > 2. 現行チャンピオンは **fair-gen003**（`turnPlanBeamWidth=3` + 公開既知手札カウンティング）。
 >    fair-gen002 以前の勝率数値との比較は禁止
 > 3. ガードテスト（公開情報同一 → 行動同一）は全変更で green 維持。作法・コマンドは
->    `docs/strongest-cpu-plan.md` §8/§10 と `docs/fair-cpu-results.md` 末尾
+>    `docs/archive/strongest-cpu-plan.md` §8/§10 と `docs/archive/fair-cpu-results.md` 末尾
 > 4. **§1 の完走ルールを最初に読むこと**。この計画は 1 ゲート失敗では止まらない
 
 ## 0. 目的 — この計画で「最強 CPU v1」を宣言する
@@ -90,7 +90,7 @@
 
 ## 7. Arc B — 世界の再構築（最終 CPU 確定後に 1 回だけ）
 
-作法は `docs/fair-rebalance-plan.md` と同じ（原因分析 → 最小変更 → 2 シードリーグ、
+作法は `docs/archive/fair-rebalance-plan.md` と同じ（原因分析 → 最小変更 → 2 シードリーグ、
 CPU は以後触らない、カード/ルール変更は CPU と別コミット）。
 
 **B0: 原因分析（コード変更なし）**

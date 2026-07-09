@@ -11,7 +11,7 @@ fair-gen006 再ベースラインでは water 70.5% / fire 40.9% / wind 44.0% / 
 > **別セッションで着手する人へ（最初に読む）**
 >
 > 1. 作業ブランチは **`codex/fair-rebalance-from-public-info`（正本）またはその派生**。main は使わない
-> 2. **着手条件**: `docs/strongest-cpu5-plan.md`（fair-gen006 ターム）が完了していること。
+> 2. **着手条件**: `docs/archive/strongest-cpu5-plan.md`（fair-gen006 ターム）が完了していること。
 >    採用/据え置きどちらでもよいが、**最新チャンピオンの再ベースライン値**を基準に使う
 > 3. 作法は `.agents/skills/ai-break-duel-balance-tuning/SKILL.md`（§2g 原因分析ファースト含む）。
 >    CPU は最新世代を凍結。カード変更と CPU 変更は別コミット

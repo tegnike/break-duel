@@ -3,7 +3,7 @@
 作成日: 2026-07-09
 ステータス: §6 手続きで停止（デッキリバランス単独では p2-3 と単色帯を同時達成できず）
 進行状況: **§7 のチェックリストが正**。作業を進めたら必ず §7 を更新すること
-前提: 第一〜三弾（`docs/endgame-redesign-plan.md` / `2` / `3`）すべて完了・採用構成なし。
+前提: 第一〜三弾（`docs/archive/endgame-redesign-plan.md` / `2` / `3`）すべて完了・採用構成なし。
 ユーザー決定（2026-07-09）: §6 の 3 択から **(a) 複合案** を選択
 
 > **別セッションで着手する人へ（最初に読む）**
@@ -107,7 +107,7 @@ B1〜B3 を尽くしても p2-3 ストレスまたは単色帯が回収できな
 - [x] 0-1. 正本ブランチ確認 + 第三弾実験コードの未コミット分があればコミット → 状態:
       `/Users/user/WorkSpace/ai-break-duel/.claude/worktrees/fair-cpu-public-info` が
       `codex/fair-rebalance-from-public-info` 正本。第三弾実験コードの未コミット差分はなし。
-      未追跡は本計画書 `docs/endgame-redesign4-plan.md` のみ。
+      未追跡は本計画書 `docs/archive/endgame-redesign4-plan.md` のみ。
 - [x] 0-2. `npm run check` green + 全ガードテスト green → 結果:
       `npm run check` green（typecheck + unit 19 files / 305 tests + build）。
       `npm run test:balance` green（1 file / 7 tests）。
@@ -115,7 +115,7 @@ B1〜B3 を尽くしても p2-3 ストレスまたは単色帯が回収できな
       green（5 files / 70 tests）。
 - [x] 0-3. 第三弾 P4c3 の基準数値を控える（draw 0.3% / 26.5T / 交代 54.8% / 逆転 34.0% /
       スノーボール 69.9% / 先攻 48.7% / water 27.6% / fire 67.0% / p2-3 57.7%）→ 確認:
-      `docs/endgame-redesign3-plan.md` Step 3-1 と本計画 §0 の数値を確認。
+      `docs/archive/endgame-redesign3-plan.md` Step 3-1 と本計画 §0 の数値を確認。
 
 ### Step 1 — B0: 診断（§3。コード変更なし）
 

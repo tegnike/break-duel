@@ -3,7 +3,7 @@
 作成日: 2026-07-08
 対象ブランチ: `codex/fair-rebalance-from-public-info`
 前提ブランチ: `codex/fair-cpu-public-info`
-関連計画: `docs/fair-rebalance-plan.md`
+関連計画: `docs/archive/fair-rebalance-plan.md`
 
 ## 結論
 

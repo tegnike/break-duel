@@ -3,7 +3,7 @@
 作成日: 2026-07-08
 ステータス: 完了（2026-07-08 実施。beginner 較正のみ採用、challenger 重みは据え置き）
 進行状況: **§6 のチェックリストが正**。Step 0-6 完了
-前提: `docs/fair-cpu-plan.md`（公平化・完了）→ `docs/fair-rebalance-plan.md`（リバランス・完了）
+前提: `docs/archive/fair-cpu-plan.md`（公平化・完了）→ `docs/archive/fair-rebalance-plan.md`（リバランス・完了）
 
 ## 実施結果サマリ（2026-07-08）
 
@@ -20,12 +20,12 @@
 >
 > 1. 作業ブランチは **`codex/fair-rebalance-from-public-info`（正本）またはその派生**。
 >    main は使わない（fair CPU もリバランス済みデッキも main には存在しない）
-> 2. 基準数値は `docs/fair-rebalance-results.md` の最終リーグ表・較正表。
+> 2. 基準数値は `docs/archive/fair-rebalance-results.md` の最終リーグ表・較正表。
 >    覗き見版（fair 以前）およびリバランス前の数値との比較は禁止
-> 3. 公平性の定義は `docs/fair-cpu-plan.md` §1。**`aiStrategy.test.ts` のガードテスト
+> 3. 公平性の定義は `docs/archive/fair-cpu-plan.md` §1。**`aiStrategy.test.ts` のガードテスト
 >    （公開情報同一 → 行動同一）は全ての変更で green を維持**。破ったら即差し戻し
-> 4. 検証の作法・コマンドは `docs/strongest-cpu-plan.md` §8/§10 と
->    `docs/fair-cpu-results.md` 末尾を使う。`npm run check` green を確認してから始める
+> 4. 検証の作法・コマンドは `docs/archive/strongest-cpu-plan.md` §8/§10 と
+>    `docs/archive/fair-cpu-results.md` 末尾を使う。`npm run check` green を確認してから始める
 
 ## 0. 目的 — なぜ今度は勝算があるのか
 
@@ -108,7 +108,7 @@ beginner のロジックは「殴れるなら殴る → 最安ユニットを出
 
 - [x] 0-1. ブランチが `codex/fair-rebalance-from-public-info`（または派生）であることを確認 → ブランチ: `codex/fair-rebalance-from-public-info`（worktree: `.claude/worktrees/fair-cpu-public-info`）
 - [x] 0-2. `npm run check` green + ガードテスト green を確認 → `npx vitest run src/game/aiStrategy.test.ts src/game/tutorial.test.ts` green。`npm run check` は typecheck + unit 19 files / 283 tests 通過後、build 中に手動停止してしまったため、`npm run build` を単独再実行して green（最終ゲートで `npm run check` を再実行する）
-- [x] 0-3. `docs/fair-rebalance-results.md` の基準数値（リーグ最終表・較正表）を手元に控える → 6デッキ平均: break 49.2% / control 53.8% / fire 48.1% / water 47.9% / wind 47.8% / earth 51.4%、先攻 47.7%。beginner 較正: fire 28.7% / water 11.8% / earth 53.3%
+- [x] 0-3. `docs/archive/fair-rebalance-results.md` の基準数値（リーグ最終表・較正表）を手元に控える → 6デッキ平均: break 49.2% / control 53.8% / fire 48.1% / water 47.9% / wind 47.8% / earth 51.4%、先攻 47.7%。beginner 較正: fire 28.7% / water 11.8% / earth 53.3%
 
 ### Step 1 — S0: 弱点診断（§2。コード変更なし）
 

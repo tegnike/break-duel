@@ -2,7 +2,7 @@
 
 作成日: 2026-07-09
 対象ブランチ: `codex/fair-rebalance-from-public-info`
-対象計画: `docs/endgame-redesign-plan.md`
+対象計画: `docs/archive/endgame-redesign-plan.md`
 CPU: `fair-gen005` 固定（重み・探索変更なし）
 
 ## 結論

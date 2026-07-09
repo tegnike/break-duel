@@ -1,7 +1,7 @@
 # 最強 CPU 計画 実施結果まとめ
 
 作成日: 2026-07-08
-対象: challenger CPU 強化計画（`docs/strongest-cpu-plan.md`）
+対象: challenger CPU 強化計画（`docs/archive/strongest-cpu-plan.md`）
 結論: **計測基盤は採用。出荷 CPU の既定挙動は据え置き。**
 
 ## 要約
@@ -158,7 +158,7 @@
 
 ## 参照
 
-- 詳細計画とチェックリスト: `docs/strongest-cpu-plan.md`
+- 詳細計画とチェックリスト: `docs/archive/strongest-cpu-plan.md`
 - 採用判断ログ: `docs/balance-history.md`
 - チャンピオン初期世代: `docs/assets/ai-champions/gen001.json`
 - ガントレット: `scripts/aiGauntlet.ts`

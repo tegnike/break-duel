@@ -2,7 +2,7 @@
 
 作成日: 2026-07-08
 対象ブランチ: `codex/fair-rebalance-from-public-info`
-関連計画: `docs/strongest-cpu4-plan.md`
+関連計画: `docs/archive/strongest-cpu4-plan.md`
 
 ## 結論
 
