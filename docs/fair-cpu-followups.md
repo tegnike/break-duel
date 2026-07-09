@@ -1,11 +1,30 @@
 # 公平 CPU 計画で露見した後続課題
 
 作成日: 2026-07-08
-ステータス: **全課題クローズ（2026-07-09 終盤設計改訂 本採用）**
+ステータス: **既存課題はクローズ / fair-gen006 再ベースライン課題 5 は対応待ち**
 
 CPU 公平化と fair-gen001 再ベースラインで露見した課題を、CPU 計画本体から分離して記録する。カード/ルール/デッキ側の変更は公平 CPU 計画へ混ぜない。
 
 > 最終対応: 課題 1/2/2b/2c/3/4 は各先行計画で完了。残っていた先攻勝率、draw/長期化、resource 決着、スノーボールは `docs/endgame-adoption-plan.md` の時計世界本採用で完成ゲート内へ戻り、全クローズした。
+
+## 5. fair-gen006 が露出させた water 突出 / fire・wind・先攻率の崩れ
+
+最強 CPU 第5次計画で `fair-gen006`（beam7 + 時計世界の重み再探索 + 手札上限評価）を採用した。
+対 `fair-gen005` 直接対決は 65.01% / 62.28%、deck floor 58.75% / 56.67% で強化ゲートを通過した一方、
+同じ時計世界ルールの6デッキ再ベースラインで、弱い CPU が隠していたデッキ差が再び露出した。
+
+- 種別: カード / デッキ側のバランス課題（CPU 採用は戻さない）
+- 6デッキ 2 seed 平均: water 70.5%、control 50.7%、earth 46.2%、break 45.0%、wind 44.0%、fire 40.9%、先攻 45.8%
+- 時計世界本採用基準: water 46.7%、fire 48.9%、wind 52.6%、先攻 49.1%。ルール母集団は同一なので比較可能
+- 盛り上がり（break vs control、1000戦）: draw 0.1%、平均24.7T、リード交代55.1%、2点逆転35.0%、スノーボール69.0%で基準内
+- beginner は追従再較正後 fire 6.5% / water 5.75% / earth 8.5% で帯内
+- full stress: p2-3 54.29% / break+control 56.88%（60%警報線未満）、p3 cap 51.85% / 52.60%（境界監視）。他5候補はbreak/controlでも50%未満
+- 判断: `docs/swarm-answer-plan.md` の既存カード再調整タームへ統合し、B0 で water の勝ち筋と fire/wind の損失経路を p2-3 診断と同時に分解する。CPU とコアルールは凍結する
+- 再現:
+  - `npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/strongest-cpu5-final/league-4101`
+  - `npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/strongest-cpu5-final/league-730001`
+  - `python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/strongest-cpu5-final/league-4101 tmp/strongest-cpu5-final/league-730001`
+  - `npm run balance:cost -- --candidate p2_3 --games-per-order 1000 --seed 3066000 --out tmp/strongest-cpu5-final/cost-p2_3.json --json`
 
 ## 2026-07-09 最終クローズ
 

@@ -1,10 +1,10 @@
 # 最強 CPU 第 5 次計画・手順書 — fair-gen006: 時計世界の再強化
 
 作成日: 2026-07-09
-ステータス: 実施中（Step 0）
+ステータス: **完了（fair-gen006 採用）**
 進行状況: **§7 のチェックリストが正**。作業を進めたら必ず §7 を更新すること
 前提: 終盤設計改訂 本採用済み（`docs/endgame-adoption-plan.md` / 総括は
-`docs/endgame-redesign-report.md`）。現行チャンピオンは **fair-gen005**
+`docs/endgame-redesign-report.md`）。着手時チャンピオンは **fair-gen005**、本計画完了後は **fair-gen006**
 
 > **別セッションで着手する人へ（最初に読む）**
 >
@@ -108,7 +108,14 @@ fair-gen005 の重み・挙動は**旧世界（時計なし・手札無制限・
 
 ### Step 5 — 採用処理（採用時のみ）/ クロージング
 
-- [ ] 5-1. 再ベースライン一式 + beginner 較正（割れたら追従再較正・別コミット）→ 結果:
-- [ ] 5-2. 世界の帯外があれば followups 起票（スワーム対策計画と統合可）→ 起票:
-- [ ] 5-3. balance-history 記録 + **最終ゲート**（check / 全ガード / tutorial green）
-- [ ] 5-4. 本計画書のステータス更新 + 実施結果サマリ追記 + コミット
+- [x] 5-1. 再ベースライン一式 + beginner 較正（割れたら追従再較正・別コミット）→ 結果: リーグ平均 water 70.5 / control 50.7 / earth 46.2 / break 45.0 / wind 44.0 / fire 40.9%、先攻45.8%。盛り上がりは draw 0.1% / 24.7T / 交代55.1% / 2点逆転35.0% / スノーボール69.0%。full stressは p2-3 54.29%（break/control 56.88%）、p3 51.85%（同52.60%）、他は50%未満。beginner初回 water 1.5% を検出し、power3手札防御を解禁する別コミット `1c22a91` 後は fire 6.5 / water 5.75 / earth 8.5%。apexは境界差のためcurrent維持
+- [x] 5-2. 世界の帯外があれば followups 起票（スワーム対策計画と統合可）→ 起票: `docs/fair-cpu-followups.md` 課題5へ water突出 / fire・wind・先攻率 / p2-3・p3監視を記録し、`docs/swarm-answer-plan.md` の次期既存カード再調整へ統合
+- [x] 5-3. balance-history 記録 + **最終ゲート**（check / 全ガード / tutorial green）: `npm run check` green（19 files / 312 tests + build）、`npm run test:balance` green（7/7）、aiStrategy + tutorial green（28 tests）。最終ブラウザ平均0.0875ms / 最大0.3000ms
+- [x] 5-4. 本計画書のステータス更新 + 実施結果サマリ追記 + コミット: `docs/strongest-cpu5-results.md` を作成。challenger採用 `c433377`、beginner追従再較正 `1c22a91`、本クロージング記録を別コミット
+
+## 8. 実施結果サマリ
+
+W1〜W4をゲート未達でも止めず完走した。時計世界で beam7 が単独ゲートを突破し、W1 best と
+手札上限評価を合成した3要素版が対 fair-gen005 65.01% / 62.28%、floor 58.75% / 56.67%で首位となった。
+これを `fair-gen006` として凍結した。再ベースラインで露出したゲーム側の帯外はCPUを戻さず課題5へ分離し、
+次期 `swarm-answer-plan.md` へ引き継いだ。詳細は `docs/strongest-cpu5-results.md`。

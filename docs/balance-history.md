@@ -4,6 +4,102 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
+## 2026-07-09 fair-gen006 採用: 時計世界での CPU 再強化
+
+### 背景
+
+終盤設計改訂の本採用により、衰弱・手札上限 6 枚・40 手番時のライフ判定・手札防御 power 3 以下という時計世界へ移行し、CPU の評価地形が変わった。旧世界の探索結果を流用せず、直前の時計世界本採用エントリを新基準として W1 重み再探索、W2 新評価特徴、W3 ビーム幅、W4 合成を全消化した。
+
+### 採用変更
+
+- `turnPlanBeamWidth`: 5 → 7。
+- W1 探索重み: `attackPower=14`、`badAttack=-71`、`charge=39`、`chargeFuturePlan=1`、`lifeRacePressure=1`、`sacrificialFollowupDamage=69`、`strikeTargetPower=30`、`upgrade=83`。
+- `handLimitAwareness=1`: 6 枚を超える手札の線形価値を相殺し、時計世界の手札上限を終端評価へ反映。
+- `fatigueClockPressure` / `lifeJudgementPressure` / `power4UnblockableAttack` は単体検証不合格のため 0 を維持。
+- `docs/assets/ai-champions/fair/fair-gen006.json` を凍結。旧世代 JSON の新規キー欠落は既定値 0 で補う。
+- beginner water は CPU 強化後の較正割れに追従し、power 3 の手札防御を解禁。CPU 採用とは別コミットで記録した。
+
+### CPU 採用ゲート
+
+`fair-gen005` との直接対決（120 games/seat、独立 2 seed）:
+
+| 候補 | seed 987001 | seed 988001 | deck floor | 判断 |
+| --- | ---: | ---: | ---: | --- |
+| beam 7 + W1 best + 手札上限評価 | **65.01%** | **62.28%** | **58.75% / 56.67%** | 採用 |
+
+55% × 2 seed と床値非悪化を満たした。最終ブラウザ 200 回実測は平均 0.0875ms / 最大 0.3000ms で、1 ターン 1 秒制約内。
+
+各トラックの単体結果は、W1 best 54.57% / 54.66%、W2 手札上限 52.88% / 51.74%、W3 beam 7 58.63% / 57.97%。W1 と W2 は単独不採用だが合成で有効、W3 は単独でも採用ゲートを通過した。全詳細は `docs/strongest-cpu5-results.md` を参照。
+
+### 再ベースライン
+
+**6 デッキリーグ**（seed 4101 / 730001、100 games/ordered pair）:
+
+| デッキ | 2 シード平均 | 判定 |
+| --- | ---: | --- |
+| break | 45.0% | 帯内下端 |
+| control | 50.7% | 帯内 |
+| fire | 40.9% | 帯外 |
+| water | 70.5% | 帯外 |
+| wind | 44.0% | 帯外 |
+| earth | 46.2% | 帯内 |
+| 先攻 | 45.8% | 帯外 |
+
+**盛り上がり**（break vs control、1000 戦、seed 4101）:
+
+- draw 0.1% / 平均 24.7T / 中央値 25
+- リード交代あり 55.1% / 2 点ビハインド逆転 35.0%
+- 先に 2 点差をつけた側の勝率 69.0%
+- lifeout 99.3% / turn-limit life judgement 0.6%
+
+盛り上がりは時計世界の完成ゲート内。リーグ帯外は CPU 欠陥修正の却下理由にせず、カード/デッキ側の課題として `docs/fair-cpu-followups.md` 課題 5 と `docs/swarm-answer-plan.md` に分離した。
+
+**beginner 較正**（追従再較正後）:
+
+| デッキ | beginner 勝率 | 判断 |
+| --- | ---: | --- |
+| fire | 6.5% | 帯内 |
+| water | 5.75% | 帯内 |
+| earth | 8.5% | 帯内 |
+
+**full ストレス**（1000 games/order、各候補 12000 戦、合計 84000 戦）:
+
+| 候補 | 6 デッキ合算 | break/control 合算 | 判断 |
+| --- | ---: | ---: | --- |
+| p1 | 0.00% | 0.00% | OK |
+| p1-2 | 4.60% | 3.45% | OK |
+| p2 | 14.04% | 11.20% | OK |
+| p2-3 | 54.29% | 56.88% | 60% 警報線未満・監視 |
+| p3 cap | 51.85% | 52.60% | 境界監視 |
+| p3-4 cap | 45.40% | 46.70% | OK |
+| p4 cap | 34.02% | 34.88% | OK |
+
+全候補 draw 0% / resource exhaustion 0%。`npm run test:balance` は 7/7 green。
+
+**apex 再探索**:
+
+探索首位 `apex_mutation_005` は 5 候補リーグ 51.95%。current との直接 2 順は 109-89-2（候補 55.1%）だったが、単一 seed の境界値で複数 seed の明確差を満たさないため current apex を維持した。
+
+### 判断
+
+`fair-gen006` を本採用する。公開情報ガード、決定性、tutorial、思考時間制約を維持し、`fair-gen005` 直接対決の正式ゲートを余裕を持って通過した。旧世界の数値とは比較せず、このエントリの再ベースライン値を以後の CPU・カード調整の比較基準とする。
+
+### 検証コマンド
+
+```bash
+npm run gauntlet:ai -- --candidate-json tmp/strongest-cpu5/w4-beam7-w1-best-hand-cap.json --champions-dir tmp/strongest-cpu5/champions --games-per-seat 120 --seed 987001 --out tmp/strongest-cpu5/w4-beam7-w1-best-hand-cap-987001.json
+npm run gauntlet:ai -- --candidate-json tmp/strongest-cpu5/w4-beam7-w1-best-hand-cap.json --champions-dir tmp/strongest-cpu5/champions --games-per-seat 120 --seed 988001 --out tmp/strongest-cpu5/w4-beam7-w1-best-hand-cap-988001.json
+npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/strongest-cpu5-final/league-4101
+npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/strongest-cpu5-final/league-730001
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/strongest-cpu5-final/league-4101 tmp/strongest-cpu5-final/league-730001
+npm run sim -- simulate --games 1000 --seed 4101 --first-deck break --second-deck control --out tmp/strongest-cpu5-final/break-control-4101
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/strongest-cpu5-final/break-control-4101
+npx tsx scripts/diagnoseResourceBurn.ts --out tmp/strongest-cpu5-final/beginner-recalibrated.json
+npm run tune:apex -- --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 810101 --out tmp/strongest-cpu5-final/apex-810101.json
+npm run test:balance
+npm run check
+```
+
 ## 2026-07-09 終盤設計改訂・本採用: 時計世界の完成
 
 ### 背景
