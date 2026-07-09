@@ -1,8 +1,52 @@
 # Break Duel バランス履歴
 
-最終更新: 2026-07-08
+最終更新: 2026-07-09
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
+
+## 2026-07-09 fair-gen005 候補(a) end 強制包含: 不採用
+
+### 背景
+
+実プレイで `fair-gen004` が手札の遺物を同一ターンに連続配置し、既存遺物を置き換えながら手札を空にする悪手が見つかった。原因は beam 探索で `end` が即時スコア上位に入らず、「何もしない」を終端評価で比較できないこと。
+
+### 変更内容
+
+実験パッチとして、beam 探索の各候補展開で `end` を追加候補に残す案を試した。採用ゲート未達のため最終コードには残していない。`fair-gen005` も凍結しない。
+
+### 検証
+
+**ガードテスト**:
+
+- `npx vitest run src/game/aiStrategy.test.ts`: green
+
+**fair プール ガントレット**（`fair-gen004` 重み、games/seat 120）:
+
+| seed | pool win rate | deck floor | 判定 |
+| ---: | ---: | ---: | --- |
+| 910001 | 59.3% | 48.3% | 非退行 |
+| 920001 | 61.3% | 52.5% | 非退行 |
+
+**beginner 較正**（fire/water/earth、seed 4101 / 730001、先後 100 戦ずつ、各 400 戦）:
+
+| デッキ | beginner 勝率 | 判定 |
+| --- | ---: | --- |
+| fire | 6.5% | 帯内 |
+| water | 0.0% | 下限未達 |
+| earth | 0.25% | 下限未達 |
+
+### 判断
+
+不採用。候補(a)は 2c の原因に直接効く可能性はあるが、water / earth の beginner 較正を 5-20% 帯から外す。次に試すなら、全局面の `end` 選択を強めるのではなく、候補(b)の遺物スロット価値など、副作用を狭める案を別実験にする。
+
+### 検証コマンド
+
+```bash
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npx vitest run src/game/aiStrategy.test.ts
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run gauntlet:ai -- --candidate-json docs/assets/ai-champions/fair/fair-gen004.json --games-per-seat 120 --seed 910001 --out tmp/fair-gen005-a/gauntlet-910001.json
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run gauntlet:ai -- --candidate-json docs/assets/ai-champions/fair/fair-gen004.json --games-per-seat 120 --seed 920001 --out tmp/fair-gen005-a/gauntlet-920001.json
+PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npx tsx scripts/diagnoseResourceBurn.ts --out tmp/fair-gen005-a/beginner-calibration.json
+```
 
 ## 2026-07-08 最強 CPU v1: fair-gen004 + 世界再構築
 
