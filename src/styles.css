@@ -12696,6 +12696,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   --omen-main: 250, 204, 21;
   --omen-sub: 253, 224, 71;
   --omen-hot: 255, 247, 222;
+
   position: absolute;
   left: 50%;
   top: 50%;

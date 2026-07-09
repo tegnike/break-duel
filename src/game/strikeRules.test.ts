@@ -1,22 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  CARD_BY_ID,
   CONFIG,
-  type Card,
   type GameState,
   attackCombatValue,
   canDefend,
-  cloneCard,
   createGame,
   strikeTargets,
 } from "../game";
 import { beginAttackInDraft, strikeInDraft, useCommandAtInDraft } from "./actions";
-
-function card(id: string): Card {
-  const found = CARD_BY_ID.get(id);
-  if (!found) throw new Error(`Unknown test card: ${id}`);
-  return cloneCard(found);
-}
+import { card } from "./testHelpers";
 
 function setupGame(): GameState {
   const game = createGame(
