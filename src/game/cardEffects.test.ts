@@ -1,59 +1,11 @@
 import { describe, expect, it } from "vitest";
-import {
-  CARD_BY_ID,
-  CONFIG,
-  type Card,
-  type GameState,
-  cloneCard,
-  commandUsable,
-  createGame,
-  makeRng,
-} from "../game";
+import { CONFIG, commandUsable } from "../game";
 import { beginAttackInDraft, useCommandAtInDraft } from "./actions";
+import { card, duelGame } from "./testHelpers";
 
 // tests/test_core_rules.py のキャラ/カード固有効果テストのうち、
 // 既存の cardEffectCoverage.test.ts / set2Mechanics.test.ts でカバーされていない
 // 差分のみを移植したテスト。
-
-function card(id: string): Card {
-  const found = CARD_BY_ID.get(id);
-  if (!found) throw new Error(`Unknown test card: ${id}`);
-  return cloneCard(found);
-}
-
-function duelGame(actions = 3): GameState {
-  const game = createGame(
-    1,
-    { kind: "custom", name: "Test Player", cardIds: ["AI-FIRE-1"] },
-    { kind: "custom", name: "Test Rival", cardIds: ["AI-WATER-1"] },
-  );
-  game.rng = makeRng(999);
-  game.active = 0;
-  game.turn = 2;
-  game.actionsRemaining = actions;
-  game.chargedActionsRemaining = 0;
-  game.winner = null;
-  game.draw = false;
-  game.selected = null;
-  game.pendingAttack = null;
-  game.pendingTarget = null;
-  game.log = [];
-  game.players.forEach((player, index) => {
-    player.isHuman = index === 0;
-    player.life = CONFIG.life;
-    player.deck = [card(index === 0 ? "AI-FIRE-1" : "AI-WATER-1")];
-    player.hand = [];
-    player.field = [];
-    player.fieldStacks = [];
-    player.memory = null;
-    player.discard = [];
-    player.handDefensesUsed = 0;
-    player.chargeUsed = false;
-    player.spentFieldIndexes.clear();
-    player.power3RecoveryDelayedFieldIndexes.clear();
-  });
-  return game;
-}
 
 describe("serena (AI-WATER-3D)", () => {
   // Python: test_serena_draws_only_on_blocked_attack（防御された時のドロー解決部分。

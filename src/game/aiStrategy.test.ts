@@ -1,21 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
-  CARD_BY_ID,
   CONFIG,
-  type Card,
   chooseAiAction,
-  cloneCard,
   createGame,
   type GameState,
 } from "../game";
 import { beginAttackInDraft, performAiActionInDraft } from "./actions";
 import { runMatch } from "../sim/runner";
-
-function card(id: string): Card {
-  const found = CARD_BY_ID.get(id);
-  if (!found) throw new Error(`Unknown test card: ${id}`);
-  return cloneCard(found);
-}
+import { card } from "./testHelpers";
 
 // Python の no_opening_hands + start_turn 相当の初期状態を作るヘルパー。
 // createGame 後に手札・山札・場を直接上書きして使う。

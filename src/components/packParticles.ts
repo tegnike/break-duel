@@ -476,7 +476,7 @@ export function runUrCutinBurst(
 
     ctx.globalCompositeOperation = "lighter";
     const pulse = 1 + Math.sin(elapsed / 90) * 0.055;
-    for (let wave = 0; wave < 1; wave += 1) {
+    for (let wave = 0; wave < sprites.clouds.length; wave += 1) {
       const waveT = Math.min(1, Math.max(0, (t - wave * 0.08) / 0.58));
       if (waveT <= 0 || waveT >= 1) continue;
       const waveWidth = 260 + waveT * Math.min(720, Math.max(width, height) * 0.72);

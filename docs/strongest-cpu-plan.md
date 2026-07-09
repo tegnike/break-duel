@@ -219,6 +219,8 @@ npm run sim -- simulate --games 1000 --seed 4101 --out tmp/<name> \
 # 6 デッキリーグ（league-summary.json を出力。必ず 2 シード以上）
 npm run sim -- league --games-per-pair 100 --seed 4101 \
   --decks break control fire water wind earth --out tmp/<name>-4101
+npm run sim -- league --games-per-pair 100 --seed 730001 \
+  --decks break control fire water wind earth --out tmp/<name>-730001
 
 # リーグの合否集計（単色 45-55% / 先攻 48-52%）
 python3 .claude/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/<name>-4101 tmp/<name>-730001

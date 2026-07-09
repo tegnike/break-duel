@@ -16,6 +16,9 @@ on:
         default: "3000000"
       rule_set:
         description: "ルールセット（通常は current）"
+        type: choice
+        options:
+          - current
         required: false
         default: "current"
 
@@ -35,10 +38,11 @@ jobs:
         run: npm ci
 
       - name: Run balance regression
+        env:
+          GAMES: ${{ github.event.inputs.games_per_order || '200' }}
+          SEED: ${{ github.event.inputs.seed || '3000000' }}
+          RULE_SET: ${{ github.event.inputs.rule_set || 'current' }}
         run: |
-          GAMES="${{ github.event.inputs.games_per_order || '200' }}"
-          SEED="${{ github.event.inputs.seed || '3000000' }}"
-          RULE_SET="${{ github.event.inputs.rule_set || 'current' }}"
           mkdir -p tmp
           npm run balance:cost -- \
             --rule-set "$RULE_SET" \
