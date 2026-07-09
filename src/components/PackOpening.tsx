@@ -515,7 +515,7 @@ export function PackOpeningPage({
                 )}
               </div>
               {showInspector && (
-                <CardInspector card={focusedCard} />
+                <CardInspector card={focusedCard} owned={ownedCounts2 ?? undefined} />
               )}
             </div>
           </div>

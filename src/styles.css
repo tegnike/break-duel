@@ -12949,6 +12949,8 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   .pack-card-rays,
   .pack-card.flipped.rarity-sr,
   .pack-card.flipped.rarity-ur,
+  .pack-ur-cutin-flash,
+  .pack-progress-fill::after,
   .pack-card.rarity-sr:not(.flipped) .pack-card-front,
   .pack-card.rarity-ur:not(.flipped) .pack-card-front {
     animation: none;
