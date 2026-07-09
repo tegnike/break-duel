@@ -12,11 +12,14 @@ export type EndgameRulePackage =
   | "p4b"
   | "p4bf"
   | "p4c"
-  | "p4c3";
+  | "p4c3"
+  | "a1";
 
 export type EndgameRuleOptions = {
   handLimit?: number;
   siegeConsecutiveTurns?: number;
+  attacksPerTurnLimit?: number | null;
+  attackLimitCountsStrike?: boolean;
 };
 
 type EndgameConfigSnapshot = {
@@ -33,6 +36,8 @@ type EndgameConfigSnapshot = {
   attackDamageChargeCompensationOncePerTurn: typeof CONFIG.attackDamageChargeCompensationOncePerTurn;
   siegeDamage: typeof CONFIG.siegeDamage;
   siegeConsecutiveTurns: typeof CONFIG.siegeConsecutiveTurns;
+  attacksPerTurnLimit: typeof CONFIG.attacksPerTurnLimit;
+  attackLimitCountsStrike: typeof CONFIG.attackLimitCountsStrike;
 };
 
 const ENDGAME_CONFIG_KEYS = [
@@ -49,6 +54,8 @@ const ENDGAME_CONFIG_KEYS = [
   "attackDamageChargeCompensationOncePerTurn",
   "siegeDamage",
   "siegeConsecutiveTurns",
+  "attacksPerTurnLimit",
+  "attackLimitCountsStrike",
 ] as const;
 
 export function snapshotEndgameConfig(): EndgameConfigSnapshot {
@@ -65,10 +72,10 @@ export function parseEndgameRulePackage(raw: string): EndgameRulePackage[] {
   if (raw === "current") return ["current"];
   const modules = raw.split("+").map((part) => part.trim()).filter(Boolean);
   if (modules.length === 0) return ["current"];
-  const valid = new Set(["c0p1", "p1", "p2a", "p2b", "p2c", "p3", "p4a", "p4b", "p4bf", "p4c", "p4c3"]);
+  const valid = new Set(["c0p1", "p1", "p2a", "p2b", "p2c", "p3", "p4a", "p4b", "p4bf", "p4c", "p4c3", "a1"]);
   modules.forEach((module) => {
     if (!valid.has(module)) {
-      throw new Error(`--endgame-package が不正です: ${raw}（候補: current, c0p1, p2a, p2b, p2c, p3, p4a, p4b, p4bf, p4c, p4c3 または + 結合）`);
+      throw new Error(`--endgame-package が不正です: ${raw}（候補: current, c0p1, p2a, p2b, p2c, p3, p4a, p4b, p4bf, p4c, p4c3, a1 または + 結合）`);
     }
   });
   return modules as EndgameRulePackage[];
@@ -109,6 +116,12 @@ export function applyEndgameRulePackage(raw: string | undefined, options: Endgam
   }
   if (modules.includes("p4c3")) {
     CONFIG.handDefenseMaxPower = 3;
+  }
+  if (modules.includes("a1") || options.attacksPerTurnLimit !== undefined) {
+    CONFIG.attacksPerTurnLimit = options.attacksPerTurnLimit ?? 2;
+  }
+  if (options.attackLimitCountsStrike !== undefined) {
+    CONFIG.attackLimitCountsStrike = options.attackLimitCountsStrike;
   }
 
   return modules.join("+");

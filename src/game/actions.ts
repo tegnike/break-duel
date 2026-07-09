@@ -20,6 +20,7 @@ import {
   bestReviveTargetInDiscard,
   attackCombatValue,
   canActivePlayerAttack,
+  canActivePlayerAttackOpponent,
   canChargeCard,
   canSetDefenseCard,
   canUseCharge,
@@ -804,8 +805,9 @@ export function beginAttackInDraft(
   const defenderIndex = 1 - attackerIndex;
   const defender = draft.players[defenderIndex];
   const attackCard = attacker.field[fieldIndex];
-  if (attackerIndex === draft.active && !canActivePlayerAttack(draft)) return;
+  if (attackerIndex === draft.active && !canActivePlayerAttackOpponent(draft)) return;
   if (!attackCard || attacker.spentFieldIndexes.has(fieldIndex)) return;
+  if (attackerIndex === draft.active) attacker.playerAttacksThisTurn += 1;
   addLog(draft, `${attacker.name}は${attackCard.name}で攻撃。`);
   if (defender.isHuman) {
     effects.showDuelEvent?.({
@@ -1198,6 +1200,7 @@ export function strikeInDraft(
   const attackCard = attacker.field[fieldIndex];
   const targetCard = defender.field[targetIndex];
   if (attackerIndex === draft.active && !canActivePlayerAttack(draft)) return;
+  if (attackerIndex === draft.active && CONFIG.attackLimitCountsStrike && !canActivePlayerAttackOpponent(draft)) return;
   if (!attackCard || !targetCard || attacker.spentFieldIndexes.has(fieldIndex)) return;
   const attackContext = { attacker, attackerFieldIndex: fieldIndex };
   const { attackValue, defenseValue } = strikeValues(attackCard, defender, targetIndex, attackContext);
@@ -1208,6 +1211,7 @@ export function strikeInDraft(
       attacker.power3RecoveryDelayedFieldIndexes.add(fieldIndex);
     }
   }
+  if (attackerIndex === draft.active && CONFIG.attackLimitCountsStrike) attacker.playerAttacksThisTurn += 1;
   if (CONFIG.handDefenseVsStrike !== "off" && aiDefenseOverride?.type !== "none") {
     if (defender.isHuman) {
       if (
@@ -1629,7 +1633,7 @@ export function performAiActionInDraft(
   } else if (action.type === "attack") {
     const attackerIndex = draft.active;
     const attackCard = player.field[action.index];
-    if (!attackCard || player.spentFieldIndexes.has(action.index) || !canActivePlayerAttack(draft)) return;
+    if (!attackCard || player.spentFieldIndexes.has(action.index) || !canActivePlayerAttackOpponent(draft)) return;
     beginAttackInDraft(draft, attackerIndex, action.index, effects);
   } else if (action.type === "strike") {
     strikeInDraft(draft, draft.active, action.index, action.targetIndex, effects);

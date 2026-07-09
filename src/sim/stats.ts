@@ -69,6 +69,8 @@ export function configSummary(aiProfiles: [string, string]): Record<string, unkn
     siege_damage: CONFIG.siegeDamage,
     siege_consecutive_turns: CONFIG.siegeConsecutiveTurns,
     hand_defense_vs_strike: CONFIG.handDefenseVsStrike,
+    attacks_per_turn_limit: CONFIG.attacksPerTurnLimit,
+    attack_limit_counts_strike: CONFIG.attackLimitCountsStrike,
     ai_profiles: [...aiProfiles],
   };
 }

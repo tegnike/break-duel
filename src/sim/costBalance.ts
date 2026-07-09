@@ -209,6 +209,8 @@ export type CostEvalConfig = {
   endgamePackage?: string;
   endgameHandLimit?: number;
   siegeConsecutiveTurns?: number;
+  attacksPerTurnLimit?: number | null;
+  attackLimitCountsStrike?: boolean;
 };
 
 export type PerOpponentRow = {
@@ -312,6 +314,8 @@ export function evaluateCandidate(
   const endgamePackage = applyEndgameRulePackage(evalConfig.endgamePackage, {
     handLimit: evalConfig.endgameHandLimit,
     siegeConsecutiveTurns: evalConfig.siegeConsecutiveTurns,
+    attacksPerTurnLimit: evalConfig.attacksPerTurnLimit,
+    attackLimitCountsStrike: evalConfig.attackLimitCountsStrike,
   });
 
   let currentSeed = evalConfig.seed;

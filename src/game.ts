@@ -142,6 +142,7 @@ export type PlayerState = {
   cardsDrawn: number;
   turnsStarted: number;
   handDefensesUsed: number;
+  playerAttacksThisTurn: number;
   setDefenseUsedThisTurn: boolean;
   playedAiThisTurn: boolean;
   pipelineUsed: boolean;
@@ -335,6 +336,8 @@ export const CONFIG = {
   siegeConsecutiveTurns: 1,
   monsterCombat: true,
   handDefenseVsStrike: "value" as "off" | "eager" | "value",
+  attacksPerTurnLimit: null as number | null,
+  attackLimitCountsStrike: false,
 };
 
 export const DECK_RULES = {
@@ -845,6 +848,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     cardsDrawn: 0,
     turnsStarted: 0,
     handDefensesUsed: 0,
+    playerAttacksThisTurn: 0,
     setDefenseUsedThisTurn: false,
     playedAiThisTurn: false,
     pipelineUsed: false,
@@ -883,6 +887,7 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     cardsDrawn: 0,
     turnsStarted: 0,
     handDefensesUsed: 0,
+    playerAttacksThisTurn: 0,
     setDefenseUsedThisTurn: false,
     playedAiThisTurn: false,
     pipelineUsed: false,
@@ -1046,6 +1051,7 @@ export function startTurn(game: GameState): void {
   game.chargedActionsRemaining = 0;
   game.players.forEach((player) => {
     player.handDefensesUsed = 0;
+    player.playerAttacksThisTurn = 0;
     player.setDefenseUsedThisTurn = false;
     player.playedAiThisTurn = false;
     player.echoUrnUsed = false;
@@ -1102,6 +1108,12 @@ export function canActivePlayerAttack(game: GameState): boolean {
     && !player.chargeUsed
     && !(game.turn === 1 && game.active === 0 && !CONFIG.firstPlayerFirstTurnCanAttack)
   );
+}
+
+export function canActivePlayerAttackOpponent(game: GameState): boolean {
+  if (!canActivePlayerAttack(game)) return false;
+  const limit = CONFIG.attacksPerTurnLimit;
+  return limit === null || activePlayer(game).playerAttacksThisTurn < limit;
 }
 
 export function actionsForTurn(game: GameState): number {
@@ -2296,9 +2308,11 @@ function chooseClassicAiAction(game: GameState): AiAction {
   if (canActivePlayerAttack(game)) {
     const sandboxCommand = bestSandboxCommand(game, ai);
     if (sandboxCommand !== null) return { type: "command", index: sandboxCommand };
-    const damaging = bestDamagingAttacker(ai, human);
-    if (damaging !== null) return { type: "attack", index: damaging };
-    if (CONFIG.monsterCombat) {
+    if (canActivePlayerAttackOpponent(game)) {
+      const damaging = bestDamagingAttacker(ai, human);
+      if (damaging !== null) return { type: "attack", index: damaging };
+    }
+    if (CONFIG.monsterCombat && (!CONFIG.attackLimitCountsStrike || canActivePlayerAttackOpponent(game))) {
       const strike = bestClassicStrike(ai, human);
       if (strike !== null) return { type: "strike", index: strike.index, targetIndex: strike.targetIndex };
     }
@@ -2320,7 +2334,7 @@ function chooseClassicAiAction(game: GameState): AiAction {
   if (memoryIndex !== null) return { type: "memory", index: memoryIndex };
   const commandIndex = bestCommand(game, ai, human);
   if (commandIndex !== null) return { type: "command", index: commandIndex };
-  if (canActivePlayerAttack(game) && attackableField(ai).length > 0) return { type: "attack", index: highestPowerField(ai) };
+  if (canActivePlayerAttackOpponent(game) && attackableField(ai).length > 0) return { type: "attack", index: highestPowerField(ai) };
   return { type: "end" };
 }
 
@@ -2339,7 +2353,7 @@ function chooseBeginnerAiAction(game: GameState): AiAction {
   const ai = activePlayer(game);
   if (ai.deckName.includes("土")) return chooseClassicAiAction(game);
   if (game.actionsRemaining <= 0) return { type: "end" };
-  if (canActivePlayerAttack(game)) {
+  if (canActivePlayerAttackOpponent(game)) {
     const attack = beginnerDamagingAttack(ai, opponentPlayer(game));
     if (attack !== null) return { type: "attack", index: attack };
   }
@@ -2622,8 +2636,10 @@ function legalAiActions(game: GameState): AiAction[] {
       });
     });
     if (canActivePlayerAttack(game)) {
-      attackableField(ai).forEach(({ index }) => actions.push({ type: "attack", index }));
-      if (CONFIG.monsterCombat) {
+      if (canActivePlayerAttackOpponent(game)) {
+        attackableField(ai).forEach(({ index }) => actions.push({ type: "attack", index }));
+      }
+      if (CONFIG.monsterCombat && (!CONFIG.attackLimitCountsStrike || canActivePlayerAttackOpponent(game))) {
         attackableField(ai).forEach(({ card, index }) => {
           strikeTargets(card, human, { attacker: ai, attackerFieldIndex: index }).forEach((target) => actions.push({ type: "strike", index, targetIndex: target.index }));
         });

@@ -82,12 +82,22 @@ function optionalIntFlag(args: ParsedArgs, name: string): number | undefined {
   return value;
 }
 
+function optionalBoolFlag(args: ParsedArgs, name: string): boolean | undefined {
+  const raw = args.flags.get(name);
+  if (raw === undefined) return undefined;
+  if (raw === "true" || raw === "1") return true;
+  if (raw === "false" || raw === "0") return false;
+  throw new Error(`--${name} は true/false で指定してください: ${raw}`);
+}
+
 function applySimConfig(args: ParsedArgs): string {
   // CONFIG は可変オブジェクトなので sim 層から上書きできる（エンジンコードは変更しない）
   CONFIG.maxTurns = intFlag(args, "max-turns", CONFIG.maxTurns);
   return applyEndgameRulePackage(args.flags.get("endgame-package") as string | undefined, {
     handLimit: optionalIntFlag(args, "endgame-hand-limit"),
     siegeConsecutiveTurns: optionalIntFlag(args, "siege-consecutive-turns"),
+    attacksPerTurnLimit: optionalIntFlag(args, "attacks-per-turn-limit"),
+    attackLimitCountsStrike: optionalBoolFlag(args, "attack-limit-counts-strike"),
   });
 }
 
@@ -199,8 +209,8 @@ function main(): void {
     runLeague(parseArgs(rest, new Set(["decks"])));
   } else {
     console.error("使い方: sim <simulate|league> [options]");
-    console.error("  simulate --games N --seed S --out DIR [--first-deck D --second-deck D] [--first-ai P] [--second-ai P] [--max-turns N] [--endgame-package P]");
-    console.error("  league --games-per-pair N --seed S --out DIR --decks a b c ... [--first-ai P] [--second-ai P] [--max-turns N] [--endgame-package P]");
+    console.error("  simulate --games N --seed S --out DIR [--first-deck D --second-deck D] [--first-ai P] [--second-ai P] [--max-turns N] [--endgame-package P] [--attacks-per-turn-limit N] [--attack-limit-counts-strike true]");
+    console.error("  league --games-per-pair N --seed S --out DIR --decks a b c ... [--first-ai P] [--second-ai P] [--max-turns N] [--endgame-package P] [--attacks-per-turn-limit N] [--attack-limit-counts-strike true]");
     process.exitCode = 1;
   }
 }
