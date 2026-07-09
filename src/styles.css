@@ -2867,6 +2867,12 @@ h2 {
 .card-tilt {
   width: 100%;
   height: 100%;
+  /* overflow が visible のままだと、CSS Grid のセル内で自動最小サイズが
+     中身（.card の固定 grid-template-rows 分の min-content）まで膨らみ、
+     SR/UR だけ（Tilt でラップされる分だけ）カードが縦に伸びて見える。
+     .card 自身は overflow: hidden で自動最小サイズが 0 になるため無印カードは
+     正しく縮む。.card-tilt にも同じ overflow を持たせて挙動を揃える */
+  overflow: hidden;
 }
 
 .card.card-rarity-sr {
@@ -11892,6 +11898,49 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   width: 100%;
 }
 
+/* めくったカードの一覧と、選択中カードの大判プレビュー（card-inspector）を並べる。
+   まだ何もめくっていない間は1カラムでカード列をステージ中央に置き、
+   1枚めくって card-inspector が現れたら2カラムに切り替える */
+.pack-reveal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 24px;
+  width: 100%;
+  max-width: 900px;
+}
+
+/* カード5枚（132px×5 + 間隔14px×4 = 716px）が折り返さない幅を左列に確保する */
+.pack-reveal-layout.with-inspector {
+  grid-template-columns: minmax(716px, 1fr) minmax(300px, 360px);
+  max-width: 1160px;
+}
+
+.pack-reveal-main {
+  display: grid;
+  gap: 18px;
+  justify-items: center;
+  min-width: 0;
+}
+
+.pack-reveal-layout .card-inspector {
+  position: static;
+  /* 召喚獣（属性/power 行あり）と術式・遺物（行なし）で高さが変わったり、効果テキストの
+     行数がカードごとに違ったりすると、.pack-stage の place-items:center 経由で
+     開封画面全体が上下に動いて見えてしまう。どのカードでも収まる高さを確保して固定する */
+  min-height: 600px;
+}
+
+.pack-reveal-layout .inspector-effect {
+  min-height: 80px;
+}
+
+.pack-card.focused .pack-card-front,
+.pack-card.focused .pack-card-back .card {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .pack-card-row {
   display: flex;
   flex-wrap: wrap;
@@ -11933,7 +11982,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   position: relative;
   display: block;
   width: 132px;
-  min-height: 172px;
+  min-height: 190px;
   transform-style: preserve-3d;
   transition: transform 0.6s cubic-bezier(0.3, 0.8, 0.35, 1);
 }
@@ -11976,8 +12025,32 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 .pack-card-back .card {
   width: 132px;
   flex-basis: 132px;
-  min-height: 172px;
+  min-height: 190px;
   pointer-events: none;
+  /* カード一覧のサムネイル（.card-pool-button .card）とイラストの縦横比を揃える */
+  grid-template-rows: 42px 60px 40px 24px;
+  padding: 8px;
+}
+
+.pack-card-back .card-header {
+  min-height: 42px;
+  max-height: 42px;
+  overflow: hidden;
+}
+
+.pack-card-back .card-art {
+  height: 60px;
+  min-height: 0;
+  margin-top: 0;
+}
+
+.pack-card-back .card-core {
+  min-height: 40px;
+  margin: 0;
+}
+
+.pack-card-back .card-foot {
+  min-height: 24px;
 }
 
 /* レアリティ演出 */
@@ -11996,7 +12069,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 .pack-reveal-dim.dim-sr {
   opacity: 1;
   background:
-    radial-gradient(ellipse 70% 60% at 50% 38%, rgba(255, 255, 255, 0.1), transparent 70%),
+    radial-gradient(ellipse 70% 60% at 50% 38%, rgba(250, 204, 21, 0.14), transparent 70%),
     rgba(3, 7, 18, 0.82);
 }
 
@@ -12004,7 +12077,8 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   opacity: 1;
   background:
     radial-gradient(ellipse 70% 60% at 50% 38%, rgba(255, 255, 255, 0.16), transparent 70%),
-    radial-gradient(ellipse 90% 70% at 50% 45%, rgba(226, 232, 240, 0.08), transparent 76%),
+    radial-gradient(ellipse 90% 70% at 30% 45%, rgba(244, 114, 182, 0.08), transparent 76%),
+    radial-gradient(ellipse 90% 70% at 70% 45%, rgba(56, 189, 248, 0.08), transparent 76%),
     rgba(2, 6, 23, 0.85);
 }
 
@@ -12035,18 +12109,19 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   z-index: 4;
 }
 
-/* キラカードめくり: めくった勢いでカードが迫り出して静止する */
-.pack-card.flipped.rarity-sr .pack-card-inner,
-.pack-card.flipped.rarity-ur .pack-card-inner {
-  animation: pack-flip-pop 1.9s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+/* キラカードめくり: 回転そのものは通常カードと同じ transition に任せて確実にめくり切る
+   （keyframe animation で transform を奪うと、タブがバックグラウンド化した際などに
+   タイムラインが進まず 0% で止まったまま戻らないことがあるため、回転には使わない）。
+   「ヒットストップ」の弾みは外側の .pack-card 側でスケールのみ演出する */
+.pack-card.flipped.rarity-sr,
+.pack-card.flipped.rarity-ur {
+  animation: pack-flip-punch 0.55s cubic-bezier(0.22, 0.9, 0.3, 1) 0.32s both;
 }
 
-@keyframes pack-flip-pop {
-  0% { transform: rotateY(0deg) scale(1); }
-  28% { transform: rotateY(180deg) scale(1.14); }
-  46% { transform: rotateY(180deg) scale(1.52); }
-  74% { transform: rotateY(180deg) scale(1.52); }
-  100% { transform: rotateY(180deg) scale(1); }
+@keyframes pack-flip-punch {
+  0% { transform: scale(1); filter: brightness(1); }
+  45% { transform: scale(1.16); filter: brightness(1.4); }
+  100% { transform: scale(1); filter: brightness(1); }
 }
 
 /* キラカードめくり: カード背後で回転する光条 */
@@ -12068,26 +12143,37 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   background: repeating-conic-gradient(
     from 4deg,
     transparent 0deg 10deg,
-    rgba(255, 255, 255, 0.42) 13deg 16deg,
+    rgba(253, 224, 71, 0.46) 13deg 16deg,
     transparent 19deg 30deg,
-    rgba(226, 232, 240, 0.28) 33deg 36deg,
+    rgba(250, 204, 21, 0.3) 33deg 36deg,
     transparent 39deg 45deg
   );
 }
 
+/* .pack-omen-rays の UR 版と同じ 72deg 周期（360 の整数分の1）で継ぎ目を消す */
 .pack-card-rays.rays-ur {
   background: repeating-conic-gradient(
     from 4deg,
-    transparent 0deg 10deg,
-    rgba(255, 255, 255, 0.58) 13deg 16deg,
-    transparent 19deg 30deg,
-    rgba(226, 232, 240, 0.42) 33deg 36deg,
-    transparent 39deg 45deg
+    transparent 0deg 8deg,
+    rgba(255, 99, 132, 0.4) 8deg 11deg,
+    transparent 11deg 22.4deg,
+    rgba(255, 200, 87, 0.36) 22.4deg 25.4deg,
+    transparent 25.4deg 36.8deg,
+    rgba(163, 255, 138, 0.32) 36.8deg 39.8deg,
+    transparent 39.8deg 51.2deg,
+    rgba(99, 200, 255, 0.36) 51.2deg 54.2deg,
+    transparent 54.2deg 65.6deg,
+    rgba(190, 130, 255, 0.36) 65.6deg 68.6deg,
+    transparent 68.6deg 72deg
   );
 }
 
 .pack-card.flipped .pack-card-rays {
   animation: pack-card-rays 2s ease-out 0.32s both;
+}
+
+.pack-card.flipped.rarity-ur .pack-card-rays {
+  animation: pack-card-rays 2s ease-out 0.32s both, pack-omen-hue 1.8s linear infinite;
 }
 
 @keyframes pack-card-rays {
@@ -12110,11 +12196,15 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-card.flipped.rarity-sr .pack-card-inner::after {
-  box-shadow: 0 0 34px rgba(255, 255, 255, 0.48), inset 0 0 18px rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 34px rgba(250, 204, 21, 0.5), inset 0 0 18px rgba(253, 224, 71, 0.2);
 }
 
 .pack-card.flipped.rarity-ur .pack-card-inner::after {
-  box-shadow: 0 0 42px rgba(255, 255, 255, 0.66), 0 0 70px rgba(226, 232, 240, 0.36), inset 0 0 22px rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 0 42px rgba(255, 255, 255, 0.66),
+    0 0 70px rgba(244, 114, 182, 0.32),
+    0 0 96px rgba(56, 189, 248, 0.28),
+    inset 0 0 22px rgba(255, 255, 255, 0.2);
 }
 
 @keyframes pack-rare-burst {
@@ -12123,23 +12213,91 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   100% { opacity: 0.55; transform: rotateY(180deg) scale(1); }
 }
 
-.pack-holo-overlay {
+/* UR は虹色のプリズム箔。conic-gradient は 0deg と 360deg の色を揃えれば数学的に
+   継ぎ目なく一周するが、回転させる要素自体がカードと同じ矩形のままだと、
+   回転中に矩形の「角」がカードの外へ飛び出して見える（ひし形に漏れて見えたのはこれ）。
+   そのため .card-holo-overlay は回転させず「カード形にクリップする窓」としてだけ使い、
+   実際に回転するのは中の .card-holo-overlay-spin（カードの対角線より大きい正方形）にする。
+   正方形は中心から角までの距離が回転しても変わらないので、窓の外に角が入ってこない。
+   CardView 内で UR カード共通の子要素として描画され、パック開封・カード一覧・
+   デッキ制作・対戦画面の手札/場など UR カードが表示される全ての場所に自動で乗る。
+   イラスト部分（.card-art）だけはマスクで穴を開けて除外する。カードの実寸法は
+   コンテキストごとに異なる（パック/一覧=132x190、手札=94x132、場=可変幅 等）ため、
+   穴のサイズ・位置は下のコンテキスト別ルールで上書きする。二重指定は Safari 用の
+   -webkit- 系フォールバック */
+.card-holo-overlay {
   position: absolute;
   inset: 0;
+  z-index: 2;
   border-radius: 8px;
+  overflow: hidden;
   pointer-events: none;
-  mix-blend-mode: color-dodge;
-  /* カード種別色と混ざらない白銀のプリズム箔 */
-  background:
-    repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.24) 0%, rgba(226, 232, 240, 0.18) 8%, rgba(255, 255, 255, 0.1) 16%, rgba(203, 213, 225, 0.16) 24%, rgba(255, 255, 255, 0.24) 32%, rgba(226, 232, 240, 0.18) 40%, rgba(255, 255, 255, 0.24) 48%);
-  background-size: 320% 320%;
-  animation: pack-holo-shift 3.6s linear infinite;
-  opacity: 0.9;
+  mix-blend-mode: screen;
+  opacity: 0.45;
+  -webkit-mask-image: linear-gradient(#000, #000), linear-gradient(#000, #000);
+  -webkit-mask-repeat: no-repeat, no-repeat;
+  -webkit-mask-composite: source-over, destination-out;
+  mask-image: linear-gradient(#000, #000), linear-gradient(#000, #000);
+  mask-repeat: no-repeat, no-repeat;
+  mask-composite: add, subtract;
+  /* デフォルト＝パック開封・カード一覧・デッキ制作プール共通の寸法
+     （132x190、padding 8px、grid-template-rows: 42px 60px 40px 24px）。
+     .card-holo-overlay は .card の内側（.card-art と同じ座標系）に置かれるため、
+     実測値は .card-art の実際のオフセットに合わせている */
+  -webkit-mask-size: 100% 100%, 112px 60px;
+  -webkit-mask-position: 0 0, 8px 50px;
+  mask-size: 100% 100%, 112px 60px;
+  mask-position: 0 0, 8px 50px;
 }
 
-@keyframes pack-holo-shift {
-  0% { background-position: 0% 0%; }
-  100% { background-position: 100% 100%; }
+/* 対戦画面の手札（94x132、padding 6px、grid-template-rows: 34px 40px 36px 16px） */
+.stitch-hand .card-holo-overlay {
+  -webkit-mask-size: 100% 100%, calc(100% - 16px) 40px;
+  -webkit-mask-position: 0 0, 6px 40px;
+  mask-size: 100% 100%, calc(100% - 16px) 40px;
+  mask-position: 0 0, 6px 40px;
+}
+
+/* 対戦画面の場（可変幅、padding 7px、grid-template-rows: 36px 48px 42px 18px） */
+.field-grid .card-holo-overlay {
+  -webkit-mask-size: 100% 100%, calc(100% - 18px) 48px;
+  -webkit-mask-position: 0 0, 7px 43px;
+  mask-size: 100% 100%, calc(100% - 18px) 48px;
+  mask-position: 0 0, 7px 43px;
+}
+
+/* それ以外の汎用カード（116x148、padding 9px、grid-template-rows: auto 1fr auto） */
+.deck-card-item .card-holo-overlay,
+.pending-card-choice .card-holo-overlay,
+.defense-choice-card .card-holo-overlay,
+.player-panel .card-holo-overlay {
+  -webkit-mask-size: 100% 100%, calc(100% - 20px) 54px;
+  -webkit-mask-position: 0 0, 8px 50px;
+  mask-size: 100% 100%, calc(100% - 20px) 54px;
+  mask-position: 0 0, 8px 50px;
+}
+
+.card-holo-overlay-spin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 260px;
+  height: 260px;
+  margin: -130px 0 0 -130px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255, 99, 132, 0.32),
+    rgba(255, 200, 87, 0.28),
+    rgba(163, 255, 138, 0.26),
+    rgba(99, 200, 255, 0.28),
+    rgba(190, 130, 255, 0.28),
+    rgba(255, 99, 132, 0.32)
+  );
+  animation: card-holo-spin 4.5s linear infinite;
+}
+
+@keyframes card-holo-spin {
+  to { transform: rotate(360deg); }
 }
 
 .pack-rarity-chip {
@@ -12164,14 +12322,15 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-card.rarity-sr .pack-rarity-chip.shown {
-  color: #f8fafc;
-  border-color: rgba(248, 250, 252, 0.7);
+  color: #fde68a;
+  border-color: rgba(250, 204, 21, 0.7);
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.3);
 }
 
 .pack-card.rarity-ur .pack-rarity-chip.shown {
   color: #ffffff;
   border-color: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.32);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.32), 0 0 18px rgba(244, 114, 182, 0.26);
 }
 
 .pack-reveal-controls {
@@ -12188,92 +12347,38 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 .pack-flip-all {
   border: 1px solid var(--accent);
   border-radius: 999px;
-  padding: 6px 16px;
+  padding: 10px 26px;
   color: var(--accent);
-  background: transparent;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
   font-family: var(--app-font);
   font-weight: 800;
-  font-size: 12px;
+  font-size: 14px;
   letter-spacing: 0.06em;
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  box-shadow: 0 0 0 rgba(0, 240, 255, 0);
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
 }
 
 .pack-flip-all:hover {
   color: #06251f;
   background: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 240, 255, 0.35);
+}
+
+.pack-flip-all:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0, 240, 255, 0.3);
 }
 
 .pack-summary {
   display: grid;
   justify-items: center;
-  gap: 10px;
-  padding: 20px 26px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--surface);
+  gap: 18px;
+  min-width: 380px;
+  padding: 12px 8px;
   text-align: center;
   animation: pack-card-deal 0.4s ease both;
-}
-
-.pack-summary strong {
-  color: var(--accent-2);
-  font-size: 19px;
-  letter-spacing: 0.08em;
-}
-
-.pack-summary-cards {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  max-width: 420px;
-}
-
-.pack-summary-cards li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface-2);
-  font-size: 12px;
-  color: var(--text);
-}
-
-.pack-summary-card-rarity {
-  padding: 1px 6px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 800;
-  color: var(--muted);
-  background: var(--surface);
-}
-
-.pack-summary-cards li.rarity-sr .pack-summary-card-rarity {
-  color: #f8fafc;
-}
-
-.pack-summary-cards li.rarity-ur .pack-summary-card-rarity {
-  color: #ffffff;
-}
-
-.pack-summary-cards li.rarity-sr,
-.pack-summary-cards li.rarity-ur {
-  border-color: rgba(248, 250, 252, 0.46);
-}
-
-.pack-summary-cards li.rarity-ur {
-  border-color: rgba(255, 255, 255, 0.66);
-}
-
-.pack-summary.best-ur strong {
-  color: #ffffff;
-  text-shadow: 0 0 14px rgba(255, 255, 255, 0.42);
 }
 
 .pack-summary span {
@@ -12281,25 +12386,144 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   font-size: 12px;
 }
 
+/* .meter-value 等、他のゲージ/インジケータと同じ「--accent 単色 + teal のグロー」に揃える。
+   グラデーションや常時パルスはこのアプリの他のボタンでは使っていないため使用しない */
 .pack-summary button {
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  padding: 8px 16px;
+  border: 1px solid rgba(45, 212, 191, 0.6);
+  border-radius: 999px;
+  padding: 14px 40px;
   color: #06251f;
   background: var(--accent);
   font-family: var(--app-font);
-  font-weight: 800;
-  font-size: 13px;
+  font-weight: 900;
+  font-size: 16px;
+  letter-spacing: 0.05em;
   cursor: pointer;
+  box-shadow: 0 0 22px rgba(45, 212, 191, 0.3);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.pack-summary button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(45, 212, 191, 0.4);
+}
+
+.pack-summary button:active {
+  transform: translateY(0);
+  box-shadow: 0 0 16px rgba(45, 212, 191, 0.3);
+}
+
+/* 第2弾コレクションの充実度バー。カード裏面の意匠（コーナーの金属枠 + ネオン、
+   幾何学的な線）に寄せた HUD ゲージ調にする。色相は --accent（teal）のみで、
+   濃淡・発光量の差で階調をつける（他色とは混ぜない） */
+.pack-progress {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 440px;
+}
+
+.pack-progress-bar {
+  position: relative;
+  width: 100%;
+  height: 22px;
+  padding: 3px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #0a1117, #0d1922);
+  border: 1px solid rgba(45, 212, 191, 0.4);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.7);
+}
+
+/* コーナーブラケット（カード裏面の四隅装飾と同じ意匠） */
+.pack-progress-bar::before,
+.pack-progress-bar::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(157, 255, 240, 0.85);
+  filter: drop-shadow(0 0 4px rgba(45, 212, 191, 0.6));
+  pointer-events: none;
+}
+
+.pack-progress-bar::before {
+  left: -4px;
+  top: -4px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.pack-progress-bar::after {
+  right: -4px;
+  bottom: -4px;
+  border-left: none;
+  border-top: none;
+}
+
+.pack-progress-fill {
+  position: relative;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #0c5c56 0%, var(--accent) 55%, #b6fff3 100%);
+  box-shadow: 0 0 16px rgba(45, 212, 191, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: width 0.7s cubic-bezier(0.22, 0.9, 0.3, 1);
+  overflow: hidden;
+}
+
+/* セグメント区切り。ベタ塗りでなく LED ゲージのような刻みを入れる */
+.pack-progress-fill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0 9px, rgba(3, 10, 13, 0.55) 9px 11px);
+}
+
+/* 走査線が一定間隔で流れる */
+.pack-progress-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  background: linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.85) 45%, transparent 90%);
+  animation: pack-progress-sheen 2.4s ease-in-out infinite;
+}
+
+@keyframes pack-progress-sheen {
+  0% { transform: translateX(-70px); }
+  55%, 100% { transform: translateX(280px); }
+}
+
+/* 数値まわりはピルバッジではなく、角を斜めに落とした HUD タグ形状にする */
+.pack-progress-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 20px;
+  border: 1px solid rgba(45, 212, 191, 0.55);
+  background: linear-gradient(180deg, rgba(45, 212, 191, 0.16), rgba(45, 212, 191, 0.04));
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+
+.pack-summary-actions {
+  display: flex;
+  gap: 10px;
 }
 
 /* --- 高レア確定演出（剥いた瞬間） --- */
 
 .pack-omen {
-  /* 光のテーマ色（"R, G, B" 形式で rgba() に埋め込む） */
-  --omen-main: 255, 255, 255;
-  --omen-sub: 226, 232, 240;
-  --omen-hot: 255, 255, 255;
+  /* 光のテーマ色（"R, G, B" 形式で rgba() に埋め込む）。既定値は SR = 金 */
+  --omen-main: 250, 204, 21;
+  --omen-sub: 253, 224, 71;
+  --omen-hot: 255, 247, 222;
   position: absolute;
   left: 50%;
   bottom: calc(100% - 92px);
@@ -12314,7 +12538,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 .booster-pack.omen-ur .pack-omen {
   --omen-main: 255, 255, 255;
-  --omen-sub: 203, 213, 225;
+  --omen-sub: 226, 232, 240;
   --omen-hot: 255, 255, 255;
 }
 
@@ -12347,6 +12571,32 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 @keyframes pack-omen-spin {
   to { transform: rotate(360deg); }
+}
+
+/* UR は虹色の光条。固定の多色バンドを敷いた上で hue-rotate を回し続けてプリズム感を出す。
+   帯1周期を 72deg（360 の整数分の1 = 5 周ぴったり）に揃え、周期の境界がどちらも
+   transparent 同士で接するようにしているため、継ぎ目に縦筋が出ない */
+.booster-pack.omen-ur .pack-omen-rays {
+  background: repeating-conic-gradient(
+    from 8deg,
+    transparent 0deg 8deg,
+    rgba(255, 99, 132, 0.3) 8deg 11deg,
+    transparent 11deg 22.4deg,
+    rgba(255, 200, 87, 0.28) 22.4deg 25.4deg,
+    transparent 25.4deg 36.8deg,
+    rgba(163, 255, 138, 0.26) 36.8deg 39.8deg,
+    transparent 39.8deg 51.2deg,
+    rgba(99, 200, 255, 0.28) 51.2deg 54.2deg,
+    transparent 54.2deg 65.6deg,
+    rgba(190, 130, 255, 0.28) 65.6deg 68.6deg,
+    transparent 68.6deg 72deg
+  );
+  animation: pack-omen-spin 9s linear infinite, pack-omen-hue 3.2s linear infinite;
+}
+
+@keyframes pack-omen-hue {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
 }
 
 /* Canvas パーティクル（packParticles.ts が描画） */
@@ -12391,19 +12641,29 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   75% { transform: translate(-2px, 1px); }
 }
 
+/* めくった瞬間の衝撃（ヒットストップの着地に合わせて 0.32s 遅延させる） */
+.pack-stage.stage-flip-sr,
+.pack-stage.stage-flip-ur {
+  animation: pack-stage-shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97) 0.32s both;
+}
+
 .booster-pack.torn.omen-sr .pack-body,
 .booster-pack.torn.omen-ur .pack-body {
   transition-delay: 0.95s;
 }
 
 .booster-pack.torn.omen-sr .pack-body {
-  border-color: rgba(248, 250, 252, 0.68);
-  box-shadow: 0 0 40px rgba(255, 255, 255, 0.42), 0 0 90px rgba(226, 232, 240, 0.22);
+  border-color: rgba(250, 204, 21, 0.68);
+  box-shadow: 0 0 40px rgba(250, 204, 21, 0.42), 0 0 90px rgba(253, 224, 71, 0.24);
 }
 
 .booster-pack.torn.omen-ur .pack-body {
-  border-color: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 0 44px rgba(255, 255, 255, 0.56), 0 0 96px rgba(226, 232, 240, 0.34);
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 0 22px rgba(255, 255, 255, 0.55),
+    0 0 46px rgba(244, 114, 182, 0.32),
+    0 0 68px rgba(56, 189, 248, 0.28),
+    0 0 92px rgba(250, 204, 21, 0.24);
 }
 
 .pack-stage.stage-omen-sr::after,
@@ -12416,13 +12676,14 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-stage.stage-omen-sr::after {
-  background: radial-gradient(ellipse 62% 55% at 50% 42%, rgba(255, 255, 255, 0.22), transparent 72%);
+  background: radial-gradient(ellipse 62% 55% at 50% 42%, rgba(250, 204, 21, 0.26), transparent 72%);
 }
 
 .pack-stage.stage-omen-ur::after {
   background:
-    radial-gradient(ellipse 62% 55% at 50% 42%, rgba(255, 255, 255, 0.28), transparent 72%),
-    radial-gradient(ellipse 80% 65% at 50% 45%, rgba(226, 232, 240, 0.16), transparent 75%);
+    radial-gradient(ellipse 62% 55% at 50% 42%, rgba(255, 255, 255, 0.3), transparent 72%),
+    radial-gradient(ellipse 80% 65% at 30% 40%, rgba(244, 114, 182, 0.16), transparent 70%),
+    radial-gradient(ellipse 80% 65% at 70% 50%, rgba(56, 189, 248, 0.16), transparent 70%);
 }
 
 @keyframes pack-stage-flash {
@@ -12434,7 +12695,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 /* --- 裏向きカードのオーラ（高レアの気配） --- */
 
 .pack-card.rarity-sr:not(.flipped) .pack-card-front {
-  border-color: rgba(248, 250, 252, 0.66);
+  border-color: rgba(250, 204, 21, 0.6);
   animation: pack-back-aura-sr 1.5s ease-in-out infinite;
 }
 
@@ -12444,13 +12705,13 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 @keyframes pack-back-aura-sr {
-  0%, 100% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 14px rgba(255, 255, 255, 0.26); }
-  50% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 255, 255, 0.54); }
+  0%, 100% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 14px rgba(250, 204, 21, 0.28); }
+  50% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 30px rgba(250, 204, 21, 0.58); }
 }
 
 @keyframes pack-back-aura-ur {
-  0%, 100% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 16px rgba(255, 255, 255, 0.36); }
-  50% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 34px rgba(255, 255, 255, 0.68), 0 0 52px rgba(226, 232, 240, 0.38); }
+  0%, 100% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 16px rgba(255, 255, 255, 0.36), 0 0 26px rgba(244, 114, 182, 0.24); }
+  50% { box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), 0 0 34px rgba(255, 255, 255, 0.68), 0 0 52px rgba(56, 189, 248, 0.38); }
 }
 
 /* --- めくった瞬間のフラッシュとスパークル --- */
@@ -12474,7 +12735,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-card.flipped.rarity-ur .pack-card-back::before {
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.5) 36%, rgba(203, 213, 225, 0.28) 52%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.98) 0%, rgba(255, 214, 235, 0.4) 36%, rgba(180, 220, 255, 0.28) 52%, transparent 70%);
 }
 
 @keyframes pack-flip-flash {
@@ -12525,9 +12786,76 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   50% { opacity: 1; transform: scale(1.03); }
 }
 
-.pack-summary.best-sr strong {
-  color: #f8fafc;
-  text-shadow: 0 0 14px rgba(255, 255, 255, 0.34);
+/* --- UR確定の全画面カットイン（body へ Portal）---
+   同心円・ルーンティック・水晶片の飛散は CSS の手描き形状ではなく、
+   runPackBurst と同じ加算合成の Canvas 2D パーティクルエンジン
+   （runUrCutinBurst、packParticles.ts）に描かせる。setInterval 駆動なので
+   タブのバックグラウンド化等で CSS animation のタイムラインが 0% のまま
+   進まなくなる不具合の影響も受けない。DOM/CSS 側はテキストと簡単な
+   フラッシュだけに留める。 */
+
+.pack-ur-cutin {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pack-ur-cutin-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.pack-ur-cutin-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 55% at 50% 50%, rgba(255, 255, 255, 0.6), transparent 62%);
+  animation: pack-ur-cutin-flash 1.5s ease-out both;
+}
+
+@keyframes pack-ur-cutin-flash {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* 中央のテキスト。
+   keyframe animation の進行に頼ると 0% で固まって不透明度 0 のまま出てこない
+   ことがあるため（カードめくりで踏んだのと同じ不具合）、表示そのものは
+   確実に終着点へ収束する transition で担保し、.is-active 付与で発火させる */
+.pack-ur-cutin-seal {
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+  transform: scale(0.4);
+  filter: brightness(2.4);
+  transition: opacity 0.45s cubic-bezier(0.2, 0.9, 0.25, 1), transform 0.5s cubic-bezier(0.2, 0.9, 0.25, 1), filter 0.5s ease-out;
+}
+
+.pack-ur-cutin.is-active .pack-ur-cutin-seal {
+  opacity: 1;
+  transform: scale(1);
+  filter: brightness(1);
+  transition: opacity 0.45s cubic-bezier(0.2, 0.9, 0.25, 1), transform 0.55s cubic-bezier(0.34, 1.4, 0.4, 1), filter 0.5s ease-out;
+}
+
+.pack-ur-cutin-seal strong {
+  color: #fff;
+  font-family: var(--duel-serif);
+  font-size: 38px;
+  font-weight: 950;
+  letter-spacing: 0.22em;
+  white-space: nowrap;
+  text-shadow:
+    0 0 12px rgba(255, 255, 255, 0.9),
+    0 0 28px rgba(190, 130, 255, 0.7),
+    0 0 46px rgba(99, 200, 255, 0.5),
+    0 3px 8px rgba(0, 0, 0, 0.6);
 }
 
 /* --- コインとコレクション --- */
@@ -12609,24 +12937,20 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   opacity: 1;
 }
 
-.pack-summary-meta {
-  color: #dcedf5;
-  font-size: 12px;
-  letter-spacing: 0.05em;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .booster-pack,
   .pack-lid-grip-chevron,
-  .pack-holo-overlay,
+  .card-holo-overlay-spin,
   .pack-omen,
   .pack-omen span,
   .pack-impact-flash,
   .pack-stage.stage-omen-sr,
   .pack-stage.stage-omen-ur,
   .pack-card-rays,
-  .pack-card.flipped.rarity-sr .pack-card-inner,
-  .pack-card.flipped.rarity-ur .pack-card-inner,
+  .pack-card.flipped.rarity-sr,
+  .pack-card.flipped.rarity-ur,
+  .pack-ur-cutin-flash,
+  .pack-progress-fill::after,
   .pack-card.rarity-sr:not(.flipped) .pack-card-front,
   .pack-card.rarity-ur:not(.flipped) .pack-card-front {
     animation: none;

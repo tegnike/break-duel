@@ -449,7 +449,7 @@ function CardPoolButton({
   );
 }
 
-function CardInspector({
+export function CardInspector({
   card,
   compact = false,
   owned = loadCollection(),
