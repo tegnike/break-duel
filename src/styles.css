@@ -12723,13 +12723,20 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 .pack-omen-rays {
   position: absolute;
   inset: 0;
+  /* 90deg 内に極細〜太線を混ぜ、均一なスポーク感をなくす。周期の両端は透明。 */
   background: repeating-conic-gradient(
     from 8deg,
-    transparent 0deg 9deg,
-    rgba(var(--omen-main), 0.22) 12deg 15deg,
-    transparent 18deg 27deg,
-    rgba(var(--omen-sub), 0.18) 30deg 33deg,
-    transparent 36deg 45deg
+    transparent 0deg 5deg,
+    rgba(var(--omen-main), 0.24) 5deg 5.8deg,
+    transparent 5.8deg 16deg,
+    rgba(var(--omen-sub), 0.2) 16deg 19.2deg,
+    transparent 19.2deg 31deg,
+    rgba(var(--omen-hot), 0.13) 31deg 37.4deg,
+    transparent 37.4deg 52deg,
+    rgba(var(--omen-main), 0.22) 52deg 53.4deg,
+    transparent 53.4deg 68deg,
+    rgba(var(--omen-sub), 0.17) 68deg 72.6deg,
+    transparent 72.6deg 90deg
   );
   -webkit-mask-image: radial-gradient(ellipse 50% 46% at 50% 50%, rgba(0, 0, 0, 0.92) 8%, rgba(0, 0, 0, 0.46) 38%, transparent 72%);
   mask-image: radial-gradient(ellipse 50% 46% at 50% 50%, rgba(0, 0, 0, 0.92) 8%, rgba(0, 0, 0, 0.46) 38%, transparent 72%);
@@ -12740,23 +12747,24 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   to { transform: rotate(360deg); }
 }
 
-/* UR は虹色の光条。固定の多色バンドを敷いた上で hue-rotate を回し続けてプリズム感を出す。
-   帯1周期を 72deg（360 の整数分の1 = 5 周ぴったり）に揃え、周期の境界がどちらも
-   transparent 同士で接するようにしているため、継ぎ目に縦筋が出ない */
+/* UR は虹色の光条。極細・中・太を混ぜた120deg周期を3周させる。
+   周期の境界は透明同士で接するため、回転しても継ぎ目の縦筋は出ない。 */
 .pack-omen.omen-ur .pack-omen-rays {
   background: repeating-conic-gradient(
     from 8deg,
-    transparent 0deg 8deg,
-    rgba(255, 99, 132, 0.3) 8deg 11deg,
-    transparent 11deg 22.4deg,
-    rgba(255, 200, 87, 0.28) 22.4deg 25.4deg,
-    transparent 25.4deg 36.8deg,
-    rgba(163, 255, 138, 0.26) 36.8deg 39.8deg,
-    transparent 39.8deg 51.2deg,
-    rgba(99, 200, 255, 0.28) 51.2deg 54.2deg,
-    transparent 54.2deg 65.6deg,
-    rgba(190, 130, 255, 0.28) 65.6deg 68.6deg,
-    transparent 68.6deg 72deg
+    transparent 0deg 7deg,
+    rgba(255, 99, 132, 0.32) 7deg 7.9deg,
+    transparent 7.9deg 20deg,
+    rgba(255, 200, 87, 0.28) 20deg 23.4deg,
+    transparent 23.4deg 37deg,
+    rgba(163, 255, 138, 0.28) 37deg 38.6deg,
+    transparent 38.6deg 53deg,
+    rgba(99, 200, 255, 0.24) 53deg 59.2deg,
+    transparent 59.2deg 76deg,
+    rgba(190, 130, 255, 0.3) 76deg 78.4deg,
+    transparent 78.4deg 95deg,
+    rgba(255, 120, 205, 0.28) 95deg 96.1deg,
+    transparent 96.1deg 120deg
   );
   animation: pack-omen-spin 9s linear infinite, pack-omen-hue 3.2s linear infinite;
 }
