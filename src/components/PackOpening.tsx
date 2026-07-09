@@ -12,12 +12,11 @@ import brandMark from "../assets/mark.svg";
 
 // UR 確定時の全画面カットイン。.stitch-shell と同様に祖先が overflow:hidden の
 // stacking context を持つため、fixed 演出は body へ Portal して確実に画面全体を覆う。
-// 紙吹雪＋斜めバナーという汎用ソシャゲ演出や CSS の手描き形状は「手作り感」が出やすいため、
-// 同心円・ルーンティック・水晶片の飛散は runPackBurst と同じ加算合成の Canvas 2D
-// パーティクルエンジン（runUrCutinBurst）に任せ、DOM/CSS 側はテキストと簡単なフラッシュだけにする。
+// 線画の魔法陣ではなく、Canvas 2D で生成した発光雲・粒子・プリズム片を重ねる。
+// DOM/CSS 側は中央のレアリティ表記と短い発光だけに留める。
 function PackUrCutIn() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // 紋章（ULTRA RARE 本体）は keyframe animation だけに頼ると、タブが一瞬でも
+  // 紋章（UR 本体）は keyframe animation だけに頼ると、タブが一瞬でも
   // バックグラウンド化した際などにタイムラインが 0% のまま進まず不透明度 0 で
   // 固まってしまうことがある（カードめくりで踏んだのと同じ不具合）。
   // 装飾以上に「見えないと成立しない」要素なので、確実に最終状態へ収束する
@@ -38,7 +37,7 @@ function PackUrCutIn() {
       <span className="pack-ur-cutin-flash" />
       <canvas ref={canvasRef} className="pack-ur-cutin-canvas" />
       <span className="pack-ur-cutin-seal">
-        <strong>ULTRA RARE</strong>
+        <strong>UR</strong>
       </span>
     </div>,
     document.body,
@@ -57,8 +56,10 @@ const RESULT_REVEAL_DELAY_MS = 650;
 type PackPhase = "sealed" | "torn" | "opened";
 type PackCard = { key: number; card: Card; rarity: CardRarity; isNew?: boolean };
 type PackOmen = "none" | "sr" | "ur";
+type RevealCallout = { token: number; rarity: CardRarity; label: string; isNew: boolean };
 type PlaySfx = (kind: string) => void;
 
+const RARITY_POWER: Record<CardRarity, number> = { n: 0, r: 1, sr: 2, ur: 3 };
 function drawFrom(pool: Card[], usedIds: Set<string>): Card {
   const candidates = pool.filter((card) => !usedIds.has(card.id));
   const picked = candidates[Math.floor(Math.random() * candidates.length)] ?? pool[0];
@@ -112,6 +113,15 @@ function omenOf(cards: PackCard[] | null): PackOmen {
   return "none";
 }
 
+function calloutLabelFor(entry: PackCard): string | null {
+  if (entry.rarity === "ur") return "UR";
+  if (entry.rarity === "sr") return "SR";
+  // 通常Rはカード自体で判別できるため、連続で引いた際の「R」連打は出さない。
+  // 新規入手だけはレアリティではなく獲得情報として知らせる。
+  if (entry.isNew) return "NEW";
+  return null;
+}
+
 export function PackOpeningPage({
   coins,
   onSpendPack,
@@ -129,6 +139,7 @@ export function PackOpeningPage({
   const [revealFocus, setRevealFocus] = useState<PackOmen>("none");
   const [focusedKey, setFocusedKey] = useState<number | null>(null);
   const [resultReady, setResultReady] = useState(false);
+  const [revealCallout, setRevealCallout] = useState<RevealCallout | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ pointerId: number; startX: number } | null>(null);
   const settleTimerRef = useRef<number | null>(null);
@@ -141,6 +152,8 @@ export function PackOpeningPage({
   const flipAllTimersRef = useRef<number[]>([]);
   const flipFxTimersRef = useRef<number[]>([]);
   const flipBurstCancelRef = useRef<(() => void) | null>(null);
+  const calloutTimerRef = useRef<number | null>(null);
+  const calloutTokenRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -149,6 +162,7 @@ export function PackOpeningPage({
       flipAllTimersRef.current.forEach((id) => window.clearTimeout(id));
       flipFxTimersRef.current.forEach((id) => window.clearTimeout(id));
       flipBurstCancelRef.current?.();
+      if (calloutTimerRef.current !== null) window.clearTimeout(calloutTimerRef.current);
     };
   }, []);
 
@@ -235,7 +249,25 @@ export function PackOpeningPage({
       next.add(key);
       return next;
     });
-    if (!isFresh || (entry.rarity !== "sr" && entry.rarity !== "ur")) return;
+    if (!isFresh) return;
+    const calloutLabel = calloutLabelFor(entry);
+    if (calloutLabel) {
+      flipFxTimersRef.current.push(
+        window.setTimeout(() => {
+          calloutTokenRef.current += 1;
+          setRevealCallout({
+            token: calloutTokenRef.current,
+            rarity: entry.rarity,
+            label: calloutLabel,
+            isNew: entry.isNew === true,
+          });
+          if (calloutTimerRef.current !== null) window.clearTimeout(calloutTimerRef.current);
+          calloutTimerRef.current = window.setTimeout(() => setRevealCallout(null), entry.rarity === "ur" ? 1250 : 900);
+        }, 330),
+      );
+    }
+    if (entry.rarity === "r") scheduleSfx("draw", 330);
+    if (entry.rarity !== "sr" && entry.rarity !== "ur") return;
     // キラカード確定: ステージ暗転 + カード背面からのバースト
     const rarity = entry.rarity;
     setRevealFocus(rarity);
@@ -244,6 +276,9 @@ export function PackOpeningPage({
       // カードが表を向く瞬間（フリップ中間点の少し後）に光を噴かせる
       window.setTimeout(() => {
         playSfx("rare-reveal");
+        // UR は同時に全画面カットインが走るため、カード位置の Canvas バーストを
+        // 重ねると見えない描画へ負荷だけを二重に払う。局所バーストは SR のみにする。
+        if (rarity === "ur") return;
         const stage = stageRef.current;
         const canvas = revealCanvasRef.current;
         const cardEl = stage?.querySelector(`[data-pack-key="${key}"]`);
@@ -257,7 +292,7 @@ export function PackOpeningPage({
             x: cardRect.left + cardRect.width / 2 - stageRect.left,
             y: cardRect.top + cardRect.height * 0.3 - stageRect.top,
           },
-          rarity,
+          "sr",
           1450,
         );
       }, 360),
@@ -279,9 +314,16 @@ export function PackOpeningPage({
   function flipAll() {
     if (!pack) return;
     flipAllTimersRef.current.forEach((id) => window.clearTimeout(id));
-    const unflipped = pack.filter((entry) => !flippedKeys.has(entry.key));
+    // 一括開示は低レアから高レアへ。配置自体はシャッフルしたままなので、
+    // 「右端が必ず当たり」にはせず、短い連打の最後だけを明確な山場にする。
+    const unflipped = pack
+      .filter((entry) => !flippedKeys.has(entry.key))
+      .sort((a, b) => RARITY_POWER[a.rarity] - RARITY_POWER[b.rarity]);
     flipAllTimersRef.current = unflipped.map((entry, order) =>
-      window.setTimeout(() => flipCard(entry.key), order * 140),
+      window.setTimeout(
+        () => flipCard(entry.key),
+        order * 170 + (entry.rarity === "sr" || entry.rarity === "ur" ? 300 : 0),
+      ),
     );
   }
 
@@ -294,6 +336,8 @@ export function PackOpeningPage({
     flipFxTimersRef.current = [];
     flipBurstCancelRef.current?.();
     flipBurstCancelRef.current = null;
+    if (calloutTimerRef.current !== null) window.clearTimeout(calloutTimerRef.current);
+    calloutTimerRef.current = null;
     dragRef.current = null;
     tearBusyRef.current = false;
     setPack(null);
@@ -304,6 +348,7 @@ export function PackOpeningPage({
     setRevealFocus("none");
     setFocusedKey(null);
     setResultReady(false);
+    setRevealCallout(null);
   }
 
   function openNextPack() {
@@ -315,6 +360,9 @@ export function PackOpeningPage({
   const allFlipped = pack !== null && flippedKeys.size === pack.length;
   const packOmen = omenOf(pack);
   const newCount = pack?.filter((entry) => entry.isNew).length ?? 0;
+  const flippedEntries = Array.from(flippedKeys)
+    .map((key) => pack?.find((entry) => entry.key === key))
+    .filter((entry): entry is PackCard => entry !== undefined);
   const focusedCard = pack?.find((entry) => entry.key === focusedKey)?.card ?? null;
   // 1枚めくるたびに大判プレビューへ切り替わると忙しないので、全部めくり切って
   // 結果が出るタイミング（SR/UR演出後の一拍を含む）まではプレビューを出さない
@@ -378,17 +426,17 @@ export function PackOpeningPage({
         className={`pack-stage phase-${phase}${phase === "torn" && packOmen !== "none" ? ` stage-omen-${packOmen}` : ""}${revealFocus !== "none" ? ` stage-flip-${revealFocus}` : ""}`}
       >
         {revealFocus === "ur" && <PackUrCutIn />}
+        {phase === "torn" && packOmen !== "none" && (
+          <span className={`pack-omen omen-${packOmen}`} aria-hidden="true">
+            <span className="pack-omen-rays" />
+          </span>
+        )}
         {phase !== "opened" && (
           <div
             ref={packRef}
             className={`booster-pack omen-${packOmen} ${phase === "torn" ? "torn" : ""} ${dragging ? "dragging" : ""} ${canAfford ? "" : "locked"}`}
             style={{ "--tear": tearProgress } as CSSProperties}
           >
-            {phase === "torn" && packOmen !== "none" && (
-              <span className="pack-omen" aria-hidden="true">
-                <span className="pack-omen-rays" />
-              </span>
-            )}
             <div
               ref={stripRef}
               className="pack-lid"
@@ -445,6 +493,14 @@ export function PackOpeningPage({
             <span className="pack-impact-flash" aria-hidden="true" />
           </>
         )}
+        <div aria-live="polite">
+          {revealCallout && (
+            <div key={revealCallout.token} className={`pack-reveal-callout rarity-${revealCallout.rarity}`}>
+              <span>{revealCallout.label}</span>
+              {revealCallout.isNew && (revealCallout.rarity === "sr" || revealCallout.rarity === "ur") && <em>NEW</em>}
+            </div>
+          )}
+        </div>
         {phase === "opened" && pack && (
           <div className="pack-reveal">
             <span
@@ -452,6 +508,24 @@ export function PackOpeningPage({
               aria-hidden="true"
             />
             <canvas ref={revealCanvasRef} className="pack-reveal-canvas" aria-hidden="true" />
+            <div className="pack-hype-strip">
+              <div className="pack-hype-copy">
+                <span>公開済み</span>
+                <strong>{flippedKeys.size}<small>/{PACK_SIZE}</small></strong>
+              </div>
+              <div className="pack-hype-meter" aria-label={`${PACK_SIZE}枚中${flippedKeys.size}枚を公開`}>
+                {Array.from({ length: PACK_SIZE }, (_, index) => {
+                  const revealed = flippedEntries[index];
+                  return (
+                    <i
+                      key={index}
+                      className={revealed ? `is-lit rarity-${revealed.rarity}` : ""}
+                      aria-hidden="true"
+                    />
+                  );
+                })}
+              </div>
+            </div>
             <div className={`pack-reveal-layout ${showInspector ? "with-inspector" : ""}`}>
               <div className="pack-reveal-main">
                 <ul className="pack-card-row">
