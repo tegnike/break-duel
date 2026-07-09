@@ -608,7 +608,7 @@ export function PackOpeningPage({
                     </p>
                     {!allFlipped && (
                       <button type="button" className="pack-flip-all" onClick={flipAll}>
-                        クライマックス開示
+                        すべてめくる
                       </button>
                     )}
                   </div>
