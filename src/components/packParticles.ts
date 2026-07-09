@@ -70,7 +70,9 @@ function seededRandom(seed: number): () => number {
 // 画像生成パーツの代わりに、起動時に一度だけ作る半透明の発光雲テクスチャ。
 // 複数の楕円グラデーションを重ねることで、直線や真円が見えない有機的な光にする。
 function makeEnergyCloudSprite(colors: readonly Rgb[], seed: number): HTMLCanvasElement {
-  const size = 512;
+  // 雲自体がぼけた素材なので、高解像度にしても見た目はほぼ変わらない。
+  // 元画像を小さくして、全画面へ拡大合成するときのテクスチャ転送量を抑える。
+  const size = 384;
   const sprite = document.createElement("canvas");
   sprite.width = size;
   sprite.height = size;
@@ -78,7 +80,7 @@ function makeEnergyCloudSprite(colors: readonly Rgb[], seed: number): HTMLCanvas
   const random = seededRandom(seed);
   ctx.globalCompositeOperation = "lighter";
 
-  for (let i = 0; i < 34; i += 1) {
+  for (let i = 0; i < 26; i += 1) {
     const color = colors[Math.floor(random() * colors.length)];
     const [r, g, b] = color;
     const x = size * (0.26 + random() * 0.48);
@@ -382,7 +384,9 @@ export function runUrCutinBurst(
   const ctx = canvas.getContext("2d");
   if (!ctx) return () => {};
 
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  // 全画面の発光雲は高DPIで描いても差が見えにくい一方、DPR 2 では
+  // ピクセル数が4倍になる。CSSピクセル等倍に固定して合成負荷を抑える。
+  const dpr = 1;
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
   canvas.width = Math.max(1, Math.round(width * dpr));
@@ -395,7 +399,7 @@ export function runUrCutinBurst(
   const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
   const pick = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
 
-  for (let i = 0; i < 120; i += 1) {
+  for (let i = 0; i < 64; i += 1) {
     const angle = rand(0, Math.PI * 2);
     const speed = rand(120, 680);
     glows.push({
@@ -411,7 +415,7 @@ export function runUrCutinBurst(
       sprite: pick(sprites.sparks),
     });
   }
-  for (let i = 0; i < 96; i += 1) {
+  for (let i = 0; i < 44; i += 1) {
     const angle = rand(0, Math.PI * 2);
     const speed = rand(180, 820);
     shards.push({
@@ -433,6 +437,17 @@ export function runUrCutinBurst(
   let running = true;
   let startedAt = -1;
   let last = -1;
+  const vignette = ctx.createRadialGradient(
+    center.x,
+    center.y,
+    40,
+    center.x,
+    center.y,
+    Math.max(width, height) * 0.62,
+  );
+  vignette.addColorStop(0, "rgba(15, 43, 64, 0.2)");
+  vignette.addColorStop(0.5, "rgba(12, 18, 40, 0.28)");
+  vignette.addColorStop(1, "rgba(0, 0, 8, 0.72)");
 
   const frame = (now: number) => {
     if (!running) return;
@@ -451,16 +466,14 @@ export function runUrCutinBurst(
     ctx.fillStyle = `rgba(2, 6, 18, ${0.76 * envelope})`;
     ctx.fillRect(0, 0, width, height);
 
-    const vignette = ctx.createRadialGradient(center.x, center.y, 40, center.x, center.y, Math.max(width, height) * 0.62);
-    vignette.addColorStop(0, `rgba(15, 43, 64, ${0.2 * envelope})`);
-    vignette.addColorStop(0.5, `rgba(12, 18, 40, ${0.28 * envelope})`);
-    vignette.addColorStop(1, `rgba(0, 0, 8, ${0.72 * envelope})`);
+    ctx.globalAlpha = envelope;
     ctx.fillStyle = vignette;
     ctx.fillRect(0, 0, width, height);
+    ctx.globalAlpha = 1;
 
     ctx.globalCompositeOperation = "lighter";
     const pulse = 1 + Math.sin(elapsed / 90) * 0.055;
-    for (let wave = 0; wave < 3; wave += 1) {
+    for (let wave = 0; wave < 2; wave += 1) {
       const waveT = Math.min(1, Math.max(0, (t - wave * 0.08) / 0.58));
       if (waveT <= 0 || waveT >= 1) continue;
       const waveWidth = 260 + waveT * Math.min(720, Math.max(width, height) * 0.72);
@@ -479,7 +492,6 @@ export function runUrCutinBurst(
 
     drawRotatedSprite(ctx, sprites.clouds[0], center.x, center.y, 620 * pulse, 440 * pulse, envelope * 0.58, elapsed / 6200);
     drawRotatedSprite(ctx, sprites.clouds[1], center.x - 34, center.y + 18, 480 * pulse, 560 * pulse, envelope * 0.42, -elapsed / 7600 + 0.8);
-    drawRotatedSprite(ctx, sprites.clouds[2], center.x + 42, center.y - 20, 430 * pulse, 360 * pulse, envelope * 0.38, elapsed / 8800 - 0.7);
     drawSprite(ctx, sprites.core, center.x, center.y, 190 * pulse, 100 * pulse, envelope * 0.44);
 
     for (let i = glows.length - 1; i >= 0; i -= 1) {
@@ -525,7 +537,8 @@ export function runUrCutinBurst(
     }
   };
 
-  const timer = window.setInterval(() => frame(performance.now()), 16);
+  // 発光雲は30fpsでも十分滑らか。60fpsで全画面を塗り直す負荷を半減する。
+  const timer = window.setInterval(() => frame(performance.now()), 1000 / 30);
   return () => {
     running = false;
     window.clearInterval(timer);

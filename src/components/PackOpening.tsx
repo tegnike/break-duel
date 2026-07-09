@@ -275,6 +275,9 @@ export function PackOpeningPage({
       // カードが表を向く瞬間（フリップ中間点の少し後）に光を噴かせる
       window.setTimeout(() => {
         playSfx("rare-reveal");
+        // UR は同時に全画面カットインが走るため、カード位置の Canvas バーストを
+        // 重ねると見えない描画へ負荷だけを二重に払う。局所バーストは SR のみにする。
+        if (rarity === "ur") return;
         const stage = stageRef.current;
         const canvas = revealCanvasRef.current;
         const cardEl = stage?.querySelector(`[data-pack-key="${key}"]`);
@@ -288,7 +291,7 @@ export function PackOpeningPage({
             x: cardRect.left + cardRect.width / 2 - stageRect.left,
             y: cardRect.top + cardRect.height * 0.3 - stageRect.top,
           },
-          rarity,
+          "sr",
           1450,
         );
       }, 360),
