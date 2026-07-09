@@ -11928,7 +11928,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-reveal-callout em {
-  border: 1px solid currentColor;
+  border: 1px solid currentcolor;
   padding: 3px 7px;
   color: #fff3b5;
   background: rgba(12, 10, 2, 0.86);

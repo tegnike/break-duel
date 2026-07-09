@@ -493,16 +493,14 @@ export function PackOpeningPage({
             <span className="pack-impact-flash" aria-hidden="true" />
           </>
         )}
-        {revealCallout && (
-          <div
-            key={revealCallout.token}
-            className={`pack-reveal-callout rarity-${revealCallout.rarity}`}
-            aria-live="polite"
-          >
-            <span>{revealCallout.label}</span>
-            {revealCallout.isNew && (revealCallout.rarity === "sr" || revealCallout.rarity === "ur") && <em>NEW</em>}
-          </div>
-        )}
+        <div aria-live="polite">
+          {revealCallout && (
+            <div key={revealCallout.token} className={`pack-reveal-callout rarity-${revealCallout.rarity}`}>
+              <span>{revealCallout.label}</span>
+              {revealCallout.isNew && (revealCallout.rarity === "sr" || revealCallout.rarity === "ur") && <em>NEW</em>}
+            </div>
+          )}
+        </div>
         {phase === "opened" && pack && (
           <div className="pack-reveal">
             <span
