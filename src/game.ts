@@ -2342,7 +2342,7 @@ export type AiPlanBeamDebugNode = {
 
 function choosePlannedChallengerAiAction(game: GameState, beamWidth: number): AiAction {
   const activeSeat = game.active;
-  const initialOptions = rankedAiActions(game).slice(0, beamWidth);
+  const initialOptions = plannedAiActions(game, beamWidth);
   if (initialOptions.length === 0) return { type: "end" };
   let beam: PlanNode[] = initialOptions.map((action) => {
     const next = cloneGame(game);
@@ -2362,7 +2362,7 @@ function choosePlannedChallengerAiAction(game: GameState, beamWidth: number): Ai
         expanded.push(node);
         continue;
       }
-      const actions = rankedAiActions(node.game).slice(0, beamWidth);
+      const actions = plannedAiActions(node.game, beamWidth);
       for (const action of actions) {
         const next = cloneGame(node.game);
         performAiActionInDraft(next, action);
@@ -2404,7 +2404,7 @@ export function debugChallengerActionScores(game: GameState): AiActionPlanDebugE
 
 export function debugChallengerBeam(game: GameState, beamWidth: number): AiPlanBeamDebugNode[] {
   const activeSeat = game.active;
-  const initialOptions = rankedAiActions(game).slice(0, beamWidth);
+  const initialOptions = plannedAiActions(game, beamWidth);
   let beam: AiPlanBeamDebugNode[] = initialOptions.map((action) => {
     const next = cloneGame(game);
     performAiActionInDraft(next, action);
@@ -2441,7 +2441,7 @@ export function debugChallengerBeam(game: GameState, beamWidth: number): AiPlanB
         expandedGames.set(node, nodeGame);
         continue;
       }
-      const actions = rankedAiActions(nodeGame).slice(0, beamWidth);
+      const actions = plannedAiActions(nodeGame, beamWidth);
       for (const action of actions) {
         const next = cloneGame(nodeGame);
         performAiActionInDraft(next, action);
@@ -2481,6 +2481,14 @@ function rankedAiActions(game: GameState): AiAction[] {
       scoreAiAction(game, b, classic) - scoreAiAction(game, a, classic)
       || aiActionTieBreak(b) - aiActionTieBreak(a)
     ));
+}
+
+function plannedAiActions(game: GameState, beamWidth: number): AiAction[] {
+  const ranked = rankedAiActions(game);
+  const selected = ranked.slice(0, beamWidth);
+  if (selected.some((action) => action.type === "end")) return selected;
+  const end = ranked.find((action) => action.type === "end");
+  return end ? [...selected, end] : selected;
 }
 
 function scorePlannedAction(game: GameState, action: AiAction): number {

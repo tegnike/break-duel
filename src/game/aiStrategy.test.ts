@@ -8,6 +8,7 @@ import {
   chooseAiDefense,
   cloneCard,
   createGame,
+  debugChallengerBeam,
   estimatePublicHandDefenseValue,
   type GameState,
   markKnownHandCard,
@@ -91,6 +92,33 @@ describe("ai strategy", () => {
       expect(game.active).toBe(0);
       expect(game.actionsRemaining).toBe(CONFIG.actionsPerTurn);
       expect(chooseAiAction(game, "challenger")).toEqual({ type: "command", index: 1 });
+    } finally {
+      Object.assign(CHALLENGER_WEIGHTS, original);
+    }
+  });
+
+  it("beam planning can end instead of replacing memories repeatedly", () => {
+    const original = { ...CHALLENGER_WEIGHTS };
+    try {
+      CHALLENGER_WEIGHTS.turnPlanBeamWidth = 5;
+      const game = makeGame(940002);
+      game.players[0].isHuman = false;
+      game.players[0].aiProfile = "challenger";
+      game.turn = 3;
+      game.actionsRemaining = CONFIG.actionsPerTurn;
+      game.players[0].deck = Array.from({ length: 10 }, () => card("AI-FIRE-1"));
+      game.players[1].deck = Array.from({ length: 10 }, () => card("AI-WATER-1"));
+      game.players[0].memory = card("MEM-CACHE");
+      game.players[0].hand = [
+        card("MEM-ACCELERATOR"),
+        card("MEM-RESONATOR"),
+        card("MEM-RECOVERY-CACHE"),
+        card("MEM-WAR-BANNER"),
+        card("MEM-GROVE"),
+      ];
+
+      expect(debugChallengerBeam(game, 5)[0]?.firstAction).toEqual({ type: "end" });
+      expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
     } finally {
       Object.assign(CHALLENGER_WEIGHTS, original);
     }
