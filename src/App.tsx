@@ -17,6 +17,7 @@ import {
   activePlayer,
   applyEchoUrnDraw,
   attackCombatValue,
+  attackDamage,
   bestUpgradeSource,
   canActivePlayerAttack,
   canChargeCard,
@@ -46,6 +47,7 @@ import {
   makeRng,
   needsFirewallFuel,
   opponentPlayer,
+  piercesHandDefense,
   playCost,
   recoversAiOnPlay,
   stackUpgradeCard,
@@ -93,10 +95,20 @@ import { CardArtPreview, CardView } from "./components/CardView";
 import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
 import { DevPanel } from "./components/DevPanel";
-import { DuelActionReel, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
+import { DuelActionReel, DuelCutInOverlay, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
 import { SYNTH_SFX_PREFIX, renderSummonSfxSamples, summonArrivalForCard, summonAuraColor, summonSfxKind, type SummonArrival, type SummonSfxKind } from "./summonFx";
 import { attributeBurstTheme, hasCardMaterialBurst, runCardMaterialBurst, type CardMaterialTheme, type CardRect, type SummonBurstTheme } from "./summonParticles";
-import { duelEventDurationMs, type DuelEvent, type DuelEventPayload } from "./duelEvents";
+import {
+  cutInForEvent,
+  duelEventDurationMs,
+  DUEL_CUT_IN_DURATION_MS,
+  FINISHER_CUT_IN_LINE,
+  TRUMP_CUT_IN_LINE,
+  type DuelCutIn,
+  type DuelCutInStyle,
+  type DuelEvent,
+  type DuelEventPayload,
+} from "./duelEvents";
 import { RIVAL_VOICE_LINES, type RivalVoiceLineId } from "./rivalVoiceLines";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
 import finalBattleBgm from "./assets/audio/battle_music_final_loop.mp3";
@@ -729,6 +741,7 @@ export default function App() {
   const [toast, setToast] = useState<Toast>(null);
   const [coins, setCoins] = useState(() => loadCoins());
   const [duelEvent, setDuelEvent] = useState<DuelEvent | null>(null);
+  const [duelCutIn, setDuelCutIn] = useState<(DuelCutIn & { id: number }) | null>(null);
   const [cardFlights, setCardFlights] = useState<CardFlight[]>([]);
   const [trashFlash, setTrashFlash] = useState<TrashFlash | null>(null);
   const [lifeImpact, setLifeImpact] = useState<LifeImpact | null>(null);
@@ -762,6 +775,7 @@ export default function App() {
   const duelEventPlaying = useRef(false);
   const duelEventScheduler = useRef<number | null>(null);
   const duelEventTimer = useRef<number | null>(null);
+  const duelCutInTimer = useRef<number | null>(null);
   const cardFlightTimers = useRef<number[]>([]);
   const summonBurstTimers = useRef<number[]>([]);
   // カード着地演出は動的に canvas を生成/破棄するため固定プールではなく可変配列で cancel を保持する
@@ -958,8 +972,11 @@ export default function App() {
     setSavedDecks(loadSavedDecks());
   }
 
-  function queueDuelEvent(event: DuelEventPayload) {
-    const queuedEvent = rivalVoiceLineEligibleForEvent(event);
+  function queueDuelEvent(event: DuelEventPayload, options: { suppressAutoCutIn?: boolean } = {}) {
+    let queuedEvent = rivalVoiceLineEligibleForEvent(event);
+    // 相手（players[1]）の致死攻撃には finisher カットインを付与する。
+    const cutIn = options.suppressAutoCutIn ? null : cutInForEvent(queuedEvent, 1);
+    if (cutIn && !queuedEvent.cutIn) queuedEvent = { ...queuedEvent, cutIn };
     const hasTrashSurge = trashSurgeForEvent(queuedEvent) !== null;
     if (queuedEvent.impact?.kind === "life-damage") {
       recentLifeDamageImpact.current = queuedEvent.impact;
@@ -971,6 +988,7 @@ export default function App() {
       && !hasTrashSurge
       && !queuedEvent.impact
       && queuedEvent.emphasis !== "peak"
+      && !queuedEvent.cutIn
     ) {
       if (queuedEvent.rivalVoiceLine) showRivalVoiceLine(queuedEvent.rivalVoiceLine, { skipTurnEligibility: true });
       return;
@@ -989,6 +1007,34 @@ export default function App() {
     if (!next) return;
     duelEventPlaying.current = true;
     const event = { ...next, id: eventId++ };
+    if (event.cutIn) {
+      // カットインを先に再生し、終了後に通常のリール表示へ直列で進む。カットイン中も入力ブロックは維持。
+      setDuelCutIn({ ...event.cutIn, id: eventId++ });
+      playSfx(event.cutIn.style === "trump" ? "charge" : "damage-heavy");
+      playRivalVoiceLine(event.cutIn.style === "trump" ? "cutin_trump" : "cutin_finisher");
+      duelCutInTimer.current = window.setTimeout(() => {
+        duelCutInTimer.current = null;
+        setDuelCutIn(null);
+        presentDuelEvent(event);
+      }, DUEL_CUT_IN_DURATION_MS);
+      return;
+    }
+    presentDuelEvent(event);
+  }
+
+  function playStandaloneCutIn(cutIn: DuelCutIn, onComplete?: () => void) {
+    clearDuelCutIn();
+    setDuelCutIn({ ...cutIn, id: eventId++ });
+    playSfx(cutIn.style === "trump" ? "charge" : "damage-heavy");
+    playRivalVoiceLine(cutIn.style === "trump" ? "cutin_trump" : "cutin_finisher");
+    duelCutInTimer.current = window.setTimeout(() => {
+      duelCutInTimer.current = null;
+      setDuelCutIn(null);
+      onComplete?.();
+    }, DUEL_CUT_IN_DURATION_MS);
+  }
+
+  function presentDuelEvent(event: DuelEvent) {
     setDuelEvent(event);
     if (event.rivalVoiceLine) showRivalVoiceLine(event.rivalVoiceLine, { skipTurnEligibility: true });
     if (!autoDismissDuelEvents) return;
@@ -997,9 +1043,27 @@ export default function App() {
     }, duelEventDurationMs(event));
   }
 
+  function clearDuelCutIn() {
+    if (duelCutInTimer.current !== null) window.clearTimeout(duelCutInTimer.current);
+    duelCutInTimer.current = null;
+    setDuelCutIn(null);
+  }
+
+  // 開発用パネルからカットインを単体プレビューする。演出キューは経由せず、見た目確認専用。
+  function previewDuelCutIn(style: DuelCutInStyle) {
+    clearDuelCutIn();
+    setDuelCutIn({ style, line: style === "trump" ? TRUMP_CUT_IN_LINE : FINISHER_CUT_IN_LINE, id: eventId++ });
+    playRivalVoiceLine(style === "trump" ? "cutin_trump" : "cutin_finisher");
+    duelCutInTimer.current = window.setTimeout(() => {
+      duelCutInTimer.current = null;
+      setDuelCutIn(null);
+    }, DUEL_CUT_IN_DURATION_MS);
+  }
+
   function dismissDuelEvent() {
     if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
     duelEventTimer.current = null;
+    clearDuelCutIn();
     setDuelEvent(null);
     duelEventPlaying.current = false;
     playNextDuelEvent();
@@ -1049,6 +1113,7 @@ export default function App() {
     duelEventTimer.current = null;
     duelEventQueue.current = [];
     duelEventPlaying.current = false;
+    clearDuelCutIn();
     setDuelEvent(null);
     if (rivalSpeechTimer.current !== null) window.clearTimeout(rivalSpeechTimer.current);
     rivalSpeechTimer.current = null;
@@ -1434,6 +1499,58 @@ export default function App() {
         720,
       );
     }
+  }
+
+  function finisherCutInBeforeDefenseResolution(choice: DefenseChoice): DuelCutIn | null {
+    const pending = game.pendingAttack;
+    if (!pending || pending.attackerIndex !== 1 || pending.defenderIndex !== 0) return null;
+    const attacker = game.players[pending.attackerIndex];
+    const defender = game.players[pending.defenderIndex];
+    const attackCard = attacker?.field[pending.fieldIndex];
+    if (!attacker || !defender?.isHuman || !attackCard) return null;
+    const attackContext: AttackContext = { attacker, attackerFieldIndex: pending.fieldIndex };
+
+    if (pending.strikeTargetIndex !== undefined) {
+      if (choice.type !== "hand") return null;
+      const defenseCard = defender.hand[choice.index];
+      if (!defenseCard || !legalHandDefenders(defender, attackCard, attackContext).some((option) => option.index === choice.index)) return null;
+      return piercesHandDefense(attackCard) && defender.life <= 1
+        ? { style: "finisher", line: FINISHER_CUT_IN_LINE }
+        : null;
+    }
+
+    let damage = 0;
+    if (choice.type === "none") {
+      damage = attackDamage(attackCard);
+    } else if (choice.type === "hand") {
+      const defenseCard = defender.hand[choice.index];
+      if (!defenseCard || !legalHandDefenders(defender, attackCard, attackContext).some((option) => option.index === choice.index)) return null;
+      damage = piercesHandDefense(attackCard) ? 1 : 0;
+    } else {
+      const defenseCard = defender.field[choice.index];
+      if (!defenseCard || !legalFieldDefenders(defender, attackCard, attackContext).some((option) => option.index === choice.index)) return null;
+      if (needsFirewallFuel(defender, defenseCard, attackCard, choice.index, attackContext) && choice.firewallDiscardIndex === undefined) return null;
+      const defenseValue = defenseCombatValue(attackCard, defenseCard, defender, {
+        firewallPaid: typeof choice.firewallDiscardIndex === "number",
+        fieldIndex: choice.index,
+        attackContext,
+      });
+      damage = Math.max(0, attackCombatValue(attackCard, attackContext) - defenseValue);
+    }
+
+    return damage > 0 && defender.life <= damage
+      ? { style: "finisher", line: FINISHER_CUT_IN_LINE }
+      : null;
+  }
+
+  function cutInBeforeAiAction(action: AiAction): DuelCutIn | null {
+    const card = action.type === "play"
+      ? ai.hand[action.index]
+      : action.type === "upgrade"
+        ? ai.hand[action.handIndex]
+        : null;
+    if (!card || card.type !== "ai" || card.power !== 4) return null;
+    return { style: "trump", line: TRUMP_CUT_IN_LINE };
   }
 
   function prepareAiActionAnimation(action: AiAction) {
@@ -1882,14 +1999,13 @@ export default function App() {
     if (tutorialActive && tutorialStep?.id === "watch-rival" && tutorialAiAdvanceKey !== tutorialAiTurnKey(game, tutorialStep)) return undefined;
     if (active.isHuman || (game.actionsRemaining <= 0 && !canUseCharge(game, active))) return undefined;
     if (aiAnimating) {
-      // コミット遅延の最大値(約1700ms)を超えても aiAnimating が立ったままなら、
-      // タイマーが失われた(HMR等)とみなして回収する。正常時はコミットが先に完了して
-      // aiAnimating が false になり、このウォッチドッグはクリーンアップで消える。
+      // カットイン先出し + カード移動の最大待ち時間を超えても aiAnimating が立ったままなら、
+      // タイマーが失われた(HMR等)とみなして回収する。正常時はコミットが先に完了する。
       const watchdog = window.setTimeout(() => {
         if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
         aiCommitTimer.current = null;
         setAiAnimating(false);
-      }, 2600);
+      }, DUEL_CUT_IN_DURATION_MS + CPU_CARD_PLAY_COMMIT_DELAY_MS + 1200);
       return () => window.clearTimeout(watchdog);
     }
     if (duelEvent || duelEventPlaying.current || duelEventQueue.current.length > 0 || duelEventScheduler.current !== null) {
@@ -1901,14 +2017,22 @@ export default function App() {
     const tutorialManualAdvance = tutorialActive && tutorialStep?.id === "watch-rival";
     const timer = window.setTimeout(() => {
       const action = tutorialActive ? tutorialForcedAiAction(game) ?? chooseAiAction(game, active.aiProfile) : chooseAiAction(game, active.aiProfile);
-      const commitDelay = prepareAiActionAnimation(action);
       setAiAnimating(true);
-      aiCommitTimer.current = window.setTimeout(() => {
-        mutate((draft) => performAiActionInDraft(draft, action, { playSfx, showDuelEvent: queueDuelEvent }));
-        if (tutorialManualAdvance) setTutorialAiAdvancePending(false);
-        setAiAnimating(false);
-        aiCommitTimer.current = null;
-      }, commitDelay);
+      const preActionCutIn = cutInBeforeAiAction(action);
+      const commitAction = (suppressEntryCutIn = false) => {
+        const commitDelay = prepareAiActionAnimation(action);
+        aiCommitTimer.current = window.setTimeout(() => {
+          mutate((draft) => performAiActionInDraft(draft, action, { playSfx, showDuelEvent: queueDuelEvent, suppressEntryCutIn }));
+          if (tutorialManualAdvance) setTutorialAiAdvancePending(false);
+          setAiAnimating(false);
+          aiCommitTimer.current = null;
+        }, commitDelay);
+      };
+      if (preActionCutIn) {
+        playStandaloneCutIn(preActionCutIn, () => commitAction(true));
+        return;
+      }
+      commitAction();
     }, tutorialManualAdvance ? 80 : 720);
     return () => window.clearTimeout(timer);
   }, [page, game, duelEvent, aiAnimating, tutorialActive, tutorialStep?.id, tutorialStep?.kicker, tutorialStep?.title, tutorialAiAdvanceKey, starterDeckSetupOpen, aiGateRetryTick]);
@@ -1916,9 +2040,11 @@ export default function App() {
   useEffect(() => {
     return () => {
       stopBgm();
-      if (duelEventScheduler.current !== null) window.clearTimeout(duelEventScheduler.current);
-      if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
-      cardFlightTimers.current.forEach((timer) => window.clearTimeout(timer));
+	      if (duelEventScheduler.current !== null) window.clearTimeout(duelEventScheduler.current);
+	      if (duelEventTimer.current !== null) window.clearTimeout(duelEventTimer.current);
+	      if (duelCutInTimer.current !== null) window.clearTimeout(duelCutInTimer.current);
+	      duelCutInTimer.current = null;
+	      cardFlightTimers.current.forEach((timer) => window.clearTimeout(timer));
       cardFlightTimers.current = [];
       clearSummonLandingEffects();
       if (aiCommitTimer.current !== null) window.clearTimeout(aiCommitTimer.current);
@@ -2833,10 +2959,22 @@ export default function App() {
 
   function resolveDefense(choice: DefenseChoice) {
     if (tutorialBlocks("defend", { defenseChoice: choice })) return;
+    const finisherCutIn = finisherCutInBeforeDefenseResolution(choice);
+    if (finisherCutIn) {
+      playStandaloneCutIn(finisherCutIn, () => resolveDefenseAfterCutIn(choice, true));
+      return;
+    }
+    resolveDefenseAfterCutIn(choice);
+  }
+
+  function resolveDefenseAfterCutIn(choice: DefenseChoice, suppressAutoCutIn = false) {
     if (game.pendingAttack) {
       launchDefenseTrashFlights(game.pendingAttack.attackerIndex, game.pendingAttack.fieldIndex, choice);
     }
-    mutate((draft) => resolveDefenseInDraft(draft, choice, { playSfx, showDuelEvent: queueDuelEvent }));
+    mutate((draft) => resolveDefenseInDraft(draft, choice, {
+      playSfx,
+      showDuelEvent: (event) => queueDuelEvent(event, { suppressAutoCutIn }),
+    }));
     if (game.pendingAttack && duelEvent) dismissDuelEvent();
   }
 
@@ -3552,7 +3690,6 @@ export default function App() {
           page={page}
           onChangePage={changePage}
           coins={coins}
-          seed={seed}
           onStartNewGame={openStarterDeckSetup}
           onStartTutorial={startTutorialGame}
           onOpenRules={() => setRulesOpen(true)}
@@ -3579,7 +3716,6 @@ export default function App() {
           page={page}
           onChangePage={changePage}
           coins={coins}
-          seed={seed}
           onStartNewGame={openStarterDeckSetup}
           onStartTutorial={startTutorialGame}
           onOpenRules={() => setRulesOpen(true)}
@@ -3620,10 +3756,6 @@ export default function App() {
         <div className="duel-top-controls">
           <PageTabs page={page} onChange={changePage} />
           <CoinChip coins={coins} />
-          <label className="duel-seed">
-            <span>Seed</span>
-            <input type="number" value={seed} readOnly aria-label="現在のSeed" />
-          </label>
           <button type="button" onClick={openStarterDeckSetup}>再戦</button>
           <button type="button" onClick={startTutorialGame}>チュートリアル</button>
           <button type="button" onClick={() => setRulesOpen(true)}>ルール</button>
@@ -3807,6 +3939,7 @@ export default function App() {
       {lifeImpact && <DamageImpactLayer impact={lifeImpact} />}
       {breakDrawPulse && <BreakDrawLayer pulse={breakDrawPulse} />}
       {trashSurge && <TrashSurgeLayer surge={trashSurge} eventId={duelEvent?.id ?? trashFlash?.id ?? 0} />}
+      <DuelCutInOverlay cutIn={duelCutIn} />
       <DuelActionReel event={duelEvent} autoDismiss={autoDismissDuelEvents} onClose={dismissDuelEvent}>
         {showDefenseInDuelEvent ? defensePanel : null}
       </DuelActionReel>
@@ -3816,7 +3949,9 @@ export default function App() {
       {game.discardViewerOwner !== null && (
         <DiscardModal game={game} onClose={closeDiscardViewer} onSelect={selectDiscardCard} />
       )}
-      {import.meta.env.DEV && <DevPanel game={game} busy={aiAnimating} onMutate={mutate} />}
+      {import.meta.env.DEV && (
+        <DevPanel game={game} busy={aiAnimating} onMutate={mutate} onPreviewCutIn={previewDuelCutIn} />
+      )}
     </main>
   );
 }
@@ -4076,7 +4211,6 @@ function WorkspaceHeader({
   page,
   onChangePage,
   coins,
-  seed,
   onStartNewGame,
   onStartTutorial,
   onOpenRules,
@@ -4086,7 +4220,6 @@ function WorkspaceHeader({
   page: AppPage;
   onChangePage: (page: AppPage) => void;
   coins: number;
-  seed: number;
   onStartNewGame: () => void;
   onStartTutorial: () => void;
   onOpenRules: () => void;
@@ -4105,10 +4238,6 @@ function WorkspaceHeader({
       <PageTabs page={page} onChange={onChangePage} />
       <div className="workspace-tools">
         <CoinChip coins={coins} />
-        <label className="duel-seed">
-          <span>Seed</span>
-          <input type="number" value={seed} readOnly aria-label="現在のSeed" />
-        </label>
         <button type="button" onClick={onStartNewGame}>{page === "duel" ? "対戦準備" : "再戦"}</button>
         <button type="button" onClick={onStartTutorial}>チュートリアル</button>
         <button type="button" onClick={onOpenRules}>ルール</button>
