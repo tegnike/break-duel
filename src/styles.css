@@ -11671,7 +11671,8 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   z-index: 2;
   width: min(320px, 42vw);
   min-width: 280px;
-  filter: drop-shadow(0 26px 40px rgba(0, 0, 0, 0.55));
+  /* 広い黒影は透明なパック画像の余白を長方形に見せるため、通常影も輪郭近くへ絞る */
+  filter: drop-shadow(0 16px 16px rgba(0, 0, 0, 0.38));
   animation: pack-float 3.4s ease-in-out infinite;
 }
 
@@ -12825,20 +12826,23 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 .booster-pack.torn.omen-sr .pack-body,
 .booster-pack.torn.omen-ur .pack-body {
   transition-delay: 0.95s;
+  box-shadow: none;
 }
 
-.booster-pack.torn.omen-sr .pack-body {
-  border-color: rgba(250, 204, 21, 0.68);
-  box-shadow: 0 0 40px rgba(250, 204, 21, 0.42), 0 0 90px rgba(253, 224, 71, 0.24);
+/* box-shadow は .pack-body の長方形そのものを発光させてしまう。
+   透明画像を含む親へ drop-shadow を掛け、パックのアルファ輪郭だけを光源にする。 */
+.booster-pack.torn.omen-sr {
+  filter:
+    drop-shadow(0 0 10px rgba(255, 247, 222, 0.78))
+    drop-shadow(0 0 26px rgba(250, 204, 21, 0.58))
+    drop-shadow(0 0 46px rgba(245, 158, 11, 0.28));
 }
 
-.booster-pack.torn.omen-ur .pack-body {
-  border-color: rgba(255, 255, 255, 0.85);
-  box-shadow:
-    0 0 22px rgba(255, 255, 255, 0.55),
-    0 0 46px rgba(244, 114, 182, 0.32),
-    0 0 68px rgba(56, 189, 248, 0.28),
-    0 0 92px rgba(250, 204, 21, 0.24);
+.booster-pack.torn.omen-ur {
+  filter:
+    drop-shadow(0 0 9px rgba(255, 255, 255, 0.88))
+    drop-shadow(0 0 24px rgba(56, 189, 248, 0.52))
+    drop-shadow(0 0 42px rgba(244, 114, 182, 0.3));
 }
 
 .pack-stage.stage-omen-sr::after,
