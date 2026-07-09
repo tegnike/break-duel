@@ -2599,7 +2599,7 @@ function turnEndPlanScore(game: GameState, seat: number): number {
 }
 
 function boardScoreForSeat(game: GameState, seat: number): number {
-  return boardAiScore(game.players[seat], game.players[1 - seat]);
+  return boardAiScore(game, game.players[seat], game.players[1 - seat]);
 }
 
 function legalAiActions(game: GameState): AiAction[] {
@@ -2659,17 +2659,17 @@ function legalAiActions(game: GameState): AiAction[] {
 export const CHALLENGER_WEIGHTS = {
   damage: 129,
   lethal: 310,
-  attackPower: 13,
-  badAttack: -73,
+  attackPower: 14,
+  badAttack: -71,
   tradeAttack: 42,
   handTradeAttack: 48,
   blockedValue: 25,
   playAi: 51,
   emptyFieldPlay: 51,
-  upgrade: 78,
+  upgrade: 83,
   memory: 40,
   command: 66,
-  charge: 38,
+  charge: 39,
   tempoAction: 16,
   fieldPresence: 26,
   handCard: 12,
@@ -2677,13 +2677,13 @@ export const CHALLENGER_WEIGHTS = {
   lowLifePressure: 28,
   classicPrior: 76,
   strikeBase: 26,
-  strikeTargetPower: 34,
+  strikeTargetPower: 30,
   strikeReadyTarget: 14,
   strikeTradePenalty: 46,
   strikePower4Penalty: 51,
   purgeBase: 45,
   purgeTargetPower: 28,
-  sacrificialFollowupDamage: 80,
+  sacrificialFollowupDamage: 69,
   sacrificialAttackerPenalty: 27,
   cardValueDrawsOnPlay: 0,
   cardValueFiltersOnPlay: 0,
@@ -2693,13 +2693,17 @@ export const CHALLENGER_WEIGHTS = {
   pierceHandDefenseDamage: 0,
   classicChargeActionCap: 3,
   strikeTieBreakPriority: 7,
-  turnPlanBeamWidth: 5,
+  turnPlanBeamWidth: 7,
   publicHandDefenseWeight: 1,
   memoryIndividualValueScale: 1,
-  chargeFuturePlan: 0,
+  chargeFuturePlan: 1,
   chargeBeforeAttackPenalty: 0,
-  lifeRacePressure: 0,
+  lifeRacePressure: 1,
   deckOutPressure: 1,
+  fatigueClockPressure: 0,
+  handLimitAwareness: 1,
+  lifeJudgementPressure: 0,
+  power4UnblockableAttack: 0,
   deckTypeConditionalBias: 0,
 };
 const CHALLENGER_SELF_DEFEAT_ATTACK_SCORE = -10000;
@@ -2707,7 +2711,7 @@ const CHALLENGER_SELF_DEFEAT_ATTACK_SCORE = -10000;
 function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): number {
   const ai = activePlayer(game);
   const opponent = opponentPlayer(game);
-  let score = boardAiScore(ai, opponent);
+  let score = boardAiScore(game, ai, opponent);
   if (sameAiAction(action, classic)) score += CHALLENGER_WEIGHTS.classicPrior;
   if (action.type === "end") return score - 40 + (game.actionsRemaining <= 0 ? 15 : -55);
   score += CHALLENGER_WEIGHTS.tempoAction;
@@ -2813,20 +2817,34 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
   return score;
 }
 
-function boardAiScore(ai: PlayerState, opponent: PlayerState): number {
+function boardAiScore(game: GameState, ai: PlayerState, opponent: PlayerState): number {
   const ready = ai.field.filter((_, index) => !ai.spentFieldIndexes.has(index)).length;
   const opponentReady = opponent.field.filter((_, index) => !opponent.spentFieldIndexes.has(index)).length;
+  const handOverflow = CONFIG.handLimit === null ? 0 : Math.max(0, ai.hand.length - CONFIG.handLimit);
+  const fatigueHorizon = 6;
+  const aiFatigueUrgency = Math.max(0, fatigueHorizon - ai.deck.length);
+  const opponentFatigueUrgency = Math.max(0, fatigueHorizon - opponent.deck.length);
+  const lifeJudgementPhase = CONFIG.turnLimitResult === "life_judgement"
+    ? Math.max(0, Math.min(1, (game.turn - (CONFIG.maxTurns - 10)) / 10))
+    : 0;
   return (
     (opponent.life - ai.life) * -CHALLENGER_WEIGHTS.lowLifePressure
     + ai.field.reduce((sum, card) => sum + aiCardValue(card), 0) * 0.35
     - opponent.field.reduce((sum, card) => sum + aiCardValue(card), 0) * 0.22
     + ai.field.length * CHALLENGER_WEIGHTS.fieldPresence
     + ai.hand.length * CHALLENGER_WEIGHTS.handCard
+    - handOverflow * CHALLENGER_WEIGHTS.handCard * CHALLENGER_WEIGHTS.handLimitAwareness
     + ready * 18
     + opponentReady * CHALLENGER_WEIGHTS.opponentReady
     + lifeRaceScore(ai, opponent) * CHALLENGER_WEIGHTS.lifeRacePressure
     + (ai.deck.length - opponent.deck.length) * CHALLENGER_WEIGHTS.deckOutPressure
+    + (opponentFatigueUrgency - aiFatigueUrgency) * CHALLENGER_WEIGHTS.fatigueClockPressure
+    + (ai.life - opponent.life) * lifeJudgementPhase * CHALLENGER_WEIGHTS.lifeJudgementPressure
   );
+}
+
+export function debugBoardAiScore(game: GameState, seat: number): number {
+  return boardAiScore(game, game.players[seat], game.players[1 - seat]);
 }
 
 function chargeFuturePlanValue(game: GameState, remainingHand: Card[]): number {
@@ -2876,7 +2894,11 @@ function attackAiValue(game: GameState, attacker: Card, attackerFieldIndex: numb
   const attackContext: AttackContext = { attacker: activePlayer(game), attackerFieldIndex };
 
   const defense = chooseAttackEvaluationDefense(defender, attacker, attackContext);
-  let value = CHALLENGER_WEIGHTS.attackPower * attackCombatValue(attacker, attackContext);
+  const explicitlyUnblockableByHand = (attacker.power ?? 0) === 4
+    && CONFIG.handDefenseMaxPower !== null
+    && CONFIG.handDefenseMaxPower < 4;
+  let value = CHALLENGER_WEIGHTS.attackPower * attackCombatValue(attacker, attackContext)
+    + (explicitlyUnblockableByHand ? CHALLENGER_WEIGHTS.power4UnblockableAttack : 0);
   if (defense.type === "none") {
     value += CHALLENGER_WEIGHTS.damage;
     if (defender.life <= attackDamage(attacker)) value += CHALLENGER_WEIGHTS.lethal;

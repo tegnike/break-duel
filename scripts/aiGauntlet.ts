@@ -106,9 +106,14 @@ function assertWeights(value: Record<string, unknown>, label: string): Challenge
 
 function readWeightsJson(path: string): ChallengerWeights {
   const parsed = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
+  const best = typeof parsed.best === "object" && parsed.best !== null
+    ? parsed.best as Record<string, unknown>
+    : null;
   const source = typeof parsed.weights === "object" && parsed.weights !== null
     ? parsed.weights as Record<string, unknown>
-    : parsed;
+    : best && typeof best.weights === "object" && best.weights !== null
+      ? best.weights as Record<string, unknown>
+      : parsed;
   return assertWeights(source, path);
 }
 

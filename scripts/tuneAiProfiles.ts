@@ -42,6 +42,7 @@ type Args = {
   eliteCount: number;
   mutationMin: number;
   mutationMax: number;
+  excludeKeys: string[];
 };
 
 function parseArgs(argv: string[]): Args {
@@ -56,6 +57,7 @@ function parseArgs(argv: string[]): Args {
     eliteCount: 1,
     mutationMin: 0.65,
     mutationMax: 1.4,
+    excludeKeys: [],
   };
   let index = 0;
   const next = (name: string): string => {
@@ -107,6 +109,14 @@ function parseArgs(argv: string[]): Args {
       case "--mutation-max":
         args.mutationMax = nextFloat("mutation-max");
         break;
+      case "--exclude-keys": {
+        index += 1;
+        while (index < argv.length && !argv[index].startsWith("--")) {
+          args.excludeKeys.push(argv[index]);
+          index += 1;
+        }
+        break;
+      }
       default:
         throw new Error(`不明な引数: ${token}`);
     }
@@ -117,6 +127,8 @@ function parseArgs(argv: string[]): Args {
   if (args.mutationMin <= 0 || args.mutationMax <= 0 || args.mutationMin > args.mutationMax) {
     throw new Error("--mutation-min / --mutation-max の範囲が不正です。");
   }
+  const unknownExcludeKeys = args.excludeKeys.filter((key) => !(key in CHALLENGER_WEIGHTS));
+  if (unknownExcludeKeys.length > 0) throw new Error(`--exclude-keys に不明な重みがあります: ${unknownExcludeKeys.join(", ")}`);
   return args;
 }
 
@@ -127,10 +139,12 @@ type Champion = {
 
 function parseWeights(value: Record<string, unknown>, label: string): ChallengerWeights {
   const keys = Object.keys(CHALLENGER_WEIGHTS).sort();
-  const missing = keys.filter((key) => typeof value[key] !== "number");
-  if (missing.length > 0) throw new Error(`${label} に重みキーが不足しています: ${missing.join(", ")}`);
   const weights = {} as ChallengerWeights;
-  for (const key of keys) weights[key as keyof ChallengerWeights] = value[key] as number;
+  for (const key of keys) {
+    weights[key as keyof ChallengerWeights] = typeof value[key] === "number"
+      ? value[key] as number
+      : CHALLENGER_WEIGHTS[key as keyof ChallengerWeights];
+  }
   return weights;
 }
 
@@ -163,9 +177,15 @@ function readChampions(dir: string | null): Champion[] {
 
 // Python 版 _mutate_weights の移植: 2〜5 個のキーを 0.65〜1.40 倍して丸める。
 // 符号は維持し、絶対値の下限 1 を保証する。
-function mutateWeights(base: ChallengerWeights, rng: SimRandom, minFactor: number, maxFactor: number): ChallengerWeights {
+function mutateWeights(
+  base: ChallengerWeights,
+  rng: SimRandom,
+  minFactor: number,
+  maxFactor: number,
+  excludeKeys: ReadonlySet<string>,
+): ChallengerWeights {
   const weights: ChallengerWeights = { ...base };
-  const keys = Object.keys(weights).sort() as (keyof ChallengerWeights)[];
+  const keys = Object.keys(weights).sort().filter((key) => !excludeKeys.has(key)) as (keyof ChallengerWeights)[];
   const chosen = rng.sample(keys, rng.randint(2, 5));
   for (const key of chosen) {
     const value = weights[key];
@@ -317,6 +337,7 @@ function main(): void {
     baseJsonProvided = true;
   }
   const champions = readChampions(args.championsDir);
+  const excludeKeys = new Set(args.excludeKeys);
 
   const results: CandidateResult[] = [];
   let elite: ChallengerWeights[] = baseJsonProvided ? [{ ...mutationBase }] : [];
@@ -328,7 +349,7 @@ function main(): void {
     if (pass === 0 && !baseJsonProvided) candidates.push({ ...mutationBase });
     while (candidates.length < args.iterations) {
       const base = elite.length > 0 ? elite[rng.randint(0, elite.length - 1)] : mutationBase;
-      candidates.push(mutateWeights(base, rng, minFactor, maxFactor));
+      candidates.push(mutateWeights(base, rng, minFactor, maxFactor, excludeKeys));
     }
     const passResults: CandidateResult[] = [];
     candidates.forEach((weights, index) => {
@@ -366,6 +387,7 @@ function main(): void {
     elite_count: args.eliteCount,
     games_per_seat: args.gamesPerSeat,
     champions_dir: args.championsDir,
+    exclude_keys: args.excludeKeys,
     fitness_note:
       "fitness = pool_win_rate + 0.15 * pool_floor (candidate vs champion pool, mirror decks, both seats)",
     baseline_weights: baseline,

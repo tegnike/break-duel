@@ -8,6 +8,8 @@ import {
   chooseAiDefense,
   cloneCard,
   createGame,
+  debugBoardAiScore,
+  debugChallengerActionScores,
   debugChallengerBeam,
   estimatePublicHandDefenseValue,
   type GameState,
@@ -52,6 +54,58 @@ function withConfig<T>(patch: Partial<typeof CONFIG>, run: () => T): T {
 }
 
 describe("ai strategy", () => {
+  it("keeps unadopted clock-world evaluation features inert", () => {
+    expect(CHALLENGER_WEIGHTS.fatigueClockPressure).toBe(0);
+    expect(CHALLENGER_WEIGHTS.handLimitAwareness).toBe(1);
+    expect(CHALLENGER_WEIGHTS.lifeJudgementPressure).toBe(0);
+    expect(CHALLENGER_WEIGHTS.power4UnblockableAttack).toBe(0);
+  });
+
+  it("scores fatigue urgency, hand cap, and late life judgement from public state", () => {
+    const original = { ...CHALLENGER_WEIGHTS };
+    try {
+      const game = makeGame(40);
+      game.turn = 35;
+      game.players[0].life = 6;
+      game.players[1].life = 4;
+      game.players[0].deck = [card("AI-FIRE-1")];
+      game.players[1].deck = Array.from({ length: 6 }, () => card("AI-WATER-1"));
+      game.players[0].hand = Array.from({ length: 8 }, () => card("AI-FIRE-1"));
+
+      CHALLENGER_WEIGHTS.fatigueClockPressure = 0;
+      CHALLENGER_WEIGHTS.handLimitAwareness = 0;
+      CHALLENGER_WEIGHTS.lifeJudgementPressure = 0;
+      const baseline = debugBoardAiScore(game, 0);
+
+      CHALLENGER_WEIGHTS.fatigueClockPressure = 10;
+      CHALLENGER_WEIGHTS.handLimitAwareness = 1;
+      CHALLENGER_WEIGHTS.lifeJudgementPressure = 20;
+      expect(debugBoardAiScore(game, 0) - baseline).toBe(-54);
+    } finally {
+      Object.assign(CHALLENGER_WEIGHTS, original);
+    }
+  });
+
+  it("can explicitly value power 4 attacks that hand defense cannot stop", () => {
+    const original = { ...CHALLENGER_WEIGHTS };
+    try {
+      const game = makeGame(39);
+      game.turn = 3;
+      game.actionsRemaining = CONFIG.actionsPerTurn;
+      game.players[0].field = [card("AI-FIRE-4")];
+      game.players[1].hand = [card("AI-WATER-3")];
+
+      CHALLENGER_WEIGHTS.power4UnblockableAttack = 0;
+      const baseline = debugChallengerActionScores(game).find((entry) => entry.action.type === "attack")?.immediateScore;
+      CHALLENGER_WEIGHTS.power4UnblockableAttack = 30;
+      const weighted = debugChallengerActionScores(game).find((entry) => entry.action.type === "attack")?.immediateScore;
+
+      expect(weighted).toBe((baseline ?? 0) + 30);
+    } finally {
+      Object.assign(CHALLENGER_WEIGHTS, original);
+    }
+  });
+
   it("uses optimize even without a useful effect, then ends the turn", () => {
     // 2026-07-06 のリワークで CMD-OPTIMIZE の「手札2枚以上」制約を撤廃したため、
     // 山札が空でも自分自身をトラッシュへ送るだけの発動が選ばれ得る。
