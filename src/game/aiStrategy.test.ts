@@ -249,12 +249,12 @@ describe("ai strategy", () => {
     expect(chooseAiDefense(game.players[1], card("AI-FIRE-2"), "beginner")).toEqual({ type: "none" });
   });
 
-  it("beginner water decks keep power 3 hand defenders for challenger", () => {
+  it("beginner water decks can use power 3 hand defense after fair-gen006 calibration", () => {
     const game = makeGame(4602);
     game.players[1].deckName = "水単色デッキ";
     game.players[1].hand = [card("AI-WATER-3")];
 
-    expect(chooseAiDefense(game.players[1], card("AI-FIRE-2"), "beginner")).toEqual({ type: "none" });
+    expect(chooseAiDefense(game.players[1], card("AI-FIRE-2"), "beginner")).toEqual({ type: "hand", index: 0 });
     expect(chooseAiDefense(game.players[1], card("AI-FIRE-2"), "challenger")).toEqual({ type: "hand", index: 0 });
   });
 
