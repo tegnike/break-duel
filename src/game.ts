@@ -2055,9 +2055,9 @@ export function chooseAiDefense(defender: PlayerState, attackCard: Card, profile
     return { type: "field", index: best.index };
   }
   const profileHandOptions = profile === "beginner"
-    ? defender.deckName.includes("水")
-      ? handOptions
-      : handOptions.filter(({ card }) => (card.power ?? 0) <= 2)
+    ? defender.deckName.includes("火")
+      ? handOptions.filter(({ card }) => (card.power ?? 0) <= 2)
+      : handOptions
     : handOptions;
   if (profileHandOptions.length > 0) {
     const best = profileHandOptions.sort((a, b) => (
@@ -2262,25 +2262,27 @@ function beginnerDamagingAttack(attacker: PlayerState, defender: PlayerState): n
 
 function chooseBeginnerAiAction(game: GameState): AiAction {
   const ai = activePlayer(game);
+  if (ai.deckName.includes("土")) return chooseClassicAiAction(game);
   if (game.actionsRemaining <= 0) return { type: "end" };
   if (canActivePlayerAttack(game)) {
     const attack = beginnerDamagingAttack(ai, opponentPlayer(game));
     if (attack !== null) return { type: "attack", index: attack };
   }
-  if (ai.field.length < CONFIG.fieldLimit) {
-    const options = ai.hand
-      .map((card, index) => ({ card, index }))
-      .filter(({ card }) => card.type === "ai" && playCost(card, game) <= game.actionsRemaining)
-      .sort((a, b) => (a.card.power ?? 0) - (b.card.power ?? 0) || a.card.id.localeCompare(b.card.id));
-    if (options[0]) return { type: "play", index: options[0].index };
-  }
   if (ai.deckName.includes("水") && hasAttributeAi(ai, "水")) {
     const tideEdge = ai.hand.findIndex((card) => card.type === "event" && card.effect === "tide_edge" && commandUsable(game, card, ai, opponentPlayer(game)));
     if (tideEdge >= 0) return { type: "command", index: tideEdge };
   }
-  if (ai.deckName.includes("土")) {
-    const upgrade = bestUpgrade(game, ai);
-    if (upgrade !== null) return { type: "upgrade", handIndex: upgrade.handIndex, fieldIndex: upgrade.fieldIndex };
+  if (ai.field.length < CONFIG.fieldLimit) {
+    const strongerSummon = ai.deckName.includes("水");
+    const options = ai.hand
+      .map((card, index) => ({ card, index }))
+      .filter(({ card }) => card.type === "ai" && playCost(card, game) <= game.actionsRemaining)
+      .sort((a, b) => (
+        strongerSummon
+          ? (b.card.power ?? 0) - (a.card.power ?? 0) || b.card.id.localeCompare(a.card.id)
+          : (a.card.power ?? 0) - (b.card.power ?? 0) || a.card.id.localeCompare(b.card.id)
+      ));
+    if (options[0]) return { type: "play", index: options[0].index };
   }
   if (!ai.memory) {
     const memory = ai.hand

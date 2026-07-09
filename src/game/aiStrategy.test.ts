@@ -191,6 +191,14 @@ describe("ai strategy", () => {
     expect(chooseAiDefense(game.players[1], card("AI-FIRE-2"), "beginner")).toEqual({ type: "hand", index: 0 });
   });
 
+  it("beginner earth decks can use high-power hand defense after fair-gen005 calibration", () => {
+    const game = makeGame(4603);
+    game.players[1].deckName = "土単色デッキ";
+    game.players[1].hand = [card("AI-EARTH-4")];
+
+    expect(chooseAiDefense(game.players[1], card("AI-FIRE-2"), "beginner")).toEqual({ type: "hand", index: 0 });
+  });
+
   it("beginner summons with field room", () => {
     const game = makeGame(47);
     game.turn = 3;
@@ -203,6 +211,16 @@ describe("ai strategy", () => {
 
     expect(action.type).toBe("play");
     if (action.type === "play") expect(action.index).toBe(0);
+  });
+
+  it("beginner water deck summons stronger units after fair-gen005 calibration", () => {
+    const game = makeGame(4700);
+    game.turn = 3;
+    game.actionsRemaining = CONFIG.actionsPerTurn;
+    game.players[0].deckName = "水単色デッキ";
+    game.players[0].hand = [card("AI-WATER-1"), card("AI-WATER-2")];
+
+    expect(chooseAiAction(game, "beginner")).toEqual({ type: "play", index: 1 });
   });
 
   it("beginner water deck uses tide edge as a simple attack setup", () => {
