@@ -12291,31 +12291,40 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 }
 
 .pack-card-rays.rays-sr {
+  /* パック背面の後光と同じく、極細・中・太を90deg周期で混在させる */
   background: repeating-conic-gradient(
     from 4deg,
-    transparent 0deg 10deg,
-    rgba(253, 224, 71, 0.46) 13deg 16deg,
-    transparent 19deg 30deg,
-    rgba(250, 204, 21, 0.3) 33deg 36deg,
-    transparent 39deg 45deg
+    transparent 0deg 5deg,
+    rgba(253, 224, 71, 0.5) 5deg 5.8deg,
+    transparent 5.8deg 16deg,
+    rgba(250, 204, 21, 0.36) 16deg 19.2deg,
+    transparent 19.2deg 31deg,
+    rgba(255, 247, 222, 0.2) 31deg 37.4deg,
+    transparent 37.4deg 52deg,
+    rgba(253, 224, 71, 0.44) 52deg 53.4deg,
+    transparent 53.4deg 68deg,
+    rgba(250, 204, 21, 0.3) 68deg 72.6deg,
+    transparent 72.6deg 90deg
   );
 }
 
-/* .pack-omen-rays の UR 版と同じ 72deg 周期（360 の整数分の1）で継ぎ目を消す */
+/* URも120deg周期を3周させ、線幅を散らしながら継ぎ目を消す */
 .pack-card-rays.rays-ur {
   background: repeating-conic-gradient(
     from 4deg,
-    transparent 0deg 8deg,
-    rgba(255, 99, 132, 0.4) 8deg 11deg,
-    transparent 11deg 22.4deg,
-    rgba(255, 200, 87, 0.36) 22.4deg 25.4deg,
-    transparent 25.4deg 36.8deg,
-    rgba(163, 255, 138, 0.32) 36.8deg 39.8deg,
-    transparent 39.8deg 51.2deg,
-    rgba(99, 200, 255, 0.36) 51.2deg 54.2deg,
-    transparent 54.2deg 65.6deg,
-    rgba(190, 130, 255, 0.36) 65.6deg 68.6deg,
-    transparent 68.6deg 72deg
+    transparent 0deg 7deg,
+    rgba(255, 99, 132, 0.44) 7deg 7.9deg,
+    transparent 7.9deg 20deg,
+    rgba(255, 200, 87, 0.38) 20deg 23.4deg,
+    transparent 23.4deg 37deg,
+    rgba(163, 255, 138, 0.34) 37deg 38.6deg,
+    transparent 38.6deg 53deg,
+    rgba(99, 200, 255, 0.34) 53deg 59.2deg,
+    transparent 59.2deg 76deg,
+    rgba(190, 130, 255, 0.4) 76deg 78.4deg,
+    transparent 78.4deg 95deg,
+    rgba(255, 120, 205, 0.34) 95deg 96.1deg,
+    transparent 96.1deg 120deg
   );
 }
 
