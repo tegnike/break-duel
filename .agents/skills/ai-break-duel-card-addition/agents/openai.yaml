@@ -1,4 +1,4 @@
 interface:
   display_name: "AI Break Duel Card Addition"
   short_description: "AI Break Duelカード追加を安全に同期する手順"
-  default_prompt: "Use $ai-break-duel-card-addition to add a new AI Break Duel card across Web, Python, docs, tests, and assets."
+  default_prompt: "Use $ai-break-duel-card-addition to add a new AI Break Duel card across the TypeScript game (browser + sim), docs, tests, and assets."

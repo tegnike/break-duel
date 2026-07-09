@@ -59,6 +59,16 @@ function duelGame(actions = 3): GameState {
   return game;
 }
 
+function withConfig<T>(patch: Partial<typeof CONFIG>, run: () => T): T {
+  const original = Object.fromEntries(Object.keys(patch).map((key) => [key, CONFIG[key as keyof typeof CONFIG]])) as Partial<typeof CONFIG>;
+  Object.assign(CONFIG, patch);
+  try {
+    return run();
+  } finally {
+    Object.assign(CONFIG, original);
+  }
+}
+
 function lastLog(game: GameState): string {
   return game.log[game.log.length - 1] ?? "";
 }
@@ -270,6 +280,21 @@ describe("hand defense resolution", () => {
     expect(defender.hand).toHaveLength(4);
     expect(defender.discard).toHaveLength(1);
   });
+
+  it("disables hand defense when handDefenseLimit is zero", () => withConfig({ handDefenseLimit: 0 }, () => {
+    const game = duelGame();
+    const attacker = game.players[0];
+    const defender = game.players[1];
+    attacker.field = [card("AI-WATER-2")];
+    defender.hand = [card("AI-WATER-2")];
+    defender.deck = [];
+
+    beginAttackInDraft(game, 0, 0);
+
+    expect(defender.life).toBe(CONFIG.life - 2);
+    expect(defender.hand.map((item) => item.id)).toEqual(["AI-WATER-2"]);
+    expect(lastLog(game)).toContain("防御せず2ダメージ");
+  }));
 });
 
 describe("field defense resolution", () => {

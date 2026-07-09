@@ -57,6 +57,13 @@ export function configSummary(aiProfiles: [string, string]): Record<string, unkn
     power_4_enters_spent: CONFIG.power4EntersSpent,
     power_4_overheats_after_attack: CONFIG.power4OverheatsAfterAttack,
     hand_limit: CONFIG.handLimit,
+    turn_limit_result: CONFIG.turnLimitResult,
+    deck_out_fatigue_damage: CONFIG.deckOutFatigueDamage,
+    draw_on_attack_damage: CONFIG.drawOnAttackDamage,
+    attack_damage_charge_compensation: CONFIG.attackDamageChargeCompensation,
+    attack_damage_charge_compensation_once_per_turn: CONFIG.attackDamageChargeCompensationOncePerTurn,
+    siege_damage: CONFIG.siegeDamage,
+    siege_consecutive_turns: CONFIG.siegeConsecutiveTurns,
     hand_defense_vs_strike: CONFIG.handDefenseVsStrike,
     ai_profiles: [...aiProfiles],
   };

@@ -5,6 +5,7 @@
 // ルールセットは現行ルール（"current": 25 枚デッキ / power 3+ 合計 5 枚まで）のみサポート。
 import { CARD_BY_ID, CONFIG } from "../game";
 import type { AiProfile, DeckId } from "../game";
+import { applyEndgameRulePackage, restoreEndgameConfig, snapshotEndgameConfig } from "./endgameRules";
 import { runMatch } from "./runner";
 
 export const POWER_CARD_IDS: Record<number, readonly string[]> = {
@@ -205,6 +206,9 @@ export type CostEvalConfig = {
   maxTurns: number;
   firstAi: AiProfile;
   secondAi: AiProfile;
+  endgamePackage?: string;
+  endgameHandLimit?: number;
+  siegeConsecutiveTurns?: number;
 };
 
 export type PerOpponentRow = {
@@ -222,6 +226,7 @@ export type PerOpponentRow = {
 export type CandidateResult = {
   candidate: string;
   rule_set: string;
+  endgame_package: string;
   rule_label: string;
   deck_ids: string[];
   games: number;
@@ -302,7 +307,12 @@ export function evaluateCandidate(
   const candidateDeckIds = stressDeckCards(cardIds);
   const aiProfiles: [AiProfile, AiProfile] = [evalConfig.firstAi, evalConfig.secondAi];
   const originalMaxTurns = CONFIG.maxTurns;
+  const originalEndgameConfig = snapshotEndgameConfig();
   CONFIG.maxTurns = evalConfig.maxTurns;
+  const endgamePackage = applyEndgameRulePackage(evalConfig.endgamePackage, {
+    handLimit: evalConfig.endgameHandLimit,
+    siegeConsecutiveTurns: evalConfig.siegeConsecutiveTurns,
+  });
 
   let currentSeed = evalConfig.seed;
   let candidateWins = 0;
@@ -376,12 +386,14 @@ export function evaluateCandidate(
     }
   } finally {
     CONFIG.maxTurns = originalMaxTurns;
+    restoreEndgameConfig(originalEndgameConfig);
   }
 
   const totalGames = candidateWins + existingWins + draws;
   return {
     candidate: candidateKey,
     rule_set: "current",
+    endgame_package: endgamePackage,
     rule_label: "current high-power cap 5",
     deck_ids: [...candidateDeckIds],
     games: totalGames,

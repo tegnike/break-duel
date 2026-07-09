@@ -38,6 +38,16 @@ function setupGame(): GameState {
   return game;
 }
 
+function withConfig<T>(patch: Partial<typeof CONFIG>, run: () => T): T {
+  const original = Object.fromEntries(Object.keys(patch).map((key) => [key, CONFIG[key as keyof typeof CONFIG]])) as Partial<typeof CONFIG>;
+  Object.assign(CONFIG, patch);
+  try {
+    return run();
+  } finally {
+    Object.assign(CONFIG, original);
+  }
+}
+
 describe("無防御攻撃とブレイクドロー", () => {
   it("無防御攻撃は power ぶんのダメージを与え、山札の残りぶんだけブレイクドローする", () => {
     const game = setupGame();
@@ -71,6 +81,36 @@ describe("無防御攻撃とブレイクドロー", () => {
       expect(defender.life).toBe(expectedLife);
     });
   });
+
+  it("event break draw draws only one card even for high-power damage", () => withConfig({ drawOnAttackDamage: "event" }, () => {
+    const game = setupGame();
+    const defender = game.players[1];
+    game.players[0].field = [card("AI-WATER-4")];
+    defender.deck = [card("AI-WATER-1"), card("AI-WATER-2"), card("AI-WATER-3")];
+
+    beginAttackInDraft(game, 0, 0);
+
+    expect(defender.life).toBe(CONFIG.life - 4);
+    expect(defender.hand).toHaveLength(1);
+    expect(defender.deck).toHaveLength(2);
+  }));
+
+  it("attack damage charge compensation leaves one non-attack charged action after a final attack", () => withConfig({ attackDamageChargeCompensation: true }, () => {
+    const game = setupGame();
+    const attacker = game.players[0];
+    const defender = game.players[1];
+    game.actionsRemaining = 1;
+    game.chargedActionsRemaining = 0;
+    attacker.field = [card("AI-WATER-2")];
+    defender.deck = [card("AI-WATER-1")];
+
+    beginAttackInDraft(game, 0, 0);
+
+    expect(defender.life).toBe(CONFIG.life - 2);
+    expect(game.actionsRemaining).toBe(1);
+    expect(game.chargedActionsRemaining).toBe(1);
+    expect(attacker.attackChargeCompensationUsed).toBe(true);
+  }));
 });
 
 describe("reckless（攻撃値+1・ダメージは power 通り）", () => {

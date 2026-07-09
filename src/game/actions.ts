@@ -10,6 +10,7 @@ import {
   type PlayerState,
   addLog,
   activePlayer,
+  applyAttackChargeCompensation,
   addTurnFieldAttackBonus,
   addTurnGlobalAttackBonus,
   applyEchoUrnDraw,
@@ -927,6 +928,7 @@ export function resolveDefenseInDraft(
       ? drawCards(defender, CONFIG.drawOnAttackDamage === "event" ? 1 : damage)
       : [];
     const bannerDrawnCards = damage > 0 ? applyWarBannerDraw(attacker) : [];
+    const chargeCompensated = damage > 0 ? applyAttackChargeCompensation(draft, attacker) : false;
     const shouldChoosePressureDiscard = blocked && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
     const pressureDiscarded = blocked && pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
       ? discardLowPriorityCards(defender, 1)[0] ?? null
@@ -940,6 +942,7 @@ export function resolveDefenseInDraft(
       blockedDrawnCards.length > 0 ? `${attackCard.name}の効果で${attacker.name}は${visibleDrawText(attacker, blockedDrawnCards)}。` : "",
       breakDrawnCards.length > 0 ? `ブレイクドローで${defender.name}は${visibleDrawText(defender, breakDrawnCards)}。` : "",
       bannerDrawnCards.length > 0 ? `${attacker.memory?.name ?? "遺物"}で${attacker.name}は${visibleDrawText(attacker, bannerDrawnCards)}。` : "",
+      chargeCompensated ? `${attacker.name}は攻撃補償で+1チャージ。` : "",
     ].filter(Boolean).join(" ");
     addLog(
       draft,
@@ -1016,6 +1019,7 @@ export function resolveDefenseInDraft(
     if (pierced) dealLifeDamage(defender);
     const pierceBreakDrawnCards = pierced && CONFIG.drawOnAttackDamage !== "none" ? drawCards(defender, 1) : [];
     const pierceBannerDrawnCards = pierced ? applyWarBannerDraw(attacker) : [];
+    const chargeCompensated = pierced ? applyAttackChargeCompensation(draft, attacker) : false;
     const shouldChoosePressureDiscard = !pierced && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
     const pressureDiscarded = !pierced && pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
       ? discardLowPriorityCards(defender, 1)[0] ?? null
@@ -1026,6 +1030,7 @@ export function resolveDefenseInDraft(
       pierced ? `${attackCard.name}の効果で防御されても1ダメージ。` : "",
       pierceBreakDrawnCards.length > 0 ? `ブレイクドローで${defender.name}は${visibleDrawText(defender, pierceBreakDrawnCards)}。` : "",
       pierceBannerDrawnCards.length > 0 ? `${attacker.memory?.name ?? "遺物"}で${attacker.name}は${visibleDrawText(attacker, pierceBannerDrawnCards)}。` : "",
+      chargeCompensated ? `${attacker.name}は攻撃補償で+1チャージ。` : "",
       pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}をトラッシュへ送った。` : "",
       blockedDrawnCards.length > 0 ? `${attackCard.name}の効果で${attacker.name}は${visibleDrawText(attacker, blockedDrawnCards)}。` : "",
     ].filter(Boolean).join(" ");
@@ -1080,9 +1085,11 @@ export function resolveDefenseInDraft(
       ? []
       : drawCards(defender, CONFIG.drawOnAttackDamage === "event" ? 1 : damage);
     const bannerDrawnCards = damage > 0 ? applyWarBannerDraw(attacker) : [];
+    const chargeCompensated = damage > 0 ? applyAttackChargeCompensation(draft, attacker) : false;
     const breakText = breakDrawnCards.length > 0 ? ` ブレイクドローで${defender.name}は${visibleDrawText(defender, breakDrawnCards)}。` : "";
     const bannerText = bannerDrawnCards.length > 0 ? ` ${attacker.memory?.name ?? "遺物"}で${attacker.name}は${visibleDrawText(attacker, bannerDrawnCards)}。` : "";
-    addLog(draft, `${defender.name}は防御せず${damage}ダメージ。${breakText}${bannerText}`);
+    const compensationText = chargeCompensated ? ` ${attacker.name}は攻撃補償で+1チャージ。` : "";
+    addLog(draft, `${defender.name}は防御せず${damage}ダメージ。${breakText}${bannerText}${compensationText}`);
     effects.showDuelEvent?.({
       kind: "damage",
       title: damage >= 3 ? `${defender.name}に強烈な${damage}ダメージ!!` : `${defender.name}に${damage}ダメージ`,
@@ -1375,6 +1382,7 @@ export function resolveStrikeHandDefenseInDraft(
   if (pierced) dealLifeDamage(defender);
   const pierceBreakDrawnCards = pierced && CONFIG.drawOnAttackDamage !== "none" ? drawCards(defender, 1) : [];
   const pierceBannerDrawnCards = pierced ? applyWarBannerDraw(attacker) : [];
+  const chargeCompensated = pierced ? applyAttackChargeCompensation(draft, attacker) : false;
   const shouldChoosePressureDiscard = !pierced && pressuresOnBlock(attackCard) && defender.isHuman && defender.hand.length > 0;
   const pressureDiscarded = !pierced && pressuresOnBlock(attackCard) && !shouldChoosePressureDiscard
     ? discardLowPriorityCards(defender, 1)[0] ?? null
@@ -1385,6 +1393,7 @@ export function resolveStrikeHandDefenseInDraft(
     pierced ? `${attackCard.name}の効果で防御されても1ダメージ。` : "",
     pierceBreakDrawnCards.length > 0 ? `ブレイクドローで${defender.name}は${visibleDrawText(defender, pierceBreakDrawnCards)}。` : "",
     pierceBannerDrawnCards.length > 0 ? `${attacker.memory?.name ?? "遺物"}で${attacker.name}は${visibleDrawText(attacker, pierceBannerDrawnCards)}。` : "",
+    chargeCompensated ? `${attacker.name}は攻撃補償で+1チャージ。` : "",
     pressureDiscarded ? `${attackCard.name}の圧で${defender.name}は${pressureDiscarded.name}をトラッシュへ送った。` : "",
     blockedDrawnCards.length > 0 ? `${attackCard.name}の効果で${attacker.name}は${visibleDrawText(attacker, blockedDrawnCards)}。` : "",
   ].filter(Boolean).join(" ");

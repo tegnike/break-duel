@@ -26,6 +26,9 @@ type Args = {
   firstAi: AiProfile;
   secondAi: AiProfile;
   ruleSets: string[];
+  endgamePackage: string;
+  endgameHandLimit: number | undefined;
+  siegeConsecutiveTurns: number | undefined;
   out: string | null;
   json: boolean;
 };
@@ -40,6 +43,9 @@ function parseArgs(argv: string[]): Args {
     firstAi: "challenger",
     secondAi: "challenger",
     ruleSets: [],
+    endgamePackage: "current",
+    endgameHandLimit: undefined,
+    siegeConsecutiveTurns: undefined,
     out: null,
     json: false,
   };
@@ -99,6 +105,15 @@ function parseArgs(argv: string[]): Args {
         args.ruleSets.push(value);
         break;
       }
+      case "--endgame-package":
+        args.endgamePackage = next("endgame-package");
+        break;
+      case "--endgame-hand-limit":
+        args.endgameHandLimit = nextInt("endgame-hand-limit");
+        break;
+      case "--siege-consecutive-turns":
+        args.siegeConsecutiveTurns = nextInt("siege-consecutive-turns");
+        break;
       case "--include-preset-league":
         throw new Error("--include-preset-league は TS 版では未サポートです。既存デッキ総当たりは `npm run sim -- league` を使ってください。");
       case "--out":
@@ -132,6 +147,9 @@ function main(): void {
       maxTurns: args.maxTurns,
       firstAi: args.firstAi,
       secondAi: args.secondAi,
+      endgamePackage: args.endgamePackage,
+      endgameHandLimit: args.endgameHandLimit,
+      siegeConsecutiveTurns: args.siegeConsecutiveTurns,
     };
     results.push(evaluateCandidate(key, CANDIDATES[key].cardIds, evalConfig));
     // Python 版と同じシード前進（games_per_order × 6 デッキ × 両手番 + 10000）
@@ -144,6 +162,9 @@ function main(): void {
     max_turns: args.maxTurns,
     threshold: args.threshold,
     ai_profiles: [args.firstAi, args.secondAi],
+    endgame_package: args.endgamePackage,
+    endgame_hand_limit: args.endgameHandLimit ?? null,
+    siege_consecutive_turns: args.siegeConsecutiveTurns ?? null,
     rule_sets: {
       current: { label: "current high-power cap 5", max_high_power_summons: 5 },
     },
@@ -161,13 +182,14 @@ function main(): void {
     console.log(
       `seed=${args.seed} games_per_order=${args.gamesPerOrder} `
       + `threshold=${args.threshold.toFixed(3)} `
-      + `ai=${args.firstAi}/${args.secondAi}`,
+      + `ai=${args.firstAi}/${args.secondAi} `
+      + `endgame=${args.endgamePackage}`,
     );
     for (const result of results) {
       const label = CANDIDATES[result.candidate].label;
       const status = result.candidate_win_rate > args.threshold ? "RISK" : "OK";
       console.log(
-        `${result.rule_set.padEnd(10)} ${result.candidate.padStart(4)} ${label.padEnd(24)} `
+        `${result.rule_set.padEnd(10)} ${result.endgame_package.padEnd(12)} ${result.candidate.padStart(4)} ${label.padEnd(24)} `
         + `win_rate=${result.candidate_win_rate.toFixed(4)} `
         + `first=${fmtRate(result.first_player_win_rate)} `
         + `one_sided=${fmtRate(result.one_sided_game_rate)} `

@@ -148,6 +148,7 @@ export type PlayerState = {
   /** このターン、残響の骨壺（トラッシュ→手札の回収時ドロー）を使ったか */
   echoUrnUsed: boolean;
   chargeUsed: boolean;
+  attackChargeCompensationUsed?: boolean;
   chargeGuardedFieldIndexes: Set<number>;
   sandboxShield: number;
   spentFieldIndexes: Set<number>;
@@ -264,6 +265,7 @@ export type GameState = {
   aiRunning: boolean;
   discardViewerOwner: number | null;
   discardViewerIndex: number | null;
+  siegeLeadStreaks?: [number, number];
 };
 
 export type DefenseChoice =
@@ -317,8 +319,14 @@ export const CONFIG = {
   power4EntersSpent: true,
   power4OverheatsAfterAttack: true,
   handLimit: null as number | null,
+  turnLimitResult: "draw" as "draw" | "life_judgement",
+  deckOutFatigueDamage: 0,
   powerScaledDamage: true,
   drawOnAttackDamage: "point" as "none" | "event" | "point",
+  attackDamageChargeCompensation: false,
+  attackDamageChargeCompensationOncePerTurn: false,
+  siegeDamage: 0,
+  siegeConsecutiveTurns: 1,
   monsterCombat: true,
   handDefenseVsStrike: "value" as "off" | "eager" | "value",
 };
@@ -836,6 +844,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     warBannerUsed: false,
     echoUrnUsed: false,
     chargeUsed: false,
+    attackChargeCompensationUsed: false,
     chargeGuardedFieldIndexes: new Set(),
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
@@ -871,6 +880,7 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     warBannerUsed: false,
     echoUrnUsed: false,
     chargeUsed: false,
+    attackChargeCompensationUsed: false,
     chargeGuardedFieldIndexes: new Set(),
     sandboxShield: 0,
     spentFieldIndexes: new Set<number>(),
@@ -952,6 +962,7 @@ export function createGame(
     aiRunning: false,
     discardViewerOwner: null,
     discardViewerIndex: null,
+    siegeLeadStreaks: [0, 0],
   };
   draw(game.players[0], CONFIG.firstPlayerInitialHand);
   draw(game.players[1], CONFIG.secondPlayerInitialHand);
@@ -1026,6 +1037,7 @@ export function startTurn(game: GameState): void {
     player.handDefensesUsed = 0;
     player.playedAiThisTurn = false;
     player.echoUrnUsed = false;
+    player.attackChargeCompensationUsed = false;
   });
   const player = activePlayer(game);
   readyFieldForTurn(player);
@@ -1038,7 +1050,15 @@ export function startTurn(game: GameState): void {
   resetTurnAttackBuffs(player);
   player.turnsStarted += 1;
   const handCountAtTurnStart = player.hand.length;
-  const drawnCards = shouldDrawForTurn(game) ? drawCards(player, 1) : [];
+  const shouldDraw = shouldDrawForTurn(game);
+  const failedTurnStartDraw = shouldDraw && player.deck.length === 0;
+  const drawnCards = shouldDraw ? drawCards(player, 1) : [];
+  if (failedTurnStartDraw && CONFIG.deckOutFatigueDamage > 0) {
+    player.life = Math.max(0, player.life - CONFIG.deckOutFatigueDamage);
+    addLog(game, `${player.name}は山札が尽きてドローできず、衰弱で${CONFIG.deckOutFatigueDamage}ダメージ。`);
+    checkWinner(game);
+    if (game.winner !== null || game.draw) return;
+  }
   const memoryDrawnCards = applyTurnStartMemory(player, handCountAtTurnStart);
   const drawText = drawnCards.length > 0 ? `${visibleDrawText(player, drawnCards)}。` : "ドローなし。";
   const memoryText = memoryDrawnCards.length > 0 ? ` ${player.memory!.name}で追加${visibleDrawText(player, memoryDrawnCards)}。` : "";
@@ -1139,17 +1159,52 @@ export function enforceHandLimit(player: PlayerState): Card[] {
   return discarded;
 }
 
+function fieldPowerTotal(player: PlayerState): number {
+  return player.field.reduce((sum, card) => sum + (card.power ?? 0), 0);
+}
+
+function applySiegePressure(game: GameState, player: PlayerState, opponent: PlayerState): void {
+  if (CONFIG.siegeDamage <= 0) return;
+  const playerIndex = game.players.indexOf(player);
+  const opponentIndex = game.players.indexOf(opponent);
+  if (playerIndex < 0 || opponentIndex < 0) return;
+  const streaks = game.siegeLeadStreaks ??= [0, 0];
+  if (fieldPowerTotal(player) > fieldPowerTotal(opponent)) {
+    streaks[playerIndex] += 1;
+    streaks[opponentIndex] = 0;
+  } else {
+    streaks[playerIndex] = 0;
+  }
+  if (streaks[playerIndex] < Math.max(1, CONFIG.siegeConsecutiveTurns)) return;
+  opponent.life = Math.max(0, opponent.life - CONFIG.siegeDamage);
+  addLog(game, `${player.name}は戦線圧力で${opponent.name}に${CONFIG.siegeDamage}ダメージ。`);
+  checkWinner(game);
+}
+
+export function applyAttackChargeCompensation(game: GameState, attacker: PlayerState): boolean {
+  if (!CONFIG.attackDamageChargeCompensation) return false;
+  if (CONFIG.attackDamageChargeCompensationOncePerTurn && attacker.attackChargeCompensationUsed) return false;
+  if (activePlayer(game) !== attacker) return false;
+  game.actionsRemaining += 1;
+  game.chargedActionsRemaining += 1;
+  attacker.attackChargeCompensationUsed = true;
+  return true;
+}
+
 export function finishTurn(game: GameState, logEnd: boolean): void {
   const player = activePlayer(game);
+  const opponent = opponentPlayer(game);
   const discarded = enforceHandLimit(player);
   if (discarded.length > 0) {
     addLog(game, `${player.name}は手札上限で${discarded.map((card) => card.name).join("、")}をトラッシュ。`);
   }
   if (logEnd) addLog(game, `${player.name}はターン終了。`);
-  const groveRestedCard = applyEndTurnGroveRest(player, opponentPlayer(game));
+  const groveRestedCard = applyEndTurnGroveRest(player, opponent);
   if (groveRestedCard) {
     addLog(game, `${player.name}は${player.memory!.name}で${groveRestedCard.name}を回復した。`);
   }
+  applySiegePressure(game, player, opponent);
+  if (game.winner !== null || game.draw) return;
   player.sandboxShield = 0;
   resetTurnAttackBuffs(player);
   game.actionsRemaining = 0;
@@ -3226,10 +3281,14 @@ function hasLiveResources(player: PlayerState): boolean {
 
 export function checkTurnLimit(game: GameState): void {
   if (game.winner !== null || game.draw || game.turn < CONFIG.maxTurns) return;
-  game.actionsRemaining = 0;
-  game.chargedActionsRemaining = 0;
-  game.draw = true;
-  addLog(game, `${CONFIG.maxTurns}手番に到達したため引き分け。`);
+  if (CONFIG.turnLimitResult === "life_judgement") {
+    finishByLifeJudgement(game, `${CONFIG.maxTurns}手番に到達`);
+  } else {
+    game.actionsRemaining = 0;
+    game.chargedActionsRemaining = 0;
+    game.draw = true;
+    addLog(game, `${CONFIG.maxTurns}手番に到達したため引き分け。`);
+  }
 }
 
 export function finishByLifeJudgement(game: GameState, reason: string): void {
