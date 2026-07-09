@@ -426,17 +426,17 @@ export function PackOpeningPage({
         className={`pack-stage phase-${phase}${phase === "torn" && packOmen !== "none" ? ` stage-omen-${packOmen}` : ""}${revealFocus !== "none" ? ` stage-flip-${revealFocus}` : ""}`}
       >
         {revealFocus === "ur" && <PackUrCutIn />}
+        {phase === "torn" && packOmen !== "none" && (
+          <span className={`pack-omen omen-${packOmen}`} aria-hidden="true">
+            <span className="pack-omen-rays" />
+          </span>
+        )}
         {phase !== "opened" && (
           <div
             ref={packRef}
             className={`booster-pack omen-${packOmen} ${phase === "torn" ? "torn" : ""} ${dragging ? "dragging" : ""} ${canAfford ? "" : "locked"}`}
             style={{ "--tear": tearProgress } as CSSProperties}
           >
-            {phase === "torn" && packOmen !== "none" && (
-              <span className="pack-omen" aria-hidden="true">
-                <span className="pack-omen-rays" />
-              </span>
-            )}
             <div
               ref={stripRef}
               className="pack-lid"

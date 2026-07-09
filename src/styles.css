@@ -11668,6 +11668,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 .booster-pack {
   position: relative;
+  z-index: 2;
   width: min(320px, 42vw);
   min-width: 280px;
   filter: drop-shadow(0 26px 40px rgba(0, 0, 0, 0.55));
@@ -12675,20 +12676,40 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   --omen-hot: 255, 247, 222;
   position: absolute;
   left: 50%;
-  bottom: calc(100% - 92px);
-  width: 640px;
-  height: 540px;
-  transform: translateX(-50%);
+  top: 50%;
+  width: 700px;
+  height: 700px;
+  transform: translate(-50%, -50%);
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
   mix-blend-mode: screen;
   animation: pack-omen-window 1.6s ease-out both;
 }
 
-.booster-pack.omen-ur .pack-omen {
+.pack-omen.omen-ur {
   --omen-main: 255, 255, 255;
   --omen-sub: 226, 232, 240;
   --omen-hot: 255, 255, 255;
+}
+
+/* 後光をフィルター付きのパック要素内へ置くと、透明領域が黒い矩形として
+   合成されることがある。舞台直下の独立レイヤーで、パックの縦長シルエットに
+   沿う面光源を作り、その中心から光条を伸ばす。 */
+.pack-omen::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 410px;
+  height: 620px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    ellipse 50% 48% at 50% 50%,
+    rgba(var(--omen-hot), 0.34) 0%,
+    rgba(var(--omen-main), 0.2) 44%,
+    rgba(var(--omen-sub), 0.1) 62%,
+    transparent 78%
+  );
 }
 
 @keyframes pack-omen-window {
@@ -12700,11 +12721,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 
 .pack-omen-rays {
   position: absolute;
-  left: 50%;
-  bottom: -310px;
-  width: 620px;
-  height: 620px;
-  margin-left: -310px;
+  inset: 0;
   background: repeating-conic-gradient(
     from 8deg,
     transparent 0deg 9deg,
@@ -12713,8 +12730,8 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     rgba(var(--omen-sub), 0.18) 30deg 33deg,
     transparent 36deg 45deg
   );
-  -webkit-mask-image: radial-gradient(circle, rgba(0, 0, 0, 0.9) 8%, rgba(0, 0, 0, 0.45) 34%, transparent 62%);
-  mask-image: radial-gradient(circle, rgba(0, 0, 0, 0.9) 8%, rgba(0, 0, 0, 0.45) 34%, transparent 62%);
+  -webkit-mask-image: radial-gradient(ellipse 50% 46% at 50% 50%, rgba(0, 0, 0, 0.92) 8%, rgba(0, 0, 0, 0.46) 38%, transparent 72%);
+  mask-image: radial-gradient(ellipse 50% 46% at 50% 50%, rgba(0, 0, 0, 0.92) 8%, rgba(0, 0, 0, 0.46) 38%, transparent 72%);
   animation: pack-omen-spin 9s linear infinite;
 }
 
@@ -12725,7 +12742,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 /* UR は虹色の光条。固定の多色バンドを敷いた上で hue-rotate を回し続けてプリズム感を出す。
    帯1周期を 72deg（360 の整数分の1 = 5 周ぴったり）に揃え、周期の境界がどちらも
    transparent 同士で接するようにしているため、継ぎ目に縦筋が出ない */
-.booster-pack.omen-ur .pack-omen-rays {
+.pack-omen.omen-ur .pack-omen-rays {
   background: repeating-conic-gradient(
     from 8deg,
     transparent 0deg 8deg,
