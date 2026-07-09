@@ -1,10 +1,30 @@
 # 公平 CPU 計画で露見した後続課題
 
 作成日: 2026-07-08
+ステータス: **全課題クローズ（2026-07-09 終盤設計改訂 本採用）**
 
 CPU 公平化と fair-gen001 再ベースラインで露見した課題を、CPU 計画本体から分離して記録する。カード/ルール/デッキ側の変更は公平 CPU 計画へ混ぜない。
 
-> 対応計画: 課題 1 は `docs/fair-rebalance-plan.md` で完了。課題 2/2b/4 は `docs/strongest-cpu4-plan.md` で再確認し、beginner 較正とストレスデッキは解消。課題 2c は `fair-gen005` で解消。先攻勝率と `fair-gen005` 採用後の draw/長期化は継続監視。課題 3 は最強 CPU v1 仕上げで apex 差し替え完了。
+> 最終対応: 課題 1/2/2b/2c/3/4 は各先行計画で完了。残っていた先攻勝率、draw/長期化、resource 決着、スノーボールは `docs/endgame-adoption-plan.md` の時計世界本採用で完成ゲート内へ戻り、全クローズした。
+
+## 2026-07-09 最終クローズ
+
+`C0 + P1 + P4c3 + 第四弾デッキ変更 3 件` を標準化し、A1 攻撃回数制限は不採用とした。CPU challenger は fair-gen005 を凍結し、beginner water だけ追従再較正した。
+
+| 監視課題 | 本採用後 | クローズ判断 |
+| --- | ---: | --- |
+| 先攻勝率 | 49.1%（6デッキ・2シード・6000戦） | 48-52% 帯内 |
+| draw / 長期化 | draw 0.3% / 平均 26.5T | draw ≤2% / 20-30T 帯内 |
+| resource 決着 | break vs control で 0.0%、turn-limit life judgement 1.4% | 即時 resource 枯渇への偏重なし。デッキ切れは衰弱経由へ移行 |
+| リード交代 | 54.8% | 50% 以上 |
+| 2点ビハインド逆転 | 34.0% | 30-45% 帯内 |
+| スノーボール | 69.9% | 70% 以下 |
+| p2-3 stress | 56.55% / break+control 55.20% | 合否ゲートから外し、60% 警報線つき監視へ移行 |
+| p3 stress | 50.93% / break+control 48.48% | 総合 50% 境界監視へ移行 |
+| beginner | fire 10.25% / water 19.75% / earth 12.25% | 全デッキ 5-20% 帯内 |
+| apex | 候補の current 直接対決 104-93-3 | 明確差なし、current 維持 |
+
+以後は本採用値を時計世界の新基準とし、旧 fair-gen005 世界の数値と直接比較しない。p2-3 への対抗手段はコアルールではなく、新カード追加の最優先テーマとして扱う。
 
 ## 1. water / wind の低勝率と control の突出
 
@@ -29,7 +49,7 @@ fair-gen001 では、同一デッキ先後の challenger vs beginner 較正（fi
 公平基準リバランス後、6 デッキリーグの先攻勝率は平均 47.7% で 48% を 0.3pt 下回った。最強 CPU v1 仕上げ後も 47.0% で 48-52% 帯に届いていない。一方、break vs control の resource 決着率は最終 7.1% まで下がった。
 
 - 種別: ルール/CPU/ゲーム長の監視課題
-- 判断: デッキ別勝率と resource 決着は解消済み。先攻勝率だけ独立監視課題として継続する。
+- 判断: **クローズ**。終盤設計本採用後の先攻勝率は 49.1% で 48-52% 帯内。resource 枯渇決着も break vs control 1000 戦で 0.0%、draw 0.3%。
 
 ## 2c. fair-gen004 の遺物連続置き換え（実プレイで発見・原因特定済み）
 
@@ -71,7 +91,7 @@ fair-gen001 では、同一デッキ先後の challenger vs beginner 較正（fi
 - リーグ: 6 デッキ 2 シード平均で break 11.2%、control 1.6%、earth 2.6%、fire 16.8%、water 5.0%、wind 10.5%、先攻 7.4%。`league_report` は CHECK NEEDED。raw 結果では draw が大半を占める。
 - 盛り上がり: break vs control 1000 戦で draw 89.6%、平均ターン 38.5、中央値 40、リード交代あり 13.7%。
 - ストレス: full regression（500/order と 100/order）は完走せず出力なし。10/order smoke では候補勝率の上限超えはないが、p3_4 draw 74.17%、p4 draw 89.17%。
-- 判断: `fair-gen005` の採用後ベースラインとして記録し、次のカード/ルール側タームで決着性を戻す。今回の CPU 採用タームでは深追いしない。
+- 判断: **クローズ**。終盤設計本採用後は draw 0.3% / 平均 26.5T / リード交代 54.8% / 2点逆転 34.0% / スノーボール 69.9% まで回復。
 - 再現:
   - `npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/fair-gen005-adopt/league-4101`
   - `npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/fair-gen005-adopt/league-730001`
@@ -85,7 +105,7 @@ fair-gen001 では、同一デッキ先後の challenger vs beginner 較正（fi
 fair-gen001 の apex 再探索で `apex_mutation_056` が探索リーグ 54.8%、current_apex は 49.1% だった。current との直接ペアでは候補が 120-77-3 で勝ち越している。
 
 - 種別: apex デッキ更新候補
-- 判断: 最強 CPU v1 仕上げ後の再探索で best `apex_mutation_007` が探索リーグ 61.2%、current との直接対決 106-72-22。明確な勝ち越しのため apex を差し替え済み。
+- 判断: **クローズ**。最強 CPU v1 仕上げ時に `apex_mutation_007` へ差し替え済み。本採用後の再探索では新候補 `apex_mutation_053` が current との直接対決 104-93-3（52.8%）の僅差に留まり、current apex を維持。
 - 再現:
   - `npm run tune:apex -- --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 810101 --out tmp/fair-rebase-apex.json`
 

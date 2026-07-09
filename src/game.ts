@@ -301,7 +301,7 @@ export const CONFIG = {
   eachPlayerFirstTurnActions: null as number | null,
   handDefenseLimit: 1 as number | null,
   handDefenseEmptyOnly: false,
-  handDefenseMaxPower: null as number | null,
+  handDefenseMaxPower: 3 as number | null,
   setDefenseEnabled: false,
   setDefenseActionCost: 1,
   setDefenseOncePerTurn: false,
@@ -325,9 +325,9 @@ export const CONFIG = {
   power3AttackRecoveryDelay: true,
   power4EntersSpent: true,
   power4OverheatsAfterAttack: true,
-  handLimit: null as number | null,
-  turnLimitResult: "draw" as "draw" | "life_judgement",
-  deckOutFatigueDamage: 0,
+  handLimit: 6 as number | null,
+  turnLimitResult: "life_judgement" as "draw" | "life_judgement",
+  deckOutFatigueDamage: 1,
   powerScaledDamage: true,
   drawOnAttackDamage: "point" as "none" | "event" | "point",
   attackDamageChargeCompensation: false,
@@ -1215,7 +1215,7 @@ export function applyAttackChargeCompensation(game: GameState, attacker: PlayerS
   return true;
 }
 
-export function finishTurn(game: GameState, logEnd: boolean): void {
+export function finishTurn(game: GameState, logEnd: boolean): Card[] {
   const player = activePlayer(game);
   const opponent = opponentPlayer(game);
   const discarded = enforceHandLimit(player);
@@ -1228,7 +1228,7 @@ export function finishTurn(game: GameState, logEnd: boolean): void {
     addLog(game, `${player.name}は${player.memory!.name}で${groveRestedCard.name}を回復した。`);
   }
   applySiegePressure(game, player, opponent);
-  if (game.winner !== null || game.draw) return;
+  if (game.winner !== null || game.draw) return discarded;
   player.sandboxShield = 0;
   resetTurnAttackBuffs(player);
   game.actionsRemaining = 0;
@@ -1237,6 +1237,7 @@ export function finishTurn(game: GameState, logEnd: boolean): void {
   checkResourceExhaustion(game);
   checkTurnLimit(game);
   if (game.winner === null && !game.draw) startTurn(game);
+  return discarded;
 }
 
 export function useAction(game: GameState, cost = 1, kind: "normal" | "attack" = "normal"): void {
@@ -3388,7 +3389,7 @@ export function finishByLifeJudgement(game: GameState, reason: string): void {
   game.chargedActionsRemaining = 0;
   if (human.life === ai.life) {
     game.draw = true;
-    addLog(game, `${reason}引き分け。`);
+    addLog(game, `${reason}、ライフ同値のため引き分け。`);
     return;
   }
   game.winner = human.life > ai.life ? 0 : 1;

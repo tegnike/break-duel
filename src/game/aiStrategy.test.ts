@@ -204,10 +204,10 @@ describe("ai strategy", () => {
     expect(chooseAiDefense(game.players[1], card("AI-FIRE-2"), "challenger")).toEqual({ type: "hand", index: 0 });
   });
 
-  it("beginner earth decks can use high-power hand defense after fair-gen005 calibration", () => {
+  it("beginner earth decks can use power 3 hand defense after fair-gen005 calibration", () => {
     const game = makeGame(4603);
     game.players[1].deckName = "土単色デッキ";
-    game.players[1].hand = [card("AI-EARTH-4")];
+    game.players[1].hand = [card("AI-EARTH-3")];
 
     expect(chooseAiDefense(game.players[1], card("AI-FIRE-2"), "beginner")).toEqual({ type: "hand", index: 0 });
   });

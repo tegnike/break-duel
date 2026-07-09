@@ -157,15 +157,15 @@ export const CANDIDATES: Record<string, { label: string; cardIds: readonly strin
   p3_4: { label: "power 3-4 cap stress deck; low-power filler may be added", cardIds: HIGH_COST_CARD_IDS },
 };
 
-// 採用済みガードレール閾値（Python 版 tests/test_cost_balance.py の
-// ADOPTED_COST_BUCKET_WIN_RATE_LIMITS と同値）。候補キーで引く。
+// 採用済みガードレール閾値。p2-3 は時計世界の構造的強者として合格条件から外し、
+// 60% を越えたら警報を上げる監視項目として機械化する。他候補の既存閾値は維持。
 export const ADOPTED_COST_BUCKET_WIN_RATE_LIMITS: Record<string, number> = {
   p1: 0.15,
   p2: 0.65,
   p3: 0.8,
   p4: 0.75,
   p1_2: 0.45,
-  p2_3: 0.8,
+  p2_3: 0.6,
   p3_4: 0.75,
 };
 

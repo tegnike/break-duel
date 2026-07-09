@@ -189,7 +189,7 @@ describe("turn-scoped attack buffs", () => {
     attacker.field = [card("AI-FIRE-1")];
     attacker.spentFieldIndexes.clear();
     defender.field = [];
-    defender.hand = [card("AI-WATER-4")];
+    defender.hand = [card("AI-FIRE-1")];
     defender.deck = [];
 
     const attackCard = attacker.field[0];

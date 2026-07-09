@@ -1531,7 +1531,20 @@ export function performAiActionInDraft(
   const player = activePlayer(draft);
   if (player.isHuman || draft.pendingAttack || draft.pendingTarget || draft.winner !== null || draft.draw) return;
   if (action.type === "end") {
-    finishTurn(draft, true);
+    const discarded = finishTurn(draft, true);
+    if (discarded.length > 0) {
+      effects.showDuelEvent?.({
+        kind: "trash",
+        title: `${player.name}の手札上限`,
+        detail: `ターン終了時に手札を${CONFIG.handLimit}枚まで減らし、${cardNameList(discarded)}をトラッシュ。`,
+        fromLabel: "手札",
+        toLabel: "トラッシュ",
+        resultLabel: `${discarded.length}枚超過`,
+        tone: player.isHuman ? "magenta" : "cyan",
+        emphasis: "low",
+        cards: discarded.map((card) => ({ card, label: "手札上限", state: "trash" })),
+      });
+    }
     return;
   }
   if (action.type === "play") {

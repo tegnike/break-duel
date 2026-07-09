@@ -1248,7 +1248,7 @@ describe("AI-FIRE-3D shares the hand_defense_pierce effect", () => {
     expect(attackDamage(target)).toBe(3);
     const game = blankGame();
     game.players[0].field = [target];
-    game.players[1].hand = [card("AI-WATER-4")];
+    game.players[1].hand = [card("AI-FIRE-3")];
     game.pendingAttack = { attackerIndex: 0, defenderIndex: 1, fieldIndex: 0 };
     resolveDefenseInDraft(game, { type: "hand", index: 0 }, {});
     expect(game.players[1].life).toBe(CONFIG.life - 1);

@@ -99,7 +99,7 @@ describe("turn action state", () => {
     expect(action).toEqual({ type: "end" });
   });
 
-  it("draws when the turn limit is reached regardless of life totals", () => {
+  it("uses life totals to decide the winner when the turn limit is reached", () => {
     const game = createGame(
       16,
       { kind: "custom", name: "Test Player", cardIds: ["AI-FIRE-1"] },
@@ -113,11 +113,11 @@ describe("turn action state", () => {
 
     checkTurnLimit(game);
 
-    expect(game.winner).toBeNull();
-    expect(game.draw).toBe(true);
+    expect(game.winner).toBe(1);
+    expect(game.draw).toBe(false);
     expect(game.actionsRemaining).toBe(0);
     expect(game.chargedActionsRemaining).toBe(0);
-    expect(game.log[game.log.length - 1]).toContain(`${CONFIG.maxTurns}手番に到達したため引き分け`);
+    expect(game.log[game.log.length - 1]).toContain(`${CONFIG.maxTurns}手番に到達、ライフ判定`);
   });
 
   it("keeps challenger from charging without a follow-up or immediate value", () => {

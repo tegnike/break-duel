@@ -2,6 +2,7 @@ import * as React from "react";
 import { useEffect, useRef } from "react";
 import {
   ATTRIBUTES,
+  CONFIG,
   type Attribute,
   type AttackContext,
   type Card,
@@ -321,6 +322,11 @@ function AttackDefensePanel({ game, forcedDefenseChoice, onResolve }: { game: Ga
     ? legalStrikeFieldDefenders(defender, attackCard, pending.strikeTargetIndex, attackContext)
     : legalFieldDefenders(defender, attackCard, attackContext);
   const handOptions = legalHandDefenders(defender, attackCard, attackContext);
+  const unavailableHighPowerHandOptions = CONFIG.handDefenseMaxPower === null || CONFIG.setDefenseEnabled
+    ? []
+    : defender.hand
+      .map((card, index) => ({ card, index }))
+      .filter(({ card }) => card.type === "ai" && (card.power ?? 0) > CONFIG.handDefenseMaxPower!);
   const forcedFieldOptions = forcedDefenseChoice?.type === "field"
     ? fieldOptions.filter(({ index }) => index === forcedDefenseChoice.index)
     : [];
@@ -331,6 +337,9 @@ function AttackDefensePanel({ game, forcedDefenseChoice, onResolve }: { game: Ga
   const forcedNoDefense = effectiveForcedDefenseChoice?.type === "none";
   const visibleFieldOptions = forcedNoDefense ? [] : effectiveForcedDefenseChoice?.type === "field" ? forcedFieldOptions : fieldOptions;
   const visibleHandOptions = forcedNoDefense ? [] : effectiveForcedDefenseChoice?.type === "hand" ? forcedHandOptions : handOptions;
+  const visibleUnavailableHandOptions = forcedNoDefense || effectiveForcedDefenseChoice
+    ? []
+    : unavailableHighPowerHandOptions;
   const hasVisibleOptions = visibleFieldOptions.length > 0 || visibleHandOptions.length > 0;
   const attackValue = attackCombatValue(attackCard, attackContext);
   const firewallOptions = visibleFieldOptions.filter(({ card, index }) => {
@@ -353,8 +362,8 @@ function AttackDefensePanel({ game, forcedDefenseChoice, onResolve }: { game: Ga
       <h3>{strikeTarget ? `${attackCard.name}のモンスター攻撃への防御を選択` : `${attackCard.name}への防御を選択`}</h3>
       <div className="defense-context">
         {strikeTarget && strikeInfo
-          ? `攻撃値 ${strikeInfo.attackValue} vs ${strikeTarget.name} 防御値 ${strikeInfo.defenseValue}。防御しなければ${strikeInfo.attackValue === strikeInfo.defenseValue ? "相打ちで両方トラッシュ" : `${strikeTarget.name}は退場`}。場の別召喚獣でかばうか、手札ブロックで止めれば${strikeTarget.name}は場に残ります。`
-          : `攻撃値 ${attackCombatValue(attackCard, attackContext)} / 防御しなければ ${attackDamage(attackCard)} ダメージ(power分)。場防御は不足でも選べます。不足なら防御召喚獣をトラッシュし、攻撃値との差分ダメージを受けます。手札ブロックは使い切りです。`}
+          ? `攻撃値 ${strikeInfo.attackValue} vs ${strikeTarget.name} 防御値 ${strikeInfo.defenseValue}。防御しなければ${strikeInfo.attackValue === strikeInfo.defenseValue ? "相打ちで両方トラッシュ" : `${strikeTarget.name}は退場`}。場の別召喚獣でかばうか、power ${CONFIG.handDefenseMaxPower} 以下の手札ブロックで止めれば${strikeTarget.name}は場に残ります。`
+          : `攻撃値 ${attackCombatValue(attackCard, attackContext)} / 防御しなければ ${attackDamage(attackCard)} ダメージ(power分)。場防御は不足でも選べます。不足なら防御召喚獣をトラッシュし、攻撃値との差分ダメージを受けます。手札ブロックは power ${CONFIG.handDefenseMaxPower} 以下・使い切りです。`}
       </div>
       {firewallOptions.length > 0 && (
         <div className="firewall-toggle-panel" role="group" aria-label="竜盾の紋章を使うか">
@@ -368,8 +377,34 @@ function AttackDefensePanel({ game, forcedDefenseChoice, onResolve }: { game: Ga
       <div className="defense-choice-grid">
         {visibleFieldOptions.map(({ card, index }) => <DefenseChoiceButton key={`field-${index}`} source="場" card={card} cardIndex={index} attackCard={attackCard} attackContext={attackContext} defender={defender} fieldIndex={index} strikeGuard={Boolean(strikeTarget)} firewallEnabled={firewallEnabled} onResolve={onResolve} />)}
         {visibleHandOptions.map(({ card, index }) => <DefenseChoiceButton key={`hand-${index}`} source="手札" card={card} cardIndex={index} attackCard={attackCard} attackContext={attackContext} defender={defender} hand firewallEnabled={false} onResolve={onResolve} />)}
-        {!hasVisibleOptions && !forcedNoDefense && <div className="defense-context">防御できるカードはありません。</div>}
+        {visibleUnavailableHandOptions.map(({ card, index }) => <UnavailableHandDefenseCard key={`hand-unavailable-${index}`} card={card} cardIndex={index} />)}
+        {!hasVisibleOptions && !forcedNoDefense && <div className="defense-context">使用できる防御カードはありません。</div>}
         {(!effectiveForcedDefenseChoice || forcedNoDefense) && <button type="button" className="defense-pass" onClick={() => onResolve({ type: "none" })}>防御しない</button>}
+      </div>
+    </div>
+  );
+}
+
+function UnavailableHandDefenseCard({ card, cardIndex }: { card: Card; cardIndex: number }) {
+  return (
+    <div
+      className="defense-choice defense-choice-disabled"
+      style={{ "--card-color": cardColor(card) } as React.CSSProperties}
+      aria-disabled="true"
+      title={`手札防御は power ${CONFIG.handDefenseMaxPower} 以下のみ使用できます`}
+    >
+      <div className="defense-choice-select">
+        <div className="defense-choice-card">
+          <span className="defense-source">手札</span>
+          <CardView card={card} ownerIndex={0} zone="hand" index={cardIndex} showCost={false} showSetBadge={false} />
+        </div>
+        <div className="defense-choice-info">
+          <div className="defense-choice-name">{card.name}</div>
+          <div className="defense-choice-body">
+            <span>{card.attribute} / power {card.power}</span>
+            <span className="defense-choice-result">使用不可 / 手札防御は power {CONFIG.handDefenseMaxPower} 以下</span>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -4,6 +4,90 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
+## 2026-07-09 終盤設計改訂・本採用: 時計世界の完成
+
+### 背景
+
+fair-gen005 は beam 探索の `end` 欠落を直した一方、無理な資源消費を避けるようになった結果、break vs control で draw 89.6% / 平均 38.5T まで膠着した。終盤設計改訂を全 5 弾で行い、ユーザー決定により A1 攻撃回数制限は不採用、`C0 + P1 + P4c3 + 第四弾デッキ変更 3 件` を完成パッケージとして本採用した。
+
+### 採用変更
+
+- 40 手番到達時はライフが多い側の勝利。同値のみ引き分け。
+- 自分のターン終了時の手札上限を 6 枚とし、超過分を自動でトラッシュ。
+- 必要なターン開始ドロー時に山札が空なら、衰弱で 1 ダメージ。
+- 手札防御は power 3 以下、1 ターン 1 回。power 4 は UI に使用不可理由つきで表示。
+- 第四弾デッキ変更: fire `AI-FIRE-4D -> AI-FIRE-1B`、water `CMD-WATER-RITE -> CMD-TIDE-EDGE` + `AI-WATER-4 -> AI-WATER-3D`、wind `AI-WIND-4B -> AI-WIND-3`。
+- p2-3 は 50% 以下の合格条件から外し、60% 警報線つき監視項目へ再設計。対抗手段は今後カードで供給する。
+- beginner water の手札防御を power 2 以下へ追従再較正。challenger と `fair-gen005` の重み・探索は凍結維持。
+- A1 `attacksPerTurnLimit` は `null` のまま。攻撃 2 回 / 3 回 / STRIKE 込み制限は不採用。
+
+### 検証
+
+**6 デッキリーグ**（seed 4101 / 730001、100 games/ordered pair、合計 6000 戦）:
+
+| デッキ | 2 シード平均 |
+| --- | ---: |
+| break | 48.2% |
+| control | 55.3% |
+| fire | 48.9% |
+| water | 46.7% |
+| wind | 52.6% |
+| earth | 48.4% |
+| 先攻 | 49.1% |
+
+単色 4 デッキと先攻率は完成ゲート内。既定値化後のフラグなし seed 4101 smoke は、`--endgame-package p4c3` の同 seed 出力と全 standings / 全 pair summary がビット一致した。
+
+**盛り上がり**（break vs control、1000 戦、seed 4101）:
+
+- draw 0.3% / 平均 26.5T / 中央値 27
+- リード交代あり 54.8% / 2点ビハインド逆転 34.0%
+- 先に2点差をつけた側の勝率 69.9%
+- 決着形態: lifeout 98.3% / turn-limit life judgement 1.4% / draw 0.3%
+
+**full ストレス**（1000 games/order、seed 3000000、各候補 12000 戦、合計 84000 戦）:
+
+| 候補 | 6 デッキ合算 | break/control 合算 | 判断 |
+| --- | ---: | ---: | --- |
+| p1 | 0.00% | 0.00% | OK |
+| p1-2 | 3.37% | 1.78% | OK |
+| p2 | 12.87% | 8.55% | OK |
+| p2-3 | 56.55% | 55.20% | 60% 警報線未満・監視 |
+| p3 cap | 50.93% | 48.48% | 総合 50% 境界・監視 |
+| p3-4 cap | 45.11% | 42.80% | OK |
+| p4 cap | 29.74% | 27.25% | OK |
+
+**beginner 較正**（fire/water/earth、seed 4101 / 730001、両席 100 戦ずつ、各 400 戦）:
+
+| デッキ | beginner 勝率 | 判断 |
+| --- | ---: | --- |
+| fire | 10.25% | 帯内 |
+| water | 19.75% | 追従再較正後、帯内 |
+| earth | 12.25% | 帯内 |
+
+**apex 再探索**（seed 810101、120 候補、screen 4/order、league 100/order）:
+
+探索首位 `apex_mutation_053` は 5 デッキリーグ 53.44%、current apex は 51.91%。直接対決は 104-93-3（候補 52.8%）で明確な勝ち越しではないため、従来基準どおり current apex を維持した。
+
+### 判断
+
+本採用。draw / 長期化 / 先攻率 / 単色帯 / beginner の完成ゲートを満たし、p2-3 も 60% 警報線未満だった。p3 総合 50.93% は競技基準 break/control では 48.48% のため、ルール失敗ではなく境界監視として残す。
+
+この本採用値を時計世界の新基準とする。fair-gen005 時代以前のリーグ・盛り上がり・ストレス数値とはルール母集団が違うため直接比較しない。p2-3 への回答はコアルールを追加せず、今後のカード追加の最優先テーマとして供給する。
+
+### 検証コマンド
+
+```bash
+npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --endgame-package p4c3 --out tmp/endgame-adoption-a1off/league-4101
+npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --endgame-package p4c3 --out tmp/endgame-adoption-a1off/league-730001
+npm run sim -- simulate --games 1000 --seed 4101 --first-deck break --second-deck control --endgame-package p4c3 --out tmp/endgame-adoption-a1off/break-control-4101
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/endgame-adoption-a1off/break-control-4101
+npm run balance:cost -- --games-per-order 1000 --seed 3000000 --endgame-package p4c3 --max-turns 40 --out tmp/endgame-adoption-a1off/cost-g1000.json --json
+npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/endgame-adoption-default/league-4101
+npm run test:balance
+npm run tune:apex -- --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 810101 --out tmp/endgame-adoption-default/apex-810101.json
+npm run check
+```
+
 ## 2026-07-09 fair-gen005 採用: end 強制包含 + beginner 追従再較正
 
 ### 背景

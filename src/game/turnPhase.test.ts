@@ -65,6 +65,14 @@ function withConfig<T>(patch: Partial<typeof CONFIG>, run: () => T): T {
 }
 
 describe("initialization and turn management", () => {
+  it("uses the adopted endgame clock as the standard configuration", () => {
+    expect(CONFIG.turnLimitResult).toBe("life_judgement");
+    expect(CONFIG.handLimit).toBe(6);
+    expect(CONFIG.deckOutFatigueDamage).toBe(1);
+    expect(CONFIG.handDefenseMaxPower).toBe(3);
+    expect(CONFIG.attacksPerTurnLimit).toBeNull();
+  });
+
   it("deals opening hands of five to each player by default", () => {
     const game = setupGame(1);
 
@@ -189,9 +197,8 @@ describe("initialization and turn management", () => {
     expect(game.log[game.log.length - 1]).toContain("両者の手札・山札・場がすべて尽きたため引き分け");
   });
 
-  // turn limit の「ライフ差があっても引き分け」版は turnActionState.test.ts の
-  // "draws when the turn limit is reached regardless of life totals" が既にカバー。
-  // ここでは同点ライフ版のみ追加する。
+  // ライフ差ありの標準ライフ判定は turnActionState.test.ts がカバーする。
+  // ここでは同点ライフ版を確認する。
   it("draws at the turn limit when both players have equal life", () => {
     const game = setupGame(8);
     game.turn = CONFIG.maxTurns;
@@ -206,7 +213,7 @@ describe("initialization and turn management", () => {
     expect(game.draw).toBe(true);
     expect(game.actionsRemaining).toBe(0);
     expect(game.chargedActionsRemaining).toBe(0);
-    expect(game.log[game.log.length - 1]).toContain(`${CONFIG.maxTurns}手番に到達したため引き分け`);
+    expect(game.log[game.log.length - 1]).toContain(`${CONFIG.maxTurns}手番に到達、ライフ同値のため引き分け`);
   });
 
   it("uses life judgement at the turn limit when enabled", () => withConfig({ turnLimitResult: "life_judgement" }, () => {

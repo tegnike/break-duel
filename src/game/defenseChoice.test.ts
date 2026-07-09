@@ -175,7 +175,7 @@ describe("hand defense resolution", () => {
     const attacker = game.players[0];
     const defender = game.players[1];
     attacker.field = [card("AI-WATER-3")];
-    defender.hand = [card("AI-WATER-4")];
+    defender.hand = [card("AI-WATER-3")];
 
     beginAttackInDraft(game, 0, 0);
 
@@ -183,7 +183,7 @@ describe("hand defense resolution", () => {
     expect(attacker.field.map((item) => item.id)).toEqual(["AI-WATER-3"]);
     expect(attacker.spentFieldIndexes.has(0)).toBe(true);
     expect(defender.field).toHaveLength(0);
-    expect(defender.discard.map((item) => item.id)).toEqual(["AI-WATER-4"]);
+    expect(defender.discard.map((item) => item.id)).toEqual(["AI-WATER-3"]);
   });
 
   // Python: test_hand_defense_can_protect_even_when_field_is_not_empty
@@ -269,7 +269,7 @@ describe("hand defense resolution", () => {
     const attacker = game.players[0];
     const defender = game.players[1];
     attacker.field = [card("AI-WATER-3"), card("AI-WATER-3")];
-    defender.hand = [card("AI-WATER-4"), card("AI-WATER-4")];
+    defender.hand = [card("AI-WATER-3"), card("AI-WATER-3")];
     defender.deck = [card("AI-FIRE-1"), card("AI-FIRE-1"), card("AI-FIRE-1")];
 
     beginAttackInDraft(game, 0, 0);

@@ -1,6 +1,7 @@
 // power 帯偏重ストレスデッキのガードレール回帰テスト。
-// Python 版 tests/test_cost_balance.py の移植。scripts/runCostBalance.ts と同じ
-// 共有ロジック（src/sim/costBalance.ts）で 7 本のストレスデッキ勝率が採用済み閾値以内であることを検証する。
+// scripts/runCostBalance.ts と同じ共有ロジック（src/sim/costBalance.ts）で
+// 7 本のストレスデッキ勝率が採用済み閾値以内であることを検証する。
+// p2-3 は 50% 合否ゲートではなく、60% 警報線を越えないことを監視する。
 // unit では 80 試合/ordered-matchup × 6 デッキ × 両手番 = 960 試合に抑える。
 // フル回帰は `npm run balance:cost -- --games-per-order 500` で実行する。
 import { describe, expect, it } from "vitest";
