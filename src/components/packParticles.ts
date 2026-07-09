@@ -45,7 +45,8 @@ const SR_CLOUD_COLORS: readonly Rgb[] = [[255, 245, 194], [251, 191, 36], [234, 
 const UR_CLOUD_COLORS: readonly Rgb[] = [[165, 243, 252], [96, 165, 250], [192, 132, 252], [244, 114, 182]];
 
 function makeGlowSprite(inner: string, mid: string): HTMLCanvasElement {
-  const size = 128;
+  // 常に小さくぼかして描く素材なので64pxで十分。粒子ごとの転送量を抑える。
+  const size = 64;
   const sprite = document.createElement("canvas");
   sprite.width = size;
   sprite.height = size;
@@ -72,7 +73,7 @@ function seededRandom(seed: number): () => number {
 function makeEnergyCloudSprite(colors: readonly Rgb[], seed: number): HTMLCanvasElement {
   // 雲自体がぼけた素材なので、高解像度にしても見た目はほぼ変わらない。
   // 元画像を小さくして、全画面へ拡大合成するときのテクスチャ転送量を抑える。
-  const size = 384;
+  const size = 256;
   const sprite = document.createElement("canvas");
   sprite.width = size;
   sprite.height = size;
@@ -80,7 +81,7 @@ function makeEnergyCloudSprite(colors: readonly Rgb[], seed: number): HTMLCanvas
   const random = seededRandom(seed);
   ctx.globalCompositeOperation = "lighter";
 
-  for (let i = 0; i < 26; i += 1) {
+  for (let i = 0; i < 18; i += 1) {
     const color = colors[Math.floor(random() * colors.length)];
     const [r, g, b] = color;
     const x = size * (0.26 + random() * 0.48);
@@ -183,8 +184,8 @@ function drawShard(ctx: CanvasRenderingContext2D, shard: ShardParticle, alpha: n
   ctx.rotate(shard.angle);
   ctx.globalAlpha = Math.min(alpha, 1);
   ctx.fillStyle = shard.color;
-  ctx.shadowColor = shard.color;
-  ctx.shadowBlur = 8;
+  // 破片ごとの shadowBlur は再ラスタライズ負荷が大きい。
+  // 呼び出し側の lighter 合成で輝度を確保する。
   ctx.beginPath();
   ctx.moveTo(-shard.length * 0.5, 0);
   ctx.lineTo(0, -shard.width * 0.5);
@@ -210,7 +211,6 @@ function drawEnergyBloom(
   const pulse = 1 + Math.sin(elapsed / 180) * 0.055;
   drawRotatedSprite(ctx, sprites.clouds[0], origin.x, origin.y - 12, baseWidth * pulse, baseHeight * pulse, envelope * 0.72, elapsed / 5200);
   drawRotatedSprite(ctx, sprites.clouds[1], origin.x - 16, origin.y + 8, baseWidth * 0.82, baseHeight * 1.12, envelope * 0.52, -elapsed / 6400 + 0.7);
-  drawRotatedSprite(ctx, sprites.clouds[2], origin.x + 20, origin.y - 4, baseWidth * 0.7, baseHeight * 0.78, envelope * 0.46, elapsed / 7200 - 0.9);
   ctx.restore();
 }
 
@@ -222,10 +222,12 @@ export function runPackBurst(
   durationMs: number,
 ): () => void {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return () => {};
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { alpha: true, desynchronized: true });
   if (!ctx) return () => {};
 
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  // 発光・ぼかし中心の演出なので高DPI化しても差が小さい。
+  // DPR 2時に4倍あった描画ピクセルをCSSピクセル等倍へ固定する。
+  const dpr = Math.min(window.devicePixelRatio || 1, 1);
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
   canvas.width = Math.max(1, Math.round(width * dpr));
@@ -239,7 +241,7 @@ export function runPackBurst(
   const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
   const pick = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
 
-  const sparkCount = theme === "sr" ? 76 : 112;
+  const sparkCount = theme === "sr" ? 48 : 64;
   for (let i = 0; i < sparkCount; i += 1) {
     const angle = -Math.PI / 2 + rand(-1.45, 1.45);
     const speed = rand(110, theme === "sr" ? 520 : 720);
@@ -257,7 +259,7 @@ export function runPackBurst(
     });
   }
 
-  const shardCount = theme === "sr" ? 24 : 58;
+  const shardCount = theme === "sr" ? 14 : 26;
   for (let i = 0; i < shardCount; i += 1) {
     const angle = rand(0, Math.PI * 2);
     const speed = rand(100, theme === "sr" ? 430 : 650);
@@ -294,7 +296,7 @@ export function runPackBurst(
     const envelope = t < 0.055 ? t / 0.055 : t > 0.7 ? Math.max(0, 1 - (t - 0.7) / 0.3) : 1;
 
     if (t < 0.62) {
-      const emission = theme === "sr" ? 3 : 5;
+      const emission = theme === "sr" ? 1 : 2;
       for (let i = 0; i < emission; i += 1) {
         glows.push({
           x: origin.x + rand(-28, 28),
@@ -365,7 +367,8 @@ export function runPackBurst(
     }
   };
 
-  const timer = window.setInterval(() => frame(performance.now()), 16);
+  // パック・カード背面の短い発光は30fpsで十分滑らか。
+  const timer = window.setInterval(() => frame(performance.now()), 1000 / 30);
   return () => {
     running = false;
     window.clearInterval(timer);
@@ -381,12 +384,12 @@ export function runUrCutinBurst(
   durationMs: number,
 ): () => void {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return () => {};
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d", { alpha: true, desynchronized: true });
   if (!ctx) return () => {};
 
-  // 全画面の発光雲は高DPIで描いても差が見えにくい一方、DPR 2 では
-  // ピクセル数が4倍になる。CSSピクセル等倍に固定して合成負荷を抑える。
-  const dpr = 1;
+  // 全画面の発光雲は低解像度をCSSで拡大しても視覚差が小さい。
+  // 0.75倍なら等倍からさらに約44%ピクセルを削減できる。
+  const dpr = 0.75;
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
   canvas.width = Math.max(1, Math.round(width * dpr));
@@ -399,7 +402,7 @@ export function runUrCutinBurst(
   const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
   const pick = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
 
-  for (let i = 0; i < 64; i += 1) {
+  for (let i = 0; i < 42; i += 1) {
     const angle = rand(0, Math.PI * 2);
     const speed = rand(120, 680);
     glows.push({
@@ -415,7 +418,7 @@ export function runUrCutinBurst(
       sprite: pick(sprites.sparks),
     });
   }
-  for (let i = 0; i < 44; i += 1) {
+  for (let i = 0; i < 26; i += 1) {
     const angle = rand(0, Math.PI * 2);
     const speed = rand(180, 820);
     shards.push({
@@ -473,7 +476,7 @@ export function runUrCutinBurst(
 
     ctx.globalCompositeOperation = "lighter";
     const pulse = 1 + Math.sin(elapsed / 90) * 0.055;
-    for (let wave = 0; wave < 2; wave += 1) {
+    for (let wave = 0; wave < 1; wave += 1) {
       const waveT = Math.min(1, Math.max(0, (t - wave * 0.08) / 0.58));
       if (waveT <= 0 || waveT >= 1) continue;
       const waveWidth = 260 + waveT * Math.min(720, Math.max(width, height) * 0.72);
@@ -537,8 +540,8 @@ export function runUrCutinBurst(
     }
   };
 
-  // 発光雲は30fpsでも十分滑らか。60fpsで全画面を塗り直す負荷を半減する。
-  const timer = window.setInterval(() => frame(performance.now()), 1000 / 30);
+  // 全画面の雲は24fpsでも動きが連続して見える。UI側へ描画時間を返す。
+  const timer = window.setInterval(() => frame(performance.now()), 1000 / 24);
   return () => {
     running = false;
     window.clearInterval(timer);
