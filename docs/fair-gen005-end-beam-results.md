@@ -4,6 +4,8 @@
 対象ブランチ: `codex/fair-rebalance-from-public-info`
 対象課題: `docs/fair-cpu-followups.md` 課題 2c
 
+> 追記（2026-07-09）: この不採用判断は、ユーザー決定済み A 案により上書きされた。beginner 較正割れは challenger 改善の却下理由にせず、beginner 側を追従再較正したうえで `fair-gen005` として採用した。最終結果は `docs/fair-gen005-results.md` を参照。
+
 ## 結論
 
 候補(a)「beam 候補へ `end` を常時強制包含」は採用しない。`fair-gen005` は凍結しない。

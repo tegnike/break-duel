@@ -4,21 +4,33 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
-## 2026-07-09 fair-gen005 候補(a) end 強制包含: 不採用
+## 2026-07-09 fair-gen005 採用: end 強制包含 + beginner 追従再較正
 
 ### 背景
 
 実プレイで `fair-gen004` が手札の遺物を同一ターンに連続配置し、既存遺物を置き換えながら手札を空にする悪手が見つかった。原因は beam 探索で `end` が即時スコア上位に入らず、「何もしない」を終端評価で比較できないこと。
 
+当初は beginner 較正が water 0.0% / earth 0.25% まで落ちたため `docs/fair-gen005-end-beam-results.md` で不採用とした。しかし 2026-07-09 のユーザー決定により、この較正割れは候補(a)の却下理由にせず、「challenger が本当に強くなった」シグナルとして扱う方針に変更した。beginner 側を同タームで追従再較正し、5-20% 帯に戻したうえで採用する。
+
 ### 変更内容
 
-実験パッチとして、beam 探索の各候補展開で `end` を追加候補に残す案を試した。採用ゲート未達のため最終コードには残していない。`fair-gen005` も凍結しない。
+- challenger beam 探索の各候補展開で、`rankedAiActions(...).slice(0, beamWidth)` に入らなかった `end` を追加候補として残す。
+- beginner 較正として、火だけ高 power 手札防御制限を残し、水・土を含むその他のデッキは合法な手札防御を使えるようにする。
+- 水 beginner は `CMD-TIDE-EDGE` を召喚より先に使い、強い召喚獣から出す。
+- 土 beginner は旧固定優先順位に近い基本行動を使う。
+- `docs/assets/ai-champions/fair/fair-gen005.json` を凍結。重みは `fair-gen004` と同一で、世代差分はエンジン挙動と beginner 較正。
 
 ### 検証
 
 **ガードテスト**:
 
-- `npx vitest run src/game/aiStrategy.test.ts`: green
+- `npm run check`: green（typecheck + 19 test files / 292 tests + build）
+- `npm run test:balance`: green（1 file / 7 tests）
+- `npx vitest run src/game/aiStrategy.test.ts src/game/tutorial.test.ts`: green（2 files / 22 tests）
+
+**遺物連続置き換え再現**:
+
+手札が遺物/低価値カードのみで既存遺物がある局面を確認。即時スコア上位は遺物配置 126-137、`end` は即時 41 だが終端評価 61 で beam 1 位となり、`chooseAiAction` も `{ type: "end" }` を選んだ。200 回計測は平均 0.684ms / 最大 6.368ms。
 
 **fair プール ガントレット**（`fair-gen004` 重み、games/seat 120）:
 
@@ -32,20 +44,40 @@
 | デッキ | beginner 勝率 | 判定 |
 | --- | ---: | --- |
 | fire | 6.5% | 帯内 |
-| water | 0.0% | 下限未達 |
-| earth | 0.25% | 下限未達 |
+| water | 6.0% | 帯内 |
+| earth | 8.25% | 帯内 |
+
+**弱点D / resource burn 再診断**:
+
+water の challenger 敗北に占める `resource_exhaustion` は、旧記録の 9/20 から 1/24 へ低下。earth は 0/20 から 1/33。water の長期戦リソース焼き尽くしは改善したが、再ベースラインでは draw/長期化の別問題が顕在化した。
+
+**再ベースライン**:
+
+- 6 デッキリーグ 2 シード平均: break 11.2%、control 1.6%、earth 2.6%、fire 16.8%、water 5.0%、wind 10.5%、先攻 7.4%。最大 40 手番 draw 増加により `league_report` は CHECK NEEDED。
+- 盛り上がり指標（break vs control、1000 戦、seed 4101）: 平均ターン 38.5、中央値 40、draw 89.6%、lifeout 10.4%、リード交代あり 13.7%。
+- ストレスデッキ guard は `npm run test:balance` green。full regression は 500/order と 100/order が完走せず出力なし。10/order smoke では候補勝率の上限超えはないが、p3_4 draw 74.17%、p4 draw 89.17%。
 
 ### 判断
 
-不採用。候補(a)は 2c の原因に直接効く可能性はあるが、water / earth の beginner 較正を 5-20% 帯から外す。次に試すなら、全局面の `end` 選択を強めるのではなく、候補(b)の遺物スロット価値など、副作用を狭める案を別実験にする。
+採用。遺物連続置き換えの悪手は再現局面で解消し、fair プール非退行と beginner 較正 5-20% を満たした。以後の fair CPU 基準は `fair-gen005` とし、旧世代基準の勝率数値とは直接比較しない。
+
+リーグ・盛り上がり・ストレス smoke では draw/長期化の強い副作用が出ている。これは `docs/fair-cpu-followups.md` にカード/ルール/ゲーム形状側の別課題として起票し、この採用タームでは深追いしない。
 
 ### 検証コマンド
 
 ```bash
-PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npx vitest run src/game/aiStrategy.test.ts
-PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run gauntlet:ai -- --candidate-json docs/assets/ai-champions/fair/fair-gen004.json --games-per-seat 120 --seed 910001 --out tmp/fair-gen005-a/gauntlet-910001.json
-PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npm run gauntlet:ai -- --candidate-json docs/assets/ai-champions/fair/fair-gen004.json --games-per-seat 120 --seed 920001 --out tmp/fair-gen005-a/gauntlet-920001.json
-PATH=/Users/user/.nvm/versions/node/v24.13.0/bin:/Users/user/.nvm/versions/node/v22.17.0/bin:$PATH npx tsx scripts/diagnoseResourceBurn.ts --out tmp/fair-gen005-a/beginner-calibration.json
+npm run check
+npm run test:balance
+npx vitest run src/game/aiStrategy.test.ts src/game/tutorial.test.ts
+npm run gauntlet:ai -- --candidate-json docs/assets/ai-champions/fair/fair-gen004.json --games-per-seat 120 --seed 910001 --out tmp/fair-gen005-adopt/gauntlet-910001.json
+npm run gauntlet:ai -- --candidate-json docs/assets/ai-champions/fair/fair-gen004.json --games-per-seat 120 --seed 920001 --out tmp/fair-gen005-adopt/gauntlet-920001.json
+npx tsx scripts/diagnoseResourceBurn.ts --out tmp/fair-gen005-adopt/beginner-final.json
+npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/fair-gen005-adopt/league-4101
+npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/fair-gen005-adopt/league-730001
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/fair-gen005-adopt/league-4101 tmp/fair-gen005-adopt/league-730001
+npm run sim -- simulate --games 1000 --seed 4101 --first-deck break --second-deck control --out tmp/fair-gen005-adopt/sim-break-control-4101
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/fair-gen005-adopt/sim-break-control-4101
+npm run balance:cost -- --games-per-order 10 --seed 3000000 --out tmp/fair-gen005-adopt/cost-g10.json --json
 ```
 
 ## 2026-07-08 最強 CPU v1: fair-gen004 + 世界再構築

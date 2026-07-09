@@ -4,7 +4,7 @@
 
 CPU 公平化と fair-gen001 再ベースラインで露見した課題を、CPU 計画本体から分離して記録する。カード/ルール/デッキ側の変更は公平 CPU 計画へ混ぜない。
 
-> 対応計画: 課題 1 は `docs/fair-rebalance-plan.md` で完了。課題 2/2b/4 は `docs/strongest-cpu4-plan.md` で再確認し、beginner 較正とストレスデッキは解消。先攻勝率は継続監視。課題 3 は最強 CPU v1 仕上げで apex 差し替え完了。
+> 対応計画: 課題 1 は `docs/fair-rebalance-plan.md` で完了。課題 2/2b/4 は `docs/strongest-cpu4-plan.md` で再確認し、beginner 較正とストレスデッキは解消。課題 2c は `fair-gen005` で解消。先攻勝率と `fair-gen005` 採用後の draw/長期化は継続監視。課題 3 は最強 CPU v1 仕上げで apex 差し替え完了。
 
 ## 1. water / wind の低勝率と control の突出
 
@@ -49,23 +49,36 @@ fair-gen001 では、同一デッキ先後の challenger vs beginner 較正（fi
 4. なお、この「パスできない構造」は 2b の資源焼き尽くし弱点の残存原因である可能性が高い（同根疑い）
 
 - 種別: CPU 評価関数/ビーム探索の設計課題（fair-gen004 の既知悪手）
-- 修正候補（各 1 実験、fair-cpu 作法でガントレット + beginner 較正必須）:
-  (a) `end` をビーム候補に**常時強制包含**する（最小修正・本命）
-  (b) `boardAiScore` に遺物スロット価値を追加（置き換えの無駄を可視化）
-  (c) 手札温存/ブラフ価値の項を追加（手札 0 枚への追加ペナルティ）
+- 判断: `fair-gen005` で解消済み。候補(a) `end` をビーム候補に常時強制包含する最小修正を採用し、`docs/assets/ai-champions/fair/fair-gen005.json` を凍結した。
 - 再現: 手札が遺物/低価値カードのみ + 場に有効な行動が少ない局面で発生しやすい
-- 2026-07-09 実験結果: 候補(a)は `docs/fair-gen005-end-beam-results.md` で検証し、不採用。
-  ガントレットは非退行（seed 910001: 59.3% / floor 48.3%、seed 920001: 61.3% / floor 52.5%）だったが、
-  beginner 較正が fire 6.5% / water 0.0% / earth 0.25% となり 5-20% 帯を満たさない。`fair-gen005` は凍結しない。
+- 2026-07-09 採用結果: `docs/fair-gen005-results.md`。再現局面では `chooseAiAction` と beam 1 位が `{ type: "end" }` になり、無駄な遺物置き換えとターン内の手札吐き尽くしは消えた。ガントレットは非退行（seed 910001: 59.3% / floor 48.3%、seed 920001: 61.3% / floor 52.5%）。当初の beginner 較正割れ（water 0.0% / earth 0.25%）はユーザー決定により却下理由にせず、beginner 側を追従再較正して fire 6.5% / water 6.0% / earth 8.25% に戻した。
 
 ## 2b. challenger の長期戦リソース焼き尽くし
 
 最強 CPU 第 3 次計画の R トラックで、resource 極振り候補を再審理した。旧 54.8% 候補は現環境の独立 2 シードで pool 52.7% / 51.7% に落ち、近傍探索・複合グリッドも 55% ゲート未達だった。
 
 - 種別: CPU プロファイル/評価関数課題
-- 判断: R トラック単独では採用なし。最強 CPU v1 仕上げ後の消耗戦診断では beginner 勝率 fire 11.0% / water 5.0% / earth 5.0%。water の challenger 敗北 20 件中 resource_exhaustion は 9 件、earth は 20 件中 0 件。長期戦の焼き尽くしは大幅に軽くなったが、water の消耗負けは監視対象として残す。
+- 判断: R トラック単独では採用なし。最強 CPU v1 仕上げ後の消耗戦診断では beginner 勝率 fire 11.0% / water 5.0% / earth 5.0%。water の challenger 敗北 20 件中 resource_exhaustion は 9 件、earth は 20 件中 0 件だった。`fair-gen005` 採用後の再診断では fire 6.5% / water 6.0% / earth 8.25%。water の resource_exhaustion は 1/24 まで低下し、earth は 1/33。water の長期戦焼き尽くしは改善したが、ゲーム全体は draw/長期化へ寄っているため別課題として監視する。
 - 再現:
   - `npx tsx scripts/diagnoseResourceBurn.ts --out tmp/strongest-cpu3-r/resource-burn-diagnosis.json`
+  - `npx tsx scripts/diagnoseResourceBurn.ts --out tmp/fair-gen005-adopt/beginner-final.json`
+
+## 2d. fair-gen005 採用後の draw/長期化と再ベースライン崩れ
+
+`fair-gen005` は 2c の悪手を解消した一方、`end` が正しく比較されることで CPU が無理なリソース消費を避け、最大 40 手番 draw が大幅に増えた。これは CPU 欠陥修正の採用を止める理由にはせず、カード/ルール/ゲーム形状側の後続課題として分離する。
+
+- 種別: カード/ルール/ゲーム長/決着性のバランス課題
+- リーグ: 6 デッキ 2 シード平均で break 11.2%、control 1.6%、earth 2.6%、fire 16.8%、water 5.0%、wind 10.5%、先攻 7.4%。`league_report` は CHECK NEEDED。raw 結果では draw が大半を占める。
+- 盛り上がり: break vs control 1000 戦で draw 89.6%、平均ターン 38.5、中央値 40、リード交代あり 13.7%。
+- ストレス: full regression（500/order と 100/order）は完走せず出力なし。10/order smoke では候補勝率の上限超えはないが、p3_4 draw 74.17%、p4 draw 89.17%。
+- 判断: `fair-gen005` の採用後ベースラインとして記録し、次のカード/ルール側タームで決着性を戻す。今回の CPU 採用タームでは深追いしない。
+- 再現:
+  - `npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/fair-gen005-adopt/league-4101`
+  - `npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/fair-gen005-adopt/league-730001`
+  - `python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/fair-gen005-adopt/league-4101 tmp/fair-gen005-adopt/league-730001`
+  - `npm run sim -- simulate --games 1000 --seed 4101 --first-deck break --second-deck control --out tmp/fair-gen005-adopt/sim-break-control-4101`
+  - `python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/fair-gen005-adopt/sim-break-control-4101`
+  - `npm run balance:cost -- --games-per-order 10 --seed 3000000 --out tmp/fair-gen005-adopt/cost-g10.json --json`
 
 ## 3. apex 再探索候補
 
