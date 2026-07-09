@@ -2141,7 +2141,7 @@ export function chooseAiDefense(defender: PlayerState, attackCard: Card, profile
     return { type: "field", index: best.index };
   }
   const profileHandOptions = profile === "beginner"
-    ? defender.deckName.includes("火")
+    ? defender.deckName.includes("火") || defender.deckName.includes("水")
       ? handOptions.filter(({ card }) => (card.power ?? 0) <= 2)
       : handOptions
     : handOptions;
