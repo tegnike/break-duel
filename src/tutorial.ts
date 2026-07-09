@@ -66,7 +66,7 @@ const PLAYER_TUTORIAL_HAND = [
   "AI-FIRE-1B",
   "AI-FIRE-2",
   "MEM-CACHE",
-  "AI-FIRE-1C",
+  "AI-FIRE-2C",
   "CMD-FIRE-RITE",
 ];
 
@@ -285,9 +285,9 @@ export function currentTutorialStep(game: GameState): TutorialStep {
       };
     }
 
-    if (!player.chargeUsed && canUseCharge(game, player) && player.hand.some((card) => card.id === "AI-FIRE-1C")) {
+    if (!player.chargeUsed && canUseCharge(game, player) && player.hand.some((card) => card.id === "AI-FIRE-2C")) {
       const selected = selectedHumanHandCard(game);
-      if (selected?.id === "AI-FIRE-1C" && canChargeCard(selected)) {
+      if (selected?.id === "AI-FIRE-2C" && canChargeCard(selected)) {
         return {
           id: "charge",
           kicker: "STEP 6",
@@ -300,8 +300,8 @@ export function currentTutorialStep(game: GameState): TutorialStep {
         id: "select-charge",
         kicker: "STEP 6",
         title: "チャージ札を確認",
-        detail: "チュートリアルでは『炉芯鼠チロ』をチャージに使います。固定カードでアクションを増やします。",
-        focus: { kind: "hand-card", ownerIndex: 0, cardId: "AI-FIRE-1C" },
+        detail: "チュートリアルでは『烽火狐フレンネ』をチャージに使います。固定カードでアクションを増やします。",
+        focus: { kind: "hand-card", ownerIndex: 0, cardId: "AI-FIRE-2C" },
       };
     }
 

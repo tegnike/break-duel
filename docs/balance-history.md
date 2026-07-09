@@ -1,8 +1,74 @@
 # Break Duel バランス履歴
 
-最終更新: 2026-07-09
+最終更新: 2026-07-10
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
+
+## 2026-07-10 fair-gen006世界の条件付きアンチスワーム: A案で部分採用
+
+### 背景
+
+fair-gen006再ベースラインでwater 70.5%、fire 40.9%、wind 44.0%、先攻45.8%までリーグが崩れ、p2-3も総合54.29% / break+control 56.88%だった。B0診断では、p2-3の攻撃87.3%が3面時、勝利ダメージの74.2%がpower 3だった。waterは勝利時も行動由来ドロー平均10.22枚と`CMD-TIDE-EDGE`平均1.57回/試合を短期打点へ変換し、fire/windは手札・山札を残したまま防御テンポ負けしていた。
+
+### 採用変更
+
+- `AI-FIRE-1`、`AI-FIRE-1C`、`AI-WIND-1B`: 旧効果を「相手の場に召喚獣が3体いる間、場防御時、防御値+2」へ変更。
+- `CMD-TIDE-EDGE`: 戦闘時攻撃値+3から+2へ戻す。
+- 固定チュートリアルのチャージ教材を、旧`AI-FIRE-1C`と同じチャージ圧を持つ`AI-FIRE-2C`へ1枚だけ差し替えた。通常プリセットの枚数・構成は変更なし。
+- CPU fair-gen006、コアルール、カードプール枚数、通常プリセット、apexは凍結維持。
+
+5枚目までの試行で`AI-WATER-3B`の1ドロー化はwaterを77.4%へ強化したため撤回。手札純増+1を保ったまま山札消費だけを減らし、時計耐性を上げたことが原因だった。
+
+### 検証
+
+**fullストレス**（1000 games/order、各12,000戦）:
+
+| 候補 | 6デッキ合算 | break/control合算 | 判断 |
+| --- | ---: | ---: | --- |
+| p1 | 0.11% | 0.20% | 既存ガード内 |
+| p1-2 | 3.03% | 2.65% | 既存ガード内 |
+| p2 | 8.74% | 8.45% | 既存ガード内 |
+| p2-3 | 51.98% | 52.70% | 60%警報線内、厳密50%は未達 |
+| p3 | 52.07% | 50.95% | 既存ガード内、厳密50%は未達 |
+| p3-4 | 45.13% | 44.63% | 既存ガード内 |
+| p4 | 38.30% | 38.68% | 既存ガード内 |
+
+**6デッキリーグ**（100 games/ordered pair、seed 4101 / 730001平均）:
+
+| デッキ | 勝率 | 判定 |
+| --- | ---: | --- |
+| break | 43.5% | 多色・参考 |
+| control | 52.6% | 多色・参考 |
+| fire | 55.0% | 単色帯内上端 |
+| water | 45.9% | 単色帯内 |
+| wind | 52.6% | 単色帯内 |
+| earth | 47.7% | 単色帯内 |
+| 先攻 | 47.9% | 48%へ0.1pt未達 |
+
+**盛り上がり**（break vs control、1000戦、seed 4101）: draw 0.1%、平均25.2T、リード交代56.1%、2点ビハインド逆転37.4%、先に2点差をつけた側の勝率67.1%。全基準内。
+
+**beginner較正**（fire/water/earth、2 seed、両席100戦ずつ）: fire 6.75%、water 7.0%、earth 8.5%。全て5-20%帯内。
+
+**apex再探索**: 探索首位`apex_mutation_060`は候補リーグ56.82%、current apexは49.23%。単一seed探索であり、今回のカード変更へ追加のデッキ差し替えを混ぜないためcurrentを維持する。
+
+### 判断
+
+5枚撤退線でマスター判断を仰ぎ、A案として4変更を部分採用する。water/fire/windのリーグ崩壊を単色45-55%へ戻し、p2-3も60%警報線から余裕を取れた。盛り上がり・beginner・全ストレスガードも維持している。
+
+一方、p2-3 break/control 52.70%、p3総合52.07% / 同50.95%、先攻47.9%は厳密目標に届かない。この未達を明記して監視継続とし、p2-3ガードは0.60を維持する。第6カード、CPU変更、追加デッキ差し替えは行わない。
+
+### 検証コマンド
+
+```bash
+npm run balance:cost -- --candidate <p1|p1_2|p2|p2_3|p3|p3_4|p4> --games-per-order 1000 --seed <seed> --out tmp/swarm-b2-final/cost-<candidate>.json --json
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/swarm-b5-fire1c/league-4101 tmp/swarm-b5-fire1c/league-730001
+npm run sim -- simulate --games 1000 --seed 4101 --first-deck break --second-deck control --out tmp/swarm-b2-final/break-control-4101
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/swarm-b2-final/break-control-4101
+npx tsx scripts/diagnoseResourceBurn.ts --out tmp/swarm-b2-final/beginner.json
+npm run tune:apex -- --pool-size 120 --top 4 --screen-games 4 --league-games 100 --seed 810101 --out tmp/swarm-b2-final/apex-810101.json
+npm run test:balance
+npm run check
+```
 
 ## 2026-07-09 fair-gen006 採用: 時計世界での CPU 再強化
 

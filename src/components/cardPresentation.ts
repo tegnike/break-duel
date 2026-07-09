@@ -340,7 +340,7 @@ export function roleText(card: Card): string {
   if (card.effect === "earth_rite") return "自分の場に土の召喚獣がいるときしか使用できない。トラッシュの召喚獣1枚を手札に戻す";
   if (card.effect === "comeback_rite") return "相手よりライフが少ないときしか使用できない。山札からカードを2枚引く。自分の消耗中召喚獣1体を選んで回復する";
   if (card.effect === "war_cry") return "このターン、自分の召喚獣すべては戦闘時、攻撃値+1";
-  if (card.effect === "tide_edge") return "自分の場に水の召喚獣がいるときしか使用できない。自分の召喚獣1体を選ぶ。このターン、その召喚獣は戦闘時、攻撃値+3";
+  if (card.effect === "tide_edge") return "自分の場に水の召喚獣がいるときしか使用できない。自分の召喚獣1体を選ぶ。このターン、その召喚獣は戦闘時、攻撃値+2";
   if (card.effect === "pierce_sight") return "このターン、自分の次の攻撃は手札防御されない";
   if (card.effect === "grave_call") return "場に空きがあるときしか使用できない。トラッシュのpower2以下の召喚獣1枚を消耗状態で場に出す";
   if (card.effect === "salvage") return "トラッシュの術式1枚を手札に戻す。ただし、遺灰回収は選択できない。";

@@ -166,7 +166,7 @@ describe("tutorial duel setup", () => {
       "AI-FIRE-1B",
       "AI-FIRE-2",
       "MEM-CACHE",
-      "AI-FIRE-1C",
+      "AI-FIRE-2C",
       "CMD-FIRE-RITE",
     ]);
     // 山札の一番上（＝最初のドロー）は手札防御教材のブレイズランナー
@@ -216,9 +216,9 @@ describe("tutorial full playthrough", () => {
     expect(rival.hand.some((card) => card.id === "AI-EARTH-2C")).toBe(true);
 
     expect(currentTutorialStep(game).id).toBe("select-charge");
-    selectHand(game, "AI-FIRE-1C");
+    selectHand(game, "AI-FIRE-2C");
     expect(currentTutorialStep(game).id).toBe("charge");
-    humanCharge(game, "AI-FIRE-1C");
+    humanCharge(game, "AI-FIRE-2C");
 
     expect(currentTutorialStep(game).id).toBe("select-post-charge-memory");
     selectHand(game, "MEM-CACHE");

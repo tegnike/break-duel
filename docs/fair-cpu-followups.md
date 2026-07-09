@@ -1,7 +1,7 @@
 # 公平 CPU 計画で露見した後続課題
 
 作成日: 2026-07-08
-ステータス: **既存課題はクローズ / fair-gen006 再ベースライン課題 5 は対応待ち**
+ステータス: **全課題クローズ（課題5はA案の部分採用で再収束）**
 
 CPU 公平化と fair-gen001 再ベースラインで露見した課題を、CPU 計画本体から分離して記録する。カード/ルール/デッキ側の変更は公平 CPU 計画へ混ぜない。
 
@@ -20,6 +20,7 @@ CPU 公平化と fair-gen001 再ベースラインで露見した課題を、CPU
 - beginner は追従再較正後 fire 6.5% / water 5.75% / earth 8.5% で帯内
 - full stress: p2-3 54.29% / break+control 56.88%（60%警報線未満）、p3 cap 51.85% / 52.60%（境界監視）。他5候補はbreak/controlでも50%未満
 - 判断: `docs/swarm-answer-plan.md` の既存カード再調整タームへ統合し、B0 で water の勝ち筋と fire/wind の損失経路を p2-3 診断と同時に分解する。CPU とコアルールは凍結する
+- 対応（2026-07-10）: 既存3召喚獣へ相手3面時の場防御+2を付与し、`CMD-TIDE-EDGE` を攻撃値+2へ戻すA案を部分採用。2 seed平均は fire 55.0%、water 45.9%、wind 52.6%、earth 47.7%、先攻47.9%。単色帯は再収束し、先攻だけ48%へ0.1pt未達。p2-3は総合51.98% / break+control 52.70%で60%警報線内の監視を継続する。CPU fair-gen006は無変更
 - 再現:
   - `npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/strongest-cpu5-final/league-4101`
   - `npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/strongest-cpu5-final/league-730001`

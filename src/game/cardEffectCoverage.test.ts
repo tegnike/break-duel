@@ -205,6 +205,20 @@ const CARD_EFFECT_CASES = {
     description: "攻撃後に消耗しない対象になる",
     run: () => expect(keepsReadyAfterAttack(card("AI-WIND-1"))).toBe(true),
   },
+  swarm_guard_plus_2: {
+    cardId: "AI-FIRE-1",
+    description: "相手が3面の時だけ場防御値が2上がる",
+    run: () => {
+      const game = blankGame();
+      const attacker = card("AI-FIRE-3");
+      const defender = card("AI-FIRE-1");
+      game.players[1].field = [attacker, card("AI-WATER-1"), card("AI-WIND-1")];
+      const attackContext = { attacker: game.players[1], attackerFieldIndex: 0 };
+      expect(defenseCombatValue(attacker, defender, game.players[0], { fieldIndex: 0, attackContext })).toBe(3);
+      game.players[1].field.pop();
+      expect(defenseCombatValue(attacker, defender, game.players[0], { fieldIndex: 0, attackContext })).toBe(1);
+    },
+  },
   spend_enemy_on_play: {
     cardId: "AI-WIND-4B",
     description: "登場時に相手の未消耗召喚獣選択を要求する",
@@ -323,18 +337,6 @@ const CARD_EFFECT_CASES = {
       resolveDefenseInDraft(game, { type: "field", index: 0 }, {});
       expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-WATER-1"]);
       expect(game.players[0].field).toHaveLength(0);
-    },
-  },
-  charge_pressure: {
-    cardId: "AI-FIRE-1C",
-    description: "チャージ時に相手手札が3枚以上なら1枚トラッシュする",
-    run: () => {
-      const game = playableChargeGame("AI-FIRE-1C");
-      game.players[1].hand = [card("AI-WATER-1"), card("AI-WATER-2"), card("AI-WATER-3")];
-      chargeHandCardInDraft(game, 0, 0);
-      expect(hasChargeEffect(card("AI-FIRE-1C"))).toBe(true);
-      expect(game.players[1].hand).toHaveLength(2);
-      expect(game.players[1].discard).toHaveLength(1);
     },
   },
   charge_draw: {
@@ -1016,14 +1018,14 @@ const CARD_EFFECT_CASES = {
   },
   tide_edge: {
     cardId: "CMD-TIDE-EDGE",
-    description: "自分の召喚獣1体のこのターンの戦闘時攻撃値を+3する",
+    description: "自分の召喚獣1体のこのターンの戦闘時攻撃値を+2する",
     run: () => {
       const game = blankGame();
       game.players[0].hand = [card("CMD-TIDE-EDGE")];
       game.players[0].field = [card("AI-WATER-1"), card("AI-WATER-2")];
       useCommandAtInDraft(game, 0, 1);
       expectCommandUsed(game, "CMD-TIDE-EDGE");
-      expect(game.players[0].turnFieldAttackBonuses.get(1)).toBe(3);
+      expect(game.players[0].turnFieldAttackBonuses.get(1)).toBe(2);
       expect(game.players[0].turnFieldAttackBonuses.get(0)).toBeUndefined();
     },
   },

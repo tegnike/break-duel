@@ -717,8 +717,8 @@ export function useCommandAtInDraft(
     if (!hasAttributeAi(player, "水")) return;
     const buffTarget = targetIndex ?? highestPowerReadyAi(player) ?? highestPowerFieldAi(player);
     if (buffTarget !== null && player.field[buffTarget]) {
-      addTurnFieldAttackBonus(player, buffTarget, 3);
-      text += ` このターン、${player.field[buffTarget].name}は戦闘時、攻撃値+3。`;
+      addTurnFieldAttackBonus(player, buffTarget, 2);
+      text += ` このターン、${player.field[buffTarget].name}は戦闘時、攻撃値+2。`;
     }
   } else if (used.effect === "pierce_sight") {
     setNextAttackUnblockable(player);

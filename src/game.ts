@@ -15,6 +15,7 @@ export type AiEffect =
   | "draw_on_play_cannot_hand_defend"
   | "filter_on_play"
   | "no_spend_after_attack"
+  | "swarm_guard_plus_2"
   | "spend_enemy_on_play"
   | "spend_enemy_on_play_enters_spent"
   | "defense_plus_1"
@@ -403,7 +404,7 @@ export function cardPool(): Card[] {
     "AI-EARTH-1C": "種運びのクルミ",
   };
   const aiEffects = new Map<string, AiEffect>([
-    ["AI-FIRE-1", "no_spend_after_attack"],
+    ["AI-FIRE-1", "swarm_guard_plus_2"],
     ["AI-FIRE-1B", "block_pressure"],
     ["AI-FIRE-2", "attack_plus_1"],
     ["AI-FIRE-2B", "hand_defense_pierce"],
@@ -411,7 +412,7 @@ export function cardPool(): Card[] {
     ["AI-FIRE-3B", "reckless_attack_plus_1"],
     ["AI-FIRE-4", "draw_after_overheat"],
     ["AI-FIRE-4B", "low_life_no_hand_defense"],
-    ["AI-FIRE-1C", "charge_pressure"],
+    ["AI-FIRE-1C", "swarm_guard_plus_2"],
     ["AI-WATER-1", "draw_on_blocked_attack"],
     ["AI-WATER-1B", "draw_on_play_cannot_hand_defend"],
     ["AI-WATER-2", "filter_on_play"],
@@ -422,7 +423,7 @@ export function cardPool(): Card[] {
     ["AI-WATER-4B", "draw_after_overheat_opponent_draw"],
     ["AI-WATER-1C", "charge_draw"],
     ["AI-WIND-1", "no_spend_after_attack"],
-    ["AI-WIND-1B", "draw_on_blocked_attack_cannot_hand_defend"],
+    ["AI-WIND-1B", "swarm_guard_plus_2"],
     ["AI-WIND-2B", "spend_enemy_on_play_enters_spent"],
     ["AI-WIND-3", "spend_enemy_on_play"],
     ["AI-WIND-3B", "ready_ally_on_play_draw"],
@@ -455,7 +456,7 @@ export function cardPool(): Card[] {
       })),
     );
   const chargeCycleCards: CardSeed[] = [
-    { id: "AI-FIRE-1C", name: monsterNames["AI-FIRE-1C"], type: "ai", attribute: "火", power: 1, effect: "charge_pressure" },
+    { id: "AI-FIRE-1C", name: monsterNames["AI-FIRE-1C"], type: "ai", attribute: "火", power: 1, effect: "swarm_guard_plus_2" },
     { id: "AI-WATER-1C", name: monsterNames["AI-WATER-1C"], type: "ai", attribute: "水", power: 1, effect: "charge_draw" },
     { id: "AI-WIND-2C", name: monsterNames["AI-WIND-2C"], type: "ai", attribute: "風", power: 2, effect: "charge_ready_ally" },
     { id: "AI-EARTH-2C", name: monsterNames["AI-EARTH-2C"], type: "ai", attribute: "土", power: 2, effect: "charge_guard" },
@@ -1372,6 +1373,7 @@ export function aiEffectText(card: Card): string {
   if (card.effect === "draw_on_play_cannot_hand_defend") return "登場時、山札からカードを1枚引く。手札防御に使えない";
   if (card.effect === "filter_on_play") return "登場時、山札からカードを2枚引き、手札1枚をトラッシュする";
   if (card.effect === "no_spend_after_attack") return "攻撃しても消耗しない";
+  if (card.effect === "swarm_guard_plus_2") return "相手の場に召喚獣が3体いる間、場防御時、防御値 +2";
   if (card.effect === "spend_enemy_on_play") return "登場時、相手の未消耗召喚獣1体を消耗";
   if (card.effect === "spend_enemy_on_play_enters_spent") return "登場時、相手の未消耗召喚獣1体を消耗。自身も消耗で出る";
   if (card.effect === "defense_plus_1") return "場防御時、防御値 +1";
@@ -1582,6 +1584,13 @@ export function defensePowerBonus(card: Card, defender: PlayerState | null = nul
     || card.effect === "recover_memory_on_play_defense_plus_1"
   ) ? CONFIG.power2DefenseBonus : 0;
   if (fieldDefense && card.effect === "defense_plus_1_with_memory" && defender?.memory) {
+    bonus += 2;
+  }
+  if (
+    fieldDefense
+    && card.effect === "swarm_guard_plus_2"
+    && (options.attackContext?.attacker?.field.length ?? 0) >= CONFIG.fieldLimit
+  ) {
     bonus += 2;
   }
   if (card.power === 3) {
