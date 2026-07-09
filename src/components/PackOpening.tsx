@@ -116,7 +116,8 @@ function omenOf(cards: PackCard[] | null): PackOmen {
 function calloutLabelFor(entry: PackCard): string | null {
   if (entry.rarity === "ur") return "UR";
   if (entry.rarity === "sr") return "SR";
-  if (entry.rarity === "r") return "R";
+  // 通常Rはカード自体で判別できるため、連続で引いた際の「R」連打は出さない。
+  // 新規入手だけはレアリティではなく獲得情報として知らせる。
   if (entry.isNew) return "NEW";
   return null;
 }
@@ -499,7 +500,7 @@ export function PackOpeningPage({
             aria-live="polite"
           >
             <span>{revealCallout.label}</span>
-            {revealCallout.isNew && revealCallout.rarity !== "n" && <em>NEW</em>}
+            {revealCallout.isNew && (revealCallout.rarity === "sr" || revealCallout.rarity === "ur") && <em>NEW</em>}
           </div>
         )}
         {phase === "opened" && pack && (
