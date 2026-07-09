@@ -52,6 +52,7 @@ function duelGame(actions = 3): GameState {
     player.memory = null;
     player.discard = [];
     player.handDefensesUsed = 0;
+    player.setDefenseUsedThisTurn = false;
     player.chargeUsed = false;
     player.spentFieldIndexes.clear();
     player.power3RecoveryDelayedFieldIndexes.clear();
@@ -309,6 +310,21 @@ describe("hand defense resolution", () => {
     expect(defender.life).toBe(CONFIG.life - 3);
     expect(defender.hand.map((item) => item.id)).toEqual(["AI-WATER-4"]);
     expect(defender.discard).toEqual([]);
+  }));
+
+  it("allows power 3 but not power 4 hand defense when max power is 3", () => withConfig({ handDefenseMaxPower: 3 }, () => {
+    const game = duelGame();
+    const attacker = game.players[0];
+    const defender = game.players[1];
+    attacker.field = [card("AI-WATER-3")];
+    defender.hand = [card("AI-WATER-4"), card("AI-WATER-3")];
+    defender.deck = [];
+
+    beginAttackInDraft(game, 0, 0);
+
+    expect(defender.life).toBe(CONFIG.life);
+    expect(defender.hand.map((item) => item.id)).toEqual(["AI-WATER-4"]);
+    expect(defender.discard.map((item) => item.id)).toEqual(["AI-WATER-3"]);
   }));
 
   it("uses a set defense card instead of hidden hand cards when configured", () => withConfig({ setDefenseEnabled: true }, () => {

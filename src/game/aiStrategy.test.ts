@@ -34,6 +34,8 @@ function makeGame(seed: number): GameState {
     player.deck = [];
     player.hand = [];
     player.field = [];
+    player.setDefenseCard = null;
+    player.setDefenseUsedThisTurn = false;
     player.spentFieldIndexes.clear();
   }
   return game;
@@ -355,6 +357,29 @@ describe("ai strategy", () => {
     expect(game.players[0].hand).toEqual([]);
     expect(game.players[0].setDefenseCard?.id).toBe("CMD-OPTIMIZE");
     expect(game.actionsRemaining).toBe(CONFIG.actionsPerTurn - 1);
+  }));
+
+  it("can set defense for free only once per turn", () => withConfig({ setDefenseEnabled: true, setDefenseActionCost: 0, setDefenseOncePerTurn: true }, () => {
+    const game = makeGame(54);
+    game.players[0].isHuman = false;
+    game.turn = 3;
+    game.actionsRemaining = 0;
+    game.players[0].chargeUsed = true;
+    game.players[0].hand = [card("CMD-OPTIMIZE"), card("AI-FIRE-1")];
+    game.players[0].deck = [card("AI-FIRE-1")];
+    game.players[1].deck = [card("AI-WATER-1")];
+
+    performAiActionInDraft(game, { type: "set-defense", index: 0 });
+
+    expect(game.players[0].setDefenseCard?.id).toBe("CMD-OPTIMIZE");
+    expect(game.players[0].setDefenseUsedThisTurn).toBe(true);
+    expect(game.actionsRemaining).toBe(0);
+
+    performAiActionInDraft(game, { type: "set-defense", index: 0 });
+
+    expect(game.players[0].setDefenseCard?.id).toBe("CMD-OPTIMIZE");
+    expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+    expect(game.players[0].discard).toEqual([]);
   }));
 
   it("challenger action choice ignores opponent set defense identity", () => withConfig({ setDefenseEnabled: true }, () => {

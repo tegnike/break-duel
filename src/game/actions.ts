@@ -1611,13 +1611,19 @@ export function performAiActionInDraft(
     afterAction(draft);
   } else if (action.type === "set-defense") {
     const card = player.hand[action.index];
-    if (!CONFIG.setDefenseEnabled || !canSetDefenseCard(card) || draft.actionsRemaining <= 0) return;
+    if (
+      !CONFIG.setDefenseEnabled
+      || !canSetDefenseCard(card)
+      || draft.actionsRemaining < CONFIG.setDefenseActionCost
+      || (CONFIG.setDefenseOncePerTurn && player.setDefenseUsedThisTurn)
+    ) return;
     player.hand.splice(action.index, 1);
     const replaced = player.setDefenseCard;
     if (replaced) player.discard.push(replaced);
     player.setDefenseCard = card;
+    player.setDefenseUsedThisTurn = true;
     addLog(draft, `${player.name}はカードを1枚セットした。${replaced ? `旧セット札はトラッシュへ。` : ""}`);
-    afterAction(draft);
+    afterAction(draft, CONFIG.setDefenseActionCost);
   } else if (action.type === "memory-effect") {
     useAcceleratorMemoryInDraft(draft, draft.active, action.fieldIndex);
   } else if (action.type === "attack") {

@@ -10,7 +10,9 @@ export type EndgameRulePackage =
   | "p3"
   | "p4a"
   | "p4b"
-  | "p4c";
+  | "p4bf"
+  | "p4c"
+  | "p4c3";
 
 export type EndgameRuleOptions = {
   handLimit?: number;
@@ -22,6 +24,8 @@ type EndgameConfigSnapshot = {
   handLimit: typeof CONFIG.handLimit;
   handDefenseMaxPower: typeof CONFIG.handDefenseMaxPower;
   setDefenseEnabled: typeof CONFIG.setDefenseEnabled;
+  setDefenseActionCost: typeof CONFIG.setDefenseActionCost;
+  setDefenseOncePerTurn: typeof CONFIG.setDefenseOncePerTurn;
   turnLimitResult: typeof CONFIG.turnLimitResult;
   deckOutFatigueDamage: typeof CONFIG.deckOutFatigueDamage;
   drawOnAttackDamage: typeof CONFIG.drawOnAttackDamage;
@@ -36,6 +40,8 @@ const ENDGAME_CONFIG_KEYS = [
   "handLimit",
   "handDefenseMaxPower",
   "setDefenseEnabled",
+  "setDefenseActionCost",
+  "setDefenseOncePerTurn",
   "turnLimitResult",
   "deckOutFatigueDamage",
   "drawOnAttackDamage",
@@ -59,10 +65,10 @@ export function parseEndgameRulePackage(raw: string): EndgameRulePackage[] {
   if (raw === "current") return ["current"];
   const modules = raw.split("+").map((part) => part.trim()).filter(Boolean);
   if (modules.length === 0) return ["current"];
-  const valid = new Set(["c0p1", "p1", "p2a", "p2b", "p2c", "p3", "p4a", "p4b", "p4c"]);
+  const valid = new Set(["c0p1", "p1", "p2a", "p2b", "p2c", "p3", "p4a", "p4b", "p4bf", "p4c", "p4c3"]);
   modules.forEach((module) => {
     if (!valid.has(module)) {
-      throw new Error(`--endgame-package が不正です: ${raw}（候補: current, c0p1, p2a, p2b, p2c, p3, p4a, p4b, p4c または + 結合）`);
+      throw new Error(`--endgame-package が不正です: ${raw}（候補: current, c0p1, p2a, p2b, p2c, p3, p4a, p4b, p4bf, p4c, p4c3 または + 結合）`);
     }
   });
   return modules as EndgameRulePackage[];
@@ -91,11 +97,18 @@ export function applyEndgameRulePackage(raw: string | undefined, options: Endgam
   if (modules.includes("p4a")) {
     CONFIG.handDefenseLimit = 0;
   }
-  if (modules.includes("p4b")) {
+  if (modules.some((module) => module === "p4b" || module === "p4bf")) {
     CONFIG.setDefenseEnabled = true;
+  }
+  if (modules.includes("p4bf")) {
+    CONFIG.setDefenseActionCost = 0;
+    CONFIG.setDefenseOncePerTurn = true;
   }
   if (modules.includes("p4c")) {
     CONFIG.handDefenseMaxPower = 2;
+  }
+  if (modules.includes("p4c3")) {
+    CONFIG.handDefenseMaxPower = 3;
   }
 
   return modules.join("+");

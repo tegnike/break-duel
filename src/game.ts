@@ -142,6 +142,7 @@ export type PlayerState = {
   cardsDrawn: number;
   turnsStarted: number;
   handDefensesUsed: number;
+  setDefenseUsedThisTurn: boolean;
   playedAiThisTurn: boolean;
   pipelineUsed: boolean;
   acceleratorUsed: boolean;
@@ -301,6 +302,8 @@ export const CONFIG = {
   handDefenseEmptyOnly: false,
   handDefenseMaxPower: null as number | null,
   setDefenseEnabled: false,
+  setDefenseActionCost: 1,
+  setDefenseOncePerTurn: false,
   exhaustAfterAttack: true,
   exhaustedCanDefend: false,
   exactUpgradeStep: false,
@@ -842,6 +845,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     cardsDrawn: 0,
     turnsStarted: 0,
     handDefensesUsed: 0,
+    setDefenseUsedThisTurn: false,
     playedAiThisTurn: false,
     pipelineUsed: false,
     acceleratorUsed: false,
@@ -879,6 +883,7 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     cardsDrawn: 0,
     turnsStarted: 0,
     handDefensesUsed: 0,
+    setDefenseUsedThisTurn: false,
     playedAiThisTurn: false,
     pipelineUsed: false,
     acceleratorUsed: false,
@@ -1041,6 +1046,7 @@ export function startTurn(game: GameState): void {
   game.chargedActionsRemaining = 0;
   game.players.forEach((player) => {
     player.handDefensesUsed = 0;
+    player.setDefenseUsedThisTurn = false;
     player.playedAiThisTurn = false;
     player.echoUrnUsed = false;
     player.attackChargeCompensationUsed = false;
@@ -1227,7 +1233,7 @@ export function useAction(game: GameState, cost = 1, kind: "normal" | "attack" =
   }
   game.actionsRemaining -= cost;
   const player = activePlayer(game);
-  if (game.actionsRemaining <= 0 && !player.isHuman && !game.pendingAttack && game.winner === null && !game.draw && !canUseCharge(game, player)) {
+  if (cost > 0 && game.actionsRemaining <= 0 && !player.isHuman && !game.pendingAttack && game.winner === null && !game.draw && !canUseCharge(game, player)) {
     finishTurn(game, false);
   }
 }
@@ -2590,6 +2596,9 @@ function legalAiActions(game: GameState): AiAction[] {
       if (canChargeCard(card)) actions.push({ type: "charge", index });
     });
   }
+  const canUseSetDefense = CONFIG.setDefenseEnabled
+    && (!CONFIG.setDefenseOncePerTurn || !ai.setDefenseUsedThisTurn)
+    && game.actionsRemaining >= CONFIG.setDefenseActionCost;
   if (game.actionsRemaining > 0) {
     if (ai.field.length < CONFIG.fieldLimit) {
       ai.hand.forEach((card, index) => {
@@ -2599,7 +2608,7 @@ function legalAiActions(game: GameState): AiAction[] {
     ai.hand.forEach((card, index) => {
       if (card.type === "memory") actions.push({ type: "memory", index });
       if (card.type === "event" && commandUsable(game, card, ai, human)) actions.push({ type: "command", index });
-      if (CONFIG.setDefenseEnabled && canSetDefenseCard(card)) actions.push({ type: "set-defense", index });
+      if (canUseSetDefense && canSetDefenseCard(card)) actions.push({ type: "set-defense", index });
     });
     if (canUseAcceleratorMemory(game, ai)) {
       ai.field.forEach((_, fieldIndex) => actions.push({ type: "memory-effect", fieldIndex }));
@@ -2620,6 +2629,11 @@ function legalAiActions(game: GameState): AiAction[] {
         });
       }
     }
+  }
+  if (game.actionsRemaining <= 0 && canUseSetDefense) {
+    ai.hand.forEach((card, index) => {
+      if (canSetDefenseCard(card)) actions.push({ type: "set-defense", index });
+    });
   }
   actions.push({ type: "end" });
   return actions;
