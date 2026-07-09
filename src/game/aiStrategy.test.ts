@@ -90,7 +90,7 @@ describe("ai strategy", () => {
       expect(game.turn).toBe(3);
       expect(game.active).toBe(0);
       expect(game.actionsRemaining).toBe(CONFIG.actionsPerTurn);
-      expect(chooseAiAction(game, "challenger")).toEqual({ type: "play", index: 0 });
+      expect(chooseAiAction(game, "challenger")).toEqual({ type: "command", index: 1 });
     } finally {
       Object.assign(CHALLENGER_WEIGHTS, original);
     }
@@ -175,6 +175,30 @@ describe("ai strategy", () => {
 
     expect(action.type).toBe("play");
     if (action.type === "play") expect(action.index).toBe(0);
+  });
+
+  it("beginner water deck uses tide edge as a simple attack setup", () => {
+    const game = makeGame(4701);
+    game.turn = 3;
+    game.actionsRemaining = CONFIG.actionsPerTurn;
+    game.players[0].deckName = "水単色デッキ";
+    game.players[0].field = [card("AI-WATER-2")];
+    game.players[0].hand = [card("CMD-TIDE-EDGE")];
+    game.players[1].field = [card("AI-WATER-4")];
+
+    expect(chooseAiAction(game, "beginner")).toEqual({ type: "command", index: 0 });
+  });
+
+  it("beginner earth deck upgrades with a full field", () => {
+    const game = makeGame(4702);
+    game.turn = 3;
+    game.actionsRemaining = CONFIG.actionsPerTurn;
+    game.players[0].deckName = "土単色デッキ";
+    game.players[0].field = [card("AI-EARTH-2"), card("AI-FIRE-1"), card("AI-WATER-1")];
+    game.players[0].hand = [card("AI-EARTH-3")];
+    game.players[1].field = [card("AI-WATER-4")];
+
+    expect(chooseAiAction(game, "beginner")).toEqual({ type: "upgrade", handIndex: 0, fieldIndex: 0 });
   });
 
   it("challenger profile beats beginner with the same deck", () => {

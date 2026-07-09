@@ -699,8 +699,8 @@ export function useCommandAtInDraft(
     if (!hasAttributeAi(player, "水")) return;
     const buffTarget = targetIndex ?? highestPowerReadyAi(player) ?? highestPowerFieldAi(player);
     if (buffTarget !== null && player.field[buffTarget]) {
-      addTurnFieldAttackBonus(player, buffTarget, 2);
-      text += ` このターン、${player.field[buffTarget].name}は戦闘時、攻撃値+2。`;
+      addTurnFieldAttackBonus(player, buffTarget, 3);
+      text += ` このターン、${player.field[buffTarget].name}は戦闘時、攻撃値+3。`;
     }
   } else if (used.effect === "pierce_sight") {
     setNextAttackUnblockable(player);
@@ -1542,6 +1542,12 @@ export function performAiActionInDraft(
     player.turnFieldAttackBonuses.delete(action.fieldIndex);
     let text = `${player.name}は${source.name}を元に${card.name}へアップグレード。`;
     text += applyPlayEffects(draft, player, card, action.fieldIndex, cost, source, effects);
+    if (
+      !entersSpentOnPlay(card)
+      && ((card.power === 3 && CONFIG.power3EntersSpent) || (card.power === 4 && CONFIG.power4EntersSpent))
+    ) {
+      player.spentFieldIndexes.delete(action.fieldIndex);
+    }
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "upgrade",

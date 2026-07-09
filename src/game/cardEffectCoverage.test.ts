@@ -1016,14 +1016,14 @@ const CARD_EFFECT_CASES = {
   },
   tide_edge: {
     cardId: "CMD-TIDE-EDGE",
-    description: "自分の召喚獣1体のこのターンの戦闘時攻撃値を+2する",
+    description: "自分の召喚獣1体のこのターンの戦闘時攻撃値を+3する",
     run: () => {
       const game = blankGame();
       game.players[0].hand = [card("CMD-TIDE-EDGE")];
       game.players[0].field = [card("AI-WATER-1"), card("AI-WATER-2")];
       useCommandAtInDraft(game, 0, 1);
       expectCommandUsed(game, "CMD-TIDE-EDGE");
-      expect(game.players[0].turnFieldAttackBonuses.get(1)).toBe(2);
+      expect(game.players[0].turnFieldAttackBonuses.get(1)).toBe(3);
       expect(game.players[0].turnFieldAttackBonuses.get(0)).toBeUndefined();
     },
   },

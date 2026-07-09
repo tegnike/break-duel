@@ -2646,7 +2646,7 @@ export default function App() {
           zone: "field",
           playerIndex: draft.active,
           title: `${command.name}で強化する召喚獣を選択`,
-          prompt: "このターン、戦闘時の攻撃値を+2する自分の召喚獣を1体選んでください。",
+          prompt: "このターン、戦闘時の攻撃値を+3する自分の召喚獣を1体選んでください。",
           confirmLabel: "この召喚獣を強化",
           min: 1,
           max: 1,
