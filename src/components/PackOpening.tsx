@@ -12,12 +12,11 @@ import brandMark from "../assets/mark.svg";
 
 // UR 確定時の全画面カットイン。.stitch-shell と同様に祖先が overflow:hidden の
 // stacking context を持つため、fixed 演出は body へ Portal して確実に画面全体を覆う。
-// 紙吹雪＋斜めバナーという汎用ソシャゲ演出や CSS の手描き形状は「手作り感」が出やすいため、
-// 同心円・ルーンティック・水晶片の飛散は runPackBurst と同じ加算合成の Canvas 2D
-// パーティクルエンジン（runUrCutinBurst）に任せ、DOM/CSS 側はテキストと簡単なフラッシュだけにする。
+// 汎用的な魔法陣ではなく、Break Duel の六角形・回路・亀裂を Canvas 2D で描く。
+// DOM/CSS 側は中央のレアリティ表記と短い色収差フラッシュだけに留める。
 function PackUrCutIn() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // 紋章（ULTRA RARE 本体）は keyframe animation だけに頼ると、タブが一瞬でも
+  // 紋章（UR 本体）は keyframe animation だけに頼ると、タブが一瞬でも
   // バックグラウンド化した際などにタイムラインが 0% のまま進まず不透明度 0 で
   // 固まってしまうことがある（カードめくりで踏んだのと同じ不具合）。
   // 装飾以上に「見えないと成立しない」要素なので、確実に最終状態へ収束する
@@ -38,7 +37,7 @@ function PackUrCutIn() {
       <span className="pack-ur-cutin-flash" />
       <canvas ref={canvasRef} className="pack-ur-cutin-canvas" />
       <span className="pack-ur-cutin-seal">
-        <strong>ULTRA RARE</strong>
+        <strong>UR</strong>
       </span>
     </div>,
     document.body,
@@ -61,13 +60,6 @@ type RevealCallout = { token: number; rarity: CardRarity; label: string; isNew: 
 type PlaySfx = (kind: string) => void;
 
 const RARITY_POWER: Record<CardRarity, number> = { n: 0, r: 1, sr: 2, ur: 3 };
-const RESULT_COPY: Record<CardRarity, string> = {
-  n: "カード獲得",
-  r: "Rカード獲得",
-  sr: "SRカード獲得",
-  ur: "URカード獲得",
-};
-
 function drawFrom(pool: Card[], usedIds: Set<string>): Card {
   const candidates = pool.filter((card) => !usedIds.has(card.id));
   const picked = candidates[Math.floor(Math.random() * candidates.length)] ?? pool[0];
@@ -119,13 +111,6 @@ function omenOf(cards: PackCard[] | null): PackOmen {
   if (cards.some((entry) => entry.rarity === "ur")) return "ur";
   if (cards.some((entry) => entry.rarity === "sr")) return "sr";
   return "none";
-}
-
-function bestRarityOf(cards: PackCard[] | null): CardRarity {
-  return cards?.reduce<CardRarity>(
-    (best, entry) => (RARITY_POWER[entry.rarity] > RARITY_POWER[best] ? entry.rarity : best),
-    "n",
-  ) ?? "n";
 }
 
 function calloutLabelFor(entry: PackCard): string | null {
@@ -370,8 +355,6 @@ export function PackOpeningPage({
   const canAfford = coins >= PACK_COST;
   const allFlipped = pack !== null && flippedKeys.size === pack.length;
   const packOmen = omenOf(pack);
-  const bestRarity = bestRarityOf(pack);
-  const resultCopy = RESULT_COPY[bestRarity];
   const newCount = pack?.filter((entry) => entry.isNew).length ?? 0;
   const flippedEntries = Array.from(flippedKeys)
     .map((key) => pack?.find((entry) => entry.key === key))
@@ -523,7 +506,7 @@ export function PackOpeningPage({
               aria-hidden="true"
             />
             <canvas ref={revealCanvasRef} className="pack-reveal-canvas" aria-hidden="true" />
-            <div className={`pack-hype-strip rarity-${bestRarity}`}>
+            <div className="pack-hype-strip">
               <div className="pack-hype-copy">
                 <span>公開済み</span>
                 <strong>{flippedKeys.size}<small>/{PACK_SIZE}</small></strong>
@@ -576,10 +559,6 @@ export function PackOpeningPage({
                 </ul>
                 {allFlipped && resultReady ? (
                   <div className="pack-summary">
-                    <div className={`pack-result-hit rarity-${bestRarity}`}>
-                      <strong>{resultCopy}</strong>
-                      {newCount > 0 && <em>新規獲得 {newCount}枚</em>}
-                    </div>
                     <div className="pack-progress">
                       <div className="pack-progress-bar">
                         <div className="pack-progress-fill" style={{ width: `${collectionPctAfter}%` }} />
