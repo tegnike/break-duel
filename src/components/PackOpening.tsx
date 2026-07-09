@@ -61,11 +61,11 @@ type RevealCallout = { token: number; rarity: CardRarity; label: string; isNew: 
 type PlaySfx = (kind: string) => void;
 
 const RARITY_POWER: Record<CardRarity, number> = { n: 0, r: 1, sr: 2, ur: 3 };
-const RESULT_COPY: Record<CardRarity, { kicker: string; title: string }> = {
-  n: { kicker: "PACK COMPLETE", title: "COLLECTION GET" },
-  r: { kicker: "RARE OR BETTER", title: "RARE PULL" },
-  sr: { kicker: "GOLD SIGNAL", title: "SUPER RARE HIT" },
-  ur: { kicker: "PRISM SIGNAL", title: "ULTRA RARE JACKPOT" },
+const RESULT_COPY: Record<CardRarity, string> = {
+  n: "カード獲得",
+  r: "Rカード獲得",
+  sr: "SRカード獲得",
+  ur: "URカード獲得",
 };
 
 function drawFrom(pool: Card[], usedIds: Set<string>): Card {
@@ -129,10 +129,10 @@ function bestRarityOf(cards: PackCard[] | null): CardRarity {
 }
 
 function calloutLabelFor(entry: PackCard): string | null {
-  if (entry.rarity === "ur") return "JACKPOT";
-  if (entry.rarity === "sr") return "SUPER RARE";
-  if (entry.rarity === "r") return "RARE PULL";
-  if (entry.isNew) return "NEW CARD";
+  if (entry.rarity === "ur") return "UR";
+  if (entry.rarity === "sr") return "SR";
+  if (entry.rarity === "r") return "R";
+  if (entry.isNew) return "NEW";
   return null;
 }
 
@@ -154,7 +154,6 @@ export function PackOpeningPage({
   const [focusedKey, setFocusedKey] = useState<number | null>(null);
   const [resultReady, setResultReady] = useState(false);
   const [revealCallout, setRevealCallout] = useState<RevealCallout | null>(null);
-  const [sessionPackCount, setSessionPackCount] = useState(0);
   const stripRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ pointerId: number; startX: number } | null>(null);
   const settleTimerRef = useRef<number | null>(null);
@@ -205,7 +204,6 @@ export function PackOpeningPage({
     const marked = rolled.map((entry) => ({ ...entry, isNew: newIds.includes(entry.card.id) }));
     const packOmen = omenOf(marked);
     setPack(marked);
-    setSessionPackCount((count) => count + 1);
     setTearProgress(1);
     setDragging(false);
     setPhase("torn");
@@ -527,7 +525,7 @@ export function PackOpeningPage({
             <canvas ref={revealCanvasRef} className="pack-reveal-canvas" aria-hidden="true" />
             <div className={`pack-hype-strip rarity-${bestRarity}`}>
               <div className="pack-hype-copy">
-                <span>REVEAL CHAIN</span>
+                <span>公開済み</span>
                 <strong>{flippedKeys.size}<small>/{PACK_SIZE}</small></strong>
               </div>
               <div className="pack-hype-meter" aria-label={`${PACK_SIZE}枚中${flippedKeys.size}枚を公開`}>
@@ -541,10 +539,6 @@ export function PackOpeningPage({
                     />
                   );
                 })}
-              </div>
-              <div className={`pack-signal signal-${packOmen}`}>
-                <span>{packOmen === "ur" ? "PRISM" : packOmen === "sr" ? "GOLD" : "STANDARD"}</span>
-                <strong>SIGNAL</strong>
               </div>
             </div>
             <div className={`pack-reveal-layout ${showInspector ? "with-inspector" : ""}`}>
@@ -583,9 +577,8 @@ export function PackOpeningPage({
                 {allFlipped && resultReady ? (
                   <div className="pack-summary">
                     <div className={`pack-result-hit rarity-${bestRarity}`}>
-                      <span>{resultCopy.kicker}</span>
-                      <strong>{resultCopy.title}</strong>
-                      <em>SESSION PACK #{String(sessionPackCount).padStart(2, "0")}{newCount > 0 ? ` / NEW ${newCount}` : ""}</em>
+                      <strong>{resultCopy}</strong>
+                      {newCount > 0 && <em>新規獲得 {newCount}枚</em>}
                     </div>
                     <div className="pack-progress">
                       <div className="pack-progress-bar">

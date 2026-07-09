@@ -11964,7 +11964,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: auto minmax(260px, 1fr) auto;
+  grid-template-columns: auto minmax(260px, 1fr);
   align-items: center;
   gap: 18px;
   width: min(720px, calc(100% - 32px));
@@ -11982,8 +11982,7 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   min-width: 150px;
 }
 
-.pack-hype-copy > span,
-.pack-signal > span {
+.pack-hype-copy > span {
   color: #87a6ad;
   font-size: 9px;
   font-weight: 900;
@@ -12046,30 +12045,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
 @keyframes pack-chain-light {
   from { opacity: 0; transform: skewX(-18deg) scaleX(0.25); filter: brightness(2.8); }
   to { opacity: 1; transform: skewX(-18deg) scaleX(1); filter: brightness(1); }
-}
-
-.pack-signal {
-  display: grid;
-  justify-items: end;
-  min-width: 84px;
-}
-
-.pack-signal > strong {
-  color: #a7c6cb;
-  font-size: 11px;
-  letter-spacing: 0.18em;
-}
-
-.pack-signal.signal-sr > span,
-.pack-signal.signal-sr > strong {
-  color: #fde68a;
-  text-shadow: 0 0 10px rgba(250, 204, 21, 0.55);
-}
-
-.pack-signal.signal-ur > span,
-.pack-signal.signal-ur > strong {
-  color: #fff;
-  text-shadow: 0 0 8px rgba(255, 255, 255, 0.8), 0 0 16px rgba(192, 132, 252, 0.66);
 }
 
 /* めくったカードの一覧と、選択中カードの大判プレビュー（card-inspector）を並べる。
@@ -12282,13 +12257,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.09), transparent);
 }
 
-.pack-result-hit > span {
-  color: #93c5fd;
-  font-size: 9px;
-  font-weight: 950;
-  letter-spacing: 0.24em;
-}
-
 .pack-result-hit > strong {
   color: #e9faff;
   font-family: var(--duel-serif);
@@ -12310,7 +12278,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
   background: linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.12), transparent);
 }
 
-.pack-result-hit.rarity-sr > span,
 .pack-result-hit.rarity-sr > strong {
   color: #fff2a8;
   text-shadow: 0 0 20px rgba(250, 204, 21, 0.68);
@@ -12323,7 +12290,6 @@ body:has(.modal-backdrop, .starter-deck-backdrop, .discard-backdrop) {
     linear-gradient(90deg, rgba(244, 114, 182, 0.06), rgba(56, 189, 248, 0.08), rgba(192, 132, 252, 0.06));
 }
 
-.pack-result-hit.rarity-ur > span,
 .pack-result-hit.rarity-ur > strong {
   color: #fff;
   text-shadow:
