@@ -6,7 +6,7 @@ import { CARD_BY_ID, cardSet, type Card } from "./game";
 export const MATCH_WIN_COINS = 10;
 export const MATCH_LOSE_COINS = 5;
 export const PACK_COST = 5;
-export const INITIAL_COINS = 10;
+export const INITIAL_COINS = 1000;
 export const STARTER_OWNED_COUNT = 2;
 
 export const WALLET_STORAGE_KEY = "break-duel:wallet";

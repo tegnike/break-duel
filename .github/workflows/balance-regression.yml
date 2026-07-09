@@ -16,6 +16,9 @@ on:
         default: "3000000"
       rule_set:
         description: "ルールセット（通常は current）"
+        type: choice
+        options:
+          - current
         required: false
         default: "current"
 
@@ -26,22 +29,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Run balance regression
+        env:
+          GAMES: ${{ github.event.inputs.games_per_order || '200' }}
+          SEED: ${{ github.event.inputs.seed || '3000000' }}
+          RULE_SET: ${{ github.event.inputs.rule_set || 'current' }}
         run: |
-          GAMES="${{ github.event.inputs.games_per_order || '200' }}"
-          SEED="${{ github.event.inputs.seed || '3000000' }}"
-          RULE_SET="${{ github.event.inputs.rule_set || 'current' }}"
           mkdir -p tmp
-          python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py \
+          npm run balance:cost -- \
             --rule-set "$RULE_SET" \
-            --include-preset-league \
             --games-per-order "$GAMES" \
             --seed "$SEED" \
             --out tmp/balance-regression.json | tee tmp/balance-regression.txt
+          npm run sim -- league \
+            --games-per-pair "$GAMES" \
+            --seed "$SEED" \
+            --decks break control fire water wind earth \
+            --out tmp/balance-regression-league | tee -a tmp/balance-regression.txt
 
       - name: Write job summary
         if: always()
@@ -62,4 +74,5 @@ jobs:
           path: |
             tmp/balance-regression.json
             tmp/balance-regression.txt
+            tmp/balance-regression-league
           retention-days: 90

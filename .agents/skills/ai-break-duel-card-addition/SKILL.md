@@ -1,6 +1,6 @@
 ---
 name: ai-break-duel-card-addition
-description: Add or modify AI Break Duel cards end-to-end across the React/TypeScript game, Python simulator, decks, UI text, generated card art, documentation, tests, and commits. Use when the user asks to add a summon, command, relic, card effect, deck entry, card wording change, card image, or card-balance rule in the ai-break-duel repository.
+description: Add or modify AI Break Duel cards end-to-end across the React/TypeScript game, headless simulation, decks, UI text, generated card art, documentation, tests, and commits. Use when the user asks to add a summon, command, relic, card effect, deck entry, card wording change, card image, or card-balance rule in the ai-break-duel repository.
 ---
 
 # AI Break Duel Card Addition
@@ -12,10 +12,9 @@ description: Add or modify AI Break Duel cards end-to-end across the React/TypeS
    - Read `references/file-map.md` for the files that must stay synchronized.
    - Inspect current code around similar card effects before editing.
 
-2. Model the card once, then mirror it.
+2. Model the card once in the single TypeScript implementation.
    - Add TypeScript effect unions, card pool entries, deck entries, rule helpers, action resolution, AI behavior, UI selection flow, and card text.
-   - Add Python enum values, card pool entries, deck entries, engine resolution, AI behavior, and tests.
-   - Keep browser game and Python simulator behavior equivalent unless the user explicitly scopes one side only.
+   - The browser game and the headless simulation CLI (`src/sim/`) share the same engine, so one change covers both.
    - **Register every new or changed card effect in `src/game/cardEffectCoverage.test.ts`.** The unit
      suite fails by design when an effect is unregistered, so skipping this breaks `npm run check`.
    - Respect the deck construction rules when touching deck entries: 25 cards per deck, at most 2
@@ -47,7 +46,7 @@ description: Add or modify AI Break Duel cards end-to-end across the React/TypeS
 5. Update docs and tests.
    - Update `docs/game-spec.md` for authoritative current rules.
    - Update design/planning docs only when they would become misleading.
-   - Add focused Python tests in `tests/test_core_rules.py` for simulator behavior.
+   - Add focused vitest cases in `src/game/*.test.ts` for rule behavior.
    - Add or adjust UI tests only if the project already has a relevant harness or the UI change is high risk.
    - **Check the tutorial is not broken.** `src/tutorial.ts` scripts a fixed playthrough that depends
      on specific card IDs, costs, effects, and draw order. Changing a card that appears in the
@@ -56,7 +55,7 @@ description: Add or modify AI Break Duel cards end-to-end across the React/TypeS
      scripted turns on paper (or in the browser) before calling the change done.
 
 6. Verify before reporting or committing.
-   - Run `npm run check` (typecheck + TS unit + build + Python unittest). If `npm` is not on PATH
+   - Run `npm run check` (typecheck + vitest + build). If `npm` is not on PATH
      (Codex runtime), use `PATH="/Users/user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:$PATH" npm run check`.
    - If assets or text layout changed substantially, inspect the browser when practical.
    - Card additions and effect changes shift the balance. For anything beyond cosmetic changes,

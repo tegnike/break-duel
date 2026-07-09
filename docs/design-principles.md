@@ -28,11 +28,11 @@
 
 ## 3. 検証基盤の使い方と合格基準
 
-- リーグ検証: `python3 -m ai_break_duel.cli league --games-per-pair 100 --seed <seed> --decks break control fire water wind earth --out tmp/<name>`
+- リーグ検証: `npm run sim -- league --games-per-pair 100 --seed <seed> --decks break control fire water wind earth --out tmp/<name>`
   - 必ず 2 シード以上で回して平均を取ること（1 シードだと構成変更の影響とノイズを区別できない）
   - 合格基準: 単色 4 デッキが 45-55%、先攻勝率 48-52%
 - 盛り上がり指標: `simulate` の `matches.jsonl` に各手番の `turn_start` イベントとライフ配列が記録されます。ここから「先制ダメージ手番」「リード交代回数」「勝者の最大ビハインド」「最終ライフ差」「決着形態」を集計できます。目安値は `docs/balance-history.md` の 2026-07-03 エントリを参照。
 - カード別統計: `simulate` の `summary.json` 内 `card_usage` にカード別の使用・攻撃・防御などのイベント数が集計されます。
-- バランス回帰: `.agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py` でストレスデッキと既存 6 デッキの回帰確認ができます。GitHub Actions の `Balance Regression` ワークフローが週次（土曜朝 JST）と手動実行で同じチェックを回します。
-- 全体チェック: `npm run check`（typecheck + TS unit + build + Python unittest）。カード効果を追加・変更したら `src/game/cardEffectCoverage.test.ts` への登録が必須（怠ると unit テストが落ちる設計）。GitHub Actions の `CI` ワークフローが push / PR ごとに同じチェックを回します。
-- 実装は Python（`ai_break_duel/`、シミュレータの正）と TypeScript（`src/`、ブラウザ UI）の二重実装です。**ルールやカードを変えたら必ず両方に同じ変更を入れ、両方のテストを更新してください。**
+- バランス回帰: `npm run balance:cost -- --games-per-order 500 --seed <seed> --out tmp/<name>.json` でストレスデッキと既存 6 デッキの回帰確認ができます。GitHub Actions の `Balance Regression` ワークフローが週次（土曜朝 JST）と手動実行で同じチェックを回します。
+- 全体チェック: `npm run check`（typecheck + vitest + build）。カード効果を追加・変更したら `src/game/cardEffectCoverage.test.ts` への登録が必須（怠ると unit テストが落ちる設計）。GitHub Actions の `CI` ワークフローが push / PR ごとに同じチェックを回します。
+- 実装は TypeScript の単一実装です（`src/game.ts` / `src/game/actions.ts` が正。ブラウザ UI とシミュレーション CLI が同じエンジンを共有）。旧 Python シミュレータは 2026-07-08 に廃止しました。

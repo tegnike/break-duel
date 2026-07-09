@@ -108,16 +108,18 @@ python3 -m http.server 8000 --directory web
 
 ## シミュレーション
 
+ヘッドレスシミュレーション CLI（`src/sim/cli.ts`）はブラウザ UI と同じ TypeScript エンジンを使います。
+
 標準対戦を 1000 戦実行:
 
 ```bash
-python3 -m ai_break_duel.cli simulate --games 1000 --seed 1 --out tmp/simulate_1
+npm run sim -- simulate --games 1000 --seed 1 --out tmp/simulate_1
 ```
 
 固定デッキ同士を指定:
 
 ```bash
-python3 -m ai_break_duel.cli simulate \
+npm run sim -- simulate \
   --games 1000 \
   --seed 21001 \
   --out tmp/break_control_21001 \
@@ -125,10 +127,10 @@ python3 -m ai_break_duel.cli simulate \
   --second-deck control
 ```
 
-CPU モードを指定:
+CPU モードを指定（`beginner` / `challenger`、省略時は `challenger`）:
 
 ```bash
-python3 -m ai_break_duel.cli simulate \
+npm run sim -- simulate \
   --games 1000 \
   --seed 730500 \
   --out tmp/challenger_vs_beginner_fire \
@@ -141,7 +143,7 @@ python3 -m ai_break_duel.cli simulate \
 6 デッキの ordered round-robin league:
 
 ```bash
-python3 -m ai_break_duel.cli league \
+npm run sim -- league \
   --games-per-pair 1000 \
   --seed 4200000 \
   --out tmp/six_deck_league_4200000 \
@@ -154,23 +156,12 @@ python3 -m ai_break_duel.cli league \
 - `matches.jsonl`: `simulate` の各試合ログ
 - `league-summary.json`: `league` の順位表と各組み合わせ結果
 
-手札防御を無効化して比較したい場合:
-
-```bash
-python3 -m ai_break_duel.cli league \
-  --games-per-pair 1000 \
-  --seed 4200000 \
-  --out tmp/no_hand_defense_league_4200000 \
-  --decks break control fire water wind earth \
-  --hand-defense-limit 0
-```
-
-モンスター攻撃への防御割り込み（場の別召喚獣でかばう / 手札防御）を無効化して比較したい場合は `--hand-defense-vs-strike off` を付けます（標準は `value`、検証用に `eager` も選択可）。
+ターン上限を変えて比較したい場合は `--max-turns N` を付けます。
 
 挑戦者 CPU の評価重みを自動探索する:
 
 ```bash
-python3 scripts/tune_ai_profiles.py \
+npm run tune:ai -- \
   --iterations 16 \
   --games-per-seat 10 \
   --seed 730101 \
@@ -180,7 +171,7 @@ python3 scripts/tune_ai_profiles.py \
 APEX 候補を自動生成し、現行APEX+上位4候補の5デッキリーグで採用候補を選ぶ:
 
 ```bash
-python3 scripts/tune_apex_deck.py \
+npm run tune:apex -- \
   --pool-size 120 \
   --top 4 \
   --screen-games 4 \
@@ -194,19 +185,10 @@ python3 scripts/tune_apex_deck.py \
 高コスト偏重デッキなどが既存デッキを大きく上回らないかを確認する補助スクリプトがあります。
 
 ```bash
-python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py \
+npm run balance:cost -- \
   --games-per-order 1000 \
-  --seed 3000000
-```
-
-実験用ルールセットを比較する例:
-
-```bash
-python3 .agents/skills/ai-break-duel-balance-regression/scripts/run_cost_balance.py \
-  --games-per-order 1000 \
-  --seed 4300000 \
-  --rule-set current \
-  --rule-set hand_defense_0
+  --seed 3000000 \
+  --out tmp/cost-balance.json
 ```
 
 ## テスト
@@ -222,7 +204,6 @@ npm run check
 - `npm run typecheck`
 - `npm run test:unit`
 - `npm run build`
-- `python3 -m unittest`
 
 カード効果を追加・変更した場合は、TypeScript 側の `src/game/cardEffectCoverage.test.ts` に効果ケースを追加してください。
 このテストは有効カードプールに存在する効果 ID とテスト登録表の差分を検知するため、効果を実装してテスト登録を忘れると `npm run test:unit` が失敗します。
@@ -233,7 +214,7 @@ GitHub Actions で 3 つのワークフローが動きます。
 
 | ワークフロー | トリガー | 内容 |
 | --- | --- | --- |
-| `CI` | push / PR | `npm run check`（typecheck + TS unit + build + Python unittest） |
+| `CI` | push / PR | `npm run check`（typecheck + vitest + build） |
 | `Balance Regression` | 毎週土曜朝 JST + 手動実行 | ストレスデッキ回帰 + 6 デッキリーグ。結果はジョブサマリーとアーティファクトに保存 |
 | `Deploy` | main の CI 成功後 + 手動実行 | ビルドして Cloudflare Pages へデプロイ |
 
@@ -273,24 +254,19 @@ GitHub Actions で 3 つのワークフローが動きます。
 ## プロジェクト構成
 
 ```text
-ai_break_duel/
-  cards.py        Python 側カード定義、デッキ定義
-  models.py       Python 側状態型、設定
-  engine.py       Python 側ルール解決
-  ai.py           Python 側自動判断
-  cli.py          シミュレーション CLI
-
 src/
   App.tsx         ブラウザアプリ本体
-  game.ts         TypeScript 側カード定義、設定、ルール補助
-  game/actions.ts TypeScript 側ゲーム操作
-  game/cardEffectCoverage.test.ts TypeScript 側カード効果テスト
+  game.ts         カード定義、設定、ルール補助、自動判断
+  game/actions.ts ゲーム操作
+  game/*.test.ts  vitest によるルール・カード効果・ガードレールテスト
+  sim/            ヘッドレスシミュレーション CLI（simulate / league）
   components/     UI コンポーネント
   styles.css      UI スタイル
 
-tests/
-  test_core_rules.py
-  test_cost_balance.py
+scripts/
+  tuneAiProfiles.ts CPU評価重みの自動探索
+  tuneApexDeck.ts   APEX候補デッキの探索
+  runCostBalance.ts ストレスデッキのコストバランス回帰
 
 docs/
   game-spec.md

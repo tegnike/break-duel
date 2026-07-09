@@ -29,7 +29,7 @@ git status --short            # 未コミットの変更がないこと
 git branch --show-current     # main であること
 git fetch && git status -sb   # origin/main と同期していること（ahead/behind なし）
 git tag                       # 予定バージョンが既存タグと重複しないこと
-npm run check                 # typecheck + vitest + build + Python テスト全合格
+npm run check                 # typecheck + vitest + build 全合格
 gh run list --branch main -L 3  # 直近の CI が成功していること（実行中なら完了を待つ）
 ```
 

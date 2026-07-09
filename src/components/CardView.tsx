@@ -122,6 +122,11 @@ export function CardView({
         <span>{cardArtGlyph(card)}</span>
       </div>
       <div className="card-core"><div className="power">{cardCoreText(card)}</div></div>
+      {foilRarity === "ur" && (
+        <span className="card-holo-overlay" aria-hidden="true">
+          <span className="card-holo-overlay-spin" />
+        </span>
+      )}
       {showSetBadge && <div className="card-set-badge" title={setBadge}>{setBadge}</div>}
       {statBadges.length > 0 && (
         <div className="card-stat-badges">

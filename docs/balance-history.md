@@ -1,8 +1,94 @@
 # Break Duel バランス履歴
 
-最終更新: 2026-07-07
+最終更新: 2026-07-08
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
+
+## 2026-07-08 Python シミュレータ廃止・TypeScript 統一
+
+### 背景
+
+Python（`ai_break_duel/`）と TypeScript（`src/`）の二重実装は同期コストが高く、実際に乖離が発生していた。
+
+1. **設定バグ**: 旧 Python CLI は廃止済みルール `each-player-first-turn-actions=2`（各プレイヤーの最初のターンは 2 アクション）をデフォルトで使用していた。現行仕様（先攻 1 ターン目 1 アクション、それ以外 3 アクション）とずれた条件で歴代のシミュレーションが回っていたことになる。
+2. **AI 実装差**: challenger AI の監査で Python / TS 間に 14 件の実装差が判明（カード価値ボーナス、場圧迫ペナルティ、pierce の防御評価、タイブレーク等。`docs/strongest-cpu-plan.md` Phase 2 の初期仮説リストに転記済み）。
+3. TS がゲーム本体（実際に出荷される実装）であり `docs/game-spec.md` 準拠のため、**TS を正と確定**し、シミュレータも TS に統一する。
+
+### 変更内容
+
+1. TS ヘッドレスシミュレーション CLI を新設: `npm run sim -- simulate|league ...`（`src/sim/`。ブラウザと同一エンジンを共有）
+2. 探索スクリプトを TS へ移植: `npm run tune:ai`（`scripts/tuneAiProfiles.ts`）/ `npm run tune:apex`（`scripts/tuneApexDeck.ts`）/ `npm run balance:cost`（`scripts/runCostBalance.ts`）
+3. Python ルールテスト 68 件を vitest へ移植、ストレスデッキのガードレール 7 本も `src/game/costBalance.guard.test.ts` へ移植
+4. Python シミュレータ本体（`ai_break_duel/`）、Python テスト（`tests/`）、旧探索スクリプト（`scripts/tune_ai_profiles.py` / `tune_apex_deck.py`）、旧回帰スクリプト（`run_cost_balance.py`）を削除。`npm run check` から `python3 -m unittest` を除去
+5. 分析専用スクリプト `league_report.py` / `excitement_metrics.py` は出力 JSON 互換のため存続（本エントリの検証で動作確認済み）
+
+### 検証（TS 基準の再ベースライン）
+
+**これは計測器（シミュレータ）変更によるベースライン改訂であり、ゲームルールの変更ではない。** ブラウザで動くゲーム本体の挙動は一切変わっていない。旧 Python 基準値との差は、上記の設定バグ・AI 実装差が旧数値に混入していたことによる。以降のバランス判断は本エントリの TS 数値を基準とする。
+
+**6 デッキリーグ**（`npm run sim -- league`、100 games/ordered pair、seed 4101 / 730001、各 3000 戦）:
+
+| デッキ | seed 4101 | seed 730001 | 平均（TS 新基準） | 旧 Python 基準* |
+| --- | ---: | ---: | ---: | ---: |
+| break | 46.5% | 46.3% | 46.4% | 50.9% |
+| control | 65.6% | 62.9% | 64.2% | 57.0% |
+| fire | 52.8% | 52.1% | 52.4% | 49.1% |
+| water | 41.6% | 43.6% | 42.6% | 53.3% |
+| wind | 41.6% | 44.4% | 43.0% | 42.2% |
+| earth | 50.4% | 49.3% | 49.9% | 47.5% |
+| 先攻勝率 | 47.6% | 46.4% | 47.0% | — |
+
+\* 旧 Python 基準は 2026-07-07 エントリ（seed 2026070719 / 2026070720）の変更後値。シードが異なるため厳密比較ではなく水準の目安。
+
+league_report 判定は water 42.6% / wind 43.0% / 先攻 47.0% が基準外（CHECK NEEDED）。control 64.2% の突出と合わせて、これは TS challenger の実力が旧 Python challenger と異なる（＝計測器が変わった）ことの現れであり、次回以降のバランス調整課題として扱う（ゲーム本体は無変更のため本エントリでは調整しない）。
+
+**盛り上がり指標**（`npm run sim -- simulate` 1000 戦、seed 4101、標準対戦 break vs control → `excitement_metrics.py`）:
+
+| 指標 | TS 新基準 | 旧 Python 基準* |
+| --- | ---: | ---: |
+| 平均ターン | 23.2（中央値 24） | 19.5 |
+| 先攻勝率（break 側） | 29.3% | 44.8% |
+| リード交代あり | 65.1%（平均 1.07 回） | 64.5% |
+| 2点ビハインド逆転 | 50.0% | 52.0% |
+| 先に2点差をつけた側の勝率 | 57.1% | 58.7% |
+| 最大スイング 3 点以上 | 88.5%（4 点以上 66.8%） | — |
+| 決着形態 | lifeout 70.8% / resource 29.0% / draw 0.2% | resource 0.6% |
+
+\* 平均ターン・先攻勝率は 2026-07-07 エントリ（seed 2026070718、2000 戦、40 手番化後）、その他は 2026-07-06 エントリ（seed 2026070641、40 手番化前）の値。シード・条件が異なるため水準の目安。
+
+resource 決着 29.0% は旧基準（1% 未満）から大きく増えている。標準対戦の break 側勝率 29.3% と合わせて監視対象（TS challenger は control のデッキ切れ勝ち筋を旧 Python challenger より使いこなす）。
+
+**ストレスデッキ回帰**（`npm run balance:cost`、500 games/order、seed 3000000、各帯 6000 戦）:
+
+| 候補 | TS 新基準 | ガードレール上限 | 旧 Python 基準* |
+| --- | ---: | ---: | ---: |
+| p1 | 0.12% | 15% | 0.03% |
+| p1-2 | 4.98% | 45% | 3.43% |
+| p2 | 17.97% | 65% | 9.37% |
+| p2-3 | 54.60% | 80% | 37.57% |
+| p3 | 44.87% | 80% | 32.66% |
+| p3-4 | 43.45% | 75% | 41.41% |
+| p4 | 40.57% | 75% | 43.36% |
+
+\* 旧 Python 基準は 2026-07-07 頃のエントリ（seed 2026070751、1000 games/order）。全 7 帯とも移植済みガードレール上限（`src/game/costBalance.guard.test.ts`）の範囲内。p2-3 54.6% は従来の RISK 目安（50%）を超えるが、新基準のガードレール上限 80% 内であり、コストカーブの破綻ではなく計測器差として記録する。
+
+`npm run check` green（typecheck + vitest 280 件 + build。ガードレール込み）。
+
+### 判断
+
+採用する。二重実装は設定バグと 14 件の AI 実装差という形で実害を出しており、ゲーム本体である TS への統一で「シミュレーションと実プレイの乖離」を構造的に解消した。本エントリの数値を新基準とし、water / wind / control の勝率乖離と resource 決着率は次回バランス調整の課題として起票する。旧 Python 側にだけあった AI 評価知識 14 件は `docs/strongest-cpu-plan.md` Phase 2 の初期仮説として引き継ぐ。
+
+### 検証コマンド
+
+```bash
+npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/rebase-league-4101
+npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/rebase-league-730001
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/rebase-league-4101 tmp/rebase-league-730001
+npm run sim -- simulate --games 1000 --seed 4101 --out tmp/rebase-sim-4101
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/rebase-sim-4101
+npm run balance:cost -- --games-per-order 500 --seed 3000000 --out tmp/rebase-cost.json
+npm run check
+```
 
 ## 2026-07-07 終盤の犠牲攻撃評価 + 40手番引き分け: 採用
 
