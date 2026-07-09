@@ -8,7 +8,9 @@ export type EndgameRulePackage =
   | "p2b"
   | "p2c"
   | "p3"
-  | "p4a";
+  | "p4a"
+  | "p4b"
+  | "p4c";
 
 export type EndgameRuleOptions = {
   handLimit?: number;
@@ -18,6 +20,8 @@ export type EndgameRuleOptions = {
 type EndgameConfigSnapshot = {
   handDefenseLimit: typeof CONFIG.handDefenseLimit;
   handLimit: typeof CONFIG.handLimit;
+  handDefenseMaxPower: typeof CONFIG.handDefenseMaxPower;
+  setDefenseEnabled: typeof CONFIG.setDefenseEnabled;
   turnLimitResult: typeof CONFIG.turnLimitResult;
   deckOutFatigueDamage: typeof CONFIG.deckOutFatigueDamage;
   drawOnAttackDamage: typeof CONFIG.drawOnAttackDamage;
@@ -30,6 +34,8 @@ type EndgameConfigSnapshot = {
 const ENDGAME_CONFIG_KEYS = [
   "handDefenseLimit",
   "handLimit",
+  "handDefenseMaxPower",
+  "setDefenseEnabled",
   "turnLimitResult",
   "deckOutFatigueDamage",
   "drawOnAttackDamage",
@@ -53,10 +59,10 @@ export function parseEndgameRulePackage(raw: string): EndgameRulePackage[] {
   if (raw === "current") return ["current"];
   const modules = raw.split("+").map((part) => part.trim()).filter(Boolean);
   if (modules.length === 0) return ["current"];
-  const valid = new Set(["c0p1", "p1", "p2a", "p2b", "p2c", "p3", "p4a"]);
+  const valid = new Set(["c0p1", "p1", "p2a", "p2b", "p2c", "p3", "p4a", "p4b", "p4c"]);
   modules.forEach((module) => {
     if (!valid.has(module)) {
-      throw new Error(`--endgame-package が不正です: ${raw}（候補: current, c0p1, p2a, p2b, p2c, p3, p4a または + 結合）`);
+      throw new Error(`--endgame-package が不正です: ${raw}（候補: current, c0p1, p2a, p2b, p2c, p3, p4a, p4b, p4c または + 結合）`);
     }
   });
   return modules as EndgameRulePackage[];
@@ -84,6 +90,12 @@ export function applyEndgameRulePackage(raw: string | undefined, options: Endgam
   }
   if (modules.includes("p4a")) {
     CONFIG.handDefenseLimit = 0;
+  }
+  if (modules.includes("p4b")) {
+    CONFIG.setDefenseEnabled = true;
+  }
+  if (modules.includes("p4c")) {
+    CONFIG.handDefenseMaxPower = 2;
   }
 
   return modules.join("+");

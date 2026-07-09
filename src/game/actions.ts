@@ -21,6 +21,7 @@ import {
   attackCombatValue,
   canActivePlayerAttack,
   canChargeCard,
+  canSetDefenseCard,
   canUseCharge,
   canDefend,
   canUseAcceleratorMemory,
@@ -118,6 +119,21 @@ export function discardHandCards(game: GameState, playerIndex: number, indexes: 
     discarded.unshift(card);
   });
   return discarded;
+}
+
+function consumeHandDefenseCard(defender: PlayerState, index: number): Card | null {
+  if (CONFIG.setDefenseEnabled && index === -1) {
+    const card = defender.setDefenseCard;
+    if (!card) return null;
+    defender.setDefenseCard = null;
+    defender.discard.push(card);
+    return card;
+  }
+  const card = defender.hand[index];
+  if (!card) return null;
+  defender.hand.splice(index, 1);
+  defender.discard.push(card);
+  return card;
 }
 
 export function useAcceleratorMemoryInDraft(draft: GameState, playerIndex: number, fieldIndex: number): Card | null {
@@ -856,7 +872,8 @@ export function resolveDefenseInDraft(
       }
       resolveStrikeFieldDefenseInDraft(draft, pending.attackerIndex, pending.fieldIndex, pending.strikeTargetIndex, choice.index, effects, choice.firewallDiscardIndex);
     } else if (choice.type === "hand") {
-      if (!legalHandDefenders(strikeDefender, strikeAttackCard, strikeAttackContext).some((option) => option.index === choice.index)) return;
+      const defenseCard = CONFIG.setDefenseEnabled && choice.index === -1 ? strikeDefender.setDefenseCard : strikeDefender.hand[choice.index];
+      if (!defenseCard || !legalHandDefenders(strikeDefender, strikeAttackCard, strikeAttackContext).some((option) => option.index === choice.index)) return;
       resolveStrikeHandDefenseInDraft(draft, pending.attackerIndex, pending.fieldIndex, pending.strikeTargetIndex, choice.index, effects);
     } else if (choice.type === "none") {
       resolveStrikeOutcomeInDraft(draft, pending.attackerIndex, pending.fieldIndex, pending.strikeTargetIndex, effects);
@@ -1009,12 +1026,11 @@ export function resolveDefenseInDraft(
       };
     }
   } else if (choice.type === "hand") {
-    const defenseCard = defender.hand[choice.index];
+    const defenseCard = CONFIG.setDefenseEnabled && choice.index === -1 ? defender.setDefenseCard : defender.hand[choice.index];
     if (!defenseCard || !legalHandDefenders(defender, attackCard, attackContext).some((option) => option.index === choice.index)) return;
     draft.pendingTarget = null;
-    defender.hand.splice(choice.index, 1);
+    consumeHandDefenseCard(defender, choice.index);
     defender.handDefensesUsed += 1;
-    defender.discard.push(defenseCard);
     const pierced = piercesHandDefense(attackCard);
     if (pierced) dealLifeDamage(defender);
     const pierceBreakDrawnCards = pierced && CONFIG.drawOnAttackDamage !== "none" ? drawCards(defender, 1) : [];
@@ -1371,13 +1387,12 @@ export function resolveStrikeHandDefenseInDraft(
   const defender = draft.players[defenderIndex];
   const attackCard = attacker.field[fieldIndex];
   const targetCard = defender.field[targetIndex];
-  const defenseCard = defender.hand[handIndex];
+  const defenseCard = CONFIG.setDefenseEnabled && handIndex === -1 ? defender.setDefenseCard : defender.hand[handIndex];
   if (!attackCard || !targetCard || !defenseCard) return;
   draft.pendingAttack = null;
   draft.pendingTarget = null;
-  defender.hand.splice(handIndex, 1);
+  consumeHandDefenseCard(defender, handIndex);
   defender.handDefensesUsed += 1;
-  defender.discard.push(defenseCard);
   const pierced = piercesHandDefense(attackCard);
   if (pierced) dealLifeDamage(defender);
   const pierceBreakDrawnCards = pierced && CONFIG.drawOnAttackDamage !== "none" ? drawCards(defender, 1) : [];
@@ -1593,6 +1608,15 @@ export function performAiActionInDraft(
         ...(replaced ? [{ card: replaced, label: "旧遺物", state: "trash" as const }] : []),
       ],
     });
+    afterAction(draft);
+  } else if (action.type === "set-defense") {
+    const card = player.hand[action.index];
+    if (!CONFIG.setDefenseEnabled || !canSetDefenseCard(card) || draft.actionsRemaining <= 0) return;
+    player.hand.splice(action.index, 1);
+    const replaced = player.setDefenseCard;
+    if (replaced) player.discard.push(replaced);
+    player.setDefenseCard = card;
+    addLog(draft, `${player.name}はカードを1枚セットした。${replaced ? `旧セット札はトラッシュへ。` : ""}`);
     afterAction(draft);
   } else if (action.type === "memory-effect") {
     useAcceleratorMemoryInDraft(draft, draft.active, action.fieldIndex);

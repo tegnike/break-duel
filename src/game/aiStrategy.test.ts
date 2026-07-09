@@ -39,6 +39,16 @@ function makeGame(seed: number): GameState {
   return game;
 }
 
+function withConfig<T>(patch: Partial<typeof CONFIG>, run: () => T): T {
+  const original = Object.fromEntries(Object.keys(patch).map((key) => [key, CONFIG[key as keyof typeof CONFIG]])) as Partial<typeof CONFIG>;
+  Object.assign(CONFIG, patch);
+  try {
+    return run();
+  } finally {
+    Object.assign(CONFIG, original);
+  }
+}
+
 describe("ai strategy", () => {
   it("uses optimize even without a useful effect, then ends the turn", () => {
     // 2026-07-06 のリワークで CMD-OPTIMIZE の「手札2枚以上」制約を撤廃したため、
@@ -330,4 +340,41 @@ describe("ai strategy", () => {
 
     expect(chooseAiAction(first, "beginner")).toEqual(chooseAiAction(second, "beginner"));
   });
+
+  it("can set a non-memory card as paid defense", () => withConfig({ setDefenseEnabled: true }, () => {
+    const game = makeGame(52);
+    game.players[0].isHuman = false;
+    game.turn = 3;
+    game.actionsRemaining = CONFIG.actionsPerTurn;
+    game.players[0].hand = [card("CMD-OPTIMIZE")];
+    game.players[0].deck = [card("AI-FIRE-1")];
+    game.players[1].deck = [card("AI-WATER-1")];
+
+    performAiActionInDraft(game, { type: "set-defense", index: 0 });
+
+    expect(game.players[0].hand).toEqual([]);
+    expect(game.players[0].setDefenseCard?.id).toBe("CMD-OPTIMIZE");
+    expect(game.actionsRemaining).toBe(CONFIG.actionsPerTurn - 1);
+  }));
+
+  it("challenger action choice ignores opponent set defense identity", () => withConfig({ setDefenseEnabled: true }, () => {
+    const first = makeGame(53);
+    const second = makeGame(53);
+    for (const game of [first, second]) {
+      game.turn = 3;
+      game.actionsRemaining = CONFIG.actionsPerTurn;
+      game.players[0].field = [card("AI-FIRE-2")];
+      game.players[0].hand = [card("AI-FIRE-1"), card("AI-FIRE-4")];
+      game.players[1].deckName = "火単色デッキ";
+      game.players[1].field = [];
+      game.players[1].discard = [card("AI-FIRE-1")];
+      game.players[1].hand = [card("CMD-OPTIMIZE")];
+    }
+    first.players[1].setDefenseCard = card("AI-WATER-4");
+    second.players[1].setDefenseCard = card("CMD-OPTIMIZE");
+
+    expect(chooseAiAction(first, "challenger")).toEqual(chooseAiAction(second, "challenger"));
+    expect(estimatePublicHandDefenseValue(first.players[1], card("AI-FIRE-2")))
+      .toBe(estimatePublicHandDefenseValue(second.players[1], card("AI-FIRE-2")));
+  }));
 });

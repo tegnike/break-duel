@@ -134,6 +134,7 @@ export type PlayerState = {
   deck: Card[];
   hand: Card[];
   knownHandCards: Card[];
+  setDefenseCard: Card | null;
   field: Card[];
   fieldStacks: Card[][];
   memory: Card | null;
@@ -298,6 +299,8 @@ export const CONFIG = {
   eachPlayerFirstTurnActions: null as number | null,
   handDefenseLimit: 1 as number | null,
   handDefenseEmptyOnly: false,
+  handDefenseMaxPower: null as number | null,
+  setDefenseEnabled: false,
   exhaustAfterAttack: true,
   exhaustedCanDefend: false,
   exactUpgradeStep: false,
@@ -831,6 +834,7 @@ export function makePlayer(name: string, isHuman: boolean, deckId: DeckId, rng: 
     deck,
     hand: [],
     knownHandCards: [],
+    setDefenseCard: null,
     field: [],
     fieldStacks: [],
     memory: null,
@@ -867,6 +871,7 @@ export function makeCustomDeckPlayer(name: string, isHuman: boolean, deckName: s
     deck,
     hand: [],
     knownHandCards: [],
+    setDefenseCard: null,
     field: [],
     fieldStacks: [],
     memory: null,
@@ -914,6 +919,7 @@ export function cloneGame(game: GameState): GameState {
       deck: [...player.deck],
       hand: [...player.hand],
       knownHandCards: [...(player.knownHandCards ?? [])],
+      setDefenseCard: player.setDefenseCard,
       field: [...player.field],
       fieldStacks: (player.fieldStacks ?? []).map((stack) => [...stack]),
       discard: [...player.discard],
@@ -1639,12 +1645,19 @@ export function legalHandDefenders(defender: PlayerState, attackCard: Card, atta
     if (defender.handDefensesUsed >= CONFIG.handDefenseLimit) return [];
   }
   if (CONFIG.handDefenseEmptyOnly && defender.field.length > 0) return [];
-  return defender.hand
-    .map((card, index) => ({ card, index }))
+  const candidates = CONFIG.setDefenseEnabled
+    ? (defender.setDefenseCard ? [{ card: defender.setDefenseCard, index: -1 }] : [])
+    : defender.hand.map((card, index) => ({ card, index }));
+  return candidates
     .filter(({ card }) => card.type === "ai"
       && !cannotHandDefend(card)
+      && (CONFIG.handDefenseMaxPower === null || (card.power ?? 0) <= CONFIG.handDefenseMaxPower)
       && !(CONFIG.power3CannotHandDefend && card.power === 3)
       && canDefend(attackCard, card, defender, { fieldDefense: false, attackContext }));
+}
+
+export function canSetDefenseCard(card: Card | null | undefined): boolean {
+  return Boolean(card && card.type !== "memory");
 }
 
 export function defenseMathText(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: DefenseOptions = {}): string {
@@ -2251,6 +2264,7 @@ export type AiAction =
   | { type: "play"; index: number }
   | { type: "upgrade"; handIndex: number; fieldIndex: number }
   | { type: "memory"; index: number }
+  | { type: "set-defense"; index: number }
   | { type: "memory-effect"; fieldIndex: number }
   | { type: "attack"; index: number }
   | { type: "strike"; index: number; targetIndex: number }
@@ -2585,6 +2599,7 @@ function legalAiActions(game: GameState): AiAction[] {
     ai.hand.forEach((card, index) => {
       if (card.type === "memory") actions.push({ type: "memory", index });
       if (card.type === "event" && commandUsable(game, card, ai, human)) actions.push({ type: "command", index });
+      if (CONFIG.setDefenseEnabled && canSetDefenseCard(card)) actions.push({ type: "set-defense", index });
     });
     if (canUseAcceleratorMemory(game, ai)) {
       ai.field.forEach((_, fieldIndex) => actions.push({ type: "memory-effect", fieldIndex }));
@@ -2686,6 +2701,26 @@ function scoreAiAction(game: GameState, action: AiAction, classic: AiAction): nu
     const card = ai.hand[action.index];
     if (!card) return -9999;
     return score + CHALLENGER_WEIGHTS.memory + aiCardValue(card) - (ai.memory ? 24 : 0) + deckTypeConditionalBias(ai, action);
+  }
+  if (action.type === "set-defense") {
+    const card = ai.hand[action.index];
+    if (!card || !canSetDefenseCard(card)) return -9999;
+    const opponentReadyAttackers = attackableField(opponent);
+    const canBlockReadyThreat = card.type === "ai" && opponentReadyAttackers.some(({ card: attacker, index }) => (
+      canDefend(attacker, card, ai, { fieldDefense: false, attackContext: { attacker: opponent, attackerFieldIndex: index } })
+    ));
+    const maxIncomingDamage = opponentReadyAttackers.reduce((max, { card: attacker }) => Math.max(max, attackDamage(attacker)), 0);
+    const blockerValue = card.type === "ai"
+      ? aiCardValue(card) * 0.35 + (card.power ?? 0) * 8 + (canBlockReadyThreat ? 70 : 0)
+      : 18;
+    return score
+      + CHALLENGER_WEIGHTS.command
+      + CHALLENGER_WEIGHTS.handTradeAttack
+      + blockerValue
+      + maxIncomingDamage * 18
+      - aiCardValue(card) * 0.28
+      - (ai.setDefenseCard ? 18 : 0)
+      + deckTypeConditionalBias(ai, action);
   }
   if (action.type === "memory-effect") {
     const sacrificed = ai.field[action.fieldIndex];
@@ -2900,6 +2935,7 @@ function publicHandDefenseEstimateInput(
   attackCard: Card,
   attackContext?: AttackContext,
 ): PublicHandDefenseEstimateInput | null {
+  if (CONFIG.setDefenseEnabled) return null;
   if (attackContext?.attacker?.nextAttackUnblockable) return null;
   if (blocksLowLifeHandDefense(attackCard, defender)) return null;
   if (CONFIG.handDefenseLimit !== null) {
@@ -2934,12 +2970,14 @@ function publicHandDefenseEstimateInput(
   const knownLegalCandidates = knownHand
     .filter((card) => card.type === "ai"
       && !cannotHandDefend(card)
+      && (CONFIG.handDefenseMaxPower === null || (card.power ?? 0) <= CONFIG.handDefenseMaxPower)
       && !(CONFIG.power3CannotHandDefend && card.power === 3)
       && canDefend(attackCard, card, defender, { fieldDefense: false, attackContext }));
   if (hiddenCandidates.length === 0 && knownLegalCandidates.length === 0) return null;
   const legalCandidates = hiddenCandidates
     .filter((card) => card.type === "ai"
       && !cannotHandDefend(card)
+      && (CONFIG.handDefenseMaxPower === null || (card.power ?? 0) <= CONFIG.handDefenseMaxPower)
       && !(CONFIG.power3CannotHandDefend && card.power === 3)
       && canDefend(attackCard, card, defender, { fieldDefense: false, attackContext }));
   if (legalCandidates.length === 0 && knownLegalCandidates.length === 0) return null;
@@ -2991,6 +3029,11 @@ export function estimatePublicHandDefenseValue(
   attackCard: Card,
   attackContext?: AttackContext,
 ): number | null {
+  if (CONFIG.setDefenseEnabled) {
+    return publicSetDefenseAvailable(defender, attackCard, attackContext)
+      ? CHALLENGER_WEIGHTS.handTradeAttack * CHALLENGER_WEIGHTS.publicHandDefenseWeight
+      : null;
+  }
   const input = publicHandDefenseEstimateInput(defender, attackCard, attackContext);
   return input ? estimatePublicHandDefenseCandidateValue(input) : null;
 }
@@ -3000,6 +3043,7 @@ export function estimatePublicHandDefenseProbability(
   attackCard: Card,
   attackContext?: AttackContext,
 ): number | null {
+  if (CONFIG.setDefenseEnabled) return publicSetDefenseAvailable(defender, attackCard, attackContext) ? 1 : null;
   const input = publicHandDefenseEstimateInput(defender, attackCard, attackContext);
   return input ? estimatePublicHandDefenseCandidateProbability(input) : null;
 }
@@ -3014,6 +3058,11 @@ function estimatePublicStrikeHandDefenseValue(
   if (mode !== "eager" && mode !== "value") return null;
   const { attackValue, defenseValue } = strikeValues(attackCard, defender, targetIndex, attackContext);
   if (attackValue === defenseValue) return null;
+  if (CONFIG.setDefenseEnabled) {
+    return publicSetDefenseAvailable(defender, attackCard, attackContext)
+      ? CHALLENGER_WEIGHTS.handTradeAttack * CHALLENGER_WEIGHTS.publicHandDefenseWeight
+      : null;
+  }
   const input = publicHandDefenseEstimateInput(defender, attackCard, attackContext);
   if (!input) return null;
   const stack = defender.fieldStacks?.[targetIndex] ?? [];
@@ -3026,6 +3075,17 @@ function estimatePublicStrikeHandDefenseValue(
     ? input.knownLegalCandidates.filter((card) => savedPower >= (card.power || 1))
     : input.knownLegalCandidates;
   return estimatePublicHandDefenseCandidateValue({ ...input, legalCandidates, knownLegalCandidates });
+}
+
+function publicSetDefenseAvailable(defender: PlayerState, attackCard: Card, attackContext?: AttackContext): boolean {
+  if (attackContext?.attacker?.nextAttackUnblockable) return false;
+  if (blocksLowLifeHandDefense(attackCard, defender)) return false;
+  if (CONFIG.handDefenseLimit !== null) {
+    if (CONFIG.handDefenseLimit <= 0) return false;
+    if (defender.handDefensesUsed >= CONFIG.handDefenseLimit) return false;
+  }
+  if (CONFIG.handDefenseEmptyOnly && defender.field.length > 0) return false;
+  return Boolean(defender.setDefenseCard);
 }
 
 function sacrificialFollowupDamageAfterBlock(game: GameState, attackerFieldIndex: number, blockerIndex: number): number {
@@ -3199,6 +3259,7 @@ function aiActionTieBreak(action: AiAction): number {
     charge: 3,
     "memory-effect": 2,
     memory: 1,
+    "set-defense": 1,
     end: 0,
   };
   priority.strike = CHALLENGER_WEIGHTS.strikeTieBreakPriority;
@@ -3276,7 +3337,7 @@ export function checkResourceExhaustion(game: GameState): void {
 }
 
 function hasLiveResources(player: PlayerState): boolean {
-  return player.deck.length > 0 || player.hand.length > 0 || player.field.length > 0;
+  return player.deck.length > 0 || player.hand.length > 0 || player.field.length > 0 || Boolean(player.setDefenseCard);
 }
 
 export function checkTurnLimit(game: GameState): void {
