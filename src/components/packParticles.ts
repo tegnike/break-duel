@@ -1,6 +1,6 @@
 // パック開封の確定演出用 Canvas 2D エンジン。
-// SR は金色の収束光、UR はプリズム破砕光、UR カットインは Break Duel 固有の
-// 六角形・回路・亀裂で構成し、汎用的な白い魔法陣に見えないようにする。
+// SR は金色の発光雲、UR はプリズム状の光と結晶片で構成する。
+// 直線・真円・ワイヤーフレームに頼らず、生成テクスチャの重なりで密度を作る。
 
 export type OmenTheme = "sr" | "ur";
 
@@ -35,10 +35,14 @@ type ShardParticle = {
 type SpriteSet = {
   core: HTMLCanvasElement;
   sparks: HTMLCanvasElement[];
+  clouds: HTMLCanvasElement[];
 };
 
 const SR_COLORS = ["#fff3ad", "#ffd34e", "#ff9f1c"];
 const UR_COLORS = ["#ffffff", "#67e8f9", "#60a5fa", "#c084fc", "#f472b6", "#facc15"];
+type Rgb = readonly [number, number, number];
+const SR_CLOUD_COLORS: readonly Rgb[] = [[255, 245, 194], [251, 191, 36], [234, 88, 12]];
+const UR_CLOUD_COLORS: readonly Rgb[] = [[165, 243, 252], [96, 165, 250], [192, 132, 252], [244, 114, 182]];
 
 function makeGlowSprite(inner: string, mid: string): HTMLCanvasElement {
   const size = 128;
@@ -55,29 +59,86 @@ function makeGlowSprite(inner: string, mid: string): HTMLCanvasElement {
   return sprite;
 }
 
-function buildSprites(theme: OmenTheme): SpriteSet {
-  if (theme === "ur") {
-    return {
-      // 白飛びを抑え、青紫のエッジが残るコア
-      core: makeGlowSprite("rgba(255, 255, 255, 0.86)", "rgba(103, 232, 249, 0.28)"),
-      sparks: [
-        makeGlowSprite("rgba(255, 255, 255, 0.96)", "rgba(255, 255, 255, 0.34)"),
-        makeGlowSprite("rgba(165, 243, 252, 0.96)", "rgba(34, 211, 238, 0.42)"),
-        makeGlowSprite("rgba(191, 219, 254, 0.96)", "rgba(59, 130, 246, 0.4)"),
-        makeGlowSprite("rgba(233, 213, 255, 0.96)", "rgba(168, 85, 247, 0.4)"),
-        makeGlowSprite("rgba(251, 207, 232, 0.96)", "rgba(236, 72, 153, 0.38)"),
-      ],
-    };
-  }
-  return {
-    // 黄一色の面光源ではなく、琥珀色の芯を持つ金属的な金光
-    core: makeGlowSprite("rgba(255, 249, 214, 0.9)", "rgba(245, 158, 11, 0.3)"),
-    sparks: [
-      makeGlowSprite("rgba(255, 251, 235, 0.96)", "rgba(253, 224, 71, 0.4)"),
-      makeGlowSprite("rgba(254, 240, 138, 0.96)", "rgba(245, 158, 11, 0.38)"),
-      makeGlowSprite("rgba(253, 186, 116, 0.92)", "rgba(234, 88, 12, 0.3)"),
-    ],
+function seededRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0x100000000;
   };
+}
+
+// 画像生成パーツの代わりに、起動時に一度だけ作る半透明の発光雲テクスチャ。
+// 複数の楕円グラデーションを重ねることで、直線や真円が見えない有機的な光にする。
+function makeEnergyCloudSprite(colors: readonly Rgb[], seed: number): HTMLCanvasElement {
+  const size = 512;
+  const sprite = document.createElement("canvas");
+  sprite.width = size;
+  sprite.height = size;
+  const ctx = sprite.getContext("2d")!;
+  const random = seededRandom(seed);
+  ctx.globalCompositeOperation = "lighter";
+
+  for (let i = 0; i < 34; i += 1) {
+    const color = colors[Math.floor(random() * colors.length)];
+    const [r, g, b] = color;
+    const x = size * (0.26 + random() * 0.48);
+    const y = size * (0.3 + random() * 0.4);
+    const radius = size * (0.08 + random() * 0.19);
+    const stretchX = 0.7 + random() * 1.8;
+    const stretchY = 0.45 + random() * 1.05;
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+    gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${0.12 + random() * 0.12})`);
+    gradient.addColorStop(0.42, `rgba(${r}, ${g}, ${b}, ${0.045 + random() * 0.06})`);
+    gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate((random() - 0.5) * Math.PI);
+    ctx.scale(stretchX, stretchY);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(-radius, -radius, radius * 2, radius * 2);
+    ctx.restore();
+  }
+  return sprite;
+}
+
+const spriteCache: Partial<Record<OmenTheme, SpriteSet>> = {};
+
+function buildSprites(theme: OmenTheme): SpriteSet {
+  const cached = spriteCache[theme];
+  if (cached) return cached;
+  const sprites: SpriteSet = theme === "ur"
+    ? {
+        // 白飛びを抑え、青紫のエッジが残るコア
+        core: makeGlowSprite("rgba(255, 255, 255, 0.86)", "rgba(103, 232, 249, 0.28)"),
+        sparks: [
+          makeGlowSprite("rgba(255, 255, 255, 0.96)", "rgba(255, 255, 255, 0.34)"),
+          makeGlowSprite("rgba(165, 243, 252, 0.96)", "rgba(34, 211, 238, 0.42)"),
+          makeGlowSprite("rgba(191, 219, 254, 0.96)", "rgba(59, 130, 246, 0.4)"),
+          makeGlowSprite("rgba(233, 213, 255, 0.96)", "rgba(168, 85, 247, 0.4)"),
+          makeGlowSprite("rgba(251, 207, 232, 0.96)", "rgba(236, 72, 153, 0.38)"),
+        ],
+        clouds: [
+          makeEnergyCloudSprite(UR_CLOUD_COLORS, 0x2a7f31),
+          makeEnergyCloudSprite(UR_CLOUD_COLORS, 0x96d4c3),
+          makeEnergyCloudSprite(UR_CLOUD_COLORS, 0xf173ae),
+        ],
+      }
+    : {
+        // 黄一色の面光源ではなく、琥珀色の芯を持つ金属的な金光
+        core: makeGlowSprite("rgba(255, 249, 214, 0.9)", "rgba(245, 158, 11, 0.3)"),
+        sparks: [
+          makeGlowSprite("rgba(255, 251, 235, 0.96)", "rgba(253, 224, 71, 0.4)"),
+          makeGlowSprite("rgba(254, 240, 138, 0.96)", "rgba(245, 158, 11, 0.38)"),
+          makeGlowSprite("rgba(253, 186, 116, 0.92)", "rgba(234, 88, 12, 0.3)"),
+        ],
+        clouds: [
+          makeEnergyCloudSprite(SR_CLOUD_COLORS, 0x51a921),
+          makeEnergyCloudSprite(SR_CLOUD_COLORS, 0xb48317),
+          makeEnergyCloudSprite(SR_CLOUD_COLORS, 0xe0912b),
+        ],
+      };
+  spriteCache[theme] = sprites;
+  return sprites;
 }
 
 function drawSprite(
@@ -94,6 +155,25 @@ function drawSprite(
   ctx.drawImage(sprite, x - width / 2, y - height / 2, width, height);
 }
 
+function drawRotatedSprite(
+  ctx: CanvasRenderingContext2D,
+  sprite: HTMLCanvasElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  alpha: number,
+  rotation: number,
+) {
+  if (alpha <= 0) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.globalAlpha = Math.min(alpha, 1);
+  ctx.drawImage(sprite, -width / 2, -height / 2, width, height);
+  ctx.restore();
+}
+
 function drawShard(ctx: CanvasRenderingContext2D, shard: ShardParticle, alpha: number) {
   if (alpha <= 0) return;
   ctx.save();
@@ -101,8 +181,6 @@ function drawShard(ctx: CanvasRenderingContext2D, shard: ShardParticle, alpha: n
   ctx.rotate(shard.angle);
   ctx.globalAlpha = Math.min(alpha, 1);
   ctx.fillStyle = shard.color;
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.72)";
-  ctx.lineWidth = 0.7;
   ctx.shadowColor = shard.color;
   ctx.shadowBlur = 8;
   ctx.beginPath();
@@ -112,78 +190,25 @@ function drawShard(ctx: CanvasRenderingContext2D, shard: ShardParticle, alpha: n
   ctx.lineTo(0, shard.width * 0.5);
   ctx.closePath();
   ctx.fill();
-  ctx.stroke();
   ctx.restore();
 }
 
-function tracePolygon(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  radius: number,
-  sides: number,
-  rotation: number,
-) {
-  ctx.beginPath();
-  for (let i = 0; i <= sides; i += 1) {
-    const angle = rotation + (i / sides) * Math.PI * 2;
-    const x = cx + Math.cos(angle) * radius;
-    const y = cy + Math.sin(angle) * radius;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-}
-
-function drawConvergingLight(
+function drawEnergyBloom(
   ctx: CanvasRenderingContext2D,
   origin: { x: number; y: number },
   theme: OmenTheme,
-  width: number,
+  sprites: SpriteSet,
   envelope: number,
   elapsed: number,
 ) {
-  const colors = theme === "sr" ? SR_COLORS : UR_COLORS.slice(1);
-  const beamCount = theme === "sr" ? 3 : 5;
-  const spread = theme === "sr" ? 190 : 300;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  for (let i = 0; i < beamCount; i += 1) {
-    const ratio = i / (beamCount - 1);
-    const topX = origin.x + (ratio - 0.5) * spread + Math.sin(elapsed / 240 + i) * 12;
-    const color = colors[i % colors.length];
-    const gradient = ctx.createLinearGradient(topX, 0, origin.x, origin.y);
-    gradient.addColorStop(0, "rgba(0, 0, 0, 0)");
-    gradient.addColorStop(0.58, color);
-    gradient.addColorStop(1, "rgba(255, 255, 255, 0.08)");
-    ctx.globalAlpha = envelope * (theme === "sr" ? 0.09 : 0.075);
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.moveTo(topX - 18, 0);
-    ctx.lineTo(topX + 18, 0);
-    ctx.lineTo(origin.x + 10, origin.y);
-    ctx.lineTo(origin.x - 10, origin.y);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  // カード位置へ焦点を作る細い十字フレア。UR は斜めにも割れてプリズム感を出す。
-  const flare = (0.72 + Math.sin(elapsed / 75) * 0.16) * envelope;
-  ctx.globalAlpha = flare;
-  ctx.lineCap = "round";
-  ctx.strokeStyle = theme === "sr" ? "rgba(255, 226, 115, 0.88)" : "rgba(186, 230, 253, 0.82)";
-  ctx.shadowColor = theme === "sr" ? "#f59e0b" : "#67e8f9";
-  ctx.shadowBlur = 12;
-  ctx.lineWidth = 1.3;
-  ctx.beginPath();
-  ctx.moveTo(origin.x - Math.min(150, width * 0.18), origin.y);
-  ctx.lineTo(origin.x + Math.min(150, width * 0.18), origin.y);
-  ctx.moveTo(origin.x, origin.y - 120);
-  ctx.lineTo(origin.x, origin.y + 90);
-  if (theme === "ur") {
-    ctx.moveTo(origin.x - 105, origin.y + 80);
-    ctx.lineTo(origin.x + 105, origin.y - 80);
-  }
-  ctx.stroke();
+  const baseWidth = theme === "sr" ? 330 : 410;
+  const baseHeight = theme === "sr" ? 220 : 300;
+  const pulse = 1 + Math.sin(elapsed / 180) * 0.055;
+  drawRotatedSprite(ctx, sprites.clouds[0], origin.x, origin.y - 12, baseWidth * pulse, baseHeight * pulse, envelope * 0.72, elapsed / 5200);
+  drawRotatedSprite(ctx, sprites.clouds[1], origin.x - 16, origin.y + 8, baseWidth * 0.82, baseHeight * 1.12, envelope * 0.52, -elapsed / 6400 + 0.7);
+  drawRotatedSprite(ctx, sprites.clouds[2], origin.x + 20, origin.y - 4, baseWidth * 0.7, baseHeight * 0.78, envelope * 0.46, elapsed / 7200 - 0.9);
   ctx.restore();
 }
 
@@ -285,7 +310,7 @@ export function runPackBurst(
     }
 
     ctx.clearRect(0, 0, width, height);
-    drawConvergingLight(ctx, origin, theme, width, envelope, elapsed);
+    drawEnergyBloom(ctx, origin, theme, sprites, envelope, elapsed);
     ctx.globalCompositeOperation = "lighter";
 
     const pulse = 1 + Math.sin(elapsed / 95) * 0.08;
@@ -347,47 +372,7 @@ export function runPackBurst(
   };
 }
 
-function clamp01(value: number): number {
-  return Math.min(1, Math.max(0, value));
-}
-
-function drawHexCircuit(
-  ctx: CanvasRenderingContext2D,
-  center: { x: number; y: number },
-  radius: number,
-  rotation: number,
-  color: string,
-  alpha: number,
-) {
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.strokeStyle = color;
-  ctx.fillStyle = color;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 12;
-  ctx.lineWidth = 1.6;
-  tracePolygon(ctx, center.x, center.y, radius, 6, rotation);
-  ctx.stroke();
-
-  // 各頂点から伸びる短い回路と終端ノード
-  for (let i = 0; i < 6; i += 1) {
-    const angle = rotation + (i / 6) * Math.PI * 2;
-    const inner = radius + 8;
-    const outer = radius + (i % 2 === 0 ? 34 : 22);
-    const x1 = center.x + Math.cos(angle) * inner;
-    const y1 = center.y + Math.sin(angle) * inner;
-    const x2 = center.x + Math.cos(angle) * outer;
-    const y2 = center.y + Math.sin(angle) * outer;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-    ctx.fillRect(x2 - 2, y2 - 2, 4, 4);
-  }
-  ctx.restore();
-}
-
-// UR 確定カットイン。円形ルーンではなく、六角ゲートが解錠されて亀裂が走る演出。
+// UR 確定カットイン。発光雲が膨張し、中心からプリズム片が弾ける演出。
 export function runUrCutinBurst(
   canvas: HTMLCanvasElement,
   center: { x: number; y: number },
@@ -475,60 +460,27 @@ export function runUrCutinBurst(
 
     ctx.globalCompositeOperation = "lighter";
     const pulse = 1 + Math.sin(elapsed / 90) * 0.055;
-    drawSprite(ctx, sprites.core, center.x, center.y, 200 * pulse, 104 * pulse, envelope * 0.52);
-
-    // 解錠時に外へ走る六角ショックウェーブ
-    for (let ring = 0; ring < 3; ring += 1) {
-      const ringT = clamp01(t * 1.5 - ring * 0.15);
-      if (ringT <= 0 || ringT >= 1) continue;
-      const radius = 34 + ringT * Math.min(440, Math.max(width, height) * 0.46);
-      const color = UR_COLORS[(ring + 1) % UR_COLORS.length];
-      ctx.save();
-      ctx.globalAlpha = (1 - ringT) * 0.7 * envelope;
-      ctx.strokeStyle = color;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 18;
-      ctx.lineWidth = 2;
-      tracePolygon(ctx, center.x, center.y, radius, 6, -Math.PI / 6 + ringT * 0.2);
-      ctx.stroke();
-      ctx.restore();
+    for (let wave = 0; wave < 3; wave += 1) {
+      const waveT = Math.min(1, Math.max(0, (t - wave * 0.08) / 0.58));
+      if (waveT <= 0 || waveT >= 1) continue;
+      const waveWidth = 260 + waveT * Math.min(720, Math.max(width, height) * 0.72);
+      const waveHeight = 190 + waveT * Math.min(520, Math.max(width, height) * 0.52);
+      drawRotatedSprite(
+        ctx,
+        sprites.clouds[wave],
+        center.x,
+        center.y,
+        waveWidth,
+        waveHeight,
+        (1 - waveT) * envelope * 0.38,
+        elapsed / (5400 + wave * 900) + wave * 0.8,
+      );
     }
 
-    // 中央の六角ゲート。3層を逆回転させて機械的な解錠感を出す。
-    const gateIn = Math.min(1, t / 0.24);
-    const gateScale = 0.72 + gateIn * 0.28;
-    drawHexCircuit(ctx, center, 112 * gateScale, -Math.PI / 6 + elapsed / 5200, "#67e8f9", envelope * 0.86);
-    drawHexCircuit(ctx, center, 148 * gateScale, -Math.PI / 6 - elapsed / 6900, "#c084fc", envelope * 0.62);
-    drawHexCircuit(ctx, center, 182 * gateScale, -Math.PI / 6 + elapsed / 8800, "#f472b6", envelope * 0.38);
-
-    // 画面を切り裂く2本の色収差スラッシュ
-    const slashT = clamp01((t - 0.08) / 0.34);
-    if (slashT > 0 && slashT < 1) {
-      const travel = (slashT - 0.5) * Math.max(width, height) * 1.45;
-      const slashAlpha = Math.sin(slashT * Math.PI) * envelope;
-      ctx.save();
-      ctx.translate(center.x + travel, center.y);
-      ctx.rotate(-0.68);
-      ctx.globalAlpha = slashAlpha;
-      ctx.lineCap = "round";
-      ctx.lineWidth = 2.2;
-      ctx.strokeStyle = "#67e8f9";
-      ctx.shadowColor = "#22d3ee";
-      ctx.shadowBlur = 16;
-      ctx.beginPath();
-      ctx.moveTo(0, -360);
-      ctx.lineTo(0, 360);
-      ctx.stroke();
-      ctx.translate(12, 0);
-      ctx.strokeStyle = "#f472b6";
-      ctx.shadowColor = "#ec4899";
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.moveTo(0, -320);
-      ctx.lineTo(0, 320);
-      ctx.stroke();
-      ctx.restore();
-    }
+    drawRotatedSprite(ctx, sprites.clouds[0], center.x, center.y, 620 * pulse, 440 * pulse, envelope * 0.58, elapsed / 6200);
+    drawRotatedSprite(ctx, sprites.clouds[1], center.x - 34, center.y + 18, 480 * pulse, 560 * pulse, envelope * 0.42, -elapsed / 7600 + 0.8);
+    drawRotatedSprite(ctx, sprites.clouds[2], center.x + 42, center.y - 20, 430 * pulse, 360 * pulse, envelope * 0.38, elapsed / 8800 - 0.7);
+    drawSprite(ctx, sprites.core, center.x, center.y, 190 * pulse, 100 * pulse, envelope * 0.44);
 
     for (let i = glows.length - 1; i >= 0; i -= 1) {
       const p = glows[i];

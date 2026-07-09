@@ -12,8 +12,8 @@ import brandMark from "../assets/mark.svg";
 
 // UR 確定時の全画面カットイン。.stitch-shell と同様に祖先が overflow:hidden の
 // stacking context を持つため、fixed 演出は body へ Portal して確実に画面全体を覆う。
-// 汎用的な魔法陣ではなく、Break Duel の六角形・回路・亀裂を Canvas 2D で描く。
-// DOM/CSS 側は中央のレアリティ表記と短い色収差フラッシュだけに留める。
+// 線画の魔法陣ではなく、Canvas 2D で生成した発光雲・粒子・プリズム片を重ねる。
+// DOM/CSS 側は中央のレアリティ表記と短い発光だけに留める。
 function PackUrCutIn() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // 紋章（UR 本体）は keyframe animation だけに頼ると、タブが一瞬でも
