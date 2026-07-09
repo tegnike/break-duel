@@ -148,6 +148,6 @@ describe("storage keys", () => {
   it("キー名が仕様どおり", () => {
     expect(WALLET_STORAGE_KEY).toBe("break-duel:wallet");
     expect(COLLECTION_STORAGE_KEY).toBe("break-duel:collection");
-    expect(INITIAL_COINS).toBe(10);
+    expect(INITIAL_COINS).toBe(1000);
   });
 });
