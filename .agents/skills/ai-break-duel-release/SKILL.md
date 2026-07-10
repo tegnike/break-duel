@@ -94,7 +94,30 @@ git push origin main --follow-tags
 gh release create vX.Y.Z --title "vX.Y.Z" --notes-file docs/releases/vX.Y.Z.md
 ```
 
-## 6. 完了報告
+## 6. リリース後に develop を同期する
+
+リリースコミット（リリースノート、`package.json` / `package-lock.json` のバージョン更新など）を
+`main` だけに残すと、次回の `develop => main` PR で差分・競合・バージョン巻き戻しの原因になる。
+GitHub Release 作成後、必ず `develop` を `main` に fast-forward 同期する。
+
+```bash
+git fetch origin --prune --tags
+git merge-base --is-ancestor origin/develop origin/main
+```
+
+上の確認が成功した場合だけ、`develop` を `origin/main` へ fast-forward して push する。
+`develop` が別 worktree で checkout 済みの場合は、その worktree へ移動して実行する。
+
+```bash
+git switch develop
+git merge --ff-only origin/main
+git push origin develop
+```
+
+`origin/develop` が `origin/main` の祖先でない場合は、勝手にマージ・rebase しない。
+分岐しているコミットを確認し、リリースコミットの取り込み方を報告して停止する。
+
+## 7. 完了報告
 
 リリース URL（`gh release view vX.Y.Z --json url -q .url`）、タグ、
-ノートの場所を報告する。CI がタグ push で走る場合はその状態も添える。
+ノートの場所、`develop` 同期結果を報告する。CI がタグ push で走る場合はその状態も添える。
