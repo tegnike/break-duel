@@ -1,11 +1,23 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { ACTIVE_CARD_CATALOG, cardSet, type Card } from "../game";
+import type { Card } from "../game";
 import { CardView } from "./CardView";
 import { CardInspector } from "./DeckWorkshop";
 import { runPackBurst, runUrCutinBurst } from "./packParticles";
 import { PACK_COST, addToCollection, loadCollection } from "../collection";
-import { RARITY_LABELS, baseCardRarity, type CardRarity } from "../rarity";
+import { RARITY_LABELS, type CardRarity } from "../rarity";
+import {
+  PACK_CARD_POOL,
+  PACK_SIZE,
+  TEN_PACK_COUNT,
+  cardIdsFromPacks,
+  collectionCountsAfterPacks,
+  markNewCards,
+  packRevealCompletion,
+  rollPackBatch,
+  type PackCard,
+  type PackPurchaseCount,
+} from "../pack";
 import cardBackImage from "../assets/card-back.webp";
 import packArtImage from "../assets/pack-set2-echoes.png";
 import brandMark from "../assets/mark.svg";
@@ -45,66 +57,17 @@ function PackUrCutIn() {
 }
 
 const PACK_SET_LABEL = "残響の胎動";
-const PACK_SIZE = 5;
-const FIFTH_SLOT_UR_RATE = 0.1;
-const FIFTH_SLOT_SR_RATE = 0.3;
 const TEAR_COMPLETE_THRESHOLD = 0.6;
 const TEAR_SETTLE_MS = 720;
 const TEAR_SETTLE_OMEN_MS = 1750;
 const RESULT_REVEAL_DELAY_MS = 650;
 
 type PackPhase = "sealed" | "torn" | "opened";
-type PackCard = { key: number; card: Card; rarity: CardRarity; isNew?: boolean };
 type PackOmen = "none" | "sr" | "ur";
 type RevealCallout = { token: number; rarity: CardRarity; label: string; isNew: boolean };
 type PlaySfx = (kind: string) => void;
 
 const RARITY_POWER: Record<CardRarity, number> = { n: 0, r: 1, sr: 2, ur: 3 };
-const PACK_CARD_POOL: readonly Card[] = Object.freeze(
-  ACTIVE_CARD_CATALOG.filter((card) => cardSet(card) === 2),
-);
-
-function drawFrom(pool: readonly Card[], usedIds: Set<string>): Card {
-  const candidates = pool.filter((card) => !usedIds.has(card.id));
-  const picked = candidates[Math.floor(Math.random() * candidates.length)] ?? pool[0];
-  usedIds.add(picked.id);
-  return picked;
-}
-
-// Fisher-Yates。最高レアリティが常に右端に固まらないよう、枠内の並び順をシャッフルする
-function shuffled<T>(items: T[]): T[] {
-  const result = items.slice();
-  for (let i = result.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-
-function rollHighSlotRarity(): CardRarity {
-  const highRoll = Math.random();
-  if (highRoll < FIFTH_SLOT_UR_RATE) return "ur";
-  if (highRoll < FIFTH_SLOT_UR_RATE + FIFTH_SLOT_SR_RATE) return "sr";
-  return "r";
-}
-
-function rollPack(): PackCard[] {
-  // 第2弾パック: 収録は set 2 のカードのみ
-  const pool = PACK_CARD_POOL;
-  const poolByRarity: Record<CardRarity, Card[]> = {
-    n: pool.filter((card) => baseCardRarity(card) === "n"),
-    r: pool.filter((card) => baseCardRarity(card) === "r"),
-    sr: pool.filter((card) => baseCardRarity(card) === "sr"),
-    ur: pool.filter((card) => baseCardRarity(card) === "ur"),
-  };
-  const rarities = shuffled<CardRarity>(["n", "n", "n", "r", rollHighSlotRarity()]);
-  const usedIds = new Set<string>();
-  return rarities.map((rarity, slot) => ({
-    key: slot,
-    card: drawFrom(poolByRarity[rarity], usedIds),
-    rarity,
-  }));
-}
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -126,16 +89,113 @@ function calloutLabelFor(entry: PackCard): string | null {
   return null;
 }
 
+export function PackBatchResults({
+  packs,
+  focusedKey,
+  focusedCard,
+  owned,
+  collectionPctBefore,
+  collectionPctAfter,
+  ownedAfter,
+  collectionTotal,
+  onFocus,
+  onRestart,
+  playSfx,
+}: {
+  packs: PackCard[][];
+  focusedKey: number | null;
+  focusedCard: Card | null;
+  owned: Record<string, number>;
+  collectionPctBefore: number;
+  collectionPctAfter: number;
+  ownedAfter: number;
+  collectionTotal: number;
+  onFocus: (key: number) => void;
+  onRestart: () => void;
+  playSfx: PlaySfx;
+}) {
+  const entries = packs.flat();
+  const newCount = entries.filter((entry) => entry.isNew).length;
+  const srCount = entries.filter((entry) => entry.rarity === "sr").length;
+  const urCount = entries.filter((entry) => entry.rarity === "ur").length;
+
+  return (
+    <div className="pack-batch-results">
+      <header className="pack-batch-results-header">
+        <div>
+          <span>10 PACK COMPLETE</span>
+          <h3>10連パック開封結果</h3>
+          <p>全 {entries.length} 枚をパック単位でまとめて表示しています。</p>
+        </div>
+        <div className="pack-batch-result-stats" aria-label="10連パック集計">
+          <span>NEW <strong>{newCount}</strong></span>
+          <span>SR <strong>{srCount}</strong></span>
+          <span>UR <strong>{urCount}</strong></span>
+        </div>
+      </header>
+      <div className="pack-batch-results-layout">
+        <div className="pack-batch-scroll" tabIndex={0} aria-label="10連パック全50枚の一覧">
+          {packs.map((batchPack, packIndex) => (
+            <section key={packIndex} className="pack-batch-group" aria-label={`${packIndex + 1}パック目`}>
+              <ul>
+                {batchPack.map((entry, cardIndex) => (
+                  <li key={entry.key}>
+                    <button
+                      type="button"
+                      className={`pack-batch-card rarity-${entry.rarity} ${focusedKey === entry.key ? "focused" : ""}`}
+                      onClick={() => onFocus(entry.key)}
+                      onMouseEnter={() => playSfx("hover")}
+                      aria-label={`${packIndex + 1}パック目 ${entry.card.name} ${RARITY_LABELS[entry.rarity]}${entry.isNew ? " NEW" : ""}`}
+                    >
+                      <CardView
+                        card={entry.card}
+                        ownerIndex={0}
+                        zone="hand"
+                        index={packIndex * PACK_SIZE + cardIndex}
+                        showCost={false}
+                        showRarityBadge={false}
+                      />
+                      <span className="pack-batch-card-rarity">{RARITY_LABELS[entry.rarity]}</span>
+                      {entry.isNew && <span className="pack-batch-card-new">NEW</span>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+        <CardInspector card={focusedCard ?? packs[0]?.[0]?.card ?? null} owned={owned} />
+      </div>
+      <footer className="pack-batch-results-footer">
+        <div className="pack-progress">
+          <div className="pack-progress-bar">
+            <div className="pack-progress-fill" style={{ width: `${collectionPctAfter}%` }} />
+          </div>
+          <span className="pack-progress-label">
+            第2弾コレクション {collectionPctBefore}%
+            {collectionPctAfter !== collectionPctBefore ? ` → ${collectionPctAfter}%` : ""}
+            （{ownedAfter}/{collectionTotal} 種）
+          </span>
+        </div>
+        <button type="button" onClick={onRestart}>もう一度10連</button>
+      </footer>
+    </div>
+  );
+}
+
 export function PackOpeningPage({
   coins,
-  onSpendPack,
+  onSpendPacks,
   playSfx = () => undefined,
 }: {
   coins: number;
-  onSpendPack: () => boolean;
+  onSpendPacks: (count: PackPurchaseCount) => boolean;
   playSfx?: PlaySfx;
 }) {
-  const [pack, setPack] = useState<PackCard[] | null>(null);
+  const [purchaseCount, setPurchaseCount] = useState<PackPurchaseCount>(1);
+  const [packBatch, setPackBatch] = useState<PackCard[][] | null>(null);
+  const [activePackIndex, setActivePackIndex] = useState(0);
+  const [ownedBeforeBatch, setOwnedBeforeBatch] = useState<Record<string, number>>({});
   const [phase, setPhase] = useState<PackPhase>("sealed");
   const [tearProgress, setTearProgress] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -158,6 +218,8 @@ export function PackOpeningPage({
   const flipBurstCancelRef = useRef<(() => void) | null>(null);
   const calloutTimerRef = useRef<number | null>(null);
   const calloutTokenRef = useRef(0);
+  const pack = packBatch?.[activePackIndex] ?? null;
+  const batchSize = packBatch?.length ?? purchaseCount;
 
   useEffect(() => {
     return () => {
@@ -185,26 +247,28 @@ export function PackOpeningPage({
     flipFxTimersRef.current.push(window.setTimeout(() => playSfx(kind), delayMs));
   }
 
-  // 購入（開封）の瞬間に抽選してコレクションへ記録する。成功したら true を返す
-  function purchaseAndRollPack(): boolean {
-    if (!onSpendPack()) return false;
+  // 購入（開封）の瞬間に全パックを独立抽選し、まとめてコレクションへ記録する。
+  function purchaseAndRollPacks(): boolean {
+    if (!onSpendPacks(purchaseCount)) return false;
     tearBusyRef.current = true;
-    const rolled = rollPack();
-    const { newIds } = addToCollection(rolled.map((entry) => entry.card.id));
-    const marked = rolled.map((entry) => ({ ...entry, isNew: newIds.includes(entry.card.id) }));
-    const packOmen = omenOf(marked);
-    setPack(marked);
+    const ownedBefore = loadCollection();
+    const rolled = markNewCards(rollPackBatch(purchaseCount), ownedBefore);
+    addToCollection(cardIdsFromPacks(rolled));
+    setOwnedBeforeBatch(ownedBefore);
+    setPackBatch(rolled);
+    setActivePackIndex(0);
+    const firstPackOmen = omenOf(rolled[0] ?? null);
     setTearProgress(1);
     setDragging(false);
     setPhase("torn");
-    const settleMs = packOmen === "none" ? TEAR_SETTLE_MS : TEAR_SETTLE_OMEN_MS;
+    const settleMs = firstPackOmen === "none" ? TEAR_SETTLE_MS : TEAR_SETTLE_OMEN_MS;
     settleTimerRef.current = window.setTimeout(() => setPhase("opened"), settleMs);
     return true;
   }
 
   function completeTear() {
     if (phase !== "sealed" || tearBusyRef.current) return;
-    if (!purchaseAndRollPack()) {
+    if (!purchaseAndRollPacks()) {
       playSfx("select");
       setTearProgress(0);
       setDragging(false);
@@ -331,8 +395,7 @@ export function PackOpeningPage({
     );
   }
 
-  function resetPackState() {
-    if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current);
+  function resetRevealState() {
     if (resultTimerRef.current !== null) window.clearTimeout(resultTimerRef.current);
     flipAllTimersRef.current.forEach((id) => window.clearTimeout(id));
     flipAllTimersRef.current = [];
@@ -343,10 +406,6 @@ export function PackOpeningPage({
     if (calloutTimerRef.current !== null) window.clearTimeout(calloutTimerRef.current);
     calloutTimerRef.current = null;
     dragRef.current = null;
-    tearBusyRef.current = false;
-    setPack(null);
-    setPhase("sealed");
-    setTearProgress(0);
     setDragging(false);
     setFlippedKeys(new Set());
     setRevealFocus("none");
@@ -355,31 +414,63 @@ export function PackOpeningPage({
     setRevealCallout(null);
   }
 
-  function openNextPack() {
+  function resetPackState() {
+    if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current);
+    resetRevealState();
+    tearBusyRef.current = false;
+    setPackBatch(null);
+    setActivePackIndex(0);
+    setOwnedBeforeBatch({});
+    setPhase("sealed");
+    setTearProgress(0);
+  }
+
+  function advanceToNextPurchasedPack() {
+    if (!packBatch || activePackIndex >= packBatch.length - 1) return;
+    const nextPackIndex = activePackIndex + 1;
+    const nextPackOmen = omenOf(packBatch[nextPackIndex] ?? null);
+    resetRevealState();
+    setActivePackIndex(nextPackIndex);
+    setTearProgress(1);
+    setPhase("torn");
+    if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current);
+    const settleMs = nextPackOmen === "none" ? TEAR_SETTLE_MS : TEAR_SETTLE_OMEN_MS;
+    settleTimerRef.current = window.setTimeout(() => setPhase("opened"), settleMs);
+  }
+
+  function continuePackOpening() {
     playSfx("select");
+    if (packBatch && activePackIndex < packBatch.length - 1) {
+      advanceToNextPurchasedPack();
+      return;
+    }
     resetPackState();
   }
 
-  const canAfford = coins >= PACK_COST;
+  const purchaseCost = PACK_COST * purchaseCount;
+  const canAfford = coins >= purchaseCost;
   const allFlipped = pack !== null && flippedKeys.size === pack.length;
   const packOmen = omenOf(pack);
-  const newCount = pack?.filter((entry) => entry.isNew).length ?? 0;
+  const revealCompletion = packRevealCompletion(batchSize, activePackIndex);
   const flippedEntries = Array.from(flippedKeys)
     .map((key) => pack?.find((entry) => entry.key === key))
     .filter((entry): entry is PackCard => entry !== undefined);
-  const focusedCard = pack?.find((entry) => entry.key === focusedKey)?.card ?? null;
+  const focusedCard = packBatch?.flat().find((entry) => entry.key === focusedKey)?.card ?? null;
   // 1枚めくるたびに大判プレビューへ切り替わると忙しないので、全部めくり切って
   // 結果が出るタイミング（SR/UR演出後の一拍を含む）まではプレビューを出さない
-  const showInspector = allFlipped && resultReady && focusedCard !== null;
+  const showInspector = batchSize === 1 && allFlipped && resultReady && focusedCard !== null;
+  const showBatchResults = revealCompletion === "batch-results" && allFlipped && resultReady;
 
-  // 第2弾コレクションの充実度。開封直後は addToCollection 済みなので、
-  // 直前の割合は今回の NEW 枚数を差し引いて逆算する
+  // 第2弾コレクションの充実度。10連は購入時点のスナップショットを保持し、
+  // 最終パックの結果でまとめて開封前→開封後を表示する。
   const collectionTotal2 = PACK_CARD_POOL.length;
-  const ownedCounts2 = allFlipped ? loadCollection() : null;
+  const ownedCounts2 = allFlipped && packBatch
+    ? collectionCountsAfterPacks(packBatch, ownedBeforeBatch, activePackIndex + 1)
+    : null;
   const ownedAfter2 = ownedCounts2
     ? PACK_CARD_POOL.filter((card) => (ownedCounts2[card.id] ?? 0) > 0).length
     : 0;
-  const ownedBefore2 = Math.max(0, ownedAfter2 - newCount);
+  const ownedBefore2 = PACK_CARD_POOL.filter((card) => (ownedBeforeBatch[card.id] ?? 0) > 0).length;
   const collectionPctBefore = collectionTotal2 > 0 ? Math.round((ownedBefore2 / collectionTotal2) * 100) : 0;
   const collectionPctAfter = collectionTotal2 > 0 ? Math.round((ownedAfter2 / collectionTotal2) * 100) : 0;
 
@@ -401,28 +492,56 @@ export function PackOpeningPage({
 
   useEffect(() => {
     // SR/UR の確定演出（暗転・カットイン等）が続いている間は revealFocus が "none" に
-    // 戻らない。演出が長引く分だけ結果（進捗バー・大判プレビュー・次のパックへ）の表示を待つ
+    // 戻らない。10連の中間パックは公開済みの5枚を見返せるようその場で止め、
+    // 最終パックだけ全50枚の一覧表示へ切り替える。
     if (!allFlipped || revealFocus !== "none") {
       setResultReady(false);
       return;
     }
-    resultTimerRef.current = window.setTimeout(() => setResultReady(true), RESULT_REVEAL_DELAY_MS);
+    if (revealCompletion === "next-pack") {
+      setResultReady(false);
+      return;
+    }
+    resultTimerRef.current = window.setTimeout(() => {
+      setResultReady(true);
+    }, RESULT_REVEAL_DELAY_MS);
     return () => {
       if (resultTimerRef.current !== null) window.clearTimeout(resultTimerRef.current);
     };
-  }, [allFlipped, revealFocus]);
+  }, [allFlipped, revealFocus, revealCompletion]);
 
   return (
     <section className="workshop-page pack-page">
       <div className="workshop-heading">
         <div>
           <h2>パック開封</h2>
-          <p>1 パック {PACK_COST} コイン。封を左から右へドラッグして剥くと中身が決まります。コインは対戦で獲得（勝利 +10 ／ 敗北 +5）。</p>
+          <p>1 パック {PACK_COST} コイン。単発または10連を選び、封を左から右へドラッグして開封します。コインは対戦で獲得（勝利 +10 ／ 敗北 +5）。</p>
         </div>
         <div className="pack-heading-actions">
-          {phase === "opened" && (
-            <button type="button" onClick={openNextPack}>次のパックへ</button>
-          )}
+          {phase === "sealed" ? (
+            <div className="pack-purchase-options" aria-label="開封するパック数">
+              <button
+                type="button"
+                className={purchaseCount === 1 ? "active" : ""}
+                aria-pressed={purchaseCount === 1}
+                onClick={() => setPurchaseCount(1)}
+              >
+                1パック <small>{PACK_COST}コイン</small>
+              </button>
+              <button
+                type="button"
+                className={purchaseCount === TEN_PACK_COUNT ? "active" : ""}
+                aria-pressed={purchaseCount === TEN_PACK_COUNT}
+                onClick={() => setPurchaseCount(TEN_PACK_COUNT)}
+              >
+                10連 <small>{PACK_COST * TEN_PACK_COUNT}コイン</small>
+              </button>
+            </div>
+          ) : phase === "opened" && allFlipped && resultReady ? (
+            <button type="button" onClick={continuePackOpening}>
+              {batchSize === TEN_PACK_COUNT ? "もう一度10連" : "次のパックへ"}
+            </button>
+          ) : null}
         </div>
       </div>
       <div
@@ -481,13 +600,15 @@ export function PackOpeningPage({
                 <strong>{PACK_SET_LABEL}</strong>
                 <em>第2弾</em>
               </div>
-              <div className="pack-set-count">カード {PACK_SIZE} 枚入り</div>
+              <div className="pack-set-count">
+                {purchaseCount === TEN_PACK_COUNT ? `カード ${PACK_SIZE} 枚 × ${TEN_PACK_COUNT} パック` : `カード ${PACK_SIZE} 枚入り`}
+              </div>
             </div>
           </div>
         )}
         {phase === "sealed" && (
           <div className="pack-cost-line">
-            <span>開封コスト {PACK_COST} コイン ／ 所持 {coins} コイン</span>
+            <span>{purchaseCount === TEN_PACK_COUNT ? "10連" : "1パック"}開封コスト {purchaseCost} コイン ／ 所持 {coins} コイン</span>
             {!canAfford && <em>コインが足りません。対戦で獲得できます（勝利 +10 ／ 敗北 +5）</em>}
           </div>
         )}
@@ -506,7 +627,22 @@ export function PackOpeningPage({
           )}
         </div>
         {phase === "opened" && pack && (
-          <div className="pack-reveal">
+          showBatchResults && packBatch ? (
+            <PackBatchResults
+              packs={packBatch}
+              focusedKey={focusedKey}
+              focusedCard={focusedCard}
+              owned={ownedCounts2 ?? {}}
+              collectionPctBefore={collectionPctBefore}
+              collectionPctAfter={collectionPctAfter}
+              ownedAfter={ownedAfter2}
+              collectionTotal={collectionTotal2}
+              onFocus={setFocusedKey}
+              onRestart={continuePackOpening}
+              playSfx={playSfx}
+            />
+          ) : (
+            <div className="pack-reveal">
             <span
               className={`pack-reveal-dim ${revealFocus !== "none" ? `dim-${revealFocus}` : ""}`}
               aria-hidden="true"
@@ -514,7 +650,7 @@ export function PackOpeningPage({
             <canvas ref={revealCanvasRef} className="pack-reveal-canvas" aria-hidden="true" />
             <div className="pack-hype-strip">
               <div className="pack-hype-copy">
-                <span>公開済み</span>
+                <span>{batchSize > 1 ? `${activePackIndex + 1}/${batchSize} PACK` : "公開済み"}</span>
                 <strong>{flippedKeys.size}<small>/{PACK_SIZE}</small></strong>
               </div>
               <div className="pack-hype-meter" aria-label={`${PACK_SIZE}枚中${flippedKeys.size}枚を公開`}>
@@ -576,19 +712,22 @@ export function PackOpeningPage({
                       </span>
                     </div>
                     <div className="pack-summary-actions">
-                      <button type="button" onClick={openNextPack}>次のパックへ</button>
+                      <button type="button" onClick={continuePackOpening}>次のパックへ</button>
                     </div>
                   </div>
                 ) : (
                   <div className="pack-reveal-controls">
                     <p className="pack-reveal-hint">
-                      {allFlipped ? "めくり終わりました" : `カードをタップしてめくる（残り ${pack.length - flippedKeys.size} 枚）`}
+                      カードをタップしてめくる（残り {pack.length - flippedKeys.size} 枚）
                     </p>
-                    {!allFlipped && (
-                      <button type="button" className="pack-flip-all" onClick={flipAll}>
-                        すべてめくる
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="pack-flip-all"
+                      onClick={revealCompletion === "next-pack" && allFlipped ? continuePackOpening : flipAll}
+                      disabled={allFlipped && (revealCompletion !== "next-pack" || revealFocus !== "none")}
+                    >
+                      {revealCompletion === "next-pack" && allFlipped ? "次を開封する" : "すべてめくる"}
+                    </button>
                   </div>
                 )}
               </div>
@@ -596,7 +735,8 @@ export function PackOpeningPage({
                 <CardInspector card={focusedCard} owned={ownedCounts2 ?? undefined} />
               )}
             </div>
-          </div>
+            </div>
+          )
         )}
       </div>
     </section>
