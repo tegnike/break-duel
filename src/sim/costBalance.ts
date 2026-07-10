@@ -5,6 +5,7 @@
 // ルールセットは現行ルール（"current": 25 枚デッキ / power 3+ 合計 5 枚まで）のみサポート。
 import { CARD_BY_ID, CONFIG } from "../game";
 import type { AiProfile, DeckId } from "../game";
+import { applyEndgameRulePackage, restoreEndgameConfig, snapshotEndgameConfig } from "./endgameRules";
 import { runMatch } from "./runner";
 
 export const POWER_CARD_IDS: Record<number, readonly string[]> = {
@@ -156,15 +157,15 @@ export const CANDIDATES: Record<string, { label: string; cardIds: readonly strin
   p3_4: { label: "power 3-4 cap stress deck; low-power filler may be added", cardIds: HIGH_COST_CARD_IDS },
 };
 
-// 採用済みガードレール閾値（Python 版 tests/test_cost_balance.py の
-// ADOPTED_COST_BUCKET_WIN_RATE_LIMITS と同値）。候補キーで引く。
+// 採用済みガードレール閾値。p2-3 は時計世界の構造的強者として合格条件から外し、
+// 60% を越えたら警報を上げる監視項目として機械化する。他候補の既存閾値は維持。
 export const ADOPTED_COST_BUCKET_WIN_RATE_LIMITS: Record<string, number> = {
   p1: 0.15,
   p2: 0.65,
   p3: 0.8,
   p4: 0.75,
   p1_2: 0.45,
-  p2_3: 0.8,
+  p2_3: 0.6,
   p3_4: 0.75,
 };
 
@@ -205,6 +206,11 @@ export type CostEvalConfig = {
   maxTurns: number;
   firstAi: AiProfile;
   secondAi: AiProfile;
+  endgamePackage?: string;
+  endgameHandLimit?: number;
+  siegeConsecutiveTurns?: number;
+  attacksPerTurnLimit?: number | null;
+  attackLimitCountsStrike?: boolean;
 };
 
 export type PerOpponentRow = {
@@ -222,6 +228,7 @@ export type PerOpponentRow = {
 export type CandidateResult = {
   candidate: string;
   rule_set: string;
+  endgame_package: string;
   rule_label: string;
   deck_ids: string[];
   games: number;
@@ -302,7 +309,8 @@ export function evaluateCandidate(
   const candidateDeckIds = stressDeckCards(cardIds);
   const aiProfiles: [AiProfile, AiProfile] = [evalConfig.firstAi, evalConfig.secondAi];
   const originalMaxTurns = CONFIG.maxTurns;
-  CONFIG.maxTurns = evalConfig.maxTurns;
+  const originalEndgameConfig = snapshotEndgameConfig();
+  let endgamePackage = "current";
 
   let currentSeed = evalConfig.seed;
   let candidateWins = 0;
@@ -317,6 +325,13 @@ export function evaluateCandidate(
   const perOpponent: Record<string, PerOpponentRow> = {};
 
   try {
+    CONFIG.maxTurns = evalConfig.maxTurns;
+    endgamePackage = applyEndgameRulePackage(evalConfig.endgamePackage, {
+      handLimit: evalConfig.endgameHandLimit,
+      siegeConsecutiveTurns: evalConfig.siegeConsecutiveTurns,
+      attacksPerTurnLimit: evalConfig.attacksPerTurnLimit,
+      attackLimitCountsStrike: evalConfig.attackLimitCountsStrike,
+    });
     for (const opponent of EXISTING_DECKS) {
       let pairCandidateWins = 0;
       let pairExistingWins = 0;
@@ -376,13 +391,17 @@ export function evaluateCandidate(
     }
   } finally {
     CONFIG.maxTurns = originalMaxTurns;
+    restoreEndgameConfig(originalEndgameConfig);
   }
 
   const totalGames = candidateWins + existingWins + draws;
   return {
     candidate: candidateKey,
     rule_set: "current",
-    rule_label: "current high-power cap 5",
+    endgame_package: endgamePackage,
+    rule_label: endgamePackage === "current"
+      ? "current high-power cap 5"
+      : `endgame package: ${endgamePackage}`,
     deck_ids: [...candidateDeckIds],
     games: totalGames,
     candidate_win_rate: candidateWins / totalGames,

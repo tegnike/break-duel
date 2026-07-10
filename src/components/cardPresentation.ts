@@ -335,7 +335,7 @@ export function roleText(card: Card): string {
   if (card.effect === "sandbox") return "このターン、次のpower4攻撃後退場を1回防ぐ";
   if (card.effect === "trinity") return "自分の場に召喚獣が3枚いるときしか使用できない。自分の場の召喚獣3枚すべてをトラッシュし、相手のライフを1減らす";
   if (card.effect === "fire_rite") return "自分の場に火の召喚獣がいるときしか使用できない。相手の手札を1枚トラッシュする。相手の手札がなければ相手のライフを1減らす";
-  if (card.effect === "water_rite") return "自分の場に水の召喚獣がいるときしか使用できない。山札からカードを1枚引く";
+  if (card.effect === "water_rite") return "自分の場に水の召喚獣がいるときしか使用できない。山札からカードを2枚引く";
   if (card.effect === "wind_rite") return "自分の場に風の召喚獣がいるときしか使用できない。相手の未消耗召喚獣1体を選んで消耗させる。自分の消耗中風の召喚獣1体を選んで回復する";
   if (card.effect === "earth_rite") return "自分の場に土の召喚獣がいるときしか使用できない。トラッシュの召喚獣1枚を手札に戻す";
   if (card.effect === "comeback_rite") return "相手よりライフが少ないときしか使用できない。山札からカードを2枚引く。自分の消耗中召喚獣1体を選んで回復する";

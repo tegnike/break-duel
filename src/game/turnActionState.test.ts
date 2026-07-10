@@ -73,7 +73,7 @@ describe("turn action state", () => {
     expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
   });
 
-  it("lets challenger attack to open lethal follow-up when decks and hands are empty", () => {
+  it("lets challenger avoid overextending with depleted resources", () => {
     const game = createGame(
       15,
       { kind: "custom", name: "Test Player", cardIds: ["AI-EARTH-2D", "MEM-ECHO-URN"] },
@@ -88,7 +88,7 @@ describe("turn action state", () => {
     game.players[0].field = [card("AI-EARTH-2D")];
     game.players[0].memory = card("MEM-ECHO-URN");
     game.players[0].life = 2;
-    game.players[1].deck = [];
+    game.players[1].deck = [card("AI-EARTH-1C")];
     game.players[1].hand = [];
     game.players[1].field = [card("AI-EARTH-1C"), card("AI-EARTH-3"), card("AI-EARTH-1C")];
     game.players[1].memory = card("MEM-FIREWALL");
@@ -96,11 +96,10 @@ describe("turn action state", () => {
 
     const action = chooseAiAction(game, "challenger");
 
-    expect(action.type).toBe("attack");
-    if (action.type === "attack") expect([0, 2]).toContain(action.index);
+    expect(action).toEqual({ type: "end" });
   });
 
-  it("draws when the turn limit is reached regardless of life totals", () => {
+  it("uses life totals to decide the winner when the turn limit is reached", () => {
     const game = createGame(
       16,
       { kind: "custom", name: "Test Player", cardIds: ["AI-FIRE-1"] },
@@ -114,11 +113,11 @@ describe("turn action state", () => {
 
     checkTurnLimit(game);
 
-    expect(game.winner).toBeNull();
-    expect(game.draw).toBe(true);
+    expect(game.winner).toBe(1);
+    expect(game.draw).toBe(false);
     expect(game.actionsRemaining).toBe(0);
     expect(game.chargedActionsRemaining).toBe(0);
-    expect(game.log[game.log.length - 1]).toContain(`${CONFIG.maxTurns}手番に到達したため引き分け`);
+    expect(game.log[game.log.length - 1]).toContain(`${CONFIG.maxTurns}手番に到達、ライフ判定`);
   });
 
   it("keeps challenger from charging without a follow-up or immediate value", () => {

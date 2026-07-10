@@ -11,6 +11,7 @@
     "test:balance": "vitest run src/game/costBalance.guard.test.ts",
     "build": "vite build",
     "sim": "tsx src/sim/cli.ts",
+    "gauntlet:ai": "tsx scripts/aiGauntlet.ts",
     "tune:ai": "tsx scripts/tuneAiProfiles.ts",
     "tune:apex": "tsx scripts/tuneApexDeck.ts",
     "balance:cost": "tsx scripts/runCostBalance.ts",

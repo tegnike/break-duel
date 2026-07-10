@@ -54,7 +54,25 @@ function setupGame(seed = 1) {
   );
 }
 
+function withConfig<T>(patch: Partial<typeof CONFIG>, run: () => T): T {
+  const original = Object.fromEntries(Object.keys(patch).map((key) => [key, CONFIG[key as keyof typeof CONFIG]])) as Partial<typeof CONFIG>;
+  Object.assign(CONFIG, patch);
+  try {
+    return run();
+  } finally {
+    Object.assign(CONFIG, original);
+  }
+}
+
 describe("initialization and turn management", () => {
+  it("uses the adopted endgame clock as the standard configuration", () => {
+    expect(CONFIG.turnLimitResult).toBe("life_judgement");
+    expect(CONFIG.handLimit).toBe(6);
+    expect(CONFIG.deckOutFatigueDamage).toBe(1);
+    expect(CONFIG.handDefenseMaxPower).toBe(3);
+    expect(CONFIG.attacksPerTurnLimit).toBeNull();
+  });
+
   it("deals opening hands of five to each player by default", () => {
     const game = setupGame(1);
 
@@ -179,9 +197,8 @@ describe("initialization and turn management", () => {
     expect(game.log[game.log.length - 1]).toContain("両者の手札・山札・場がすべて尽きたため引き分け");
   });
 
-  // turn limit の「ライフ差があっても引き分け」版は turnActionState.test.ts の
-  // "draws when the turn limit is reached regardless of life totals" が既にカバー。
-  // ここでは同点ライフ版のみ追加する。
+  // ライフ差ありの標準ライフ判定は turnActionState.test.ts がカバーする。
+  // ここでは同点ライフ版を確認する。
   it("draws at the turn limit when both players have equal life", () => {
     const game = setupGame(8);
     game.turn = CONFIG.maxTurns;
@@ -196,8 +213,76 @@ describe("initialization and turn management", () => {
     expect(game.draw).toBe(true);
     expect(game.actionsRemaining).toBe(0);
     expect(game.chargedActionsRemaining).toBe(0);
-    expect(game.log[game.log.length - 1]).toContain(`${CONFIG.maxTurns}手番に到達したため引き分け`);
+    expect(game.log[game.log.length - 1]).toContain(`${CONFIG.maxTurns}手番に到達、ライフ同値のため引き分け`);
   });
+
+  it("uses life judgement at the turn limit when enabled", () => withConfig({ turnLimitResult: "life_judgement" }, () => {
+    const game = setupGame(80);
+    game.turn = CONFIG.maxTurns;
+    game.actionsRemaining = 1;
+    game.chargedActionsRemaining = 1;
+    game.players[0].life = 5;
+    game.players[1].life = 3;
+
+    checkTurnLimit(game);
+
+    expect(game.winner).toBe(0);
+    expect(game.draw).toBe(false);
+    expect(game.actionsRemaining).toBe(0);
+    expect(game.chargedActionsRemaining).toBe(0);
+    expect(game.log[game.log.length - 1]).toContain("ライフ判定");
+  }));
+
+  it("applies fatigue damage when a required turn-start draw fails", () => withConfig({ deckOutFatigueDamage: 1 }, () => {
+    const game = setupGame(81);
+    const rival = game.players[1];
+    rival.deck = [];
+    rival.hand = [card("AI-WATER-1")];
+    rival.life = 4;
+
+    finishTurn(game, true);
+
+    expect(game.active).toBe(1);
+    expect(game.turn).toBe(2);
+    expect(rival.life).toBe(3);
+    expect(game.winner).toBeNull();
+    expect(game.log.some((entry) => entry.includes("衰弱"))).toBe(true);
+  }));
+
+  it("discards down to the hand limit at own turn end when enabled", () => withConfig({ handLimit: 6 }, () => {
+    const game = setupGame(82);
+    const player = game.players[0];
+    player.hand = [
+      card("AI-FIRE-1"),
+      card("AI-FIRE-1"),
+      card("AI-FIRE-2"),
+      card("AI-FIRE-2"),
+      card("AI-FIRE-3"),
+      card("AI-FIRE-3"),
+      card("AI-FIRE-4"),
+    ];
+
+    finishTurn(game, true);
+
+    expect(player.hand).toHaveLength(6);
+    expect(player.discard).toHaveLength(1);
+    expect(game.log.some((entry) => entry.includes("手札上限"))).toBe(true);
+  }));
+
+  it("deals siege damage at turn end when field power is ahead", () => withConfig({ siegeDamage: 1, siegeConsecutiveTurns: 1 }, () => {
+    const game = setupGame(83);
+    const player = game.players[0];
+    const rival = game.players[1];
+    player.field = [card("AI-FIRE-3")];
+    rival.field = [card("AI-WATER-1")];
+    rival.life = 5;
+
+    finishTurn(game, true);
+
+    expect(rival.life).toBe(4);
+    expect(game.winner).toBeNull();
+    expect(game.log.some((entry) => entry.includes("戦線圧力"))).toBe(true);
+  }));
 
   it("clamps life at zero when attack damage exceeds remaining life", () => {
     const game = setupGame(9);

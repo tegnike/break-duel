@@ -35,6 +35,7 @@ import {
   chooseAiAction,
   chooseAiDefense,
   defenseCombatValue,
+  enforceHandLimit,
   finishTurn,
   highestPowerAiInDiscard,
   highestPowerReadyAi,
@@ -791,6 +792,7 @@ export default function App() {
   const currentRivalVoiceStateKey = useRef("");
   const gameResolvedRef = useRef(false);
   const announcedResultKey = useRef<string | null>(null);
+  const announcedFatigueKey = useRef<string | null>(null);
   const coinAwardedKey = useRef<string | null>(null);
   const rivalActionVoiceTurnGroups = useRef(createRivalActionVoiceTurnGroups(INITIAL_SEED));
   const announcedAutoDismissDefault = useRef(false);
@@ -1145,6 +1147,7 @@ export default function App() {
   }
 
   function resetDrawTracker(nextGame: GameState) {
+    announcedFatigueKey.current = null;
     previousDrawCounts.current = [
       nextGame.players[0].deck.length,
       nextGame.players[0].hand.length,
@@ -1945,11 +1948,12 @@ export default function App() {
     if (announcedResultKey.current === resultKey) return;
     announcedResultKey.current = resultKey;
     const score = `あなた ${human.life} - ${ai.life} ライバル`;
+    const lifeJudgementLog = [...game.log].reverse().find((entry) => entry.includes("ライフ判定") || entry.includes("ライフ同値"));
     const winnerIndex = game.winner ?? 0;
     showBanner({
       kind: "result",
       title: game.draw ? "引き分け" : `${game.players[winnerIndex].name}の勝利`,
-      detail: score,
+      detail: lifeJudgementLog ? `${score} / ${lifeJudgementLog}` : score,
       tone: game.draw ? "draw" : game.winner === 0 ? "win" : "lose",
     });
     playSfx("end");
@@ -1957,6 +1961,16 @@ export default function App() {
       showRivalVoiceLine(game.winner === 1 ? "victory" : "defeat", { force: true });
     }
   }, [page, seed, game.turn, game.winner, game.draw, human.life, ai.life]);
+
+  useEffect(() => {
+    if (page !== "duel") return;
+    const fatigueLog = game.log.slice(-3).find((entry) => entry.includes("衰弱"));
+    if (!fatigueLog) return;
+    const fatigueKey = `${seed}:${game.turn}:${game.active}:${human.life}:${ai.life}:${fatigueLog}`;
+    if (announcedFatigueKey.current === fatigueKey) return;
+    announcedFatigueKey.current = fatigueKey;
+    showToast("衰弱ダメージ", fatigueLog);
+  }, [page, seed, game.turn, game.active, human.life, ai.life, game.log.length]);
 
   // CPU戦を最後まで打った試合にコインを付与する（チュートリアルと途中放棄は対象外）
   useEffect(() => {
@@ -2772,7 +2786,7 @@ export default function App() {
           zone: "field",
           playerIndex: draft.active,
           title: `${command.name}で強化する召喚獣を選択`,
-          prompt: "このターン、戦闘時の攻撃値を+2する自分の召喚獣を1体選んでください。",
+          prompt: "このターン、戦闘時の攻撃値を+3する自分の召喚獣を1体選んでください。",
           confirmLabel: "この召喚獣を強化",
           min: 1,
           max: 1,
@@ -3140,6 +3154,22 @@ export default function App() {
   function endTurn() {
     if (!canHumanEndTurn(game)) return;
     if (tutorialBlocks("end")) return;
+    const preview = cloneGame(game);
+    const endingPlayer = activePlayer(preview);
+    const handLimitDiscarded = enforceHandLimit(endingPlayer);
+    if (handLimitDiscarded.length > 0) {
+      queueDuelEvent({
+        kind: "trash",
+        title: `${endingPlayer.name}の手札上限`,
+        detail: `ターン終了時に手札を${CONFIG.handLimit}枚まで減らし、${handLimitDiscarded.map((card) => card.name).join("、")}をトラッシュ。`,
+        fromLabel: "手札",
+        toLabel: "トラッシュ",
+        resultLabel: `${handLimitDiscarded.length}枚超過`,
+        tone: "magenta",
+        emphasis: "low",
+        cards: handLimitDiscarded.map((card) => ({ card, label: "手札上限", state: "trash" })),
+      });
+    }
     mutate((draft) => {
       finishTurn(draft, true);
     });

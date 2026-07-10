@@ -98,7 +98,7 @@ function takeSnapshot(game: GameState): Snapshot {
     actionsRemaining: game.actionsRemaining,
     chargedActionsRemaining: game.chargedActionsRemaining,
     zoneSizes: game.players
-      .map((player) => `${player.deck.length}/${player.hand.length}/${player.field.length}/${player.discard.length}/${player.memory ? 1 : 0}`)
+      .map((player) => `${player.deck.length}/${player.hand.length}/${player.field.length}/${player.discard.length}/${player.memory ? 1 : 0}/${player.setDefenseCard ? 1 : 0}`)
       .join("|"),
     life: game.players.map((player) => player.life).join("|"),
   };
@@ -182,6 +182,9 @@ function classifyNonCombatAction(
   } else if (action.type === "memory") {
     const card = actor.hand[action.index];
     if (card && events.some((event) => event.kind === "memory")) recordCardUsage(stats, card.id, "played");
+  } else if (action.type === "set-defense") {
+    const card = actor.hand[action.index];
+    if (card) recordCardUsage(stats, card.id, "set_defense");
   } else if (action.type === "command") {
     const card = actor.hand[action.index];
     if (card && events.some((event) => event.kind === "command")) recordCardUsage(stats, card.id, "used");

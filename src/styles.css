@@ -1784,6 +1784,18 @@ h2 {
     color-mix(in srgb, var(--card-color) 28%, #10202a);
 }
 
+.defense-choice-disabled {
+  opacity: 0.58;
+  filter: grayscale(0.55);
+  cursor: not-allowed;
+}
+
+.defense-choice-disabled:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
+    color-mix(in srgb, var(--card-color) 20%, #10202a);
+}
+
 .defense-choice-select {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

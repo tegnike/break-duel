@@ -7,6 +7,7 @@ import { join } from "node:path";
 
 import { BATTLE_DECK_IDS, CONFIG } from "../game";
 import type { AiProfile, DeckId } from "../game";
+import { applyEndgameRulePackage } from "./endgameRules";
 import { runMatch } from "./runner";
 import type { MatchRecord } from "./runner";
 import { matchSummary, standingsWithRates, summarizeResults } from "./stats";
@@ -73,9 +74,31 @@ function aiFlag(args: ParsedArgs, name: string): AiProfile {
   return raw as AiProfile;
 }
 
-function applyMaxTurns(args: ParsedArgs): void {
+function optionalIntFlag(args: ParsedArgs, name: string): number | undefined {
+  const raw = args.flags.get(name);
+  if (raw === undefined) return undefined;
+  const value = Number.parseInt(raw as string, 10);
+  if (!Number.isFinite(value)) throw new Error(`--${name} は整数で指定してください: ${raw}`);
+  return value;
+}
+
+function optionalBoolFlag(args: ParsedArgs, name: string): boolean | undefined {
+  const raw = args.flags.get(name);
+  if (raw === undefined) return undefined;
+  if (raw === "true" || raw === "1") return true;
+  if (raw === "false" || raw === "0") return false;
+  throw new Error(`--${name} は true/false で指定してください: ${raw}`);
+}
+
+function applySimConfig(args: ParsedArgs): string {
   // CONFIG は可変オブジェクトなので sim 層から上書きできる（エンジンコードは変更しない）
   CONFIG.maxTurns = intFlag(args, "max-turns", CONFIG.maxTurns);
+  return applyEndgameRulePackage(args.flags.get("endgame-package") as string | undefined, {
+    handLimit: optionalIntFlag(args, "endgame-hand-limit"),
+    siegeConsecutiveTurns: optionalIntFlag(args, "siege-consecutive-turns"),
+    attacksPerTurnLimit: optionalIntFlag(args, "attacks-per-turn-limit"),
+    attackLimitCountsStrike: optionalBoolFlag(args, "attack-limit-counts-strike"),
+  });
 }
 
 function writeJson(path: string, data: unknown): void {
@@ -93,7 +116,7 @@ function runSimulate(args: ParsedArgs): void {
     throw new Error("--first-deck と --second-deck は同時に指定してください。");
   }
   const aiProfiles: [AiProfile, AiProfile] = [aiFlag(args, "first-ai"), aiFlag(args, "second-ai")];
-  applyMaxTurns(args);
+  const endgamePackage = applySimConfig(args);
 
   const records: MatchRecord[] = [];
   for (let offset = 0; offset < games; offset += 1) {
@@ -101,6 +124,7 @@ function runSimulate(args: ParsedArgs): void {
   }
   const summaries = records.map((record) => matchSummary(record));
   const summary = summarizeResults(summaries, seed);
+  summary.config = { ...(summary.config as Record<string, unknown>), endgame_package: endgamePackage };
 
   mkdirSync(outDir, { recursive: true });
   writeJson(join(outDir, "summary.json"), summary);
@@ -117,7 +141,7 @@ function runLeague(args: ParsedArgs): void {
   const rawDecks = (args.flags.get("decks") as string[] | undefined) ?? ["fire", "water", "wind", "earth"];
   const decks = rawDecks.map((deck) => validateDeck(deck, "decks"));
   const aiProfiles: [AiProfile, AiProfile] = [aiFlag(args, "first-ai"), aiFlag(args, "second-ai")];
-  applyMaxTurns(args);
+  const endgamePackage = applySimConfig(args);
 
   if (gamesPerPair <= 0) throw new Error("games_per_pair must be positive.");
   if (decks.length < 2) throw new Error("At least two decks are required.");
@@ -166,6 +190,7 @@ function runLeague(args: ParsedArgs): void {
     seed,
     games_per_ordered_pair: gamesPerPair,
     total_games: gamesPerPair * decks.length * (decks.length - 1),
+    endgame_package: endgamePackage,
     decks,
     standings: standingsWithRates(standings),
     pairs: pairResults,
@@ -184,8 +209,8 @@ function main(): void {
     runLeague(parseArgs(rest, new Set(["decks"])));
   } else {
     console.error("使い方: sim <simulate|league> [options]");
-    console.error("  simulate --games N --seed S --out DIR [--first-deck D --second-deck D] [--first-ai P] [--second-ai P] [--max-turns N]");
-    console.error("  league --games-per-pair N --seed S --out DIR --decks a b c ... [--first-ai P] [--second-ai P] [--max-turns N]");
+    console.error("  simulate --games N --seed S --out DIR [--first-deck D --second-deck D] [--first-ai P] [--second-ai P] [--max-turns N] [--endgame-package P] [--attacks-per-turn-limit N] [--attack-limit-counts-strike true]");
+    console.error("  league --games-per-pair N --seed S --out DIR --decks a b c ... [--first-ai P] [--second-ai P] [--max-turns N] [--endgame-package P] [--attacks-per-turn-limit N] [--attack-limit-counts-strike true]");
     process.exitCode = 1;
   }
 }

@@ -66,7 +66,7 @@ const PLAYER_TUTORIAL_HAND = [
   "AI-FIRE-1B",
   "AI-FIRE-2",
   "MEM-CACHE",
-  "AI-FIRE-1C",
+  "AI-FIRE-2C",
   "CMD-FIRE-RITE",
 ];
 
@@ -198,7 +198,7 @@ export function currentTutorialStep(game: GameState): TutorialStep {
         id: "defend",
         kicker: "STEP 15",
         title: "手札で防御",
-        detail: "手札の召喚獣でも防御できます。手札防御は、自分プレイヤーへの攻撃も自分の召喚獣への攻撃も防げますが、使えるのは1ターンに1回だけです。防御に使ったカードはトラッシュへ行きます。『ブレイズランナー』で受け止めましょう。",
+        detail: "手札の power 3 以下の召喚獣でも防御できます。手札防御は、自分プレイヤーへの攻撃も自分の召喚獣への攻撃も防げますが、使えるのは1ターンに1回だけです。power 4 は手札防御に使えません。防御に使ったカードはトラッシュへ行きます。『ブレイズランナー』で受け止めましょう。",
         focus: { kind: "defense" },
       };
     }
@@ -285,9 +285,9 @@ export function currentTutorialStep(game: GameState): TutorialStep {
       };
     }
 
-    if (!player.chargeUsed && canUseCharge(game, player) && player.hand.some((card) => card.id === "AI-FIRE-1C")) {
+    if (!player.chargeUsed && canUseCharge(game, player) && player.hand.some((card) => card.id === "AI-FIRE-2C")) {
       const selected = selectedHumanHandCard(game);
-      if (selected?.id === "AI-FIRE-1C" && canChargeCard(selected)) {
+      if (selected?.id === "AI-FIRE-2C" && canChargeCard(selected)) {
         return {
           id: "charge",
           kicker: "STEP 6",
@@ -300,8 +300,8 @@ export function currentTutorialStep(game: GameState): TutorialStep {
         id: "select-charge",
         kicker: "STEP 6",
         title: "チャージ札を確認",
-        detail: "チュートリアルでは『炉芯鼠チロ』をチャージに使います。固定カードでアクションを増やします。",
-        focus: { kind: "hand-card", ownerIndex: 0, cardId: "AI-FIRE-1C" },
+        detail: "チュートリアルでは『烽火狐フレンネ』をチャージに使います。固定カードでアクションを増やします。",
+        focus: { kind: "hand-card", ownerIndex: 0, cardId: "AI-FIRE-2C" },
       };
     }
 

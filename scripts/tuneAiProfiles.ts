@@ -6,8 +6,8 @@
 // アクティブプレイヤー側の重みを Object.assign で反映）で行い、src/game.ts 本体は変更しない。
 // 注意: TS 版の AI プロファイルは beginner / challenger のみのため、Python 版の
 // sanity_classic_rates（classic プロファイルとの対戦）は移植していない。
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 import { CHALLENGER_WEIGHTS } from "../src/game";
 import type { AiProfile, DeckId } from "../src/game";
@@ -22,8 +22,12 @@ type CandidateResult = {
   head_to_head_win_rate: number;
   head_to_head_floor: number;
   head_to_head_by_deck: Record<string, number>;
+  pool_win_rate?: number;
+  pool_floor?: number;
+  pool_by_champion?: Record<string, number>;
   weights: ChallengerWeights;
   candidate_index?: number;
+  pass_index?: number;
   sanity_beginner_rates?: Record<string, number>;
 };
 
@@ -33,6 +37,12 @@ type Args = {
   seed: number;
   out: string;
   baseJson: string | null;
+  championsDir: string | null;
+  passes: number;
+  eliteCount: number;
+  mutationMin: number;
+  mutationMax: number;
+  excludeKeys: string[];
 };
 
 function parseArgs(argv: string[]): Args {
@@ -42,6 +52,12 @@ function parseArgs(argv: string[]): Args {
     seed: 730001,
     out: "tmp/ai-profile-tuning.json",
     baseJson: null,
+    championsDir: "docs/assets/ai-champions/fair",
+    passes: 1,
+    eliteCount: 1,
+    mutationMin: 0.65,
+    mutationMax: 1.4,
+    excludeKeys: [],
   };
   let index = 0;
   const next = (name: string): string => {
@@ -53,6 +69,11 @@ function parseArgs(argv: string[]): Args {
   const nextInt = (name: string): number => {
     const value = Number.parseInt(next(name), 10);
     if (!Number.isFinite(value)) throw new Error(`--${name} は整数で指定してください。`);
+    return value;
+  };
+  const nextFloat = (name: string): number => {
+    const value = Number.parseFloat(next(name));
+    if (!Number.isFinite(value)) throw new Error(`--${name} は数値で指定してください。`);
     return value;
   };
   while (index < argv.length) {
@@ -73,22 +94,102 @@ function parseArgs(argv: string[]): Args {
       case "--base-json":
         args.baseJson = next("base-json");
         break;
+      case "--champions-dir":
+        args.championsDir = next("champions-dir");
+        break;
+      case "--passes":
+        args.passes = nextInt("passes");
+        break;
+      case "--elite-count":
+        args.eliteCount = nextInt("elite-count");
+        break;
+      case "--mutation-min":
+        args.mutationMin = nextFloat("mutation-min");
+        break;
+      case "--mutation-max":
+        args.mutationMax = nextFloat("mutation-max");
+        break;
+      case "--exclude-keys": {
+        index += 1;
+        while (index < argv.length && !argv[index].startsWith("--")) {
+          args.excludeKeys.push(argv[index]);
+          index += 1;
+        }
+        break;
+      }
       default:
         throw new Error(`不明な引数: ${token}`);
     }
   }
+  if (args.passes < 1) throw new Error("--passes は1以上で指定してください。");
+  if (args.iterations < 1) throw new Error("--iterations は1以上で指定してください。");
+  if (args.eliteCount < 0) throw new Error("--elite-count は0以上で指定してください。");
+  if (args.mutationMin <= 0 || args.mutationMax <= 0 || args.mutationMin > args.mutationMax) {
+    throw new Error("--mutation-min / --mutation-max の範囲が不正です。");
+  }
+  const unknownExcludeKeys = args.excludeKeys.filter((key) => !(key in CHALLENGER_WEIGHTS));
+  if (unknownExcludeKeys.length > 0) throw new Error(`--exclude-keys に不明な重みがあります: ${unknownExcludeKeys.join(", ")}`);
   return args;
+}
+
+type Champion = {
+  id: string;
+  weights: ChallengerWeights;
+};
+
+function parseWeights(value: Record<string, unknown>, label: string): ChallengerWeights {
+  const keys = Object.keys(CHALLENGER_WEIGHTS).sort();
+  const weights = {} as ChallengerWeights;
+  for (const key of keys) {
+    weights[key as keyof ChallengerWeights] = typeof value[key] === "number"
+      ? value[key] as number
+      : CHALLENGER_WEIGHTS[key as keyof ChallengerWeights];
+  }
+  return weights;
+}
+
+function readWeightsJson(path: string): ChallengerWeights {
+  const parsed = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
+  const source = typeof parsed.weights === "object" && parsed.weights !== null
+    ? parsed.weights as Record<string, unknown>
+    : parsed;
+  return parseWeights(source, path);
+}
+
+function readChampions(dir: string | null): Champion[] {
+  if (dir === null) return [{ id: "baseline", weights: { ...CHALLENGER_WEIGHTS } }];
+  if (!existsSync(dir)) throw new Error(`チャンピオンディレクトリが見つかりません: ${dir}`);
+  const champions = readdirSync(dir)
+    .filter((name) => name.endsWith(".json"))
+    .sort()
+    .map((name) => {
+      const path = join(dir, name);
+      const parsed = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
+      const id = typeof parsed.id === "string" ? parsed.id : name.replace(/\.json$/, "");
+      const source = typeof parsed.weights === "object" && parsed.weights !== null
+        ? parsed.weights as Record<string, unknown>
+        : parsed;
+      return { id, weights: parseWeights(source, path) };
+    });
+  if (champions.length === 0) throw new Error(`チャンピオンJSONがありません: ${dir}`);
+  return champions;
 }
 
 // Python 版 _mutate_weights の移植: 2〜5 個のキーを 0.65〜1.40 倍して丸める。
 // 符号は維持し、絶対値の下限 1 を保証する。
-function mutateWeights(base: ChallengerWeights, rng: SimRandom): ChallengerWeights {
+function mutateWeights(
+  base: ChallengerWeights,
+  rng: SimRandom,
+  minFactor: number,
+  maxFactor: number,
+  excludeKeys: ReadonlySet<string>,
+): ChallengerWeights {
   const weights: ChallengerWeights = { ...base };
-  const keys = Object.keys(weights).sort() as (keyof ChallengerWeights)[];
+  const keys = Object.keys(weights).sort().filter((key) => !excludeKeys.has(key)) as (keyof ChallengerWeights)[];
   const chosen = rng.sample(keys, rng.randint(2, 5));
   for (const key of chosen) {
     const value = weights[key];
-    const factor = rng.uniform(0.65, 1.4);
+    const factor = rng.uniform(minFactor, maxFactor);
     const mutated = Math.round(value * factor);
     weights[key] = value < 0 ? Math.min(-1, mutated) : Math.max(1, mutated);
   }
@@ -99,6 +200,7 @@ function mutateWeights(base: ChallengerWeights, rng: SimRandom): ChallengerWeigh
 function evaluateCandidate(
   weights: ChallengerWeights,
   baseline: ChallengerWeights,
+  champions: readonly Champion[],
   gamesPerSeat: number,
   seed: number,
 ): CandidateResult {
@@ -109,18 +211,19 @@ function evaluateCandidate(
   for (const deck of DECKS) {
     let wins = 0;
     let games = 0;
-    for (const candidateIsFirst of [true, false]) {
-      const weightsBySeat: [ChallengerWeights, ChallengerWeights] = candidateIsFirst
-        ? [weights, baseline]
-        : [baseline, weights];
-      for (let i = 0; i < gamesPerSeat; i += 1) {
-        const record = runMatch(currentSeed, {
+    for (let i = 0; i < gamesPerSeat; i += 1) {
+      const pairedSeed = currentSeed;
+      currentSeed += 1;
+      for (const candidateIsFirst of [true, false]) {
+        const weightsBySeat: [ChallengerWeights, ChallengerWeights] = candidateIsFirst
+          ? [weights, baseline]
+          : [baseline, weights];
+        const record = runMatch(pairedSeed, {
           firstDeck: deck,
           secondDeck: deck,
           aiProfiles: ["challenger", "challenger"],
           weightsBySeat,
         });
-        currentSeed += 1;
         const winner = record.game.winner;
         if (winner === null) continue;
         games += 1;
@@ -133,11 +236,58 @@ function evaluateCandidate(
   }
   const headToHead = totalGames > 0 ? totalWins / totalGames : 0;
   const floor = Math.min(...Object.values(perDeck));
+  const championRates: Record<string, number> = {};
+  let poolWinsWeighted = 0;
+  let poolGames = 0;
+  let poolFloor = 1;
+  champions.forEach((champion, championIndex) => {
+    let championWins = 0;
+    let championGames = 0;
+    const championDeckRates: number[] = [];
+    let championSeed = seed + 50000000 + championIndex * 100000;
+    for (const deck of DECKS) {
+      let wins = 0;
+      let games = 0;
+      for (let i = 0; i < gamesPerSeat; i += 1) {
+        const pairedSeed = championSeed;
+        championSeed += 1;
+        for (const candidateIsFirst of [true, false]) {
+          const weightsBySeat: [ChallengerWeights, ChallengerWeights] = candidateIsFirst
+            ? [weights, champion.weights]
+            : [champion.weights, weights];
+          const record = runMatch(pairedSeed, {
+            firstDeck: deck,
+            secondDeck: deck,
+            aiProfiles: ["challenger", "challenger"],
+            weightsBySeat,
+          });
+          const winner = record.game.winner;
+          if (winner === null) continue;
+          games += 1;
+          if (winner === (candidateIsFirst ? 0 : 1)) wins += 1;
+        }
+      }
+      const deckRate = games > 0 ? wins / games : 0;
+      championDeckRates.push(deckRate);
+      championWins += wins;
+      championGames += games;
+    }
+    const championRate = championGames > 0 ? championWins / championGames : 0;
+    championRates[champion.id] = championRate;
+    poolWinsWeighted += championWins;
+    poolGames += championGames;
+    poolFloor = Math.min(poolFloor, ...championDeckRates);
+  });
+  const poolWinRate = poolGames > 0 ? poolWinsWeighted / poolGames : headToHead;
+  const poolFitness = poolWinRate + 0.15 * poolFloor;
   return {
-    fitness: headToHead + 0.15 * floor,
+    fitness: poolFitness,
     head_to_head_win_rate: headToHead,
     head_to_head_floor: floor,
     head_to_head_by_deck: perDeck,
+    pool_win_rate: poolWinRate,
+    pool_floor: poolFloor,
+    pool_by_champion: championRates,
     weights,
   };
 }
@@ -183,33 +333,48 @@ function main(): void {
   let mutationBase = baseline;
   let baseJsonProvided = false;
   if (args.baseJson !== null) {
-    const parsed = JSON.parse(readFileSync(args.baseJson, "utf-8")) as Record<string, number>;
-    const missing = Object.keys(baseline).filter((key) => !(key in parsed));
-    if (missing.length > 0) {
-      throw new Error(`--base-json に重みキーが不足しています: ${missing.sort().join(", ")}`);
-    }
-    mutationBase = parsed as ChallengerWeights;
+    mutationBase = readWeightsJson(args.baseJson);
     baseJsonProvided = true;
   }
-
-  const candidates: ChallengerWeights[] = [];
-  if (baseJsonProvided) candidates.push({ ...mutationBase });
-  while (candidates.length < args.iterations) {
-    candidates.push(mutateWeights(mutationBase, rng));
-  }
+  const champions = readChampions(args.championsDir);
+  const excludeKeys = new Set(args.excludeKeys);
 
   const results: CandidateResult[] = [];
-  candidates.forEach((weights, index) => {
-    // Python 版と同じシード配分: 候補ごとに seed + index * 100000
-    const result = evaluateCandidate(weights, baseline, args.gamesPerSeat, args.seed + index * 100000);
-    result.candidate_index = index;
-    results.push(result);
-    console.error(
-      `candidate ${String(index).padStart(3, "0")}: `
-      + `h2h_vs_baseline=${result.head_to_head_win_rate.toFixed(3)} `
-      + `floor=${result.head_to_head_floor.toFixed(3)}`,
-    );
-  });
+  let elite: ChallengerWeights[] = baseJsonProvided ? [{ ...mutationBase }] : [];
+  for (let pass = 0; pass < args.passes; pass += 1) {
+    const progress = args.passes === 1 ? 0 : pass / (args.passes - 1);
+    const minFactor = args.mutationMin + (1 - args.mutationMin) * 0.5 * progress;
+    const maxFactor = args.mutationMax - (args.mutationMax - 1) * 0.5 * progress;
+    const candidates: ChallengerWeights[] = elite.slice(0, args.eliteCount).map((weights) => ({ ...weights }));
+    if (pass === 0 && !baseJsonProvided) candidates.push({ ...mutationBase });
+    while (candidates.length < args.iterations) {
+      const base = elite.length > 0 ? elite[rng.randint(0, elite.length - 1)] : mutationBase;
+      candidates.push(mutateWeights(base, rng, minFactor, maxFactor, excludeKeys));
+    }
+    const passResults: CandidateResult[] = [];
+    candidates.forEach((weights, index) => {
+      const result = evaluateCandidate(
+        weights,
+        baseline,
+        champions,
+        args.gamesPerSeat,
+        args.seed + pass * 10000000 + index * 100000,
+      );
+      result.candidate_index = index;
+      result.pass_index = pass;
+      passResults.push(result);
+      results.push(result);
+      console.error(
+        `pass ${String(pass).padStart(2, "0")} candidate ${String(index).padStart(3, "0")}: `
+        + `pool=${(result.pool_win_rate ?? result.head_to_head_win_rate).toFixed(3)} `
+        + `pool_floor=${(result.pool_floor ?? result.head_to_head_floor).toFixed(3)} `
+        + `h2h_vs_baseline=${result.head_to_head_win_rate.toFixed(3)}`,
+      );
+    });
+    passResults.sort((a, b) => b.fitness - a.fitness);
+    elite = passResults.slice(0, Math.max(1, args.eliteCount)).map((result) => result.weights);
+    mutationBase = elite[0];
+  }
   results.sort((a, b) => b.fitness - a.fitness);
 
   const best = results[0];
@@ -218,9 +383,13 @@ function main(): void {
   const report = {
     seed: args.seed,
     iterations: args.iterations,
+    passes: args.passes,
+    elite_count: args.eliteCount,
     games_per_seat: args.gamesPerSeat,
+    champions_dir: args.championsDir,
+    exclude_keys: args.excludeKeys,
     fitness_note:
-      "fitness = head_to_head_win_rate + 0.15 * head_to_head_floor (candidate vs baseline weights, mirror decks, both seats)",
+      "fitness = pool_win_rate + 0.15 * pool_floor (candidate vs champion pool, mirror decks, both seats)",
     baseline_weights: baseline,
     best: results[0],
     top_5: results.slice(0, 5),
