@@ -1,12 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { TRUMP_CUT_IN_LINE } from "../duelEvents";
 import { DuelCutInView } from "./Overlays";
+
+const TRUMP_CUT_IN_LINE = "テスト用の切札台詞";
 
 describe("DuelCutInView", () => {
   it("renders the trump cut-in with band, portrait, kicker and line", () => {
     const html = renderToStaticMarkup(
-      <DuelCutInView cutIn={{ style: "trump", line: TRUMP_CUT_IN_LINE }} />,
+      <DuelCutInView cutIn={{ style: "trump" }} portrait="test-trump.webp" line={TRUMP_CUT_IN_LINE} />,
     );
 
     expect(html).toContain("duel-cut-in trump");
@@ -17,7 +18,7 @@ describe("DuelCutInView", () => {
   });
 
   it("renders the finisher style and omits the line when absent", () => {
-    const html = renderToStaticMarkup(<DuelCutInView cutIn={{ style: "finisher" }} />);
+    const html = renderToStaticMarkup(<DuelCutInView cutIn={{ style: "finisher" }} portrait="fallback.webp" />);
 
     expect(html).toContain("duel-cut-in finisher");
     expect(html).toContain("FINISH BLOW");

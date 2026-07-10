@@ -1,16 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   CONFIG,
-  BATTLE_DECK_IDS,
   CARD_BY_ID,
-  DECKS,
   type AiAction,
   type AiProfile,
   type AttackContext,
   type DefenseChoice,
   type Card,
-  type DeckId,
-  type DuelDeckSource,
   type GameState,
   type PlayerState,
   addLog,
@@ -32,6 +28,7 @@ import {
   commandUsable,
   strikeTargets,
   createGame,
+  createGameFromSetup,
   chooseAiAction,
   chooseAiDefense,
   defenseCombatValue,
@@ -88,7 +85,8 @@ import {
   SelectedCardDetail,
   actionHintText,
 } from "./components/DuelPanel";
-import { CardLibraryPage, DeckBuilderPage, loadSavedDecks, validateDeck, type SavedDeck } from "./components/DeckWorkshop";
+import { CardLibraryPage, DeckBuilderPage } from "./components/DeckWorkshop";
+import { loadSavedDecks, type SavedDeck } from "./savedDecks";
 import { PackOpeningPage } from "./components/PackOpening";
 import { MATCH_LOSE_COINS, MATCH_WIN_COINS, PACK_COST, addCoins, loadCoins, spendCoins } from "./collection";
 import type { PackPurchaseCount } from "./pack";
@@ -96,6 +94,8 @@ import { CardArtPreview, CardView } from "./components/CardView";
 import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
 import { DevPanel } from "./components/DevPanel";
+import { DuelSetupPanel } from "./components/DuelSetupPanel";
+import { CharacterAdminPage } from "./components/CharacterAdminPage";
 import { DuelActionReel, DuelCutInOverlay, EventToast, GameBanner, type Banner, type Toast } from "./components/Overlays";
 import { SYNTH_SFX_PREFIX, renderSummonSfxSamples, summonArrivalForCard, summonAuraColor, summonSfxKind, type SummonArrival, type SummonSfxKind } from "./summonFx";
 import { attributeBurstTheme, hasCardMaterialBurst, runCardMaterialBurst, type CardMaterialTheme, type CardRect, type SummonBurstTheme } from "./summonParticles";
@@ -103,14 +103,36 @@ import {
   cutInForEvent,
   duelEventDurationMs,
   DUEL_CUT_IN_DURATION_MS,
-  FINISHER_CUT_IN_LINE,
-  TRUMP_CUT_IN_LINE,
   type DuelCutIn,
   type DuelCutInStyle,
   type DuelEvent,
   type DuelEventPayload,
 } from "./duelEvents";
-import { RIVAL_VOICE_LINES, type RivalVoiceLineId } from "./rivalVoiceLines";
+import { resolveDeckSelection, toDuelDeckSource, validateOpponentProfileReferences, type DeckSelection } from "./duelSetup";
+import { NIKE_CHARACTER } from "./opponents/nike";
+import { OPPONENT_CHARACTER_CATALOG, opponentAiProfile, opponentDeckSelection, opponentPortrait, opponentVoiceLine, resolveOpponentCharacter, setCustomOpponentCharacters } from "./opponents/catalog";
+import {
+  deleteSavedOpponentCharacter,
+  loadSavedOpponentCharacters,
+  saveSavedOpponentCharacter,
+  savedCharacterToDefinition,
+} from "./opponents/characterStorage";
+import {
+  createDefaultNikeProfile,
+  createDefaultOpponentStore,
+  createId,
+  deleteOpponentProfile,
+  duplicateOpponentProfile,
+  loadOpponentProfileStore,
+  initializeOpponentProfileStore,
+  saveOpponentProfileStore,
+  selectOpponentProfile,
+  updateOpponentProfile,
+  createOpponentProfile,
+  type OpponentStoreSaveResult,
+} from "./opponents/storage";
+import type { OpponentProfileStoreV1, OpponentVoiceCue, ResolvedOpponentSnapshot, SavedOpponentCharacter, SavedOpponentProfile } from "./opponents/types";
+import { createOpponentAsyncGuard } from "./opponents/asyncGuard";
 import battleBgm from "./assets/audio/battle_music_01-loop.ogg";
 import finalBattleBgm from "./assets/audio/battle_music_final_loop.mp3";
 import menuBgm from "./assets/audio/menu_music_loop.ogg";
@@ -130,13 +152,11 @@ import sfxTrash from "./assets/audio/sfx-trash.ogg";
 import sfxTurnEnd from "./assets/audio/sfx-turn-end.ogg";
 import cardBackImage from "./assets/card-back.webp";
 import leaderHumanImage from "./assets/leader-human-placeholder.webp";
-import leaderRivalDelightImage from "./assets/leader-rival-delight.webp";
-import leaderRivalHurtImage from "./assets/leader-rival-hurt.webp";
-import leaderRivalImage from "./assets/leader-rival-placeholder.webp";
 import brandMark from "./assets/mark.svg";
 
 let eventId = 1;
 const INITIAL_SEED = randomSeed();
+const INITIAL_OPPONENT_STORE_LOAD = loadOpponentProfileStore();
 const BATTLE_BGM_VOLUME = 0.32;
 const FINAL_BATTLE_BGM_VOLUME = 0.36;
 const MENU_BGM_VOLUME = 0.26;
@@ -146,22 +166,14 @@ const BGM_TRACK_SWITCH_PAUSE_MS = 160;
 const BGM_FADE_IN_MS = 900;
 const BGM_FADE_STEP_MS = 40;
 
-type AppPage = "duel" | "cards" | "builder" | "packs";
-
-type DeckSelection =
-  | { kind: "random" }
-  | { kind: "preset"; deckId: DeckId }
-  | { kind: "saved"; deckId: string };
-
-type ResolvedDeckSelection =
-  | { kind: "preset"; deckId: DeckId }
-  | { kind: "saved"; deck: SavedDeck };
+type AppPage = "duel" | "cards" | "builder" | "packs" | "characters";
 
 const PAGE_PATHS: Record<AppPage, string> = {
   duel: "/duel",
   cards: "/cards",
   builder: "/builder",
   packs: "/packs",
+  characters: "/admin/characters",
 };
 
 type CardFlight = {
@@ -290,12 +302,12 @@ type MatchResultView = {
 
 type RivalSpeech = {
   id: number;
-  lineId: RivalVoiceLineId;
+  lineId: OpponentVoiceCue;
   text: string;
 };
 
 type PendingRivalVoiceLine = {
-  lineId: RivalVoiceLineId;
+  lineId: OpponentVoiceCue;
   text: string;
   force: boolean;
   stateKey: string;
@@ -313,7 +325,7 @@ const RIVAL_ACTION_VOICE_LINE_IDS = [
   "charge",
   "attack",
   "command",
-] as const satisfies readonly RivalVoiceLineId[];
+] as const satisfies readonly OpponentVoiceCue[];
 type RivalActionVoiceLineId = typeof RIVAL_ACTION_VOICE_LINE_IDS[number];
 type RivalVoiceTurnGroup = "odd" | "even";
 type DevScenario = "firewall";
@@ -483,7 +495,33 @@ function createFirewallDevScenario(seed: number, opponentAiProfile: AiProfile): 
 
 function createInitialDuelGame(seed: number, opponentAiProfile: AiProfile): GameState {
   if (readDevScenario() === "firewall") return createFirewallDevScenario(seed, opponentAiProfile);
-  return createGame(seed, "fire", undefined, opponentAiProfile);
+  const game = createGame(seed, "fire", undefined, opponentAiProfile);
+  game.players[1].name = NIKE_CHARACTER.defaultDisplayName;
+  game.log = game.log.map((entry) => entry.replace(" / ライバル:", ` / ${NIKE_CHARACTER.defaultDisplayName}:`));
+  return game;
+}
+
+function resolveOpponentSnapshot(profile: SavedOpponentProfile, matchId = createId("match")): ResolvedOpponentSnapshot {
+  const character = resolveOpponentCharacter(profile.characterId);
+  if (!character) throw new Error(`キャラクター「${profile.characterId}」が見つかりません`);
+  return {
+    profileId: profile.id,
+    profileLabel: profile.profileLabel,
+    displayName: character.defaultDisplayName,
+    characterId: character.id,
+    aiProfile: profile.aiProfile,
+    character,
+    matchId,
+  };
+}
+
+function tutorialOpponentSnapshot(matchId = createId("tutorial")): ResolvedOpponentSnapshot {
+  return resolveOpponentSnapshot({
+    ...createDefaultNikeProfile(),
+    id: "tutorial-nike",
+    profileLabel: "チュートリアルのニケ",
+    aiProfile: "beginner",
+  }, matchId);
 }
 
 function previewMatchResult(tone: MatchResultTone): MatchResultView {
@@ -511,6 +549,7 @@ function pageFromPath(pathname: string): AppPage {
   if (pathname === PAGE_PATHS.cards) return "cards";
   if (pathname === PAGE_PATHS.builder) return "builder";
   if (pathname === PAGE_PATHS.packs) return "packs";
+  if (pathname === PAGE_PATHS.characters) return "characters";
   return "duel";
 }
 
@@ -561,8 +600,8 @@ function createRivalActionVoiceTurnGroups(seed: number): Record<RivalActionVoice
   return groups;
 }
 
-function isRivalActionVoiceLineId(lineId: RivalVoiceLineId): lineId is RivalActionVoiceLineId {
-  return (RIVAL_ACTION_VOICE_LINE_IDS as readonly RivalVoiceLineId[]).includes(lineId);
+function isRivalActionVoiceLineId(lineId: OpponentVoiceCue): lineId is RivalActionVoiceLineId {
+  return (RIVAL_ACTION_VOICE_LINE_IDS as readonly OpponentVoiceCue[]).includes(lineId);
 }
 
 function trashSurgeForEvent(event: DuelEventPayload | DuelEvent | null): TrashSurge | null {
@@ -728,10 +767,15 @@ export default function App() {
   const [page, setPage] = useState<AppPage>(() => pageFromPath(window.location.pathname));
   const [seed, setSeed] = useState(INITIAL_SEED);
   const [playerDeckSelection, setPlayerDeckSelection] = useState<DeckSelection>({ kind: "preset", deckId: "fire" });
-  const [opponentDeckSelection, setOpponentDeckSelection] = useState<DeckSelection>({ kind: "random" });
-  const [opponentAiProfile, setOpponentAiProfile] = useState<AiProfile>("challenger");
+  const [opponentStore, setOpponentStore] = useState<OpponentProfileStoreV1>(() => INITIAL_OPPONENT_STORE_LOAD.store);
+  const [opponentPersistence, setOpponentPersistence] = useState<OpponentStoreSaveResult>(() => INITIAL_OPPONENT_STORE_LOAD.persistence);
+  const [savedOpponentCharacters, setSavedOpponentCharacters] = useState<SavedOpponentCharacter[]>([]);
+  const [activeOpponent, setActiveOpponent] = useState<ResolvedOpponentSnapshot>(() => resolveOpponentSnapshot({
+    ...createDefaultNikeProfile(),
+    id: "initial-nike",
+  }, `initial-${INITIAL_SEED}`));
   const [savedDecks, setSavedDecks] = useState<SavedDeck[]>(() => loadSavedDecks());
-  const [game, setGame] = useState<GameState>(() => createInitialDuelGame(INITIAL_SEED, "challenger"));
+  const [game, setGame] = useState<GameState>(() => createInitialDuelGame(INITIAL_SEED, activeOpponent.aiProfile));
   const [lastHumanActionsRemaining, setLastHumanActionsRemaining] = useState(() => game.actionsRemaining);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [starterDeckSetupOpen, setStarterDeckSetupOpen] = useState(() => readDevScenario() === null);
@@ -788,6 +832,8 @@ export default function App() {
   const leaderReactionTimers = useRef<Partial<Record<PlayerIndex, number>>>({});
   const rivalSpeechTimer = useRef<number | null>(null);
   const rivalVoiceAudio = useRef<HTMLAudioElement | null>(null);
+  const activeOpponentRef = useRef(activeOpponent);
+  const opponentAsyncGuard = useRef(createOpponentAsyncGuard(() => activeOpponentRef.current.matchId)).current;
   const lastRivalLine = useRef<{ text: string; at: number } | null>(null);
   const pendingRivalVoiceLine = useRef<PendingRivalVoiceLine | null>(null);
   const currentRivalVoiceStateKey = useRef("");
@@ -822,8 +868,37 @@ export default function App() {
   const opponent = opponentPlayer(game);
   const selectedCard = selectedCardForDetail(game);
   const tutorialStep = tutorialActive ? currentTutorialStep(game) : null;
-  currentRivalVoiceStateKey.current = `${game.turn}:${game.active}:${game.winner ?? "playing"}:${game.draw ? "draw" : "active"}`;
+  currentRivalVoiceStateKey.current = `${activeOpponentRef.current.matchId}:${game.turn}:${game.active}:${game.winner ?? "playing"}:${game.draw ? "draw" : "active"}`;
   gameResolvedRef.current = game.winner !== null || game.draw;
+
+  function activateOpponent(next: ResolvedOpponentSnapshot) {
+    activeOpponentRef.current = next;
+    setActiveOpponent(next);
+  }
+
+  function commitOpponentStore(next: OpponentProfileStoreV1, successMessage?: string) {
+    const persistence = saveOpponentProfileStore(next);
+    setOpponentStore(next);
+    setOpponentPersistence(persistence);
+    if (persistence === "persisted") {
+      if (successMessage) showToast(successMessage);
+      return;
+    }
+    if (persistence === "unsupported-version") {
+      showToast("保存できません", "新しいバージョンの保存データを保護しています。明示的に初期化するまで元データは変更しません");
+      return;
+    }
+    showToast("このタブのみで有効", "相手プロフィールをブラウザへ保存できませんでした");
+  }
+
+  function initializeOpponentProfiles() {
+    if (!window.confirm("現在の相手プロフィール保存データを初期化しますか？この操作は取り消せません。")) return;
+    const next = createDefaultOpponentStore();
+    const persistence = initializeOpponentProfileStore(next);
+    setOpponentStore(next);
+    setOpponentPersistence(persistence);
+    showToast("相手プロフィールを初期化しました", persistence === "persisted" ? "既定のニケを保存しました" : "このタブのみで利用できます");
+  }
 
   function mutate(mutator: (draft: GameState) => void) {
     setGame((current) => {
@@ -866,8 +941,9 @@ export default function App() {
     setBanner({ ...next, id: eventId++ });
   }
 
-  function showRivalVoiceLine(lineId: RivalVoiceLineId, options: { force?: boolean; skipTurnEligibility?: boolean } = {}) {
-    const line = RIVAL_VOICE_LINES[lineId];
+  function showRivalVoiceLine(lineId: OpponentVoiceCue, options: { force?: boolean; skipTurnEligibility?: boolean; opponent?: ResolvedOpponentSnapshot } = {}) {
+    const opponentSnapshot = options.opponent ?? activeOpponentRef.current;
+    const line = opponentVoiceLine(opponentSnapshot.character, lineId);
     if (!line) return;
     if (!rivalVoiceLineAllowedForCurrentOutcome(lineId)) return;
     if (!options.skipTurnEligibility && !rivalVoiceLineEligibleForCurrentTurn(lineId)) return;
@@ -884,20 +960,24 @@ export default function App() {
       if (!pendingRivalVoiceLine.current || pending.force) pendingRivalVoiceLine.current = pending;
       return;
     }
-    displayRivalVoiceLine(lineId, line.text);
+    displayRivalVoiceLine(lineId, line.text, opponentSnapshot);
   }
 
-  function displayRivalVoiceLine(lineId: RivalVoiceLineId, text: string) {
-    const line = RIVAL_VOICE_LINES[lineId];
+  function displayRivalVoiceLine(lineId: OpponentVoiceCue, text: string, opponentSnapshot = activeOpponentRef.current) {
+    const line = opponentVoiceLine(opponentSnapshot.character, lineId);
     if (!line) return;
+    if (opponentSnapshot.matchId !== activeOpponentRef.current.matchId) return;
     lastRivalLine.current = { text, at: Date.now() };
     setRivalSpeech({ id: eventId++, lineId, text });
+    const matchId = opponentSnapshot.matchId;
     rivalSpeechTimer.current = window.setTimeout(() => {
-      setRivalSpeech(null);
       rivalSpeechTimer.current = null;
-      flushPendingRivalVoiceLine();
+      opponentAsyncGuard.runIfCurrent(matchId, () => {
+        setRivalSpeech(null);
+        flushPendingRivalVoiceLine();
+      });
     }, Math.max(2800, text.length * 95));
-    playRivalVoiceLine(lineId);
+    playRivalVoiceLine(lineId, opponentSnapshot);
   }
 
   function flushPendingRivalVoiceLine() {
@@ -925,7 +1005,7 @@ export default function App() {
     return Boolean(last && last.text === text && Date.now() - last.at < RIVAL_LINE_REPEAT_COOLDOWN_MS);
   }
 
-  function rivalVoiceLineEligibleForCurrentTurn(lineId: RivalVoiceLineId) {
+  function rivalVoiceLineEligibleForCurrentTurn(lineId: OpponentVoiceCue) {
     if (lineId === "rival_turn_start") return game.active === 1 && rivalTurnNumber() === 1;
     if (!isRivalActionVoiceLineId(lineId)) return true;
     const rivalTurn = rivalTurnNumber();
@@ -934,7 +1014,7 @@ export default function App() {
     return rivalActionVoiceTurnGroups.current[lineId] === currentGroup;
   }
 
-  function rivalVoiceLineAllowedForCurrentOutcome(lineId: RivalVoiceLineId) {
+  function rivalVoiceLineAllowedForCurrentOutcome(lineId: OpponentVoiceCue) {
     if (!gameResolvedRef.current) return true;
     return lineId === "victory" || lineId === "defeat";
   }
@@ -943,18 +1023,19 @@ export default function App() {
     return game.players[1]?.turnsStarted ?? 0;
   }
 
-  function playRivalVoiceLine(lineId: RivalVoiceLineId) {
+  function playRivalVoiceLine(lineId: OpponentVoiceCue, opponentSnapshot = activeOpponentRef.current) {
     if (!audioEnabledRef.current) return;
-    const line = RIVAL_VOICE_LINES[lineId];
-    if (!line) return;
+    const line = opponentVoiceLine(opponentSnapshot.character, lineId);
+    if (!line?.audioSrc) return;
     stopRivalVoiceLine();
-    const audio = new Audio(line.src);
+    const matchId = opponentSnapshot.matchId;
+    const audio = new Audio(line.audioSrc);
     audio.volume = 0.88;
-    audio.addEventListener("ended", () => {
+    opponentAsyncGuard.onAudioEnded(matchId, audio, () => {
       if (rivalVoiceAudio.current !== audio) return;
       rivalVoiceAudio.current = null;
       flushPendingRivalVoiceLine();
-    }, { once: true });
+    });
     rivalVoiceAudio.current = audio;
     void audio.play().catch((error) => {
       console.warn("Rival voice playback failed", lineId, error);
@@ -1053,7 +1134,7 @@ export default function App() {
   // 開発用パネルからカットインを単体プレビューする。演出キューは経由せず、見た目確認専用。
   function previewDuelCutIn(style: DuelCutInStyle) {
     clearDuelCutIn();
-    setDuelCutIn({ style, line: style === "trump" ? TRUMP_CUT_IN_LINE : FINISHER_CUT_IN_LINE, id: eventId++ });
+    setDuelCutIn({ style, id: eventId++ });
     playRivalVoiceLine(style === "trump" ? "cutin_trump" : "cutin_finisher");
     duelCutInTimer.current = window.setTimeout(() => {
       duelCutInTimer.current = null;
@@ -1516,7 +1597,7 @@ export default function App() {
       const defenseCard = defender.hand[choice.index];
       if (!defenseCard || !legalHandDefenders(defender, attackCard, attackContext).some((option) => option.index === choice.index)) return null;
       return piercesHandDefense(attackCard) && defender.life <= 1
-        ? { style: "finisher", line: FINISHER_CUT_IN_LINE }
+        ? { style: "finisher" }
         : null;
     }
 
@@ -1540,7 +1621,7 @@ export default function App() {
     }
 
     return damage > 0 && defender.life <= damage
-      ? { style: "finisher", line: FINISHER_CUT_IN_LINE }
+      ? { style: "finisher" }
       : null;
   }
 
@@ -1551,7 +1632,7 @@ export default function App() {
         ? ai.hand[action.handIndex]
         : null;
     if (!card || card.type !== "ai" || card.power !== 4) return null;
-    return { style: "trump", line: TRUMP_CUT_IN_LINE };
+    return { style: "trump" };
   }
 
   function prepareAiActionAnimation(action: AiAction) {
@@ -1584,7 +1665,7 @@ export default function App() {
         card,
         from: { ownerIndex: 1, zone: "hand-source", index: 0 },
         to: { ownerIndex: 1, zone: "memory", index: 0 },
-        label: "ライバル 遺物",
+        label: `${ai.name} 遺物`,
         tone: "ai",
         durationMs: CPU_CARD_PLAY_FLIGHT_DURATION_MS,
         arrival: summonArrivalForCard(card),
@@ -1636,47 +1717,46 @@ export default function App() {
     return action.type === "attack" ? 360 : 180;
   }
 
-  function playableDeckOptions(): ResolvedDeckSelection[] {
-    const fixedDecks: ResolvedDeckSelection[] = BATTLE_DECK_IDS.map((deckId) => ({ kind: "preset", deckId }));
-    const customDecks: ResolvedDeckSelection[] = savedDecks
-      .filter((deck) => validateDeck(deck.cardIds).valid)
-      .map((deck) => ({ kind: "saved", deck }));
-    return [...fixedDecks, ...customDecks];
-  }
-
-  function resolveDeckSelection(selection: DeckSelection, rng: () => number): ResolvedDeckSelection {
-    if (selection.kind === "random") {
-      const options = playableDeckOptions();
-      const index = Math.floor(rng() * options.length);
-      return options[index];
-    }
-    if (selection.kind === "preset") return { kind: "preset", deckId: selection.deckId };
-    const deck = savedDecks.find((item) => item.id === selection.deckId);
-    if (!deck) throw new Error("保存済みデッキが見つかりません");
-    const validation = validateDeck(deck.cardIds);
-    if (!validation.valid) throw new Error(validation.messages[0] ?? "デッキ条件を満たしていません");
-    return { kind: "saved", deck };
-  }
-
-  function toDuelDeckSource(selection: ResolvedDeckSelection): DuelDeckSource {
-    if (selection.kind === "preset") return { kind: "preset", deckId: selection.deckId };
-    return { kind: "custom", name: selection.deck.name, cardIds: selection.deck.cardIds };
-  }
-
   function startSelectedDeckGame() {
     try {
+      const latestSavedDecks = loadSavedDecks();
+      setSavedDecks(latestSavedDecks);
+      const selectedProfile = opponentStore.profiles.find((profile) => profile.id === opponentStore.selectedProfileId);
+      if (!selectedProfile) throw new Error("選択中の相手プロフィールが見つかりません");
+      const selectedCharacter = resolveOpponentCharacter(selectedProfile.characterId);
+      if (!selectedCharacter) throw new Error(`キャラクター「${selectedProfile.characterId}」が見つかりません`);
+      const effectiveProfile = {
+        ...selectedProfile,
+        profileLabel: selectedCharacter.defaultDisplayName,
+        deckSelection: opponentDeckSelection(selectedCharacter),
+        aiProfile: opponentAiProfile(selectedCharacter),
+      };
+      const reference = validateOpponentProfileReferences(effectiveProfile, latestSavedDecks);
+      if (!reference.valid) throw new Error(reference.reason);
       const nextSeed = randomSeed();
       const selectionRng = makeRng(nextSeed);
-      const playerSelection = resolveDeckSelection(playerDeckSelection, selectionRng);
-      const opponentSelection = resolveDeckSelection(opponentDeckSelection, selectionRng);
-      const nextGame = createGame(nextSeed, toDuelDeckSource(playerSelection), toDuelDeckSource(opponentSelection), opponentAiProfile);
+      const playerSelection = resolveDeckSelection(playerDeckSelection, latestSavedDecks, selectionRng);
+      const opponentSelection = resolveDeckSelection(effectiveProfile.deckSelection, latestSavedDecks, selectionRng);
+      const nextOpponent = resolveOpponentSnapshot(effectiveProfile);
+      const nextGame = createGameFromSetup(nextSeed, {
+        first: { name: "あなた", deck: toDuelDeckSource(playerSelection), isHuman: true, aiProfile: "challenger" },
+        second: {
+          name: nextOpponent.displayName,
+          deck: toDuelDeckSource(opponentSelection),
+          isHuman: false,
+          aiProfile: nextOpponent.aiProfile,
+        },
+      });
+      resetDuelEvents();
+      activateOpponent(nextOpponent);
+      gameResolvedRef.current = false;
+      currentRivalVoiceStateKey.current = `${nextOpponent.matchId}:0:0:playing:active`;
       rivalActionVoiceTurnGroups.current = createRivalActionVoiceTurnGroups(nextSeed);
       announcedResultKey.current = null;
       setSeed(nextSeed);
       resetDrawTracker(nextGame);
       setGame(nextGame);
       setLastHumanActionsRemaining(nextGame.actionsRemaining);
-      resetDuelEvents();
       setRulesOpen(false);
       setStarterDeckSetupOpen(false);
       setTutorialActive(false);
@@ -1686,7 +1766,7 @@ export default function App() {
         title: "BREAK DUEL",
         detail: `Seed ${nextSeed} / あなた: ${nextGame.players[0].deckName} / 相手: ${nextGame.players[1].deckName}`,
       });
-      showRivalVoiceLine("match_start");
+      showRivalVoiceLine("match_start", { opponent: nextOpponent });
     } catch (error) {
       showToast("使用できません", error instanceof Error ? error.message : "デッキを読み込めませんでした");
     }
@@ -1701,13 +1781,17 @@ export default function App() {
       }
     }
     const nextGame = createTutorialGame();
+    const nextOpponent = tutorialOpponentSnapshot();
+    resetDuelEvents();
+    activateOpponent(nextOpponent);
+    gameResolvedRef.current = false;
+    currentRivalVoiceStateKey.current = `${nextOpponent.matchId}:0:0:playing:active`;
     rivalActionVoiceTurnGroups.current = createRivalActionVoiceTurnGroups(TUTORIAL_SEED);
     announcedResultKey.current = null;
     setSeed(TUTORIAL_SEED);
     resetDrawTracker(nextGame);
     setGame(nextGame);
     setLastHumanActionsRemaining(nextGame.actionsRemaining);
-    resetDuelEvents();
     setRulesOpen(false);
     setStarterDeckSetupOpen(false);
     setTutorialActive(true);
@@ -1720,7 +1804,7 @@ export default function App() {
       title: "TUTORIAL DUEL",
       detail: "召喚、攻撃、防御、術式、チャージ、遺物、アップグレード、大型召喚獣を確認します",
     });
-    showRivalVoiceLine("match_start");
+    showRivalVoiceLine("match_start", { opponent: nextOpponent });
   }
 
   function openStarterDeckSetup() {
@@ -1759,6 +1843,44 @@ export default function App() {
       setTutorialAiAdvancePending(false);
     }
   }
+
+  async function saveAdminCharacter(character: SavedOpponentCharacter) {
+    await saveSavedOpponentCharacter(character);
+    const nextCharacters = [...savedOpponentCharacters.filter((item) => item.id !== character.id), character]
+      .sort((left, right) => left.defaultDisplayName.localeCompare(right.defaultDisplayName, "ja"));
+    setSavedOpponentCharacters(nextCharacters);
+    setCustomOpponentCharacters(nextCharacters.map(savedCharacterToDefinition));
+    showToast("キャラクター管理", `${character.defaultDisplayName}を保存しました`);
+  }
+
+  async function deleteAdminCharacter(characterId: string) {
+    await deleteSavedOpponentCharacter(characterId);
+    const nextCharacters = savedOpponentCharacters.filter((character) => character.id !== characterId);
+    setSavedOpponentCharacters(nextCharacters);
+    setCustomOpponentCharacters(nextCharacters.map(savedCharacterToDefinition));
+    showToast("キャラクター管理", "キャラクターを削除しました");
+  }
+
+  useEffect(() => {
+    if (INITIAL_OPPONENT_STORE_LOAD.message) {
+      showToast("相手プロフィール", INITIAL_OPPONENT_STORE_LOAD.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void loadSavedOpponentCharacters()
+      .then((characters) => {
+        if (!active) return;
+        const sorted = [...characters].sort((left, right) => left.defaultDisplayName.localeCompare(right.defaultDisplayName, "ja"));
+        setSavedOpponentCharacters(sorted);
+        setCustomOpponentCharacters(sorted.map(savedCharacterToDefinition));
+      })
+      .catch((error) => {
+        if (active) showToast("キャラクター管理", error instanceof Error ? error.message : "保存キャラクターを読み込めませんでした");
+      });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (window.location.pathname === "/" || !Object.values(PAGE_PATHS).includes(window.location.pathname as AppPage)) {
@@ -1948,7 +2070,7 @@ export default function App() {
     const resultKey = `${seed}:${game.turn}:${game.winner ?? "draw"}:${game.draw ? "draw" : "win"}:${human.life}:${ai.life}`;
     if (announcedResultKey.current === resultKey) return;
     announcedResultKey.current = resultKey;
-    const score = `あなた ${human.life} - ${ai.life} ライバル`;
+    const score = `あなた ${human.life} - ${ai.life} ${ai.name}`;
     const lifeJudgementLog = [...game.log].reverse().find((entry) => entry.includes("ライフ判定") || entry.includes("ライフ同値"));
     const winnerIndex = game.winner ?? 0;
     showBanner({
@@ -3635,16 +3757,16 @@ export default function App() {
         kicker: "DRAW",
         title: "引き分け",
         lead: "決着なし",
-        detail: `あなた ${human.life} - ${ai.life} ライバル`,
+        detail: `あなた ${human.life} - ${ai.life} ${ai.name}`,
         reason: finalLog,
       }
     : game.winner !== null
       ? {
           tone: game.winner === 0 ? "win" as const : "lose" as const,
           kicker: game.winner === 0 ? "VICTORY" : "DEFEAT",
-          title: game.winner === 0 ? "あなたの勝利" : "ライバルの勝利",
+          title: game.winner === 0 ? "あなたの勝利" : `${ai.name}の勝利`,
           lead: game.winner === 0 ? "勝利しました" : "敗北しました",
-          detail: `あなた ${human.life} - ${ai.life} ライバル`,
+          detail: `あなた ${human.life} - ${ai.life} ${ai.name}`,
           reason: finalLog,
         }
       : null;
@@ -3701,6 +3823,14 @@ export default function App() {
           <CardLibraryPage playSfx={playSfx} />
         ) : page === "packs" ? (
           <PackOpeningPage coins={coins} onSpendPacks={spendForPacks} playSfx={playSfx} />
+        ) : page === "characters" ? (
+          <CharacterAdminPage
+            builtInCharacters={OPPONENT_CHARACTER_CATALOG}
+            savedCharacters={savedOpponentCharacters}
+            savedDecks={savedDecks}
+            onSave={saveAdminCharacter}
+            onDelete={deleteAdminCharacter}
+          />
         ) : (
           <DeckBuilderPage playSfx={playSfx} />
         )}
@@ -3723,16 +3853,16 @@ export default function App() {
           audioEnabled={audioEnabled}
           onToggleAudio={toggleAudio}
         />
-        <StarterDeckSetupPanel
+        <DuelSetupPanel
           playerSelection={playerDeckSelection}
-          opponentSelection={opponentDeckSelection}
-          opponentAiProfile={opponentAiProfile}
           savedDecks={savedDecks}
+          opponentStore={opponentStore}
+          persistence={opponentPersistence}
           onClose={() => setStarterDeckSetupOpen(false)}
           onStartTutorial={startTutorialGame}
           onChangePlayerSelection={setPlayerDeckSelection}
-          onChangeOpponentSelection={setOpponentDeckSelection}
-          onChangeOpponentAiProfile={setOpponentAiProfile}
+          onChangeOpponentStore={commitOpponentStore}
+          onInitializeStorage={initializeOpponentProfiles}
           onStart={startSelectedDeckGame}
         />
         <EventToast toast={toast} />
@@ -3783,10 +3913,14 @@ export default function App() {
         <LeaderPortrait
           player={ai}
           tone="rival"
-          image={leaderRivalImage}
-          reactionImages={{ hurt: leaderRivalHurtImage, delight: leaderRivalDelightImage }}
+          image={opponentPortrait(activeOpponent.character, "default")}
+          reactionImages={{
+            hurt: opponentPortrait(activeOpponent.character, "hurt"),
+            delight: opponentPortrait(activeOpponent.character, "delight"),
+          }}
           reaction={leaderReactions[1]}
           speech={rivalSpeech}
+          speechLabel={activeOpponent.displayName}
         />
         <FieldGrid player={ai} ownerIndex={1} game={game} isOpponent trashSurge={ownerHasTrashSurge(1)} combatPreview={combatPreview} tutorialStep={tutorialStep} tutorialFocus={tutorialStep?.focus} tutorialLocked={tutorialActive} onSelectField={selectField} onSelectMemory={selectMemory} />
         <div className={`clash-line ${combatPreview ? "armed" : ""} ${combatPreview?.direct ? "direct" : ""}`} aria-hidden="true">
@@ -3940,7 +4074,11 @@ export default function App() {
       {lifeImpact && <DamageImpactLayer impact={lifeImpact} />}
       {breakDrawPulse && <BreakDrawLayer pulse={breakDrawPulse} />}
       {trashSurge && <TrashSurgeLayer surge={trashSurge} eventId={duelEvent?.id ?? trashFlash?.id ?? 0} />}
-      <DuelCutInOverlay cutIn={duelCutIn} />
+      <DuelCutInOverlay
+        cutIn={duelCutIn}
+        portrait={opponentPortrait(activeOpponent.character, duelCutIn?.style === "trump" ? "cutInTrump" : "cutInFinisher")}
+        line={duelCutIn ? opponentVoiceLine(activeOpponent.character, duelCutIn.style === "trump" ? "cutin_trump" : "cutin_finisher")?.text : undefined}
+      />
       <DuelActionReel event={duelEvent} autoDismiss={autoDismissDuelEvents} onClose={dismissDuelEvent}>
         {showDefenseInDuelEvent ? defensePanel : null}
       </DuelActionReel>
@@ -4019,195 +4157,6 @@ function TutorialGuidePanel({
   );
 }
 
-function StarterDeckSetupPanel({
-  playerSelection,
-  opponentSelection,
-  opponentAiProfile,
-  savedDecks,
-  onClose,
-  onStartTutorial,
-  onChangePlayerSelection,
-  onChangeOpponentSelection,
-  onChangeOpponentAiProfile,
-  onStart,
-}: {
-  playerSelection: DeckSelection;
-  opponentSelection: DeckSelection;
-  opponentAiProfile: AiProfile;
-  savedDecks: SavedDeck[];
-  onClose: () => void;
-  onStartTutorial: () => void;
-  onChangePlayerSelection: (selection: DeckSelection) => void;
-  onChangeOpponentSelection: (selection: DeckSelection) => void;
-  onChangeOpponentAiProfile: (profile: AiProfile) => void;
-  onStart: () => void;
-}) {
-  const playerDeckLabel = deckSelectionLabel(playerSelection, savedDecks);
-  const opponentDeckLabel = deckSelectionLabel(opponentSelection, savedDecks);
-  const opponentAiLabel = opponentAiProfile === "beginner" ? "初心者" : "挑戦者";
-
-  return (
-    <section className="starter-deck-modal starter-setup-panel" aria-labelledby="starter-deck-title">
-      <div className="modal-head">
-        <div>
-          <span className="modal-kicker">DUEL SETUP</span>
-          <h2 id="starter-deck-title">対戦準備</h2>
-          <p>自分のデッキ、相手のデッキ、相手CPUを決めてから対戦を開始します。カード一覧や音声設定は上部メニューからそのまま操作できます。</p>
-        </div>
-        <button type="button" onClick={onClose}>閉じる</button>
-      </div>
-      <div className="starter-setup-summary" aria-label="現在の対戦設定">
-        <div>
-          <span>あなた</span>
-          <strong>{playerDeckLabel}</strong>
-        </div>
-        <div>
-          <span>相手</span>
-          <strong>{opponentDeckLabel}</strong>
-        </div>
-        <div>
-          <span>CPU</span>
-          <strong>{opponentAiLabel}</strong>
-        </div>
-      </div>
-      <div className="starter-duel-selectors">
-        <DeckSelectionPicker
-          title="自分のデッキ"
-          step="1"
-          selection={playerSelection}
-          savedDecks={savedDecks}
-          onChange={onChangePlayerSelection}
-        />
-        <DeckSelectionPicker
-          title="相手のデッキ"
-          step="2"
-          selection={opponentSelection}
-          savedDecks={savedDecks}
-          onChange={onChangeOpponentSelection}
-        />
-      </div>
-      <section className="starter-ai-profile" aria-label="相手CPU">
-        <div className="starter-picker-title">
-          <span>3</span>
-          <h3>相手CPU</h3>
-        </div>
-        <div className="segmented-control">
-          <button
-            type="button"
-            className={opponentAiProfile === "beginner" ? "active" : ""}
-            aria-pressed={opponentAiProfile === "beginner"}
-            onClick={() => onChangeOpponentAiProfile("beginner")}
-          >
-            初心者
-          </button>
-          <button
-            type="button"
-            className={opponentAiProfile === "challenger" ? "active" : ""}
-            aria-pressed={opponentAiProfile === "challenger"}
-            onClick={() => onChangeOpponentAiProfile("challenger")}
-          >
-            挑戦者
-          </button>
-        </div>
-      </section>
-      <div className="starter-modal-actions">
-        <button type="button" onClick={onStartTutorial}>まずはチュートリアル</button>
-        <button type="button" className="primary-action" onClick={onStart}>この設定で対戦開始</button>
-      </div>
-    </section>
-  );
-}
-
-function DeckSelectionPicker({
-  title,
-  step,
-  selection,
-  savedDecks,
-  onChange,
-}: {
-  title: string;
-  step: string;
-  selection: DeckSelection;
-  savedDecks: SavedDeck[];
-  onChange: (selection: DeckSelection) => void;
-}) {
-  return (
-    <section className="starter-deck-picker" aria-label={title}>
-      <div className="starter-picker-title">
-        <span>{step}</span>
-        <h3>{title}</h3>
-      </div>
-      <div className="starter-deck-grid compact">
-        <button
-          type="button"
-          className={isDeckSelectionEqual(selection, { kind: "random" }) ? "selected" : ""}
-          onClick={() => onChange({ kind: "random" })}
-        >
-          <span>ランダム</span>
-          <em>固定デッキと保存済みデッキから選択</em>
-        </button>
-      </div>
-      {savedDecks.length > 0 && (
-        <div className="starter-deck-group">
-          <h4>保存済み</h4>
-          <div className="starter-deck-grid compact">
-            {savedDecks.map((deck) => {
-              const validation = validateDeck(deck.cardIds);
-              const savedSelection: DeckSelection = { kind: "saved", deckId: deck.id };
-              return (
-                <button
-                  type="button"
-                  key={deck.id}
-                  className={isDeckSelectionEqual(selection, savedSelection) ? "selected" : ""}
-                  disabled={!validation.valid}
-                  title={validation.valid ? deck.name : validation.messages.join(" / ")}
-                  onClick={() => onChange(savedSelection)}
-                >
-                  <span>{deck.name}</span>
-                  <em>{deck.cardIds.length}枚{validation.valid ? "" : ` / ${validation.messages[0] ?? "使用不可"}`}</em>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      <div className="starter-deck-group">
-        <h4>固定デッキ</h4>
-        <div className="starter-deck-grid compact">
-          {BATTLE_DECK_IDS.map((deckId) => {
-            const deck = DECKS[deckId];
-            const presetSelection: DeckSelection = { kind: "preset", deckId };
-            return (
-              <button
-                type="button"
-                key={deckId}
-                className={isDeckSelectionEqual(selection, presetSelection) ? "selected" : ""}
-                onClick={() => onChange(presetSelection)}
-              >
-                <span>{deck.name}</span>
-                <em>{deck.description}</em>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function deckSelectionLabel(selection: DeckSelection, savedDecks: SavedDeck[]): string {
-  if (selection.kind === "random") return "ランダム";
-  if (selection.kind === "preset") return DECKS[selection.deckId].name;
-  return savedDecks.find((deck) => deck.id === selection.deckId)?.name ?? "保存済みデッキ";
-}
-
-function isDeckSelectionEqual(left: DeckSelection, right: DeckSelection): boolean {
-  if (left.kind !== right.kind) return false;
-  if (left.kind === "preset" && right.kind === "preset") return left.deckId === right.deckId;
-  if (left.kind === "saved" && right.kind === "saved") return left.deckId === right.deckId;
-  return left.kind === "random";
-}
-
 function WorkspaceHeader({
   page,
   onChangePage,
@@ -4233,7 +4182,7 @@ function WorkspaceHeader({
         <img src={brandMark} alt="" />
         <div>
           <h1>BREAK DUEL</h1>
-          <p>{page === "duel" ? "対戦準備とカード管理" : "カード管理とデッキ制作"}</p>
+          <p>{page === "duel" ? "対戦準備とカード管理" : page === "characters" ? "対戦キャラクター素材管理" : "カード管理とデッキ制作"}</p>
         </div>
       </button>
       <PageTabs page={page} onChange={onChangePage} />
@@ -4288,6 +4237,7 @@ function PageTabs({ page, onChange }: { page: AppPage; onChange: (page: AppPage)
       <button type="button" className={page === "cards" ? "active" : ""} onClick={() => onChange("cards")}>カード一覧</button>
       <button type="button" className={page === "builder" ? "active" : ""} onClick={() => onChange("builder")}>デッキ制作</button>
       <button type="button" className={page === "packs" ? "active" : ""} onClick={() => onChange("packs")}>パック開封</button>
+      <button type="button" className={page === "characters" ? "active" : ""} onClick={() => onChange("characters")}>キャラ管理</button>
     </nav>
   );
 }
@@ -4554,6 +4504,7 @@ function LeaderPortrait({
   label,
   reaction = null,
   speech = null,
+  speechLabel,
 }: {
   player: PlayerState;
   tone: "human" | "rival";
@@ -4562,13 +4513,14 @@ function LeaderPortrait({
   label?: string;
   reaction?: LeaderReaction | null;
   speech?: RivalSpeech | null;
+  speechLabel?: string;
 }) {
   const currentImage = reaction ? reactionImages?.[reaction.mood] ?? image : image;
   return (
     <figure className={`leader-portrait ${tone} ${reaction ? `reaction-${reaction.mood} reaction-${reaction.id}` : ""}`} aria-label={`${player.name}のリーダー`}>
       {speech && (
         <div className="leader-speech" key={speech.id} role="status" aria-live="polite" aria-atomic="true">
-          <span>ニケ</span>
+          <span>{speechLabel ?? player.name}</span>
           <p>{speech.text}</p>
         </div>
       )}

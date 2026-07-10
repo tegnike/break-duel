@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cutInForEvent, FINISHER_CUT_IN_LINE, type DuelEventPayload } from "./duelEvents";
+import { cutInForEvent, type DuelEventPayload } from "./duelEvents";
 
 const RIVAL_INDEX = 1;
 
@@ -46,8 +46,8 @@ describe("cutInForEvent", () => {
   it("keeps an existing cut-in instead of overriding it", () => {
     const event: DuelEventPayload = {
       ...battleEvent({ kind: "life-damage", sourcePlayerIndex: 1, targetPlayerIndex: 0, amount: 3 }),
-      cutIn: { style: "trump", line: "切札" },
+      cutIn: { style: "trump" },
     };
-    expect(cutInForEvent(event, RIVAL_INDEX)).toEqual({ style: "trump", line: "切札" });
+    expect(cutInForEvent(event, RIVAL_INDEX)).toEqual({ style: "trump" });
   });
 });

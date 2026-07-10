@@ -978,12 +978,37 @@ export function createGame(
   const opponentSource = opponentDeck
     ? normalizeDeckSource(opponentDeck)
     : { kind: "preset" as const, deckId: randomStarterDeckId(rng, playerSource.kind === "preset" ? playerSource.deckId : undefined) };
+  return createGameCore(seed, rng, {
+    first: { name: "あなた", deck: playerSource, isHuman: true, aiProfile: "challenger" },
+    second: { name: "ライバル", deck: opponentSource, isHuman: false, aiProfile: opponentAiProfile },
+  });
+}
+
+export type DuelPlayerSetup = {
+  name: string;
+  deck: DeckId | DuelDeckSource;
+  isHuman: boolean;
+  aiProfile: AiProfile;
+};
+
+export type DuelSetup = {
+  first: DuelPlayerSetup;
+  second: DuelPlayerSetup;
+};
+
+export function createGameFromSetup(seed: number, setup: DuelSetup): GameState {
+  return createGameCore(seed, makeRng(seed), setup);
+}
+
+export function createGameCore(seed: number, rng: () => number, setup: DuelSetup): GameState {
+  const playerSource = normalizeDeckSource(setup.first.deck);
+  const opponentSource = normalizeDeckSource(setup.second.deck);
   const game: GameState = {
     rng,
     seed,
     players: [
-      makePlayerFromDeckSource("あなた", true, playerSource, rng, "challenger"),
-      makePlayerFromDeckSource("ライバル", false, opponentSource, rng, opponentAiProfile),
+      makePlayerFromDeckSource(setup.first.name, setup.first.isHuman, playerSource, rng, setup.first.aiProfile),
+      makePlayerFromDeckSource(setup.second.name, setup.second.isHuman, opponentSource, rng, setup.second.aiProfile),
     ],
     active: 0,
     turn: 0,
@@ -1002,7 +1027,7 @@ export function createGame(
   };
   draw(game.players[0], CONFIG.firstPlayerInitialHand);
   draw(game.players[1], CONFIG.secondPlayerInitialHand);
-  addLog(game, `Seed ${seed} で対戦開始。あなた: ${deckSourceName(playerSource)} / ライバル: ${deckSourceName(opponentSource)}。`);
+  addLog(game, `Seed ${seed} で対戦開始。${setup.first.name}: ${deckSourceName(playerSource)} / ${setup.second.name}: ${deckSourceName(opponentSource)}。`);
   startTurn(game);
   return game;
 }

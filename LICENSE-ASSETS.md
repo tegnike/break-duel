@@ -16,8 +16,9 @@ the bottom remain CC0 under their original terms.
   `leader-human-placeholder.webp`、`leader-rival-placeholder.webp`、
   `leader-rival-delight.webp`、`leader-rival-hurt.webp`、`mark.svg`
 - `src/assets/audio/voice/` 以下すべて — ライバルのボイス音声
+- `src/assets/opponents/<characterId>/` 以下すべて — キャラクター別に追加する立ち絵、リアクション、カットイン、音声その他の素材
 - ソースコードに埋め込まれたセリフ・ゲームテキスト —
-  [src/rivalVoiceLines.ts](src/rivalVoiceLines.ts) のセリフ文字列、カード名・フレーバーテキストなど
+  `src/opponents/` のキャラクター別セリフ文字列、カード名・フレーバーテキストなど
   (これらはコードファイル内にありますが、Break Duel Materials として扱います)
 - `docs/assets/`、`output/`、`stitch-output/` 以下の画像・生成物
 

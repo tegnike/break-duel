@@ -162,6 +162,7 @@ export function createTutorialGame(): GameState {
 
   const player = game.players[0];
   const rival = game.players[1];
+  rival.name = "ニケ";
   player.deckName = "チュートリアル練習デッキ";
   rival.deckName = "チュートリアルライバル";
   player.hand = cloneCards(PLAYER_TUTORIAL_HAND);
