@@ -1633,6 +1633,7 @@ export function performAiActionInDraft(
     const card = player.hand[action.index];
     if (
       !CONFIG.setDefenseEnabled
+      || card?.type !== "ai"
       || !canSetDefenseCard(card)
       || draft.actionsRemaining < CONFIG.setDefenseActionCost
       || (CONFIG.setDefenseOncePerTurn && player.setDefenseUsedThisTurn)
