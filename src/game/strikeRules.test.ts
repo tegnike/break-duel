@@ -30,7 +30,36 @@ function setupGame(): GameState {
   return game;
 }
 
+function withConfig<T>(patch: Partial<typeof CONFIG>, run: () => T): T {
+  const original = Object.fromEntries(Object.keys(patch).map((key) => [key, CONFIG[key as keyof typeof CONFIG]])) as Partial<typeof CONFIG>;
+  Object.assign(CONFIG, patch);
+  try {
+    return run();
+  } finally {
+    Object.assign(CONFIG, original);
+  }
+}
+
 describe("無防御攻撃とブレイクドロー", () => {
+  it("プレイヤーへの攻撃回数制限で3回目の顔面攻撃は非合法になる", () => withConfig({ attacksPerTurnLimit: 2 }, () => {
+    const game = setupGame();
+    const attacker = game.players[0];
+    const defender = game.players[1];
+    attacker.field = [card("AI-FIRE-1"), card("AI-FIRE-1"), card("AI-FIRE-1")];
+    defender.deck = [card("AI-WATER-1"), card("AI-WATER-1"), card("AI-WATER-1")];
+
+    beginAttackInDraft(game, 0, 0);
+    beginAttackInDraft(game, 0, 1);
+    const lifeAfterTwoAttacks = defender.life;
+    const actionsAfterTwoAttacks = game.actionsRemaining;
+
+    beginAttackInDraft(game, 0, 2);
+
+    expect(attacker.playerAttacksThisTurn).toBe(2);
+    expect(defender.life).toBe(lifeAfterTwoAttacks);
+    expect(game.actionsRemaining).toBe(actionsAfterTwoAttacks);
+  }));
+
   it("無防御攻撃は power ぶんのダメージを与え、山札の残りぶんだけブレイクドローする", () => {
     const game = setupGame();
     const defender = game.players[1];
@@ -63,6 +92,36 @@ describe("無防御攻撃とブレイクドロー", () => {
       expect(defender.life).toBe(expectedLife);
     });
   });
+
+  it("event break draw draws only one card even for high-power damage", () => withConfig({ drawOnAttackDamage: "event" }, () => {
+    const game = setupGame();
+    const defender = game.players[1];
+    game.players[0].field = [card("AI-WATER-4")];
+    defender.deck = [card("AI-WATER-1"), card("AI-WATER-2"), card("AI-WATER-3")];
+
+    beginAttackInDraft(game, 0, 0);
+
+    expect(defender.life).toBe(CONFIG.life - 4);
+    expect(defender.hand).toHaveLength(1);
+    expect(defender.deck).toHaveLength(2);
+  }));
+
+  it("attack damage charge compensation leaves one non-attack charged action after a final attack", () => withConfig({ attackDamageChargeCompensation: true }, () => {
+    const game = setupGame();
+    const attacker = game.players[0];
+    const defender = game.players[1];
+    game.actionsRemaining = 1;
+    game.chargedActionsRemaining = 0;
+    attacker.field = [card("AI-WATER-2")];
+    defender.deck = [card("AI-WATER-1")];
+
+    beginAttackInDraft(game, 0, 0);
+
+    expect(defender.life).toBe(CONFIG.life - 2);
+    expect(game.actionsRemaining).toBe(1);
+    expect(game.chargedActionsRemaining).toBe(1);
+    expect(attacker.attackChargeCompensationUsed).toBe(true);
+  }));
 });
 
 describe("reckless（攻撃値+1・ダメージは power 通り）", () => {
@@ -101,6 +160,44 @@ describe("reckless（攻撃値+1・ダメージは power 通り）", () => {
 });
 
 describe("Strike（モンスター攻撃）", () => {
+  it("STRIKE はプレイヤーへの攻撃回数制限に数えない", () => withConfig({ attacksPerTurnLimit: 0 }, () => {
+    const game = setupGame();
+    const attacker = game.players[0];
+    const defender = game.players[1];
+    attacker.field = [card("AI-WATER-3"), card("AI-FIRE-1")];
+    defender.field = [card("AI-WIND-1")];
+    defender.fieldStacks = [[]];
+    defender.deck = [card("AI-WATER-1")];
+
+    strikeInDraft(game, 0, 0, 0);
+
+    expect(defender.field).toEqual([]);
+    expect(attacker.playerAttacksThisTurn).toBe(0);
+    expect(game.actionsRemaining).toBe(2);
+
+    beginAttackInDraft(game, 0, 1);
+
+    expect(defender.life).toBe(CONFIG.life);
+    expect(game.actionsRemaining).toBe(2);
+    expect(attacker.playerAttacksThisTurn).toBe(0);
+  }));
+
+  it("実験フラグ有効時はSTRIKEも攻撃回数制限で拒否される", () => withConfig({ attacksPerTurnLimit: 0, attackLimitCountsStrike: true }, () => {
+    const game = setupGame();
+    const attacker = game.players[0];
+    const defender = game.players[1];
+    attacker.field = [card("AI-WATER-3")];
+    defender.field = [card("AI-WIND-1")];
+    defender.fieldStacks = [[]];
+    const actionsBefore = game.actionsRemaining;
+
+    strikeInDraft(game, 0, 0, 0);
+
+    expect(defender.field.map((item) => item.id)).toEqual(["AI-WIND-1"]);
+    expect(attacker.playerAttacksThisTurn).toBe(0);
+    expect(game.actionsRemaining).toBe(actionsBefore);
+  }));
+
   it("下位の敵召喚獣を廃棄し、攻撃者は消耗する", () => {
     const game = setupGame();
     const attacker = game.players[0];

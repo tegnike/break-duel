@@ -7,6 +7,15 @@ import { card, duelGame } from "./testHelpers";
 // Python は apply_action(ATTACK) 経由だが、TS では beginAttackInDraft が
 // chooseAiDefense を含めて同等の解決を行う。
 
+function withConfig<T>(patch: Partial<typeof CONFIG>, run: () => T): T {
+  const original = Object.fromEntries(Object.keys(patch).map((key) => [key, CONFIG[key as keyof typeof CONFIG]])) as Partial<typeof CONFIG>;
+  Object.assign(CONFIG, patch);
+  try {
+    return run();
+  } finally {
+    Object.assign(CONFIG, original);
+  }
+}
 function lastLog(game: GameState): string {
   return game.log[game.log.length - 1] ?? "";
 }
@@ -112,7 +121,7 @@ describe("hand defense resolution", () => {
     const attacker = game.players[0];
     const defender = game.players[1];
     attacker.field = [card("AI-WATER-3")];
-    defender.hand = [card("AI-WATER-4")];
+    defender.hand = [card("AI-WATER-3")];
 
     beginAttackInDraft(game, 0, 0);
 
@@ -120,7 +129,7 @@ describe("hand defense resolution", () => {
     expect(attacker.field.map((item) => item.id)).toEqual(["AI-WATER-3"]);
     expect(attacker.spentFieldIndexes.has(0)).toBe(true);
     expect(defender.field).toHaveLength(0);
-    expect(defender.discard.map((item) => item.id)).toEqual(["AI-WATER-4"]);
+    expect(defender.discard.map((item) => item.id)).toEqual(["AI-WATER-3"]);
   });
 
   // Python: test_hand_defense_can_protect_even_when_field_is_not_empty
@@ -206,7 +215,7 @@ describe("hand defense resolution", () => {
     const attacker = game.players[0];
     const defender = game.players[1];
     attacker.field = [card("AI-WATER-3"), card("AI-WATER-3")];
-    defender.hand = [card("AI-WATER-4"), card("AI-WATER-4")];
+    defender.hand = [card("AI-WATER-3"), card("AI-WATER-3")];
     defender.deck = [card("AI-FIRE-1"), card("AI-FIRE-1"), card("AI-FIRE-1")];
 
     beginAttackInDraft(game, 0, 0);
@@ -218,6 +227,67 @@ describe("hand defense resolution", () => {
     expect(defender.hand).toHaveLength(4);
     expect(defender.discard).toHaveLength(1);
   });
+
+  it("disables hand defense when handDefenseLimit is zero", () => withConfig({ handDefenseLimit: 0 }, () => {
+    const game = duelGame();
+    const attacker = game.players[0];
+    const defender = game.players[1];
+    attacker.field = [card("AI-WATER-2")];
+    defender.hand = [card("AI-WATER-2")];
+    defender.deck = [];
+
+    beginAttackInDraft(game, 0, 0);
+
+    expect(defender.life).toBe(CONFIG.life - 2);
+    expect(defender.hand.map((item) => item.id)).toEqual(["AI-WATER-2"]);
+    expect(lastLog(game)).toContain("防御せず2ダメージ");
+  }));
+
+  it("limits hand defense to power 2 or lower when configured", () => withConfig({ handDefenseMaxPower: 2 }, () => {
+    const game = duelGame();
+    const attacker = game.players[0];
+    const defender = game.players[1];
+    attacker.field = [card("AI-WATER-3")];
+    defender.hand = [card("AI-WATER-4")];
+    defender.deck = [];
+
+    beginAttackInDraft(game, 0, 0);
+
+    expect(defender.life).toBe(CONFIG.life - 3);
+    expect(defender.hand.map((item) => item.id)).toEqual(["AI-WATER-4"]);
+    expect(defender.discard).toEqual([]);
+  }));
+
+  it("allows power 3 but not power 4 hand defense when max power is 3", () => withConfig({ handDefenseMaxPower: 3 }, () => {
+    const game = duelGame();
+    const attacker = game.players[0];
+    const defender = game.players[1];
+    attacker.field = [card("AI-WATER-3")];
+    defender.hand = [card("AI-WATER-4"), card("AI-WATER-3")];
+    defender.deck = [];
+
+    beginAttackInDraft(game, 0, 0);
+
+    expect(defender.life).toBe(CONFIG.life);
+    expect(defender.hand.map((item) => item.id)).toEqual(["AI-WATER-4"]);
+    expect(defender.discard.map((item) => item.id)).toEqual(["AI-WATER-3"]);
+  }));
+
+  it("uses a set defense card instead of hidden hand cards when configured", () => withConfig({ setDefenseEnabled: true }, () => {
+    const game = duelGame();
+    const attacker = game.players[0];
+    const defender = game.players[1];
+    attacker.field = [card("AI-WATER-3")];
+    defender.hand = [card("AI-WATER-4")];
+    defender.setDefenseCard = card("AI-WATER-3");
+
+    beginAttackInDraft(game, 0, 0);
+
+    expect(defender.life).toBe(CONFIG.life);
+    expect(defender.hand.map((item) => item.id)).toEqual(["AI-WATER-4"]);
+    expect(defender.setDefenseCard).toBeNull();
+    expect(defender.discard.map((item) => item.id)).toEqual(["AI-WATER-3"]);
+  }));
 });
 
 describe("field defense resolution", () => {

@@ -16,14 +16,14 @@ describe("serena (AI-WATER-3D)", () => {
     const defender = game.players[1];
     attacker.field = [card("AI-WATER-3D")];
     attacker.deck = [card("AI-FIRE-1")];
-    defender.hand = [card("AI-WATER-4")];
+    defender.hand = [card("AI-WATER-3")];
 
     beginAttackInDraft(game, 0, 0);
 
     // 貫通は持たないためダメージなし。防御された時ドローだけが発動する
     expect(defender.life).toBe(CONFIG.life);
     expect(attacker.hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
-    expect(defender.discard.map((item) => item.id)).toEqual(["AI-WATER-4"]);
+    expect(defender.discard.map((item) => item.id)).toEqual(["AI-WATER-3"]);
   });
 });
 

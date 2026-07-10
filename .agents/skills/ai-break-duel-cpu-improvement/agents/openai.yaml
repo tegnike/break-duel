@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Break Duel CPU Improvement"
+  short_description: "challenger/beginner CPU の改善・強化・悪手修正を作法つきで実行する"
+  default_prompt: "Use $ai-break-duel-cpu-improvement to improve, strengthen, or fix the Break Duel CPU (challenger/beginner) following the gauntlet, fairness-guard, and plan-driven workflow."

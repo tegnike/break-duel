@@ -13,7 +13,9 @@ description: Run and interpret AI Break Duel preset-deck and biased-cost stress-
 
 ## Workflow
 
-1. Confirm the working directory is `/Users/user/WorkSpace/ai-break-duel`.
+1. Confirm the working directory is an ai-break-duel checkout (the main repository or one of its
+   git worktrees; CPU/balance work may live on a non-main branch — follow the branch noted in
+   `docs/balance-history.md` or the active plan document).
 2. Inspect current uncommitted changes with `git status --short`; do not overwrite unrelated changes.
 3. Run the stress-deck regression with the TypeScript CLI (same engine as the
    browser game):

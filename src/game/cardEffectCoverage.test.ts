@@ -205,6 +205,20 @@ const CARD_EFFECT_CASES = {
     description: "攻撃後に消耗しない対象になる",
     run: () => expect(keepsReadyAfterAttack(card("AI-WIND-1"))).toBe(true),
   },
+  swarm_guard_plus_2: {
+    cardId: "AI-FIRE-1",
+    description: "相手が3面の時だけ場防御値が2上がる",
+    run: () => {
+      const game = blankGame();
+      const attacker = card("AI-FIRE-3");
+      const defender = card("AI-FIRE-1");
+      game.players[1].field = [attacker, card("AI-WATER-1"), card("AI-WIND-1")];
+      const attackContext = { attacker: game.players[1], attackerFieldIndex: 0 };
+      expect(defenseCombatValue(attacker, defender, game.players[0], { fieldIndex: 0, attackContext })).toBe(3);
+      game.players[1].field.pop();
+      expect(defenseCombatValue(attacker, defender, game.players[0], { fieldIndex: 0, attackContext })).toBe(1);
+    },
+  },
   spend_enemy_on_play: {
     cardId: "AI-WIND-4B",
     description: "登場時に相手の未消耗召喚獣選択を要求する",
@@ -323,18 +337,6 @@ const CARD_EFFECT_CASES = {
       resolveDefenseInDraft(game, { type: "field", index: 0 }, {});
       expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-WATER-1"]);
       expect(game.players[0].field).toHaveLength(0);
-    },
-  },
-  charge_pressure: {
-    cardId: "AI-FIRE-1C",
-    description: "チャージ時に相手手札が3枚以上なら1枚トラッシュする",
-    run: () => {
-      const game = playableChargeGame("AI-FIRE-1C");
-      game.players[1].hand = [card("AI-WATER-1"), card("AI-WATER-2"), card("AI-WATER-3")];
-      chargeHandCardInDraft(game, 0, 0);
-      expect(hasChargeEffect(card("AI-FIRE-1C"))).toBe(true);
-      expect(game.players[1].hand).toHaveLength(2);
-      expect(game.players[1].discard).toHaveLength(1);
     },
   },
   charge_draw: {
@@ -568,15 +570,15 @@ const CARD_EFFECT_CASES = {
   },
   water_rite: {
     cardId: "CMD-WATER-RITE",
-    description: "水召喚獣がいれば1枚引く",
+    description: "水召喚獣がいれば2枚引く",
     run: () => {
       const game = blankGame();
       game.players[0].hand = [card("CMD-WATER-RITE")];
       game.players[0].field = [card("AI-WATER-1")];
-      game.players[0].deck = [card("AI-FIRE-1")];
+      game.players[0].deck = [card("AI-FIRE-1"), card("AI-FIRE-2")];
       useCommandAtInDraft(game, 0, null);
       expectCommandUsed(game, "CMD-WATER-RITE");
-      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+      expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-2", "AI-FIRE-1"]);
     },
   },
   wind_rite: {
@@ -1248,7 +1250,7 @@ describe("AI-FIRE-3D shares the hand_defense_pierce effect", () => {
     expect(attackDamage(target)).toBe(3);
     const game = blankGame();
     game.players[0].field = [target];
-    game.players[1].hand = [card("AI-WATER-4")];
+    game.players[1].hand = [card("AI-FIRE-3")];
     game.pendingAttack = { attackerIndex: 0, defenderIndex: 1, fieldIndex: 0 };
     resolveDefenseInDraft(game, { type: "hand", index: 0 }, {});
     expect(game.players[1].life).toBe(CONFIG.life - 1);
