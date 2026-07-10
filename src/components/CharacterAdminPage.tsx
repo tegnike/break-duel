@@ -262,6 +262,11 @@ export function CharacterAdminPage({
               {tab === "voices" && (
                 <section>
                   <div className="character-admin-section-title"><span>03</span><div><h3>セリフと音声</h3><p>15種類のゲームイベントごとに表示テキストと音声ファイルを設定します。</p></div></div>
+                  <div className="character-voice-guideline" role="note">
+                    <strong>推奨尺</strong>
+                    <span>全セリフ共通で 1.5〜3秒程度</span>
+                    <small>テンポを保つための共通目安です。</small>
+                  </div>
                   <div className="character-voice-table">
                     <div className="character-voice-head"><span>イベント</span><span>表示セリフ</span><span>音声ファイル</span></div>
                     {OPPONENT_VOICE_CUES.map((cue) => {

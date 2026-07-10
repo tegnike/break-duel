@@ -14546,6 +14546,37 @@ body:has(.opponent-editor-backdrop) {
   border-radius: 6px;
 }
 
+.character-voice-guideline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(245, 207, 120, .26);
+  border-radius: 5px;
+  color: #dbe9ef;
+  background: rgba(77, 55, 16, .2);
+}
+
+.character-voice-guideline strong {
+  padding: 3px 7px;
+  border-radius: 3px;
+  color: #17120a;
+  background: linear-gradient(180deg, #fff0b7, #d9a84c);
+  font-size: 10px;
+}
+
+.character-voice-guideline span {
+  color: #f6df9e;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.character-voice-guideline small {
+  color: #879dac;
+  font-size: 10px;
+}
+
 .character-voice-head,
 .character-voice-row {
   display: grid;
