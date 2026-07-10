@@ -1,6 +1,6 @@
 # Break Duel アーキテクチャ
 
-最終更新: 2026-07-08
+最終更新: 2026-07-10
 
 この文書は、現在の `Break Duel` 実装を引き継ぐための開発者向け構成メモです。ゲームルールの正仕様は `docs/game-spec.md` を参照します。
 
@@ -14,6 +14,17 @@
 - `web/`: `npm run build` で生成される配信成果物
 
 かつて存在した Python シミュレータ（`ai_break_duel/`）は 2026-07-08 に廃止し、TypeScript 実装に統一しました（`docs/balance-history.md` 参照）。ルール変更時は `docs/game-spec.md` を先に更新し、`src/game.ts` / `src/game/actions.ts` へ反映してください。シミュレーションと UI は同じコードを使うため、二重反映は不要です。
+
+## カードカタログの正本
+
+カードの ID、名前、種類、属性、power、効果、状態、収録弾は `src/game.ts` の `CARD_CATALOG` が唯一の正本です。定義はアプリ起動時に一度だけ生成され、各カードオブジェクトと配列は不変として扱います。
+
+- `CARD_BY_ID`: ID から正規カードを引く共通インデックス
+- `ACTIVE_CARD_CATALOG`: 対戦・カード一覧・デッキ製作・パック開封が共有する有効カード一覧
+- `cardPool()` / `activeCardPool()`: 呼び出し側が並べ替えできる防御的な配列コピー。中のカードオブジェクトは正本を共有する
+- `makeDeck()` / `makeCustomDeck()`: 対戦中の同名カードを1枚ずつ識別できるよう、正本から対戦用コピーを作る唯一の境界
+
+カード画像や表示文言は `src/components/cardPresentation.ts`、レアリティ計算は `src/rarity.ts` に置きます。これらは表示用の派生情報であり、画面側に別のカード定義を作らないでください。
 
 ## 主要ディレクトリ
 

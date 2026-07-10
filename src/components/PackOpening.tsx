@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
-import { activeCardPool, cardSet, type Card } from "../game";
+import { ACTIVE_CARD_CATALOG, cardSet, type Card } from "../game";
 import { CardView } from "./CardView";
 import { CardInspector } from "./DeckWorkshop";
 import { runPackBurst, runUrCutinBurst } from "./packParticles";
@@ -60,7 +60,11 @@ type RevealCallout = { token: number; rarity: CardRarity; label: string; isNew: 
 type PlaySfx = (kind: string) => void;
 
 const RARITY_POWER: Record<CardRarity, number> = { n: 0, r: 1, sr: 2, ur: 3 };
-function drawFrom(pool: Card[], usedIds: Set<string>): Card {
+const PACK_CARD_POOL: readonly Card[] = Object.freeze(
+  ACTIVE_CARD_CATALOG.filter((card) => cardSet(card) === 2),
+);
+
+function drawFrom(pool: readonly Card[], usedIds: Set<string>): Card {
   const candidates = pool.filter((card) => !usedIds.has(card.id));
   const picked = candidates[Math.floor(Math.random() * candidates.length)] ?? pool[0];
   usedIds.add(picked.id);
@@ -86,7 +90,7 @@ function rollHighSlotRarity(): CardRarity {
 
 function rollPack(): PackCard[] {
   // 第2弾パック: 収録は set 2 のカードのみ
-  const pool = activeCardPool().filter((card) => cardSet(card) === 2);
+  const pool = PACK_CARD_POOL;
   const poolByRarity: Record<CardRarity, Card[]> = {
     n: pool.filter((card) => baseCardRarity(card) === "n"),
     r: pool.filter((card) => baseCardRarity(card) === "r"),
@@ -370,10 +374,10 @@ export function PackOpeningPage({
 
   // 第2弾コレクションの充実度。開封直後は addToCollection 済みなので、
   // 直前の割合は今回の NEW 枚数を差し引いて逆算する
-  const collectionTotal2 = activeCardPool().filter((card) => cardSet(card) === 2).length;
+  const collectionTotal2 = PACK_CARD_POOL.length;
   const ownedCounts2 = allFlipped ? loadCollection() : null;
   const ownedAfter2 = ownedCounts2
-    ? activeCardPool().filter((card) => cardSet(card) === 2 && (ownedCounts2[card.id] ?? 0) > 0).length
+    ? PACK_CARD_POOL.filter((card) => (ownedCounts2[card.id] ?? 0) > 0).length
     : 0;
   const ownedBefore2 = Math.max(0, ownedAfter2 - newCount);
   const collectionPctBefore = collectionTotal2 > 0 ? Math.round((ownedBefore2 / collectionTotal2) * 100) : 0;
