@@ -91,6 +91,7 @@ import {
 import { CardLibraryPage, DeckBuilderPage, loadSavedDecks, validateDeck, type SavedDeck } from "./components/DeckWorkshop";
 import { PackOpeningPage } from "./components/PackOpening";
 import { MATCH_LOSE_COINS, MATCH_WIN_COINS, PACK_COST, addCoins, loadCoins, spendCoins } from "./collection";
+import type { PackPurchaseCount } from "./pack";
 import { CardArtPreview, CardView } from "./components/CardView";
 import { cardColor, cardTypeLabel } from "./components/cardPresentation";
 import { DiscardModal, RulesModal } from "./components/Modals";
@@ -1733,8 +1734,8 @@ export default function App() {
     setStarterDeckSetupOpen(true);
   }
 
-  function spendForPack(): boolean {
-    if (!spendCoins(PACK_COST)) return false;
+  function spendForPacks(count: PackPurchaseCount): boolean {
+    if (!spendCoins(PACK_COST * count)) return false;
     setCoins(loadCoins());
     return true;
   }
@@ -3699,7 +3700,7 @@ export default function App() {
         {page === "cards" ? (
           <CardLibraryPage playSfx={playSfx} />
         ) : page === "packs" ? (
-          <PackOpeningPage coins={coins} onSpendPack={spendForPack} playSfx={playSfx} />
+          <PackOpeningPage coins={coins} onSpendPacks={spendForPacks} playSfx={playSfx} />
         ) : (
           <DeckBuilderPage playSfx={playSfx} />
         )}
