@@ -14144,7 +14144,7 @@ body:has(.opponent-editor-backdrop) {
   display: grid;
   grid-template-columns: 286px minmax(0, 1fr);
   width: min(1460px, calc(100% - 40px));
-  height: calc(100vh - 122px);
+  height: calc(100vh - 102px);
   min-height: calc(100vh - 102px);
   max-height: calc(100vh - 102px);
   margin: 20px auto 28px;

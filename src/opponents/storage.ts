@@ -77,9 +77,8 @@ export function loadOpponentProfileStore(): OpponentStoreLoadResult {
     };
   }
   const store = migrateOpponentStore(parsed);
-  sessionStore = store;
-  sessionPersistence = "persisted";
-  return { store, persistence: "persisted" };
+  const persistence = saveOpponentProfileStore(store);
+  return { store, persistence };
 }
 
 export function saveOpponentProfileStore(store: OpponentProfileStoreV1, options: { overwriteUnsupported?: boolean } = {}): OpponentStoreSaveResult {

@@ -50,7 +50,13 @@ export function loadSavedDecks(): SavedDeck[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map(normalizeImportedDeck);
+    return parsed.flatMap((item) => {
+      try {
+        return [normalizeImportedDeck(item)];
+      } catch {
+        return [];
+      }
+    });
   } catch {
     return [];
   }

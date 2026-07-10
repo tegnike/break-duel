@@ -46,6 +46,28 @@ describe("opponent profile storage", () => {
     expect(migrated.selectedProfileId).toBe(valid.id);
   });
 
+  it("writes a migrated profile store back to localStorage", () => {
+    const valid = createDefaultOpponentStore().profiles[0];
+    const storage = memoryStorage({
+      [OPPONENT_PROFILES_STORAGE_KEY]: JSON.stringify({
+        version: 1,
+        selectedProfileId: "missing",
+        profiles: [valid, { ...valid }, { id: 3 }],
+      }),
+    });
+    vi.stubGlobal("localStorage", storage);
+
+    const loaded = loadOpponentProfileStore();
+
+    expect(loaded.persistence).toBe("persisted");
+    expect(loaded.store.profiles).toEqual([valid]);
+    expect(loaded.store.selectedProfileId).toBe(valid.id);
+    expect(storage.setItem).toHaveBeenCalledWith(
+      OPPONENT_PROFILES_STORAGE_KEY,
+      JSON.stringify(loaded.store),
+    );
+  });
+
   it("keeps unresolved character and saved-deck references structurally", () => {
     const valid = createDefaultOpponentStore().profiles[0];
     const migrated = migrateOpponentStore({

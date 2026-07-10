@@ -122,36 +122,47 @@ function openCharacterDatabase(): Promise<IDBDatabase> {
 
 export async function loadSavedOpponentCharacters(): Promise<SavedOpponentCharacter[]> {
   const database = await openCharacterDatabase();
-  return new Promise((resolve, reject) => {
-    const transaction = database.transaction(STORE_NAME, "readonly");
-    const request = transaction.objectStore(STORE_NAME).getAll();
-    request.onsuccess = () => resolve((request.result as SavedOpponentCharacter[]).filter((character) => character.version === 1));
-    request.onerror = () => reject(request.error ?? new Error("キャラクターを読み込めませんでした"));
-    transaction.oncomplete = () => database.close();
-  });
+  try {
+    return await new Promise((resolve, reject) => {
+      const transaction = database.transaction(STORE_NAME, "readonly");
+      const request = transaction.objectStore(STORE_NAME).getAll();
+      request.onsuccess = () => resolve((request.result as SavedOpponentCharacter[]).filter((character) => character.version === 1));
+      request.onerror = () => reject(request.error ?? new Error("キャラクターを読み込めませんでした"));
+      transaction.onabort = () => reject(transaction.error ?? new Error("キャラクター読み込みが中断されました"));
+    });
+  } finally {
+    database.close();
+  }
 }
 
 export async function saveSavedOpponentCharacter(character: SavedOpponentCharacter): Promise<void> {
   const errors = validateSavedOpponentCharacter(character);
   if (errors.length > 0) throw new Error(errors.join("\n"));
   const database = await openCharacterDatabase();
-  await new Promise<void>((resolve, reject) => {
-    const transaction = database.transaction(STORE_NAME, "readwrite");
-    transaction.objectStore(STORE_NAME).put({ ...character, updatedAt: new Date().toISOString() });
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("キャラクターを保存できませんでした"));
-    transaction.onabort = () => reject(transaction.error ?? new Error("キャラクター保存が中断されました"));
-  });
-  database.close();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(STORE_NAME, "readwrite");
+      transaction.objectStore(STORE_NAME).put({ ...character, updatedAt: new Date().toISOString() });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("キャラクターを保存できませんでした"));
+      transaction.onabort = () => reject(transaction.error ?? new Error("キャラクター保存が中断されました"));
+    });
+  } finally {
+    database.close();
+  }
 }
 
 export async function deleteSavedOpponentCharacter(characterId: string): Promise<void> {
   const database = await openCharacterDatabase();
-  await new Promise<void>((resolve, reject) => {
-    const transaction = database.transaction(STORE_NAME, "readwrite");
-    transaction.objectStore(STORE_NAME).delete(characterId);
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error ?? new Error("キャラクターを削除できませんでした"));
-  });
-  database.close();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const transaction = database.transaction(STORE_NAME, "readwrite");
+      transaction.objectStore(STORE_NAME).delete(characterId);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error ?? new Error("キャラクターを削除できませんでした"));
+      transaction.onabort = () => reject(transaction.error ?? new Error("キャラクター削除が中断されました"));
+    });
+  } finally {
+    database.close();
+  }
 }

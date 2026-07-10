@@ -196,9 +196,9 @@ CPU（`beginner` / `challenger`）の行動選択・防御選択は `src/game.ts
 
 ## 相手プロフィールと進行中スナップショット
 
-キャラクターそのものの編集は `/admin/characters` で扱う。組み込みの `NIKE_CHARACTER` は読み取り専用で、管理画面から追加した `SavedOpponentCharacter` は使用デッキ、CPU難度、画像・音声のData URLを含むためIndexedDBへ保存する。起動時とCRUD後に `savedCharacterToDefinition` で実行時定義へ変換し、`setCustomOpponentCharacters` で組み込みカタログへ合流する。互換用プロフィールstoreは大きなバイナリや対戦設定を権威データとして持たず、選択中の `characterId` を維持するためだけに使う。
+キャラクターそのものの編集は `/admin/characters` で扱う。組み込みの `NIKE_CHARACTER` は読み取り専用で、管理画面から追加した `SavedOpponentCharacter` は使用デッキ、CPU難度、画像・音声のData URLを含むためIndexedDBへ保存する。起動時とCRUD後に `savedCharacterToDefinition` で実行時定義へ変換し、`setCustomOpponentCharacters` で組み込みカタログへ合流する。
 
-相手の静的表現は `src/opponents/catalog.ts` のカタログ、ユーザーが編集する設定は `src/opponents/storage.ts` のversion付きstore、進行中の相手は `ResolvedOpponentSnapshot` の3層に分けます。`localStorage` には `characterId` だけを保存し、画像URL・音声URL・台詞本文は保存しません。
+相手データは、`src/opponents/catalog.ts` の実行時キャラクター定義、`src/opponents/storage.ts` のversion付き互換プロフィールstore、進行中の `ResolvedOpponentSnapshot` の3層に分けます。互換プロフィールstoreは `localStorage` に `selectedProfileId` とプロフィール配列（`profileLabel`、`characterId`、`deckSelection`、`aiProfile`、`updatedAt`）を保持しますが、対戦設定と表示素材の権威データは選択されたキャラクター定義です。画像・音声のData URLは `localStorage` へ入れずIndexedDBだけへ保存します。
 
 `DuelSetupPanel` は次戦向けstoreだけを更新します。対戦開始時に `App.tsx` の `activateOpponent` がsnapshotのstate/refを同期更新し、`createGameFromSetup` へ解決済みの相手名・デッキ・CPUを渡します。ゲーム中の立ち絵、リアクション、吹き出し、音声、カットインはactive snapshotから解決します。timer、Audioの`ended`、pending cueはmatchIdでガードし、前試合の非同期処理を次試合へ持ち込みません。
 

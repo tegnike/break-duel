@@ -109,11 +109,11 @@ export function CharacterAdminPage({
   async function setPortraitFile(kind: OpponentPortraitKind, file: File | undefined) {
     if (!draft || !file) return;
     const dataUrl = await readFileAsDataUrl(file);
-    setDraft({
-      ...draft,
-      portraits: { ...draft.portraits, [kind]: dataUrl },
-      assetNames: { ...draft.assetNames, portraits: { ...draft.assetNames.portraits, [kind]: file.name } },
-    });
+    setDraft((current) => current ? {
+      ...current,
+      portraits: { ...current.portraits, [kind]: dataUrl },
+      assetNames: { ...current.assetNames, portraits: { ...current.assetNames.portraits, [kind]: file.name } },
+    } : current);
   }
 
   function removePortrait(kind: OpponentPortraitKind) {
@@ -134,11 +134,11 @@ export function CharacterAdminPage({
   async function setAudioFile(cue: OpponentVoiceCue, file: File | undefined) {
     if (!draft || !file) return;
     const dataUrl = await readFileAsDataUrl(file);
-    setDraft({
-      ...draft,
-      lines: { ...draft.lines, [cue]: { text: draft.lines[cue]?.text ?? "", audioSrc: dataUrl } },
-      assetNames: { ...draft.assetNames, audio: { ...draft.assetNames.audio, [cue]: file.name } },
-    });
+    setDraft((current) => current ? {
+      ...current,
+      lines: { ...current.lines, [cue]: { text: current.lines[cue]?.text ?? "", audioSrc: dataUrl } },
+      assetNames: { ...current.assetNames, audio: { ...current.assetNames.audio, [cue]: file.name } },
+    } : current);
   }
 
   function removeAudio(cue: OpponentVoiceCue) {
@@ -297,7 +297,13 @@ export function CharacterAdminPage({
                 {!message && validationErrors.length > 0 && <p>{validationErrors[0]}</p>}
               </div>
               {editingOriginalId && <button type="button" className="danger-action" disabled={busy} onClick={() => void removeDraft()}>キャラクターを削除</button>}
-              <button type="button" disabled={busy} onClick={() => editingOriginalId ? beginEdit(savedCharacters.find((character) => character.id === editingOriginalId)!) : beginNew()}>変更を戻す</button>
+              <button type="button" disabled={busy} onClick={() => {
+                const original = editingOriginalId
+                  ? savedCharacters.find((character) => character.id === editingOriginalId)
+                  : undefined;
+                if (original) beginEdit(original);
+                else beginNew();
+              }}>変更を戻す</button>
               <button type="button" className="primary-action" disabled={busy || validationErrors.length > 0} onClick={() => void saveDraft()}>{busy ? "保存中..." : "保存して反映"}</button>
             </footer>
           </>
