@@ -97,9 +97,10 @@ function assertWeights(value: Record<string, unknown>, label: string): Challenge
   const weights = {} as ChallengerWeights;
   for (const key of keys) {
     const parsed = value[key];
-    weights[key as keyof ChallengerWeights] = typeof parsed === "number"
-      ? parsed
-      : CHALLENGER_WEIGHTS[key as keyof ChallengerWeights];
+    if (typeof parsed !== "number" || !Number.isFinite(parsed)) {
+      throw new Error(`${label} の ${key} は数値で指定してください。`);
+    }
+    weights[key as keyof ChallengerWeights] = parsed;
   }
   return weights;
 }

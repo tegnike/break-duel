@@ -184,7 +184,7 @@ describe("アップグレード", () => {
     expect(player.spentFieldIndexes.has(0)).toBe(false);
   });
 
-  it("power3 の回復遅延はアップグレードで解消される", () => {
+  it("power3 の回復遅延はアップグレードで解消され、アップグレード後の消耗は保持される", () => {
     const game = setupGame();
     const player = game.players[0];
     player.field = [card("AI-FIRE-3")];
@@ -199,7 +199,7 @@ describe("アップグレード", () => {
     performAiActionInDraft(game, { type: "upgrade", handIndex: 0, fieldIndex: 0 });
 
     expect(player.field[0].id).toBe("AI-FIRE-4");
-    expect(player.spentFieldIndexes.has(0)).toBe(false);
+    expect(player.spentFieldIndexes.has(0)).toBe(true);
     expect(player.power3RecoveryDelayedFieldIndexes.size).toBe(0);
   });
 
@@ -231,6 +231,7 @@ describe("アップグレード", () => {
 
     performAiActionInDraft(game, { type: "upgrade", handIndex: 0, fieldIndex: 0 });
     expect(player.field[0].id).toBe("AI-FIRE-3");
+    player.spentFieldIndexes.delete(0);
 
     // AI-FIRE-4（防御値4）の場防御で攻撃側 AI-FIRE-3（攻撃値3）が敗北しトラッシュへ
     beginAttackInDraft(game, 0, 0, {}, { type: "field", index: 0 });
@@ -250,6 +251,7 @@ describe("アップグレード", () => {
 
     performAiActionInDraft(game, { type: "upgrade", handIndex: 0, fieldIndex: 0 });
     expect(player.field[0].id).toBe("AI-FIRE-4");
+    player.spentFieldIndexes.delete(0);
 
     beginAttackInDraft(game, 0, 0);
 
@@ -269,6 +271,7 @@ describe("アップグレード", () => {
 
     performAiActionInDraft(game, { type: "upgrade", handIndex: 0, fieldIndex: 0 });
     expect(player.field[0].id).toBe("AI-WATER-4");
+    player.spentFieldIndexes.delete(0);
 
     beginAttackInDraft(game, 0, 0);
 

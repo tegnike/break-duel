@@ -84,7 +84,15 @@ export function parseEndgameRulePackage(raw: string): EndgameRulePackage[] {
 export function applyEndgameRulePackage(raw: string | undefined, options: EndgameRuleOptions = {}): string {
   const packageName = raw ?? "current";
   const modules = parseEndgameRulePackage(packageName);
-  if (modules.includes("current")) return "current";
+  if (modules.includes("current")) {
+    if (options.attacksPerTurnLimit !== undefined) {
+      CONFIG.attacksPerTurnLimit = options.attacksPerTurnLimit;
+    }
+    if (options.attackLimitCountsStrike !== undefined) {
+      CONFIG.attackLimitCountsStrike = options.attackLimitCountsStrike;
+    }
+    return "current";
+  }
 
   CONFIG.turnLimitResult = "life_judgement";
   CONFIG.handLimit = options.handLimit ?? 6;

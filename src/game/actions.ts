@@ -1591,12 +1591,6 @@ export function performAiActionInDraft(
     player.turnFieldAttackBonuses.delete(action.fieldIndex);
     let text = `${player.name}は${source.name}を元に${card.name}へアップグレード。`;
     text += applyPlayEffects(draft, player, card, action.fieldIndex, cost, source, effects);
-    if (
-      !entersSpentOnPlay(card)
-      && ((card.power === 3 && CONFIG.power3EntersSpent) || (card.power === 4 && CONFIG.power4EntersSpent))
-    ) {
-      player.spentFieldIndexes.delete(action.fieldIndex);
-    }
     addLog(draft, text);
     effects.showDuelEvent?.({
       kind: "upgrade",

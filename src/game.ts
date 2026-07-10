@@ -1685,7 +1685,11 @@ export function legalHandDefenders(defender: PlayerState, attackCard: Card, atta
 }
 
 export function canSetDefenseCard(card: Card | null | undefined): boolean {
-  return Boolean(card && card.type !== "memory");
+  return Boolean(card
+    && card.type === "ai"
+    && !cannotHandDefend(card)
+    && (CONFIG.handDefenseMaxPower === null || (card.power ?? 0) <= CONFIG.handDefenseMaxPower)
+    && !(CONFIG.power3CannotHandDefend && card.power === 3));
 }
 
 export function defenseMathText(attackCard: Card, defenseCard: Card, defender: PlayerState | null = null, options: DefenseOptions = {}): string {
@@ -3006,8 +3010,24 @@ function publicHandDefenseEstimateInput(
   }
   if (CONFIG.handDefenseEmptyOnly && defender.field.length > 0) return null;
   if (defender.hand.length <= 0) return null;
+  const knownHand = knownHandCards(defender);
+  const knownLegalCandidates = knownHand
+    .filter((card) => card.type === "ai"
+      && !cannotHandDefend(card)
+      && (CONFIG.handDefenseMaxPower === null || (card.power ?? 0) <= CONFIG.handDefenseMaxPower)
+      && !(CONFIG.power3CannotHandDefend && card.power === 3)
+      && canDefend(attackCard, card, defender, { fieldDefense: false, attackContext }));
   const deck = Object.values(DECKS).find((entry) => entry.name === defender.deckName);
-  if (!deck) return null;
+  if (!deck) {
+    return knownLegalCandidates.length > 0
+      ? {
+          hiddenCandidates: [],
+          legalCandidates: [],
+          knownLegalCandidates,
+          handSize: 0,
+        }
+      : null;
+  }
   const visibleCounts = new Map<string, number>();
   const addVisible = (card: Card | null | undefined) => {
     if (!card) return;
@@ -3017,7 +3037,6 @@ function publicHandDefenseEstimateInput(
   defender.fieldStacks?.forEach((stack) => stack.forEach(addVisible));
   defender.discard.forEach(addVisible);
   addVisible(defender.memory);
-  const knownHand = knownHandCards(defender);
   knownHand.forEach(addVisible);
   const hiddenCandidates: Card[] = [];
   for (const cardId of deck.cards) {
@@ -3029,12 +3048,6 @@ function publicHandDefenseEstimateInput(
     const card = CARD_BY_ID.get(cardId);
     if (card) hiddenCandidates.push(card);
   }
-  const knownLegalCandidates = knownHand
-    .filter((card) => card.type === "ai"
-      && !cannotHandDefend(card)
-      && (CONFIG.handDefenseMaxPower === null || (card.power ?? 0) <= CONFIG.handDefenseMaxPower)
-      && !(CONFIG.power3CannotHandDefend && card.power === 3)
-      && canDefend(attackCard, card, defender, { fieldDefense: false, attackContext }));
   if (hiddenCandidates.length === 0 && knownLegalCandidates.length === 0) return null;
   const legalCandidates = hiddenCandidates
     .filter((card) => card.type === "ai"

@@ -319,7 +319,7 @@ describe("ai strategy", () => {
     }
     // WP4 (2026-07-04) 以降、初心者は防御と単純攻撃を行うため全勝は期待しない。
     // 公平化後も挑戦者が小標本で明確に勝ち越すことを固定する。
-    expect(challengerWins / games).toBeGreaterThanOrEqual(0.6);
+    expect(challengerWins).toBeGreaterThanOrEqual(14);
   });
 
   it("estimates hand defense from public zones and hand size, not actual hand identities", () => {
@@ -390,8 +390,24 @@ describe("ai strategy", () => {
     expect(chooseAiAction(first, "beginner")).toEqual(chooseAiAction(second, "beginner"));
   });
 
-  it("can set a non-memory card as paid defense", () => withConfig({ setDefenseEnabled: true }, () => {
+  it("can set an AI card as paid defense", () => withConfig({ setDefenseEnabled: true }, () => {
     const game = makeGame(52);
+    game.players[0].isHuman = false;
+    game.turn = 3;
+    game.actionsRemaining = CONFIG.actionsPerTurn;
+    game.players[0].hand = [card("AI-FIRE-1")];
+    game.players[0].deck = [card("AI-FIRE-1")];
+    game.players[1].deck = [card("AI-WATER-1")];
+
+    performAiActionInDraft(game, { type: "set-defense", index: 0 });
+
+    expect(game.players[0].hand).toEqual([]);
+    expect(game.players[0].setDefenseCard?.id).toBe("AI-FIRE-1");
+    expect(game.actionsRemaining).toBe(CONFIG.actionsPerTurn - 1);
+  }));
+
+  it("rejects event cards as set defense", () => withConfig({ setDefenseEnabled: true }, () => {
+    const game = makeGame(53);
     game.players[0].isHuman = false;
     game.turn = 3;
     game.actionsRemaining = CONFIG.actionsPerTurn;
@@ -401,9 +417,9 @@ describe("ai strategy", () => {
 
     performAiActionInDraft(game, { type: "set-defense", index: 0 });
 
-    expect(game.players[0].hand).toEqual([]);
-    expect(game.players[0].setDefenseCard?.id).toBe("CMD-OPTIMIZE");
-    expect(game.actionsRemaining).toBe(CONFIG.actionsPerTurn - 1);
+    expect(game.players[0].hand.map((item) => item.id)).toEqual(["CMD-OPTIMIZE"]);
+    expect(game.players[0].setDefenseCard).toBeNull();
+    expect(game.actionsRemaining).toBe(CONFIG.actionsPerTurn);
   }));
 
   it("can set defense for free only once per turn", () => withConfig({ setDefenseEnabled: true, setDefenseActionCost: 0, setDefenseOncePerTurn: true }, () => {
@@ -416,16 +432,16 @@ describe("ai strategy", () => {
     game.players[0].deck = [card("AI-FIRE-1")];
     game.players[1].deck = [card("AI-WATER-1")];
 
-    performAiActionInDraft(game, { type: "set-defense", index: 0 });
+    performAiActionInDraft(game, { type: "set-defense", index: 1 });
 
-    expect(game.players[0].setDefenseCard?.id).toBe("CMD-OPTIMIZE");
+    expect(game.players[0].setDefenseCard?.id).toBe("AI-FIRE-1");
     expect(game.players[0].setDefenseUsedThisTurn).toBe(true);
     expect(game.actionsRemaining).toBe(0);
 
     performAiActionInDraft(game, { type: "set-defense", index: 0 });
 
-    expect(game.players[0].setDefenseCard?.id).toBe("CMD-OPTIMIZE");
-    expect(game.players[0].hand.map((item) => item.id)).toEqual(["AI-FIRE-1"]);
+    expect(game.players[0].setDefenseCard?.id).toBe("AI-FIRE-1");
+    expect(game.players[0].hand.map((item) => item.id)).toEqual(["CMD-OPTIMIZE"]);
     expect(game.players[0].discard).toEqual([]);
   }));
 

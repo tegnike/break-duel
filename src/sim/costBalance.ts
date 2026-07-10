@@ -310,13 +310,7 @@ export function evaluateCandidate(
   const aiProfiles: [AiProfile, AiProfile] = [evalConfig.firstAi, evalConfig.secondAi];
   const originalMaxTurns = CONFIG.maxTurns;
   const originalEndgameConfig = snapshotEndgameConfig();
-  CONFIG.maxTurns = evalConfig.maxTurns;
-  const endgamePackage = applyEndgameRulePackage(evalConfig.endgamePackage, {
-    handLimit: evalConfig.endgameHandLimit,
-    siegeConsecutiveTurns: evalConfig.siegeConsecutiveTurns,
-    attacksPerTurnLimit: evalConfig.attacksPerTurnLimit,
-    attackLimitCountsStrike: evalConfig.attackLimitCountsStrike,
-  });
+  let endgamePackage = "current";
 
   let currentSeed = evalConfig.seed;
   let candidateWins = 0;
@@ -331,6 +325,13 @@ export function evaluateCandidate(
   const perOpponent: Record<string, PerOpponentRow> = {};
 
   try {
+    CONFIG.maxTurns = evalConfig.maxTurns;
+    endgamePackage = applyEndgameRulePackage(evalConfig.endgamePackage, {
+      handLimit: evalConfig.endgameHandLimit,
+      siegeConsecutiveTurns: evalConfig.siegeConsecutiveTurns,
+      attacksPerTurnLimit: evalConfig.attacksPerTurnLimit,
+      attackLimitCountsStrike: evalConfig.attackLimitCountsStrike,
+    });
     for (const opponent of EXISTING_DECKS) {
       let pairCandidateWins = 0;
       let pairExistingWins = 0;
@@ -398,7 +399,9 @@ export function evaluateCandidate(
     candidate: candidateKey,
     rule_set: "current",
     endgame_package: endgamePackage,
-    rule_label: "current high-power cap 5",
+    rule_label: endgamePackage === "current"
+      ? "current high-power cap 5"
+      : `endgame package: ${endgamePackage}`,
     deck_ids: [...candidateDeckIds],
     games: totalGames,
     candidate_win_rate: candidateWins / totalGames,
