@@ -14,28 +14,27 @@ import {
 } from "../game";
 import { CardArtPreview, CardView } from "./CardView";
 import { cardArtAsset, cardArtClass, cardArtGlyph, cardColor, roleText, selectedText } from "./cardPresentation";
-import { collectionLimitMessages, loadCollection, ownedCountForCard } from "../collection";
+import { loadCollection, ownedCountForCard } from "../collection";
 import { RARITY_LABELS, baseCardRarity } from "../rarity";
+import {
+  DECK_SIZE,
+  HIGH_POWER_LIMIT,
+  SAME_NAME_LIMIT,
+  loadSavedDecks,
+  normalizeImportedDeck,
+  persistSavedDecks,
+  sortCardIds,
+  validateDeck,
+  type SavedDeck,
+} from "../savedDecks";
 
-const DECK_SIZE = 25;
-const SAME_NAME_LIMIT = 2;
-const HIGH_POWER_LIMIT = 5;
-export const SAVED_DECKS_STORAGE_KEY = "break-duel:saved-decks";
+export { loadSavedDecks, validateDeck, type SavedDeck } from "../savedDecks";
+
 type PlaySfx = (kind: string) => void;
 
 type TypeFilter = CardType | "all";
 type AttributeFilter = Attribute | "all";
 type SetFilter = number | "all";
-
-const CARD_ID_COLLATOR = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
-
-export type SavedDeck = {
-  version: 1;
-  id: string;
-  name: string;
-  cardIds: string[];
-  updatedAt: string;
-};
 
 function allCards(): Card[] {
   return [...ACTIVE_CARD_CATALOG].sort((a, b) => {
@@ -547,89 +546,10 @@ function deckCardIssue(
   return null;
 }
 
-export function validateDeck(cardIds: string[]): { valid: boolean; messages: string[] } {
-  const messages: string[] = [];
-  if (cardIds.length !== DECK_SIZE) messages.push(`${DECK_SIZE}枚ちょうどにしてください`);
-  const knownCards = cardIds.map((cardId) => CARD_BY_ID.get(cardId)).filter((card): card is Card => Boolean(card));
-  const highPowerCount = knownCards.filter((card) => card.type === "ai" && (card.power ?? 0) >= 3).length;
-  if (highPowerCount > HIGH_POWER_LIMIT) messages.push(`power 3以上の召喚獣は${HIGH_POWER_LIMIT}枚までです`);
-  const counts = countCards(cardIds);
-  const exceeded = [...counts.entries()].filter(([, count]) => count > SAME_NAME_LIMIT);
-  if (exceeded.length > 0) messages.push(`同名${SAME_NAME_LIMIT}枚を超えています`);
-  const unknown = cardIds.filter((cardId) => !CARD_BY_ID.has(cardId));
-  if (unknown.length > 0) messages.push("不明なカードが含まれています");
-  const inactive = cardIds.filter((cardId) => {
-    const card = CARD_BY_ID.get(cardId);
-    return card && !isCardActive(card);
-  });
-  if (inactive.length > 0) messages.push("現在使えないカードが含まれています");
-  messages.push(...collectionLimitMessages(knownCards, loadCollection()));
-  return { valid: messages.length === 0, messages };
-}
-
 function countCards(cardIds: string[]): Map<string, number> {
   const counts = new Map<string, number>();
   cardIds.forEach((cardId) => counts.set(cardId, (counts.get(cardId) ?? 0) + 1));
   return counts;
-}
-
-export function loadSavedDecks(): SavedDeck[] {
-  try {
-    const raw = localStorage.getItem(SAVED_DECKS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map(normalizeImportedDeck);
-  } catch {
-    return [];
-  }
-}
-
-function persistSavedDecks(decks: SavedDeck[]) {
-  localStorage.setItem(SAVED_DECKS_STORAGE_KEY, JSON.stringify(decks));
-}
-
-function normalizeImportedDeck(input: unknown): SavedDeck {
-  if (!input || typeof input !== "object") throw new Error("デッキJSONの形式が不正です");
-  const item = input as Partial<SavedDeck>;
-  const name = typeof item.name === "string" && item.name.trim() ? item.name.trim() : "読み込みデッキ";
-  if (!Array.isArray(item.cardIds) || !item.cardIds.every((cardId) => typeof cardId === "string")) {
-    throw new Error("cardIds が見つかりません");
-  }
-  const validation = validateDeck(item.cardIds);
-  if (validation.messages.some((message) => message.includes("不明"))) {
-    throw new Error("不明なカードIDが含まれています");
-  }
-  return {
-    version: 1,
-    id: typeof item.id === "string" ? item.id : `deck-${Date.now()}`,
-    name,
-    cardIds: sortCardIds(item.cardIds),
-    updatedAt: typeof item.updatedAt === "string" ? item.updatedAt : new Date().toISOString(),
-  };
-}
-
-function sortCardIds(cardIds: readonly string[]): string[] {
-  return [...cardIds].sort(compareCardIds);
-}
-
-function compareCardIds(leftId: string, rightId: string): number {
-  const left = CARD_BY_ID.get(leftId);
-  const right = CARD_BY_ID.get(rightId);
-  if (left && right) return compareCardsByNumber(left, right);
-  if (left) return -1;
-  if (right) return 1;
-  return CARD_ID_COLLATOR.compare(leftId, rightId);
-}
-
-function compareCardsByNumber(left: Card, right: Card): number {
-  const typeOrder = typeRank(left.type) - typeRank(right.type);
-  if (typeOrder !== 0) return typeOrder;
-  const attrOrder = attributeRank(left.attribute) - attributeRank(right.attribute);
-  if (attrOrder !== 0) return attrOrder;
-  const powerOrder = (left.power ?? 0) - (right.power ?? 0);
-  if (powerOrder !== 0) return powerOrder;
-  return CARD_ID_COLLATOR.compare(left.id, right.id);
 }
 
 function safeFileName(name: string): string {

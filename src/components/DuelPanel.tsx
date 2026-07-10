@@ -553,7 +553,7 @@ function logEventMeta(entry: string): { kind: string; icon: string } {
 
 export function actionHintText(game: GameState, card: Card | null, zone: string | null): string {
   if (canHumanEndTurn(game) && game.actionsRemaining <= 0 && !canUseCharge(game, game.players[0])) return "できることが無くなりました。ターン終了してください。";
-  if (!card) return canHumanAct(game) ? "手札と場の明るい枠が、いま使える候補です。" : "ライバルの行動中です。";
+  if (!card) return canHumanAct(game) ? "手札と場の明るい枠が、いま使える候補です。" : `${game.players[1].name}の行動中です。`;
   if (!canHumanAct(game) && !(zone === "hand" && canUseCharge(game, game.players[0]))) return selectedText(card);
   const human = game.players[0];
   const opponent = game.players[1];

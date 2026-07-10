@@ -1,5 +1,5 @@
 import type { Card } from "./game";
-import type { RivalVoiceLineId } from "./rivalVoiceLines";
+import type { OpponentVoiceCue } from "./opponents/types";
 
 export type DuelEventCardState = "neutral" | "winner" | "loser" | "trash";
 
@@ -8,14 +8,10 @@ export type DuelCutInStyle = "trump" | "finisher";
 
 export type DuelCutIn = {
   style: DuelCutInStyle;
-  line?: string;
 };
 
 // カットイン全体の表示時間。リール表示の前置きとして再生され、この時間経過後に通常のリールへ進む。
 export const DUEL_CUT_IN_DURATION_MS = 1400;
-
-export const TRUMP_CUT_IN_LINE = "ここで決めます…！！";
-export const FINISHER_CUT_IN_LINE = "これで最後です…！！";
 
 // 山場の強調度。peak = 3点以上のダメージ/切札登場、high = 2点ダメージ/討伐/相打ち、low = 1点ダメージ等の軽い出来事。
 export type DuelEventEmphasis = "low" | "high" | "peak";
@@ -40,7 +36,7 @@ export type DuelEventPayload = {
     amount: number;
     fatal?: boolean;
   };
-  rivalVoiceLine?: RivalVoiceLineId;
+  rivalVoiceLine?: OpponentVoiceCue;
   durationMs?: number;
   emphasis?: DuelEventEmphasis;
   cutIn?: DuelCutIn;
@@ -59,7 +55,7 @@ export function cutInForEvent(event: DuelEventPayload, rivalIndex: number): Duel
   const impact = event.impact;
   if (!impact || impact.kind !== "life-damage") return null;
   if (impact.sourcePlayerIndex !== rivalIndex || impact.targetPlayerIndex === rivalIndex) return null;
-  if (impact.fatal) return { style: "finisher", line: FINISHER_CUT_IN_LINE };
+  if (impact.fatal) return { style: "finisher" };
   return null;
 }
 

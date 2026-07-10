@@ -2,15 +2,6 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { DUEL_CUT_IN_DURATION_MS, duelEventDurationMs, type DuelCutIn, type DuelCutInStyle, type DuelEvent } from "../duelEvents";
 import { CardView } from "./CardView";
-import rivalCutInFinisherPortrait from "../assets/leader-rival-cutin-finisher.webp";
-import rivalCutInTrumpPortrait from "../assets/leader-rival-cutin-trump.webp";
-
-// カットイン用立ち絵。専用アセットが届いたらここの参照を差し替えるだけでよい（trump/finisher で別画像可）。
-const CUT_IN_PORTRAITS: Record<DuelCutInStyle, string> = {
-  trump: rivalCutInTrumpPortrait,
-  finisher: rivalCutInFinisherPortrait,
-};
-
 const CUT_IN_KICKERS: Record<DuelCutInStyle, string> = {
   trump: "TRUMP CARD",
   finisher: "FINISH BLOW",
@@ -84,12 +75,12 @@ export function DuelActionReel({
 }
 
 // 相手の切札/とどめ用カットイン。.stitch-shell 直下は position:relative が強制されるため body へ Portal する。
-export function DuelCutInOverlay({ cutIn }: { cutIn: (DuelCutIn & { id: number }) | null }) {
+export function DuelCutInOverlay({ cutIn, portrait, line }: { cutIn: (DuelCutIn & { id: number }) | null; portrait: string; line?: string }) {
   if (!cutIn) return null;
-  return createPortal(<DuelCutInView key={cutIn.id} cutIn={cutIn} />, document.body);
+  return createPortal(<DuelCutInView key={cutIn.id} cutIn={cutIn} portrait={portrait} line={line} />, document.body);
 }
 
-export function DuelCutInView({ cutIn }: { cutIn: DuelCutIn }) {
+export function DuelCutInView({ cutIn, portrait, line }: { cutIn: DuelCutIn; portrait: string; line?: string }) {
   return (
     <div
       className={`duel-cut-in ${cutIn.style}`}
@@ -97,10 +88,10 @@ export function DuelCutInView({ cutIn }: { cutIn: DuelCutIn }) {
       aria-hidden="true"
     >
       <div className="duel-cut-in-band" />
-      <img className="duel-cut-in-portrait" src={CUT_IN_PORTRAITS[cutIn.style]} alt="" />
+      <img className="duel-cut-in-portrait" src={portrait} alt="" />
       <div className="duel-cut-in-line">
         <span className="duel-cut-in-kicker">{CUT_IN_KICKERS[cutIn.style]}</span>
-        {cutIn.line && <span className="duel-cut-in-text">{cutIn.line}</span>}
+        {line && <span className="duel-cut-in-text">{line}</span>}
       </div>
     </div>
   );
