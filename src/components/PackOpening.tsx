@@ -427,9 +427,15 @@ export function PackOpeningPage({
 
   function advanceToNextPurchasedPack() {
     if (!packBatch || activePackIndex >= packBatch.length - 1) return;
+    const nextPackIndex = activePackIndex + 1;
+    const nextPackOmen = omenOf(packBatch[nextPackIndex] ?? null);
     resetRevealState();
-    setActivePackIndex((current) => current + 1);
-    setPhase("opened");
+    setActivePackIndex(nextPackIndex);
+    setTearProgress(1);
+    setPhase("torn");
+    if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current);
+    const settleMs = nextPackOmen === "none" ? TEAR_SETTLE_MS : TEAR_SETTLE_OMEN_MS;
+    settleTimerRef.current = window.setTimeout(() => setPhase("opened"), settleMs);
   }
 
   function continuePackOpening() {
@@ -445,7 +451,6 @@ export function PackOpeningPage({
   const canAfford = coins >= purchaseCost;
   const allFlipped = pack !== null && flippedKeys.size === pack.length;
   const packOmen = omenOf(pack);
-  const finalPackInBatch = activePackIndex === batchSize - 1;
   const revealCompletion = packRevealCompletion(batchSize, activePackIndex);
   const flippedEntries = Array.from(flippedKeys)
     .map((key) => pack?.find((entry) => entry.key === key))
@@ -534,7 +539,7 @@ export function PackOpeningPage({
             </div>
           ) : phase === "opened" && allFlipped && resultReady ? (
             <button type="button" onClick={continuePackOpening}>
-              {finalPackInBatch ? (batchSize === TEN_PACK_COUNT ? "もう一度10連" : "次のパックへ") : `次のパックへ（${activePackIndex + 2}/${batchSize}）`}
+              {batchSize === TEN_PACK_COUNT ? "もう一度10連" : "次のパックへ"}
             </button>
           ) : null}
         </div>
