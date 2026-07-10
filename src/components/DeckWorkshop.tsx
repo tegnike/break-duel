@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import {
   ATTRIBUTES,
+  ACTIVE_CARD_CATALOG,
   CARD_BY_ID,
   CARD_SET_LABELS,
   DECKS,
   type Attribute,
   type Card,
   type CardType,
-  activeCardPool,
   cardSet,
   isCardActive,
   playCost,
@@ -38,7 +38,7 @@ export type SavedDeck = {
 };
 
 function allCards(): Card[] {
-  return activeCardPool().sort((a, b) => {
+  return [...ACTIVE_CARD_CATALOG].sort((a, b) => {
     const typeOrder = typeRank(a.type) - typeRank(b.type);
     if (typeOrder !== 0) return typeOrder;
     const attrOrder = attributeRank(a.attribute) - attributeRank(b.attribute);

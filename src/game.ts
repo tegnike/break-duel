@@ -83,7 +83,7 @@ export type MemoryEffect = "firewall" | "cache" | "pipeline" | "accelerator" | "
 export type CardEffect = AiEffect | CommandEffect | MemoryEffect | "";
 export type Zone = "hand" | "field" | "memory" | "discard";
 
-export type Card = {
+export type Card = Readonly<{
   id: string;
   name: string;
   type: CardType;
@@ -95,7 +95,7 @@ export type Card = {
   status: CardStatus;
   /** 収録弾。未指定は第1弾（スターター、コレクション制限なし） */
   set?: number;
-};
+}>;
 
 /** カードが持つ属性の一覧（主属性 + デュアル副属性） */
 export function cardAttributes(card: Card): Attribute[] {
@@ -360,7 +360,7 @@ export function addLog(game: GameState, message: string): void {
   game.log = game.log.slice(-80);
 }
 
-export function cardPool(): Card[] {
+function buildCardCatalog(): Card[] {
   const monsterNames: Record<string, string> = {
     "AI-FIRE-1": "熾き尾のサラ",
     "AI-FIRE-1B": "火花一番ピリカ",
@@ -529,14 +529,33 @@ export function cardPool(): Card[] {
   return cards.map((card) => ({ ...card, status: card.status ?? "active" }));
 }
 
-export const CARD_BY_ID = new Map(cardPool().map((card) => [card.id, card]));
+/**
+ * 全画面・各機能が参照するカード定義の正本。
+ * カード定義はアプリ起動時に一度だけ生成し、画面側で再生成・変更させない。
+ */
+export const CARD_CATALOG: readonly Card[] = Object.freeze(
+  buildCardCatalog().map((card) => Object.freeze(card)),
+);
+
+export const CARD_BY_ID: ReadonlyMap<string, Card> = new Map(
+  CARD_CATALOG.map((card) => [card.id, card]),
+);
+
+export const ACTIVE_CARD_CATALOG: readonly Card[] = Object.freeze(
+  CARD_CATALOG.filter(isCardActive),
+);
+
+/** 呼び出し元による並べ替えを許しつつ、カード定義自体は正本を共有する。 */
+export function cardPool(): Card[] {
+  return [...CARD_CATALOG];
+}
 
 export function isCardActive(card: Card): boolean {
   return card.status === "active";
 }
 
 export function activeCardPool(): Card[] {
-  return cardPool().filter(isCardActive);
+  return [...ACTIVE_CARD_CATALOG];
 }
 
 export const DECKS = {
