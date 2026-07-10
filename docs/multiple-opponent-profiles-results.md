@@ -1,7 +1,6 @@
 # 複数相手プレイヤープロファイル 実装結果
 
 - 実施日: 2026-07-10
-- worktree: `/Users/user/WorkSpace/ai-break-duel-multiple-opponents`
 - branch: `codex/multiple-opponent-profiles`
 - base: `origin/develop` / `bc1e512`
 - 結論: 計画どおり実装・自動テスト・PCブラウザ確認を完了

@@ -55,5 +55,7 @@ describe("character admin model", () => {
 
   it("rejects an id that collides with a built-in character", () => {
     expect(() => setCustomOpponentCharacters([{ ...savedCharacterToDefinition(customCharacter()), id: "nike" }])).toThrow("重複");
+    expect(listOpponentCharacters()).toHaveLength(1);
+    expect(resolveOpponentCharacter("nike")?.defaultDisplayName).toBe("ニケ");
   });
 });

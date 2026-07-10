@@ -79,6 +79,10 @@ export function CharacterAdminPage({
       setMessage("組み込みキャラクターと同じIDは使用できません");
       return;
     }
+    if (!editingOriginalId && savedCharacters.some((character) => character.id === draft.id)) {
+      setMessage("既存のキャラクターと同じIDは使用できません");
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {

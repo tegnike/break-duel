@@ -17,8 +17,10 @@ export function createOpponentCatalog(definitions: readonly OpponentCharacterDef
 }
 
 export function setCustomOpponentCharacters(definitions: readonly OpponentCharacterDefinition[]): void {
-  runtimeOpponentCharacters = [...OPPONENT_CHARACTER_CATALOG, ...definitions];
-  runtimeOpponentCharacterById = createOpponentCatalog(runtimeOpponentCharacters);
+  const nextRuntimeOpponentCharacters = [...OPPONENT_CHARACTER_CATALOG, ...definitions];
+  const nextRuntimeOpponentCharacterById = createOpponentCatalog(nextRuntimeOpponentCharacters);
+  runtimeOpponentCharacters = nextRuntimeOpponentCharacters;
+  runtimeOpponentCharacterById = nextRuntimeOpponentCharacterById;
 }
 
 export function listOpponentCharacters(): readonly OpponentCharacterDefinition[] {

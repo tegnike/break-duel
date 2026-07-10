@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SAVED_DECKS_STORAGE_KEY, loadSavedDecks } from "./savedDecks";
+import { SAVED_DECKS_STORAGE_KEY, loadSavedDecks, normalizeImportedDeck } from "./savedDecks";
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const values = new Map(Object.entries(initial));
@@ -34,5 +34,9 @@ describe("saved deck storage", () => {
     }));
 
     expect(loadSavedDecks()).toEqual([validDeck]);
+  });
+
+  it("rejects unsupported imported deck versions", () => {
+    expect(() => normalizeImportedDeck({ version: 2, cardIds: [] })).toThrow("対応していないデッキバージョン");
   });
 });

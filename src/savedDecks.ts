@@ -75,6 +75,7 @@ export function persistSavedDecks(decks: SavedDeck[]): boolean {
 export function normalizeImportedDeck(input: unknown): SavedDeck {
   if (!input || typeof input !== "object") throw new Error("デッキJSONの形式が不正です");
   const item = input as Partial<SavedDeck>;
+  if (item.version !== 1) throw new Error("対応していないデッキバージョンです");
   const name = typeof item.name === "string" && item.name.trim() ? item.name.trim() : "読み込みデッキ";
   if (!Array.isArray(item.cardIds) || !item.cardIds.every((cardId) => typeof cardId === "string")) {
     throw new Error("cardIds が見つかりません");
