@@ -133,3 +133,26 @@
 - スマホ縦向きでは個別画面をレスポンシブ化せず、端末を横向きにする案内を表示する。
 - スマホ向け変更は、端末判定、縦向き案内、横向き時の高さ調整に限定する。ページ単位の狭幅レイアウトや一般的なモバイルレスポンシブ対応は追加しない。
 - 将来の本格的なモバイルUIはネイティブアプリとして別途開発する。
+
+<!-- BACKLOG.MD GUIDELINES START -->
+<CRITICAL_INSTRUCTION>
+
+## Backlog.md Workflow
+
+This project uses Backlog.md for task and project management.
+
+**For every user request in this project, run `npx backlog instructions overview` before answering or taking action.**
+
+Use the overview to decide whether to search, read, create, or update Backlog tasks.
+
+Use the detailed guides when needed:
+- `npx backlog instructions task-creation` for creating or splitting tasks
+- `npx backlog instructions task-execution` for planning and implementation workflow
+- `npx backlog instructions task-finalization` for completion and handoff
+
+Use `npx backlog <command> --help` before running unfamiliar commands. Help shows options, fields, and examples.
+
+Do not edit Backlog task, draft, document, decision, or milestone markdown files directly. Use the `npx backlog` CLI so metadata, relationships, and history stay consistent.
+
+</CRITICAL_INSTRUCTION>
+<!-- BACKLOG.MD GUIDELINES END -->
