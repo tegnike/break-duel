@@ -1,9 +1,10 @@
 ---
 id: BD-2
 title: v0.11.0をmainへマージしてリリースする
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-07-11 21:50'
+updated_date: '2026-07-11 21:58'
 labels:
   - release
 dependencies: []
@@ -19,11 +20,11 @@ developの対人CPU戦ログ機能をmainへ直接PRで取り込み、v0.11.0と
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 developからmainへの通常PRがレビュー・CI確認後にマージされる
-- [ ] #2 docs/releases/v0.11.0.mdが正本として追加される
-- [ ] #3 v0.11.0注釈付きタグとGitHub Releaseが公開される
-- [ ] #4 origin/developとorigin/mainがリリースコミットまで同期する
-- [ ] #5 npm run checkと関連CIが成功する
+- [x] #1 developからmainへの通常PRがレビュー・CI確認後にマージされる
+- [x] #2 docs/releases/v0.11.0.mdが正本として追加される
+- [x] #3 v0.11.0注釈付きタグとGitHub Releaseが公開される
+- [x] #4 origin/developとorigin/mainがリリースコミットまで同期する
+- [x] #5 npm run checkと関連CIが成功する
 <!-- AC:END -->
 
 ## Implementation Plan
@@ -35,3 +36,15 @@ developの対人CPU戦ログ機能をmainへ直接PRで取り込み、v0.11.0と
 4. タグとGitHub Releaseを公開する
 5. developをmainへfast-forward同期して最終確認する
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+PR #45をdevelopからmainへ直接マージ。mainでv0.11.0へ更新し、npm run checkで33ファイル374テスト、型チェック、ビルド成功。
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+developの対人CPU戦ログ機能をmainへ取り込み、v0.11.0の正本ノート、タグ、GitHub Releaseを公開し、developをmainへ同期した。
+<!-- SECTION:FINAL_SUMMARY:END -->
