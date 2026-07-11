@@ -1471,7 +1471,7 @@ describe("life damage event metadata", () => {
       cards: [{ label: "登場", state: "neutral" }],
     });
     expect(events[0]?.emphasis).toBeUndefined();
-    expect(events[0]?.cutIn).toEqual({ style: "trump", line: "ここで決めます…！！" });
+    expect(events[0]?.cutIn).toEqual({ style: "trump" });
   });
 
   it("adds a trump cut-in when the rival upgrades into a power 4 AI", () => {
@@ -1492,7 +1492,7 @@ describe("life damage event metadata", () => {
     });
     expect(events[0]?.emphasis).toBeUndefined();
     expect(events[0]?.cards[1]).toMatchObject({ label: "新", state: "winner" });
-    expect(events[0]?.cutIn).toEqual({ style: "trump", line: "ここで決めます…！！" });
+    expect(events[0]?.cutIn).toEqual({ style: "trump" });
   });
 
   it("can suppress the power 4 entry cut-in when it was already played before the action", () => {

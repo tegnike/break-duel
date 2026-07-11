@@ -37,6 +37,15 @@ scripts/
 src/
   main.tsx          React entry
   App.tsx           アプリ状態、通知、音、イベント配線
+  savedDecks.ts     保存デッキの型、永続化、validation
+  duelSetup.ts      デッキ選択解決と相手プロフィール参照整合性
+  opponents/
+    types.ts        キャラクター、保存プロフィール、進行中snapshot型
+    nike.ts         ニケの画像、台詞、音声定義
+    catalog.ts      組み込み＋管理画面登録キャラクターの実行時カタログと素材fallback
+    characterStorage.ts 管理画面キャラクターのIndexedDB永続化とvalidation
+    storage.ts      version付きプロフィール永続化とCRUD
+    asyncGuard.ts   前試合のtimer/audio callbackをmatchIdで遮断
   game.ts           TypeScript 側カード定義、設定、純粋ルール、自動判断
   summonFx.ts       属性召喚/遺物配置の着地演出定義と属性SFXのその場で合成
   summonParticles.ts 属性召喚/遺物配置の着地演出（カード素材が属性ごとに反応する Canvas 2D 演出）
@@ -56,6 +65,8 @@ src/
     DuelPanel.tsx   中央操作、詳細、防御候補、ログ
     Modals.tsx      ルール、トラッシュモーダル
     Overlays.tsx    トースト、ターン/結果バナー
+    DuelSetupPanel.tsx 保存相手プロフィールの選択・編集UI
+    CharacterAdminPage.tsx キャラクター素材・セリフ・音声の管理UI
     cardPresentation.ts カード表示ラベル、色、画像
     packParticles.ts パック開封確定演出（Canvas 2D パーティクルエンジン）
   styles.css        ブラウザUIスタイル
@@ -183,6 +194,16 @@ React 側は外部状態管理ライブラリを使っていません。`App.tsx
 
 CPU（`beginner` / `challenger`）の行動選択・防御選択は `src/game.ts` に一元化されています。変更する場合は `docs/game-spec.md` を同期してください。シミュレーション CLI は `--first-ai` / `--second-ai`（beginner / challenger、省略時 challenger）でプロファイルを切り替えます。ブラウザ UI は相手プレイヤーの `PlayerState.aiProfile` を使います。
 
+## 相手プロフィールと進行中スナップショット
+
+キャラクターそのものの編集は `/admin/characters` で扱う。組み込みの `NIKE_CHARACTER` は読み取り専用で、管理画面から追加した `SavedOpponentCharacter` は使用デッキ、CPU難度、画像・音声のData URLを含むためIndexedDBへ保存する。起動時とCRUD後に `savedCharacterToDefinition` で実行時定義へ変換し、`setCustomOpponentCharacters` で組み込みカタログへ合流する。
+
+相手データは、`src/opponents/catalog.ts` の実行時キャラクター定義、`src/opponents/storage.ts` のversion付き互換プロフィールstore、進行中の `ResolvedOpponentSnapshot` の3層に分けます。互換プロフィールstoreは `localStorage` に `selectedProfileId` とプロフィール配列（`profileLabel`、`characterId`、`deckSelection`、`aiProfile`、`updatedAt`）を保持しますが、対戦設定と表示素材の権威データは選択されたキャラクター定義です。画像・音声のData URLは `localStorage` へ入れずIndexedDBだけへ保存します。
+
+`DuelSetupPanel` は次戦向けstoreだけを更新します。対戦開始時に `App.tsx` の `activateOpponent` がsnapshotのstate/refを同期更新し、`createGameFromSetup` へ解決済みの相手名・デッキ・CPUを渡します。ゲーム中の立ち絵、リアクション、吹き出し、音声、カットインはactive snapshotから解決します。timer、Audioの`ended`、pending cueはmatchIdでガードし、前試合の非同期処理を次試合へ持ち込みません。
+
+既存の `createGame` はシミュレーションと既存呼び出し向け互換ラッパーです。ブラウザはobject境界の `createGameFromSetup` を使い、両方とも同一RNGを `createGameCore` へ渡します。
+
 `src/game/actions.ts` は、`GameState` を変更する操作処理を置きます。
 
 - 召喚獣を場に出す
@@ -197,7 +218,7 @@ CPU（`beginner` / `challenger`）の行動選択・防御選択は `src/game.ts
 
 ## チュートリアル対戦
 
-ブラウザ UI には初回向けのチュートリアル対戦があります。固定の練習デッキ、固定初期手札、固定のライバル手札を `src/tutorial.ts` で作り、通常の `GameState` と既存アクション処理の上で進行します。
+ブラウザ UI には初回向けのチュートリアル対戦があります。固定の練習デッキ、固定初期手札、固定のニケ手札を `src/tutorial.ts` で作り、通常の `GameState` と既存アクション処理の上で進行します。保存中の相手プロフィールは参照しません。
 
 - 初回表示の完了状態は `localStorage` の `break-duel:tutorial-completed` に保存します。
 - チュートリアル中の進行判定と操作ガードは `src/tutorial.ts` の `currentTutorialStep` と `App.tsx` 側の UI ガードで扱います。

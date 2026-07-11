@@ -83,7 +83,6 @@ import {
   useAction,
   visibleDrawText,
 } from "../game";
-import { TRUMP_CUT_IN_LINE } from "../duelEvents";
 import type { DuelEventPayload } from "../duelEvents";
 
 export type GameActionEffects = {
@@ -94,7 +93,7 @@ export type GameActionEffects = {
 
 function trumpCutInForPower4Entry(player: PlayerState, card: Card): DuelEventPayload["cutIn"] | undefined {
   if (player.isHuman || card.type !== "ai" || card.power !== 4) return undefined;
-  return { style: "trump", line: TRUMP_CUT_IN_LINE };
+  return { style: "trump" };
 }
 
 export type ChargeTargetOptions = {
