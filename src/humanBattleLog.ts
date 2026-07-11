@@ -37,6 +37,10 @@ export type HumanBattleSnapshot = {
     attacks_this_turn: number;
     set_defense_used_this_turn: boolean;
     played_ai_this_turn: boolean;
+    pipeline_used: boolean;
+    accelerator_used: boolean;
+    war_banner_used: boolean;
+    echo_urn_used: boolean;
     charge_used: boolean;
     attack_charge_compensation_used: boolean;
     sandbox_shield: number;
@@ -66,7 +70,9 @@ export type HumanBattleLogRecord = {
 export type HumanBattleLogSession = {
   id: string;
   sequence: number;
+  queuedSnapshot: HumanBattleSnapshot | null;
   lastSnapshot: HumanBattleSnapshot | null;
+  pendingRecords: HumanBattleLogRecord[];
   ended: boolean;
   queue: Promise<void>;
 };
@@ -96,6 +102,10 @@ function serializePlayer(player: PlayerState) {
     attacks_this_turn: player.playerAttacksThisTurn,
     set_defense_used_this_turn: player.setDefenseUsedThisTurn,
     played_ai_this_turn: player.playedAiThisTurn,
+    pipeline_used: player.pipelineUsed,
+    accelerator_used: player.acceleratorUsed,
+    war_banner_used: player.warBannerUsed,
+    echo_urn_used: player.echoUrnUsed,
     charge_used: player.chargeUsed,
     attack_charge_compensation_used: Boolean(player.attackChargeCompensationUsed),
     sandbox_shield: player.sandboxShield,
@@ -141,7 +151,9 @@ export function createHumanBattleLogSession(game: GameState, now = new Date()): 
   return {
     id: `${timestamp}_seed-${game.seed}_${Math.random().toString(36).slice(2, 10)}`,
     sequence: 0,
+    queuedSnapshot: null,
     lastSnapshot: null,
+    pendingRecords: [],
     ended: false,
     queue: Promise.resolve(),
   };
@@ -154,7 +166,8 @@ export function buildHumanBattleLogRecord(
   now = new Date(),
 ): HumanBattleLogRecord {
   const state = serializeHumanBattleState(game);
-  const resolvedType = type ?? (session.lastSnapshot === null
+  const previousSnapshot = session.queuedSnapshot ?? session.lastSnapshot;
+  const resolvedType = type ?? (previousSnapshot === null
     ? "match_start"
     : game.winner !== null || game.draw ? "match_end" : "state_transition");
   const record: HumanBattleLogRecord = {
@@ -163,10 +176,10 @@ export function buildHumanBattleLogRecord(
     sequence: session.sequence,
     recorded_at: now.toISOString(),
     type: resolvedType,
-    actor: session.lastSnapshot === null
+    actor: previousSnapshot === null
       ? null
-      : session.lastSnapshot.players[session.lastSnapshot.active_player_index]?.is_human ? "human" : "cpu",
-    new_log_entries: appendedLogEntries(session.lastSnapshot?.visible_log ?? [], state.visible_log),
+      : previousSnapshot.players[previousSnapshot.active_player_index]?.is_human ? "human" : "cpu",
+    new_log_entries: appendedLogEntries(previousSnapshot?.visible_log ?? [], state.visible_log),
     state,
   };
   if (resolvedType === "match_start") record.rules = { ...CONFIG };
@@ -176,21 +189,38 @@ export function buildHumanBattleLogRecord(
 }
 
 export function sendHumanBattleLogRecord(session: HumanBattleLogSession, record: HumanBattleLogRecord): void {
+  if (session.ended) return;
   session.sequence += 1;
-  session.lastSnapshot = record.state;
+  session.queuedSnapshot = record.state;
+  session.pendingRecords.push(record);
   if (record.type === "match_end" || record.type === "match_abandoned") session.ended = true;
   session.queue = session.queue
     .catch(() => undefined)
     .then(async () => {
-      const response = await fetch(HUMAN_BATTLE_LOG_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(record),
-        keepalive: record.type === "match_end" || record.type === "match_abandoned",
-      });
-      if (!response.ok && response.status !== 404) console.warn("Human battle log could not be saved", response.status);
+      while (session.pendingRecords.length > 0) {
+        const pending = session.pendingRecords[0];
+        const response = await fetch(HUMAN_BATTLE_LOG_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(pending),
+          keepalive: pending.type === "match_end" || pending.type === "match_abandoned",
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        session.pendingRecords.shift();
+        session.lastSnapshot = pending.state;
+      }
     })
     .catch((error) => {
       if (import.meta.env.DEV) console.warn("Human battle log could not be saved", error);
     });
+}
+
+export function flushHumanBattleLogSession(session: HumanBattleLogSession): void {
+  if (typeof navigator === "undefined" || typeof navigator.sendBeacon !== "function") return;
+  session.pendingRecords.forEach((record) => {
+    navigator.sendBeacon(
+      HUMAN_BATTLE_LOG_ENDPOINT,
+      new Blob([JSON.stringify(record)], { type: "application/json" }),
+    );
+  });
 }

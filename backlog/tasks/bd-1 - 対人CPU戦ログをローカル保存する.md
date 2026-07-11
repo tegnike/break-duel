@@ -4,7 +4,7 @@ title: 対人CPU戦ログをローカル保存する
 status: Done
 assignee: []
 created_date: '2026-07-11 20:55'
-updated_date: '2026-07-11 20:58'
+updated_date: '2026-07-11 21:14'
 labels:
   - logging
   - ai-training
@@ -49,10 +49,14 @@ ordinal: 1000
 実装済み。npm run checkで33ファイル371テスト、型チェック、ビルド成功。保存APIへPOSTしてJSONL生成とHTTP 204を確認済み。
 
 最新origin/develop（5f2fceb）へリベース後、npm ciとnpm run checkを再実行。33テストファイル、371テスト、型チェック、ビルドが成功した。
+
+CodeRabbit PR #44 reviewで7件の有効なログ整合性指摘を確認。保存ライフサイクル、モード判定、スキーマ、サーバー検証を修正する。
+
+CodeRabbitの7件を反映。通常対戦明示判定、pagehide Beacon、4種のターンフラグ、送信失敗保持・再試行、終端重複抑止、完全レコード検証、HTTP 400/500分離を追加。npm run checkで33ファイル372テストとビルド成功。重複POSTは1行、不正入力は400を実地確認。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-通常の人間対CPU戦をAI解析向けJSONLへ逐次保存する開発サーバー専用機能を追加した。完全な対局状態、勝敗、途中離脱を記録し、ユニットテスト・全チェック・実ファイル生成で検証した。
+通常の人間対CPU戦をAI解析向けJSONLへ安全に逐次保存する機能を追加した。モード混入・終了時欠落・送信失敗・重複・不正レコードを防ぎ、372テスト、ビルド、実ファイル保存で検証した。
 <!-- SECTION:FINAL_SUMMARY:END -->

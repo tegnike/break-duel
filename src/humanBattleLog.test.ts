@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createGame } from "./game";
-import { appendedLogEntries, buildHumanBattleLogRecord, createHumanBattleLogSession, serializeHumanBattleState } from "./humanBattleLog";
+import { appendedLogEntries, buildHumanBattleLogRecord, createHumanBattleLogSession, sendHumanBattleLogRecord, serializeHumanBattleState } from "./humanBattleLog";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("human battle log", () => {
   it("serializes complete current battle state without runtime-only collections", () => {
@@ -16,6 +20,12 @@ describe("human battle log", () => {
     expect(snapshot.players[0].known_hand_cards).toHaveLength(1);
     expect(snapshot.players[0].spent_field_indexes).toEqual([2]);
     expect(snapshot.players[0].turn_field_attack_bonuses).toEqual([[1, 3]]);
+    expect(snapshot.players[0]).toMatchObject({
+      pipeline_used: false,
+      accelerator_used: false,
+      war_banner_used: false,
+      echo_urn_used: false,
+    });
     expect(snapshot.siege_lead_streaks).toEqual([1, 0]);
     expect(JSON.stringify(snapshot)).not.toContain("rng");
   });
@@ -26,16 +36,54 @@ describe("human battle log", () => {
     expect(appendedLogEntries(previous, current)).toEqual(["log-80", "log-81"]);
   });
 
-  it("emits start and final records with result metadata", () => {
+  it("queues and sequences the sender lifecycle through a terminal record", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true, status: 204 } as Response);
     const game = createGame(456, "fire", "water", "challenger");
     const session = createHumanBattleLogSession(game, new Date("2026-07-11T10:00:00.000Z"));
     const start = buildHumanBattleLogRecord(session, game, undefined, new Date("2026-07-11T10:00:00.000Z"));
-    session.sequence += 1;
-    session.lastSnapshot = start.state;
+    sendHumanBattleLogRecord(session, start);
+    game.log.push("あなたはカードを使用。");
+    const transition = buildHumanBattleLogRecord(session, game, undefined, new Date("2026-07-11T10:01:00.000Z"));
+    sendHumanBattleLogRecord(session, transition);
     game.winner = 1;
     const end = buildHumanBattleLogRecord(session, game, undefined, new Date("2026-07-11T10:05:00.000Z"));
+    sendHumanBattleLogRecord(session, end);
+    sendHumanBattleLogRecord(session, end);
+    await session.queue;
+
     expect(start).toMatchObject({ sequence: 0, type: "match_start", actor: null });
     expect(start.rules?.life).toBeGreaterThan(0);
-    expect(end).toMatchObject({ sequence: 1, type: "match_end", result: "cpu_win", actor: "human" });
+    expect(transition).toMatchObject({ sequence: 1, type: "state_transition", actor: "human" });
+    expect(end).toMatchObject({ sequence: 2, type: "match_end", result: "cpu_win", actor: "human" });
+    expect(session).toMatchObject({ sequence: 3, ended: true, pendingRecords: [] });
+    expect(session.lastSnapshot?.winner).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const sentRecords = fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)));
+    expect(sentRecords.map((record) => [record.sequence, record.type])).toEqual([
+      [0, "match_start"],
+      [1, "state_transition"],
+      [2, "match_end"],
+    ]);
+  });
+
+  it("retains failed records and retries them before later transitions", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue({ ok: true, status: 204 } as Response);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const game = createGame(789, "fire", "water", "challenger");
+    const session = createHumanBattleLogSession(game);
+    sendHumanBattleLogRecord(session, buildHumanBattleLogRecord(session, game));
+    await session.queue;
+    expect(session.lastSnapshot).toBeNull();
+    expect(session.pendingRecords).toHaveLength(1);
+
+    game.log.push("再接続後の行動。");
+    sendHumanBattleLogRecord(session, buildHumanBattleLogRecord(session, game));
+    await session.queue;
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(session.pendingRecords).toEqual([]);
+    expect(session.lastSnapshot?.visible_log).toContain("再接続後の行動。");
   });
 });
