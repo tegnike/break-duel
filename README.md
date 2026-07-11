@@ -221,6 +221,18 @@ npm run check
 カード効果を追加・変更した場合は、TypeScript 側の `src/game/cardEffectCoverage.test.ts` に効果ケースを追加してください。
 このテストは有効カードプールに存在する効果 ID とテスト登録表の差分を検知するため、効果を実装してテスト登録を忘れると `npm run test:unit` が失敗します。
 
+## タスク管理（Backlog.md）
+
+タスクはリポジトリ内の Markdown として `backlog/` で管理します。依存関係をインストールした後、CLI またはローカル Web UI から操作できます。
+
+```bash
+npx backlog task list
+npm run backlog:board
+npm run backlog:browser
+```
+
+タスクファイルは直接編集せず、`npx backlog` 経由で作成・更新してください。
+
 ## CI
 
 GitHub Actions で 3 つのワークフローが動きます。

@@ -108,6 +108,13 @@ import {
   type DuelEvent,
   type DuelEventPayload,
 } from "./duelEvents";
+import {
+  buildHumanBattleLogRecord,
+  createHumanBattleLogSession,
+  flushHumanBattleLogSession,
+  sendHumanBattleLogRecord,
+  type HumanBattleLogSession,
+} from "./humanBattleLog";
 import { resolveDeckSelection, toDuelDeckSource, validateOpponentProfileReferences, type DeckSelection } from "./duelSetup";
 import { NIKE_CHARACTER } from "./opponents/nike";
 import { OPPONENT_CHARACTER_CATALOG, opponentAiProfile, opponentDeckSelection, opponentPortrait, opponentVoiceLine, resolveOpponentCharacter, setCustomOpponentCharacters } from "./opponents/catalog";
@@ -861,6 +868,9 @@ export default function App() {
     game.players[0].life,
     game.players[1].life,
   ]);
+  const humanBattleLogSession = useRef<HumanBattleLogSession | null>(null);
+  const normalHumanBattleSeed = useRef<number | null>(null);
+  const latestGameRef = useRef(game);
 
   const human = game.players[0];
   const ai = game.players[1];
@@ -868,6 +878,7 @@ export default function App() {
   const opponent = opponentPlayer(game);
   const selectedCard = selectedCardForDetail(game);
   const tutorialStep = tutorialActive ? currentTutorialStep(game) : null;
+  latestGameRef.current = game;
   currentRivalVoiceStateKey.current = `${activeOpponentRef.current.matchId}:${game.turn}:${game.active}:${game.winner ?? "playing"}:${game.draw ? "draw" : "active"}`;
   gameResolvedRef.current = game.winner !== null || game.draw;
 
@@ -906,6 +917,16 @@ export default function App() {
       mutator(draft);
       return draft;
     });
+  }
+
+  function abandonHumanBattleLog() {
+    const session = humanBattleLogSession.current;
+    const currentGame = latestGameRef.current;
+    if (session && !session.ended && normalHumanBattleSeed.current === currentGame.seed) {
+      sendHumanBattleLogRecord(session, buildHumanBattleLogRecord(session, currentGame, "match_abandoned"));
+    }
+    humanBattleLogSession.current = null;
+    normalHumanBattleSeed.current = null;
   }
 
   function showToast(title: string, detail = "") {
@@ -1719,6 +1740,7 @@ export default function App() {
 
   function startSelectedDeckGame() {
     try {
+      abandonHumanBattleLog();
       const latestSavedDecks = loadSavedDecks();
       setSavedDecks(latestSavedDecks);
       const selectedProfile = opponentStore.profiles.find((profile) => profile.id === opponentStore.selectedProfileId);
@@ -1747,6 +1769,7 @@ export default function App() {
           aiProfile: nextOpponent.aiProfile,
         },
       });
+      normalHumanBattleSeed.current = nextSeed;
       resetDuelEvents();
       activateOpponent(nextOpponent);
       gameResolvedRef.current = false;
@@ -1773,6 +1796,7 @@ export default function App() {
   }
 
   function startTutorialGame() {
+    abandonHumanBattleLog();
     if (page !== "duel") {
       setPage("duel");
       const duelPath = routeForPage("duel");
@@ -1808,6 +1832,7 @@ export default function App() {
   }
 
   function openStarterDeckSetup() {
+    abandonHumanBattleLog();
     refreshSavedDecks();
     resetDuelEvents();
     setRulesOpen(false);
@@ -1825,6 +1850,7 @@ export default function App() {
   }
 
   function changePage(nextPage: AppPage) {
+    if (nextPage !== "duel") abandonHumanBattleLog();
     if (nextPage !== "duel") resetDuelEvents();
     if (nextPage !== "duel") setTutorialActive(false);
     if (nextPage !== "duel") setTutorialAiAdvanceKey(null);
@@ -1860,6 +1886,47 @@ export default function App() {
     setCustomOpponentCharacters(nextCharacters.map(savedCharacterToDefinition));
     showToast("キャラクター管理", "キャラクターを削除しました");
   }
+
+  useEffect(() => {
+    const session = humanBattleLogSession.current;
+    const isNormalMatch = import.meta.env.DEV
+      && readDevScenario() === null
+      && normalHumanBattleSeed.current === game.seed;
+    if (!isNormalMatch) return;
+    if (page !== "duel" || starterDeckSetupOpen || tutorialActive) {
+      abandonHumanBattleLog();
+      return;
+    }
+    if (session?.ended) return;
+    let activeSession = session;
+    if (!activeSession || activeSession.lastSnapshot?.seed !== game.seed) {
+      activeSession = createHumanBattleLogSession(game);
+      humanBattleLogSession.current = activeSession;
+    }
+    const record = buildHumanBattleLogRecord(activeSession, game);
+    // StrictModeのeffect再実行や、内容を変えないclone更新は学習ログのノイズにしない。
+    const latestSnapshot = activeSession.queuedSnapshot ?? activeSession.lastSnapshot;
+    if (latestSnapshot && JSON.stringify(latestSnapshot) === JSON.stringify(record.state)) return;
+    sendHumanBattleLogRecord(activeSession, record);
+  }, [page, starterDeckSetupOpen, tutorialActive, game]);
+
+  useEffect(() => {
+    const flushLatestBattleState = () => {
+      const session = humanBattleLogSession.current;
+      const currentGame = latestGameRef.current;
+      if (!session || normalHumanBattleSeed.current !== currentGame.seed) return;
+      if (!session.ended) {
+        const record = buildHumanBattleLogRecord(session, currentGame);
+        const latestSnapshot = session.queuedSnapshot ?? session.lastSnapshot;
+        if (!latestSnapshot || JSON.stringify(latestSnapshot) !== JSON.stringify(record.state)) {
+          sendHumanBattleLogRecord(session, record);
+        }
+      }
+      flushHumanBattleLogSession(session);
+    };
+    window.addEventListener("pagehide", flushLatestBattleState);
+    return () => window.removeEventListener("pagehide", flushLatestBattleState);
+  }, []);
 
   useEffect(() => {
     if (INITIAL_OPPONENT_STORE_LOAD.message) {
