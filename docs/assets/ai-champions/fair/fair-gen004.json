@@ -21,10 +21,13 @@
     "deckOutPressure": 1,
     "deckTypeConditionalBias": 0,
     "emptyFieldPlay": 51,
+    "fatigueClockPressure": 0,
     "fieldPresence": 26,
     "handCard": 12,
+    "handLimitAwareness": 0,
     "handTradeAttack": 48,
     "lethal": 310,
+    "lifeJudgementPressure": 0,
     "lifeRacePressure": 0,
     "lowLifePressure": 28,
     "memory": 40,
@@ -33,6 +36,7 @@
     "pierceHandDefenseDamage": 0,
     "playAi": 51,
     "playAiFieldPressurePenalty": 0,
+    "power4UnblockableAttack": 0,
     "publicHandDefenseWeight": 1,
     "purgeBase": 45,
     "purgeTargetPower": 28,
@@ -47,6 +51,7 @@
     "tempoAction": 16,
     "tradeAttack": 42,
     "turnPlanBeamWidth": 5,
+    "handOverflowRelief": 0,
     "upgrade": 78
   }
 }
