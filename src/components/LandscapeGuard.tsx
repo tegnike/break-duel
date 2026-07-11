@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type LockableScreenOrientation = ScreenOrientation & {
   lock?: (orientation: "landscape") => Promise<void>;
@@ -9,6 +9,42 @@ type NavigatorWithMobileHint = Navigator & {
     mobile?: boolean;
   };
 };
+
+type LandscapeRequestCapabilities = {
+  fullscreenActive: boolean;
+  requestFullscreen?: () => Promise<void>;
+  lockOrientation?: () => Promise<void>;
+};
+
+export async function requestLandscapeMode({
+  fullscreenActive,
+  requestFullscreen,
+  lockOrientation,
+}: LandscapeRequestCapabilities): Promise<string> {
+  let fullscreenStarted = false;
+
+  try {
+    if (!fullscreenActive && requestFullscreen) {
+      await requestFullscreen();
+      fullscreenStarted = true;
+    }
+  } catch {
+    // Fullscreen and orientation locking are optional browser capabilities.
+  }
+
+  try {
+    if (lockOrientation) {
+      await lockOrientation();
+      return "横向き表示へ切り替えています…";
+    }
+  } catch {
+    // iOS Safari and some in-app browsers require manual rotation.
+  }
+
+  return fullscreenStarted
+    ? "全画面表示にしました。端末を横向きにしてください。"
+    : "このブラウザでは向きを自動変更できません。端末を横向きにしてください。";
+}
 
 export function isSmartphoneBrowser(
   userAgent: string,
@@ -32,34 +68,23 @@ export function LandscapeGuard({ smartphoneOverride }: { smartphoneOverride?: bo
       ),
   );
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.classList.toggle("smartphone-browser", isSmartphone);
+    return () => document.documentElement.classList.remove("smartphone-browser");
+  }, [isSmartphone]);
+
   const requestLandscape = async () => {
-    let fullscreenStarted = false;
-
-    try {
-      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen();
-        fullscreenStarted = true;
-      }
-    } catch {
-      // Fullscreen and orientation locking are optional browser capabilities.
-    }
-
-    try {
-      const orientation = screen.orientation as LockableScreenOrientation | undefined;
-      if (orientation?.lock) {
-        await orientation.lock("landscape");
-        setStatus("横向き表示へ切り替えています…");
-        return;
-      }
-    } catch {
-      // iOS Safari and some in-app browsers require manual rotation.
-    }
-
-    setStatus(
-      fullscreenStarted
-        ? "全画面表示にしました。端末を横向きにしてください。"
-        : "このブラウザでは向きを自動変更できません。端末を横向きにしてください。",
-    );
+    const orientation = screen.orientation as LockableScreenOrientation | undefined;
+    setStatus(await requestLandscapeMode({
+      fullscreenActive: Boolean(document.fullscreenElement),
+      requestFullscreen: document.documentElement.requestFullscreen
+        ? () => document.documentElement.requestFullscreen()
+        : undefined,
+      lockOrientation: orientation?.lock
+        ? () => orientation.lock!("landscape")
+        : undefined,
+    }));
   };
 
   if (!isSmartphone) return null;
@@ -71,7 +96,7 @@ export function LandscapeGuard({ smartphoneOverride }: { smartphoneOverride?: bo
       </div>
       <p className="landscape-guard-kicker">LANDSCAPE MODE</p>
       <h1 id="landscape-guard-title">横向きで遊んでください</h1>
-      <p>{status}</p>
+      <p role="status" aria-live="polite">{status}</p>
       <button type="button" onClick={requestLandscape}>横向き表示を試す</button>
     </aside>
   );

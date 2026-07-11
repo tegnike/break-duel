@@ -29,19 +29,19 @@
 }
 
 @media (orientation: portrait) and (hover: none) and (pointer: coarse) {
-  html:has(#root > .landscape-guard),
-  html:has(#root > .landscape-guard) body,
-  #root:has(> .landscape-guard) {
+  html.smartphone-browser,
+  html.smartphone-browser body,
+  html.smartphone-browser #root {
     width: 100%;
     height: 100%;
     overflow: hidden;
   }
 
-  #root:has(> .landscape-guard) > main {
+  html.smartphone-browser #root > main {
     visibility: hidden;
   }
 
-  .landscape-guard {
+  html.smartphone-browser .landscape-guard {
     position: fixed;
     inset: 0;
     z-index: 1000;
@@ -58,7 +58,7 @@
     text-align: center;
   }
 
-  .landscape-guard::before {
+  html.smartphone-browser .landscape-guard::before {
     content: "";
     position: absolute;
     inset: 24px;
@@ -67,7 +67,7 @@
     pointer-events: none;
   }
 
-  .landscape-guard-mark {
+  html.smartphone-browser .landscape-guard-mark {
     display: grid;
     place-items: center;
     width: 210px;
@@ -77,14 +77,14 @@
     box-shadow: 0 0 44px rgba(0, 240, 255, 0.25);
   }
 
-  .landscape-guard-mark span {
+  html.smartphone-browser .landscape-guard-mark span {
     color: #00f0ff;
     font-size: 74px;
     line-height: 1;
     text-shadow: 0 0 24px rgba(0, 240, 255, 0.7);
   }
 
-  .landscape-guard-kicker {
+  html.smartphone-browser .landscape-guard-kicker {
     margin: 10px 0 0;
     color: #00f0ff;
     font-size: 22px;
@@ -92,21 +92,21 @@
     letter-spacing: 0.3em;
   }
 
-  .landscape-guard h1 {
+  html.smartphone-browser .landscape-guard h1 {
     margin: 0;
     color: #fff4cc;
     font-size: 52px;
     line-height: 1.2;
   }
 
-  .landscape-guard > p:not(.landscape-guard-kicker) {
+  html.smartphone-browser .landscape-guard > p:not(.landscape-guard-kicker) {
     margin: 0;
     color: #b8cbd2;
     font-size: 25px;
     line-height: 1.7;
   }
 
-  .landscape-guard button {
+  html.smartphone-browser .landscape-guard button {
     min-width: 340px;
     min-height: 72px;
     margin-top: 8px;
@@ -14743,34 +14743,34 @@ body:has(.opponent-editor-backdrop) {
 
 /* Phone landscape: preserve the desktop composition inside a shorter canvas. */
 @media (orientation: landscape) and (hover: none) and (pointer: coarse) and (max-height: 760px) {
-  .stitch-shell {
+  html.smartphone-browser .stitch-shell {
     grid-template-rows: 52px minmax(220px, 1fr) 32px 112px 124px;
     height: 100dvh;
     min-height: 0;
   }
 
-  .stitch-opponent-bar,
-  .stitch-player-status {
+  html.smartphone-browser .stitch-opponent-bar,
+  html.smartphone-browser .stitch-player-status {
     padding-inline: 12px;
   }
 
-  .stitch-status-left {
+  html.smartphone-browser .stitch-status-left {
     gap: 8px;
     height: 44px;
   }
 
-  .stitch-status-left::before {
+  html.smartphone-browser .stitch-status-left::before {
     width: 38px;
     height: 38px;
     flex-basis: 38px;
   }
 
-  .stitch-counts {
+  html.smartphone-browser .stitch-counts {
     height: 44px;
     gap: 6px;
   }
 
-  .compact-action-meter {
+  html.smartphone-browser .compact-action-meter {
     height: 38px;
     min-height: 38px;
     flex-wrap: nowrap;
@@ -14778,139 +14778,139 @@ body:has(.opponent-editor-backdrop) {
     padding-left: 4px;
   }
 
-  .compact-action-meter .meter-label,
-  .compact-action-meter .action-tokens {
+  html.smartphone-browser .compact-action-meter .meter-label,
+  html.smartphone-browser .compact-action-meter .action-tokens {
     display: none;
   }
 
-  .compact-action-meter .meter-value {
+  html.smartphone-browser .compact-action-meter .meter-value {
     width: 30px;
     height: 30px;
     font-size: 16px;
   }
 
-  .ai-hand-source {
+  html.smartphone-browser .ai-hand-source {
     height: 38px;
     min-height: 38px;
     padding-inline: 6px;
     font-size: 11px;
   }
 
-  .ai-hand-source::before {
+  html.smartphone-browser .ai-hand-source::before {
     width: 14px;
     height: 20px;
     margin-right: 4px;
   }
 
-  .deck-pile-card.compact,
-  .trash-pile-button.compact {
+  html.smartphone-browser .deck-pile-card.compact,
+  html.smartphone-browser .trash-pile-button.compact {
     width: 30px;
     height: 42px;
     flex-basis: 30px;
   }
 
-  .deck-pile-card.compact .deck-pile-face,
-  .trash-pile-button.compact .trash-pile-face {
+  html.smartphone-browser .deck-pile-card.compact .deck-pile-face,
+  html.smartphone-browser .trash-pile-button.compact .trash-pile-face {
     width: 26px;
     height: 36px;
   }
 
-  .stitch-battlefield {
+  html.smartphone-browser .stitch-battlefield {
     gap: 4px;
     padding: 5px 24px;
   }
 
-  .leader-portrait {
+  html.smartphone-browser .leader-portrait {
     width: 112px;
     height: 132px;
   }
 
-  .field-grid {
+  html.smartphone-browser .field-grid {
     grid-template-columns: repeat(4, 78px);
     gap: 8px;
     padding: 4px 10px;
   }
 
-  .field-grid .card,
-  .field-slot {
+  html.smartphone-browser .field-grid .card,
+  html.smartphone-browser .field-slot {
     width: 78px;
   }
 
-  .field-grid .card {
+  html.smartphone-browser .field-grid .card {
     grid-template-rows: minmax(22px, auto) auto minmax(24px, auto) minmax(12px, auto);
     padding: 4px;
   }
 
-  .stitch-hand-zone {
+  html.smartphone-browser .stitch-hand-zone {
     grid-template-columns: minmax(0, 1fr) 82px 82px;
     gap: 8px;
     padding-block: 4px;
   }
 
-  .stitch-hand {
+  html.smartphone-browser .stitch-hand {
     min-height: 0;
     margin-top: -18px;
     padding: 6px 8px 2px;
   }
 
-  .stitch-hand .card {
+  html.smartphone-browser .stitch-hand .card {
     width: 78px;
     min-height: 0;
     flex-basis: 78px;
     margin-inline: -7px;
   }
 
-  .stitch-shell > .dock-detail-rail {
+  html.smartphone-browser .stitch-shell > .dock-detail-rail {
     width: 250px;
     height: 268px;
     gap: 6px;
     padding: 8px 10px;
   }
 
-  .stitch-player-status,
-  .stitch-hand-zone,
-  .stitch-command-dock {
+  html.smartphone-browser .stitch-player-status,
+  html.smartphone-browser .stitch-hand-zone,
+  html.smartphone-browser .stitch-command-dock {
     padding-left: 262px;
   }
 
-  .dock-detail-rail .detail-title {
+  html.smartphone-browser .dock-detail-rail .detail-title {
     font-size: 14px;
   }
 
-  .dock-detail-rail .detail-meta,
-  .dock-detail-rail .detail-effect,
-  .dock-detail-rail .detail-affinity {
+  html.smartphone-browser .dock-detail-rail .detail-meta,
+  html.smartphone-browser .dock-detail-rail .detail-effect,
+  html.smartphone-browser .dock-detail-rail .detail-affinity {
     font-size: 10px;
     line-height: 1.3;
   }
 
-  .stitch-command-dock {
+  html.smartphone-browser .stitch-command-dock {
     min-height: 0;
     gap: 5px;
     padding-top: 5px;
     padding-bottom: 5px;
   }
 
-  .dock-status-row {
+  html.smartphone-browser .dock-status-row {
     gap: 5px;
     flex-wrap: nowrap;
   }
 
-  .stitch-command-dock .dock-status-row .action-meter,
-  .stitch-command-dock .dock-status-row .action-hint {
+  html.smartphone-browser .stitch-command-dock .dock-status-row .action-meter,
+  html.smartphone-browser .stitch-command-dock .dock-status-row .action-hint {
     min-height: 30px;
   }
 
-  .event-mode-toggle {
+  html.smartphone-browser .event-mode-toggle {
     min-height: 30px;
   }
 
-  .stitch-command-dock .action-strip {
+  html.smartphone-browser .stitch-command-dock .action-strip {
     min-height: 48px;
     gap: 5px;
   }
 
-  .stitch-command-dock .action-strip button {
+  html.smartphone-browser .stitch-command-dock .action-strip button {
     min-height: 48px;
     padding-inline: 6px;
     font-size: 11px;
