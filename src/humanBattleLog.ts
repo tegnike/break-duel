@@ -75,6 +75,7 @@ export type HumanBattleLogSession = {
   pendingRecords: HumanBattleLogRecord[];
   ended: boolean;
   queue: Promise<void>;
+  retryTimer: ReturnType<typeof setTimeout> | null;
 };
 
 function serializeCard(card: Card): SerializedCard {
@@ -156,6 +157,7 @@ export function createHumanBattleLogSession(game: GameState, now = new Date()): 
     pendingRecords: [],
     ended: false,
     queue: Promise.resolve(),
+    retryTimer: null,
   };
 }
 
@@ -188,12 +190,25 @@ export function buildHumanBattleLogRecord(
   return record;
 }
 
-export function sendHumanBattleLogRecord(session: HumanBattleLogSession, record: HumanBattleLogRecord): void {
-  if (session.ended) return;
-  session.sequence += 1;
-  session.queuedSnapshot = record.state;
-  session.pendingRecords.push(record);
-  if (record.type === "match_end" || record.type === "match_abandoned") session.ended = true;
+function removePendingRecord(session: HumanBattleLogSession, record: HumanBattleLogRecord): void {
+  const index = session.pendingRecords.findIndex((pending) => pending.sequence === record.sequence);
+  if (index >= 0) session.pendingRecords.splice(index, 1);
+  session.lastSnapshot = record.state;
+}
+
+function scheduleHumanBattleLogRetry(session: HumanBattleLogSession): void {
+  if (session.retryTimer !== null || session.pendingRecords.length === 0) return;
+  session.retryTimer = setTimeout(() => {
+    session.retryTimer = null;
+    drainHumanBattleLogSession(session);
+  }, 500);
+}
+
+function drainHumanBattleLogSession(session: HumanBattleLogSession, forceKeepalive = false): void {
+  if (session.retryTimer !== null) {
+    clearTimeout(session.retryTimer);
+    session.retryTimer = null;
+  }
   session.queue = session.queue
     .catch(() => undefined)
     .then(async () => {
@@ -203,24 +218,40 @@ export function sendHumanBattleLogRecord(session: HumanBattleLogSession, record:
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(pending),
-          keepalive: pending.type === "match_end" || pending.type === "match_abandoned",
+          keepalive: forceKeepalive || pending.type === "match_end" || pending.type === "match_abandoned",
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        session.pendingRecords.shift();
-        session.lastSnapshot = pending.state;
+        removePendingRecord(session, pending);
       }
     })
     .catch((error) => {
       if (import.meta.env.DEV) console.warn("Human battle log could not be saved", error);
+      scheduleHumanBattleLogRetry(session);
     });
+}
+
+export function sendHumanBattleLogRecord(session: HumanBattleLogSession, record: HumanBattleLogRecord): void {
+  if (session.ended) return;
+  session.sequence += 1;
+  session.queuedSnapshot = record.state;
+  session.pendingRecords.push(record);
+  if (record.type === "match_end" || record.type === "match_abandoned") session.ended = true;
+  drainHumanBattleLogSession(session);
 }
 
 export function flushHumanBattleLogSession(session: HumanBattleLogSession): void {
   if (typeof navigator === "undefined" || typeof navigator.sendBeacon !== "function") return;
-  session.pendingRecords.forEach((record) => {
-    navigator.sendBeacon(
+  let needsFallback = false;
+  [...session.pendingRecords].forEach((record) => {
+    const queued = navigator.sendBeacon(
       HUMAN_BATTLE_LOG_ENDPOINT,
       new Blob([JSON.stringify(record)], { type: "application/json" }),
     );
+    if (queued) {
+      removePendingRecord(session, record);
+    } else {
+      needsFallback = true;
+    }
   });
+  if (needsFallback) drainHumanBattleLogSession(session, true);
 }

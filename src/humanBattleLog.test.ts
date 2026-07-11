@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createGame } from "./game";
-import { appendedLogEntries, buildHumanBattleLogRecord, createHumanBattleLogSession, sendHumanBattleLogRecord, serializeHumanBattleState } from "./humanBattleLog";
+import { appendedLogEntries, buildHumanBattleLogRecord, createHumanBattleLogSession, flushHumanBattleLogSession, sendHumanBattleLogRecord, serializeHumanBattleState } from "./humanBattleLog";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("human battle log", () => {
@@ -85,5 +87,47 @@ describe("human battle log", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(session.pendingRecords).toEqual([]);
     expect(session.lastSnapshot?.visible_log).toContain("再接続後の行動。");
+  });
+
+  it("automatically retries a failed terminal record", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce({ ok: true, status: 204 } as Response)
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue({ ok: true, status: 204 } as Response);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const game = createGame(987, "fire", "water", "challenger");
+    const session = createHumanBattleLogSession(game);
+    sendHumanBattleLogRecord(session, buildHumanBattleLogRecord(session, game));
+    await session.queue;
+    game.winner = 0;
+    sendHumanBattleLogRecord(session, buildHumanBattleLogRecord(session, game));
+    await session.queue;
+    expect(session.pendingRecords).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(500);
+    await session.queue;
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(session.pendingRecords).toEqual([]);
+    expect(session.lastSnapshot?.winner).toBe(0);
+  });
+
+  it("falls back to keepalive fetch when sendBeacon rejects a record", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true, status: 204 } as Response);
+    const sendBeacon = vi.fn().mockReturnValue(false);
+    vi.stubGlobal("navigator", { sendBeacon });
+    const game = createGame(654, "fire", "water", "challenger");
+    const session = createHumanBattleLogSession(game);
+    const record = buildHumanBattleLogRecord(session, game);
+    session.pendingRecords.push(record);
+    session.queuedSnapshot = record.state;
+
+    flushHumanBattleLogSession(session);
+    await session.queue;
+
+    expect(sendBeacon).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ keepalive: true }));
+    expect(session.pendingRecords).toEqual([]);
   });
 });
