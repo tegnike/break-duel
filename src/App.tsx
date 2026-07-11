@@ -108,6 +108,12 @@ import {
   type DuelEvent,
   type DuelEventPayload,
 } from "./duelEvents";
+import {
+  buildHumanBattleLogRecord,
+  createHumanBattleLogSession,
+  sendHumanBattleLogRecord,
+  type HumanBattleLogSession,
+} from "./humanBattleLog";
 import { resolveDeckSelection, toDuelDeckSource, validateOpponentProfileReferences, type DeckSelection } from "./duelSetup";
 import { NIKE_CHARACTER } from "./opponents/nike";
 import { OPPONENT_CHARACTER_CATALOG, opponentAiProfile, opponentDeckSelection, opponentPortrait, opponentVoiceLine, resolveOpponentCharacter, setCustomOpponentCharacters } from "./opponents/catalog";
@@ -861,6 +867,7 @@ export default function App() {
     game.players[0].life,
     game.players[1].life,
   ]);
+  const humanBattleLogSession = useRef<HumanBattleLogSession | null>(null);
 
   const human = game.players[0];
   const ai = game.players[1];
@@ -1860,6 +1867,28 @@ export default function App() {
     setCustomOpponentCharacters(nextCharacters.map(savedCharacterToDefinition));
     showToast("キャラクター管理", "キャラクターを削除しました");
   }
+
+  useEffect(() => {
+    const session = humanBattleLogSession.current;
+    const shouldCapture = page === "duel" && !starterDeckSetupOpen && !tutorialActive;
+    if (!shouldCapture) {
+      if (session && !session.ended && session.lastSnapshot) {
+        sendHumanBattleLogRecord(session, buildHumanBattleLogRecord(session, game, "match_abandoned"));
+      }
+      humanBattleLogSession.current = null;
+      return;
+    }
+    if (session?.ended) return;
+    let activeSession = session;
+    if (!activeSession || activeSession.lastSnapshot?.seed !== game.seed) {
+      activeSession = createHumanBattleLogSession(game);
+      humanBattleLogSession.current = activeSession;
+    }
+    const record = buildHumanBattleLogRecord(activeSession, game);
+    // StrictModeのeffect再実行や、内容を変えないclone更新は学習ログのノイズにしない。
+    if (activeSession.lastSnapshot && JSON.stringify(activeSession.lastSnapshot) === JSON.stringify(record.state)) return;
+    sendHumanBattleLogRecord(activeSession, record);
+  }, [page, starterDeckSetupOpen, tutorialActive, game]);
 
   useEffect(() => {
     if (INITIAL_OPPONENT_STORE_LOAD.message) {
