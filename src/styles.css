@@ -19,6 +19,106 @@
   font-family: var(--app-font);
 }
 
+/*
+ * Mobile browsers render the same desktop canvas instead of switching to a
+ * narrow responsive layout. The numeric viewport in index.html scales this
+ * 1280px-wide canvas to the physical screen; portrait play is blocked below.
+ */
+.landscape-guard {
+  display: none;
+}
+
+@media (orientation: portrait) and (hover: none) and (pointer: coarse) {
+  html:has(#root > .landscape-guard),
+  html:has(#root > .landscape-guard) body,
+  #root:has(> .landscape-guard) {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #root:has(> .landscape-guard) > main {
+    visibility: hidden;
+  }
+
+  .landscape-guard {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: max(48px, env(safe-area-inset-top)) max(64px, env(safe-area-inset-right)) max(48px, env(safe-area-inset-bottom)) max(64px, env(safe-area-inset-left));
+    color: #eefcff;
+    background:
+      radial-gradient(circle at 50% 42%, rgba(0, 240, 255, 0.16), transparent 34%),
+      linear-gradient(135deg, #070711, #111b29 55%, #071419);
+    text-align: center;
+  }
+
+  .landscape-guard::before {
+    content: "";
+    position: absolute;
+    inset: 24px;
+    border: 2px solid rgba(0, 240, 255, 0.34);
+    clip-path: polygon(0 0, 92px 0, 92px 4px, 4px 4px, 4px 92px, 0 92px, 0 0, 100% 0, 100% 92px, calc(100% - 4px) 92px, calc(100% - 4px) 4px, calc(100% - 92px) 4px, calc(100% - 92px) 0, 100% 0, 100% 100%, calc(100% - 92px) 100%, calc(100% - 92px) calc(100% - 4px), calc(100% - 4px) calc(100% - 4px), calc(100% - 4px) calc(100% - 92px), 100% calc(100% - 92px), 100% 100%, 0 100%, 0 calc(100% - 92px), 4px calc(100% - 92px), 4px calc(100% - 4px), 92px calc(100% - 4px), 92px 100%, 0 100%);
+    pointer-events: none;
+  }
+
+  .landscape-guard-mark {
+    display: grid;
+    place-items: center;
+    width: 210px;
+    height: 132px;
+    border: 5px solid rgba(238, 252, 255, 0.9);
+    border-radius: 16px;
+    box-shadow: 0 0 44px rgba(0, 240, 255, 0.25);
+  }
+
+  .landscape-guard-mark span {
+    color: #00f0ff;
+    font-size: 74px;
+    line-height: 1;
+    text-shadow: 0 0 24px rgba(0, 240, 255, 0.7);
+  }
+
+  .landscape-guard-kicker {
+    margin: 10px 0 0;
+    color: #00f0ff;
+    font-size: 22px;
+    font-weight: 950;
+    letter-spacing: 0.3em;
+  }
+
+  .landscape-guard h1 {
+    margin: 0;
+    color: #fff4cc;
+    font-size: 52px;
+    line-height: 1.2;
+  }
+
+  .landscape-guard > p:not(.landscape-guard-kicker) {
+    margin: 0;
+    color: #b8cbd2;
+    font-size: 25px;
+    line-height: 1.7;
+  }
+
+  .landscape-guard button {
+    min-width: 340px;
+    min-height: 72px;
+    margin-top: 8px;
+    border-color: rgba(0, 240, 255, 0.72);
+    color: #061014;
+    background: linear-gradient(180deg, #9cfcff, #00d6e8);
+    font-size: 24px;
+    font-weight: 950;
+    box-shadow: 0 0 30px rgba(0, 240, 255, 0.22);
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -14640,6 +14740,182 @@ body:has(.opponent-editor-backdrop) {
 .character-admin-builtin-body section > p { color: #91a9b8; }
 .character-admin-builtin-portraits { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 10px; }
 .character-admin-builtin-portraits figure { margin: 0; overflow: hidden; border: 1px solid rgba(118, 212, 255, .18); border-radius: 5px; background: #08111b; }
+
+/* Phone landscape: preserve the desktop composition inside a shorter canvas. */
+@media (orientation: landscape) and (hover: none) and (pointer: coarse) and (max-height: 760px) {
+  .stitch-shell {
+    grid-template-rows: 52px minmax(220px, 1fr) 32px 112px 124px;
+    height: 100dvh;
+    min-height: 0;
+  }
+
+  .stitch-opponent-bar,
+  .stitch-player-status {
+    padding-inline: 12px;
+  }
+
+  .stitch-status-left {
+    gap: 8px;
+    height: 44px;
+  }
+
+  .stitch-status-left::before {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .stitch-counts {
+    height: 44px;
+    gap: 6px;
+  }
+
+  .compact-action-meter {
+    height: 38px;
+    min-height: 38px;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding-left: 4px;
+  }
+
+  .compact-action-meter .meter-label,
+  .compact-action-meter .action-tokens {
+    display: none;
+  }
+
+  .compact-action-meter .meter-value {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+  }
+
+  .ai-hand-source {
+    height: 38px;
+    min-height: 38px;
+    padding-inline: 6px;
+    font-size: 11px;
+  }
+
+  .ai-hand-source::before {
+    width: 14px;
+    height: 20px;
+    margin-right: 4px;
+  }
+
+  .deck-pile-card.compact,
+  .trash-pile-button.compact {
+    width: 30px;
+    height: 42px;
+    flex-basis: 30px;
+  }
+
+  .deck-pile-card.compact .deck-pile-face,
+  .trash-pile-button.compact .trash-pile-face {
+    width: 26px;
+    height: 36px;
+  }
+
+  .stitch-battlefield {
+    gap: 4px;
+    padding: 5px 24px;
+  }
+
+  .leader-portrait {
+    width: 112px;
+    height: 132px;
+  }
+
+  .field-grid {
+    grid-template-columns: repeat(4, 78px);
+    gap: 8px;
+    padding: 4px 10px;
+  }
+
+  .field-grid .card,
+  .field-slot {
+    width: 78px;
+  }
+
+  .field-grid .card {
+    grid-template-rows: minmax(22px, auto) auto minmax(24px, auto) minmax(12px, auto);
+    padding: 4px;
+  }
+
+  .stitch-hand-zone {
+    grid-template-columns: minmax(0, 1fr) 82px 82px;
+    gap: 8px;
+    padding-block: 4px;
+  }
+
+  .stitch-hand {
+    min-height: 0;
+    margin-top: -18px;
+    padding: 6px 8px 2px;
+  }
+
+  .stitch-hand .card {
+    width: 78px;
+    min-height: 0;
+    flex-basis: 78px;
+    margin-inline: -7px;
+  }
+
+  .stitch-shell > .dock-detail-rail {
+    width: 250px;
+    height: 268px;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .stitch-player-status,
+  .stitch-hand-zone,
+  .stitch-command-dock {
+    padding-left: 262px;
+  }
+
+  .dock-detail-rail .detail-title {
+    font-size: 14px;
+  }
+
+  .dock-detail-rail .detail-meta,
+  .dock-detail-rail .detail-effect,
+  .dock-detail-rail .detail-affinity {
+    font-size: 10px;
+    line-height: 1.3;
+  }
+
+  .stitch-command-dock {
+    min-height: 0;
+    gap: 5px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+
+  .dock-status-row {
+    gap: 5px;
+    flex-wrap: nowrap;
+  }
+
+  .stitch-command-dock .dock-status-row .action-meter,
+  .stitch-command-dock .dock-status-row .action-hint {
+    min-height: 30px;
+  }
+
+  .event-mode-toggle {
+    min-height: 30px;
+  }
+
+  .stitch-command-dock .action-strip {
+    min-height: 48px;
+    gap: 5px;
+  }
+
+  .stitch-command-dock .action-strip button {
+    min-height: 48px;
+    padding-inline: 6px;
+    font-size: 11px;
+  }
+}
 .character-admin-builtin-portraits img { width: 100%; height: 190px; object-fit: cover; object-position: top center; }
 .character-admin-builtin-portraits figcaption { padding: 8px; color: #b7cbd7; font-size: 10px; text-align: center; }
 .character-admin-empty { display: grid; place-content: center; justify-items: center; gap: 14px; min-height: 560px; }
