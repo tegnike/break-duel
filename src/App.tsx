@@ -3808,7 +3808,7 @@ export default function App() {
 
   if (page !== "duel") {
     return (
-      <main className="workspace-shell">
+      <main key="workspace" className="workspace-shell">
         <WorkspaceHeader
           page={page}
           onChangePage={changePage}
@@ -3842,7 +3842,7 @@ export default function App() {
 
   if (starterDeckSetupOpen) {
     return (
-      <main className="workspace-shell duel-setup-shell">
+      <main key="duel-setup" className="workspace-shell duel-setup-shell">
         <WorkspaceHeader
           page={page}
           onChangePage={changePage}
@@ -3872,7 +3872,7 @@ export default function App() {
   }
 
   return (
-    <main className={shellClassName}>
+    <main key="duel" className={shellClassName}>
       <header className="stitch-opponent-bar">
         <div className="stitch-status-left">
           <div>
