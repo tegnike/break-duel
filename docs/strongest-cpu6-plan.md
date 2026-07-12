@@ -116,6 +116,23 @@
 - CPU 評価関数の変更（deckStockValue 等）は**本タームでは不採用**。fair-gen006 凍結を維持。
   新特徴 3 種（attritionRacePressure / attritionRaceHorizon / deckStockValue / drawOverflowPenalty）は
   コードに重み 0 で温存し、修正後エンジンでの再評価は将来タームの選択肢とする
-- 残課題: da19212 の他の変更（canSetDefenseCard 厳格化、publicHandDefenseEstimateInput リファクタ）の
-  仕様照合監査（別タスク起票済み）。修正後エンジンでの対人戦ログ収集を再開し、
+- da19212 の他の変更の仕様照合監査（2026-07-12 完了）: **いずれも仕様違反なし・コード修正不要**と判定
+  - `canSetDefenseCard` 厳格化（+ 直後の f213b59 で二重ガード化）: game-spec.md に記載のない実験機能
+    （`setDefenseEnabled=false` で不活性）。P4b 原設計（archive/endgame-redesign2-plan.md）の明示制約は
+    「遺物のみセット不可」で、旧実装ではイベント札等を「防げない純ブラフ」として伏せられた
+    （ブロック時は従来から ai 型 + `canDefend` を要求）。新実装はセット時に手札防御の攻撃非依存条件
+    （ai 型 / `cannotHandDefend` / `handDefenseMaxPower` / `power3CannotHandDefend`）を先取りする意図的変更で、
+    専用テスト（rejects event cards as set defense）でも固定済み。P4b/P4bf の実験値は旧ルール測定のため
+    archive の P4b 節に挙動差の注記を追加した
+  - `publicHandDefenseEstimateInput` の `!deck` 分岐: fair-cpu 計画 §1 の公開情報定義
+    （観測履歴 = `knownHandCards`）に準拠した改善。旧挙動はカスタムデッキ（`DECKS` 非登録の `deckName`）相手だと
+    推定を丸ごと null にし、公開済みの合法防御札まで無視していた。新挙動は山札リスト不明分の隠れ札推定をやめ、
+    公開済み札のみで推定する（`handSize: 0` は一般式 `min(hand - known, hidden)` と整合、消費側 3 関数とも安全）。
+    プリセットデッキ経路は完全不変で、リーグ/較正の基準値・公開情報ガードテストへの影響なし
+  - その他の同コミット変更も確認: aiGauntlet の重み検証厳格化（silent fallback → throw）、
+    costBalance の CONFIG 復元保証（try 内へ移動）と rule_label 修正、endgameRules の "current" パッケージでの
+    `attacksPerTurnLimit` / `attackLimitCountsStrike` オプション適用（従来は無視されるバグ）は、
+    いずれもシミュツールの妥当な修正。aiStrategy テストの閾値 0.6 → 14 勝は games=24 に対する
+    実質 15 勝 → 14 勝のわずかな緩和で仕様と無関係
+- 残課題: 修正後エンジンでの対人戦ログ収集を再開し、
   ブレイクドロー衰弱経路の対人搾取が実際に残るかを再観測する

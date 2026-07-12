@@ -28,7 +28,7 @@
 
 ### 判断
 
-エンジン修正のみ採用。CPU 評価関数の変更は不採用（バグ入りエンジン上の候補測定は全て無効と記録）。経緯と教訓（行動スコア修正はビーム終端評価に効かない等）は `docs/strongest-cpu6-plan.md` を参照。da19212 の他の変更（`canSetDefenseCard` 厳格化・`publicHandDefenseEstimateInput` リファクタ）の仕様照合監査は別タスクとして起票済み。
+エンジン修正のみ採用。CPU 評価関数の変更は不採用（バグ入りエンジン上の候補測定は全て無効と記録）。経緯と教訓（行動スコア修正はビーム終端評価に効かない等）は `docs/strongest-cpu6-plan.md` を参照。da19212 の他の変更（`canSetDefenseCard` 厳格化・`publicHandDefenseEstimateInput` リファクタ）の仕様照合監査は 2026-07-12 に完了し、いずれも仕様違反なし・コード修正不要（前者は不活性の実験機能への意図的変更として archive/endgame-redesign2-plan.md の P4b 節へ注記、後者は公平 CPU の公開情報原則に準拠した改善。詳細は `docs/strongest-cpu6-plan.md` §7）。
 
 本修正は、下記「挑戦者CPUの全アクション放棄＋手札超過を局所修正」エントリで観測された develop のリーグドリフト（安全弁OFFで fire 60.3% / water 31.9% と帯外）の根本原因を除去する。同エントリの安全弁（手札超過時の end 差し替え）は独立の保険として維持し、develop 合流後の再検証結果を本エントリ検証欄の追記に記載する。
 
