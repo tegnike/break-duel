@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 import {
   CARD_BY_ID,
   CHALLENGER_WEIGHTS,
+  CONFIG,
+  actionsForTurn,
   chooseAiAction,
   cloneCard,
   createGame,
@@ -82,6 +84,16 @@ function deserializeGame(snapshot: HumanBattleSnapshot): GameState {
   game.turn = snapshot.turn;
   game.actionsRemaining = snapshot.actions_remaining;
   game.chargedActionsRemaining = snapshot.charged_actions_remaining;
+  const active = snapshot.players[snapshot.active_player_index];
+  game.actionResolvedThisTurn = snapshot.action_resolved_this_turn ?? (
+    game.actionsRemaining !== actionsForTurn(game)
+    || active.attacks_this_turn > 0
+    || active.set_defense_used_this_turn
+    || active.played_ai_this_turn
+    || active.accelerator_used
+    || active.charge_used
+    || active.attack_charge_compensation_used
+  );
   game.winner = snapshot.winner;
   game.draw = snapshot.draw;
   game.selected = snapshot.selected;
@@ -102,6 +114,16 @@ function chooseWithOverflowRelief(game: GameState, enabled: number): AiAction {
   }
 }
 
+function withRecordedRules<T>(rules: typeof CONFIG, run: () => T): T {
+  const original = { ...CONFIG };
+  Object.assign(CONFIG, rules);
+  try {
+    return run();
+  } finally {
+    Object.assign(CONFIG, original);
+  }
+}
+
 function main(): void {
   const logsDir = resolve(process.argv[2] ?? "tmp/human-battle-logs");
   const files = collectJsonlFiles(logsDir);
@@ -115,25 +137,28 @@ function main(): void {
 
   for (const file of files) {
     const records = readFileSync(file, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line) as HumanBattleLogRecord);
-    for (let index = 1; index < records.length; index += 1) {
-      const endRecord = records[index];
-      const previous = records[index - 1];
-      if (endRecord.actor !== "cpu" || !endRecord.new_log_entries.some((entry) => entry.includes("ターン終了"))) continue;
-      cpuTurns += 1;
-      const handLimit = endRecord.rules?.handLimit ?? 6;
-      if (typeof handLimit === "number") {
-        const cpu = previous.state.players[previous.state.active_player_index];
-        discardedCards += Math.max(0, cpu.hand.length - handLimit);
+    const recordedRules = records.find((record) => record.type === "match_start")?.rules;
+    if (!recordedRules) throw new Error(`Missing match_start rules in battle log: ${file}`);
+    withRecordedRules(recordedRules, () => {
+      for (let index = 1; index < records.length; index += 1) {
+        const endRecord = records[index];
+        const previous = records[index - 1];
+        if (endRecord.actor !== "cpu" || !endRecord.new_log_entries.some((entry) => entry.includes("ターン終了"))) continue;
+        cpuTurns += 1;
+        if (CONFIG.handLimit !== null) {
+          const cpu = previous.state.players[previous.state.active_player_index];
+          discardedCards += Math.max(0, cpu.hand.length - CONFIG.handLimit);
+        }
+        if (previous.state.actions_remaining <= 0) continue;
+        unusedActionTurns += 1;
+        const game = deserializeGame(previous.state);
+        const baseline = chooseWithOverflowRelief(game, 0);
+        const candidate = chooseWithOverflowRelief(game, candidateRelief);
+        if (baseline.type === "end") baselineEnds += 1;
+        if (candidate.type === "end") candidateEnds += 1;
+        candidateActions[candidate.type] = (candidateActions[candidate.type] ?? 0) + 1;
       }
-      if (previous.state.actions_remaining <= 0) continue;
-      unusedActionTurns += 1;
-      const game = deserializeGame(previous.state);
-      const baseline = chooseWithOverflowRelief(game, 0);
-      const candidate = chooseWithOverflowRelief(game, candidateRelief);
-      if (baseline.type === "end") baselineEnds += 1;
-      if (candidate.type === "end") candidateEnds += 1;
-      candidateActions[candidate.type] = (candidateActions[candidate.type] ?? 0) + 1;
-    }
+    });
   }
 
   console.log(JSON.stringify({

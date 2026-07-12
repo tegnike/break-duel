@@ -260,6 +260,7 @@ export type GameState = {
   turn: number;
   actionsRemaining: number;
   chargedActionsRemaining: number;
+  actionResolvedThisTurn: boolean;
   winner: number | null;
   draw: boolean;
   selected: Selection;
@@ -1014,6 +1015,7 @@ export function createGameCore(seed: number, rng: () => number, setup: DuelSetup
     turn: 0,
     actionsRemaining: 0,
     chargedActionsRemaining: 0,
+    actionResolvedThisTurn: false,
     winner: null,
     draw: false,
     selected: null,
@@ -1094,6 +1096,7 @@ export function startTurn(game: GameState): void {
   game.turn += 1;
   game.actionsRemaining = actionsForTurn(game);
   game.chargedActionsRemaining = 0;
+  game.actionResolvedThisTurn = false;
   game.players.forEach((player) => {
     player.handDefensesUsed = 0;
     player.playerAttacksThisTurn = 0;
@@ -1286,6 +1289,7 @@ export function finishTurn(game: GameState, logEnd: boolean): Card[] {
 }
 
 export function useAction(game: GameState, cost = 1, kind: "normal" | "attack" = "normal"): void {
+  game.actionResolvedThisTurn = true;
   if (kind !== "attack") {
     game.chargedActionsRemaining = Math.max(0, game.chargedActionsRemaining - Math.min(cost, game.chargedActionsRemaining));
   }
@@ -2641,7 +2645,8 @@ function bestHandOverflowReliefAction(game: GameState): AiAction | null {
     CHALLENGER_WEIGHTS.handOverflowRelief <= 0
     || CONFIG.handLimit === null
     || player.hand.length <= CONFIG.handLimit
-    || game.actionsRemaining < CONFIG.actionsPerTurn
+    || game.actionResolvedThisTurn
+    || game.actionsRemaining !== CONFIG.actionsPerTurn
   ) return null;
   const seat = game.active;
   const before = player.hand.length;

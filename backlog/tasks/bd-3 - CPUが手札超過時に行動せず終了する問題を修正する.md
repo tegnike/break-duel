@@ -4,7 +4,7 @@ title: CPUが手札超過時に行動せず終了する問題を修正する
 status: Done
 assignee: []
 created_date: '2026-07-12 07:38'
-updated_date: '2026-07-12 07:38'
+updated_date: '2026-07-12 07:51'
 labels:
   - bug
   - ai
@@ -12,7 +12,9 @@ labels:
 dependencies: []
 modified_files:
   - src/game.ts
+  - src/game/actions.ts
   - src/game/aiStrategy.test.ts
+  - src/humanBattleLog.ts
   - scripts/analyzeHumanBattleAi.ts
   - package.json
   - docs/human-battle-logs.md
@@ -36,8 +38,6 @@ ordinal: 3000
 - [x] #4 全テスト・型検査・ビルド・バランスガードが通る
 <!-- AC:END -->
 
-
-
 ## Implementation Plan
 
 <!-- SECTION:PLAN:BEGIN -->
@@ -48,6 +48,8 @@ ordinal: 3000
 
 <!-- SECTION:NOTES:BEGIN -->
 4件の対人戦ログを分析。CPU 41ターン中28回が未使用行動を残して終了し、18枚を手札上限超過でトラッシュしていた。限定介入により最悪5状態を救済し、広範な介入案はバランス悪化のため不採用。検証: balance guard 7/7、tests 375件、typecheck、build。
+
+CodeRabbitレビュー3件を反映。検証コマンドのログパスを相対化し、解析はmatch_startの記録ルールをCONFIGへ一時適用。actionResolvedThisTurnを追加して、チャージ等のアクション補充後に安全弁が誤発火しない回帰テストを追加。関連テスト34件・typecheck・実ログ4件解析が成功。
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

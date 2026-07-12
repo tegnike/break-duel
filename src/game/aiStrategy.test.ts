@@ -214,6 +214,16 @@ describe("ai strategy", () => {
 
       CHALLENGER_WEIGHTS.handOverflowRelief = 1;
       expect(chooseAiAction(game, "challenger")).toEqual({ type: "command", index: 4 });
+
+      game.players[1].hand.push(card("AI-EARTH-1"));
+      CHALLENGER_WEIGHTS.handOverflowRelief = 0;
+      performAiActionInDraft(game, { type: "charge", index: 0 });
+      expect(game.actionsRemaining).toBe(CONFIG.actionsPerTurn + 1);
+      expect(game.actionResolvedThisTurn).toBe(true);
+      const actionAfterCharge = chooseAiAction(game, "challenger");
+
+      CHALLENGER_WEIGHTS.handOverflowRelief = 1;
+      expect(chooseAiAction(game, "challenger")).toEqual(actionAfterCharge);
     } finally {
       Object.assign(CHALLENGER_WEIGHTS, original);
     }

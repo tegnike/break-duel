@@ -58,7 +58,7 @@
 ### 検証コマンド
 
 ```bash
-npm run analyze:human-battle-ai -- /Users/user/WorkSpace/ai-break-duel-human-battle-logs/tmp/human-battle-logs
+npm run analyze:human-battle-ai -- tmp/human-battle-logs
 npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/cpu-end-turn-fix/full-pass-final-league-4101
 npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/cpu-end-turn-fix/full-pass-final-league-730001
 python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/cpu-end-turn-fix/full-pass-final-league-4101 tmp/cpu-end-turn-fix/full-pass-final-league-730001
