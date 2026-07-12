@@ -4,6 +4,45 @@
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
 
+## 2026-07-12 アップグレード消耗回帰の修正: 基準世界の完全復旧
+
+### 背景
+
+対人戦ログ 4 戦（2026-07-11、challenger 相手に人間が 3 勝、全てニケの衰弱死）の分析で、challenger の極端な受け身（攻撃 4 戦で 5 回・対人攻撃ダメージ 0）とデッキアウト自滅が発覚した。評価関数の調査中に、beginner 較正の基準値が現 HEAD で再現しない（fire 6.75% → 35.75%）ことを発見し、fire 単独 1 シードの高速較正でバイセクトした結果、`da19212`（Fix CodeRabbit review findings）が破壊コミットと特定した。
+
+同コミットは `performAiActionInDraft` から「power 3/4 のアップグレード登場は未消耗」（`docs/game-spec.md` §基本ルール、および「アップグレードで消耗を解除できる既存挙動は維持」）の実装を冗長コードと誤認して削除し、`upgrade.test.ts` のアサーションも逆向きに書き換えてバグを固定化していた。ブラウザの人間操作パスは元から同じ違反を持っており、同コミットは両パスの食い違いを仕様違反側へ統一していた。challenger は評価上アップグレードを多用するため実質的な大幅弱体化となり、対人の受け身・溜め込み・衰弱死の主因だった。
+
+### 採用変更
+
+- `applyPlayEffects` にアップグレード判定（アップグレード元カード引数の有無）を一元実装し、power 3/4 の登場時消耗を通常召喚のみに限定。CPU ドラフトパスと人間操作パスが同時に仕様準拠へ復旧
+- `upgrade.test.ts` のアサーションをバグ導入前の期待値（アップグレードで消耗解除）へ復元し、power 3/4 のアップグレード未消耗を明示する回帰テストを追加
+- CPU は fair-gen006 凍結を維持（重み変更なし）。調査中に実装した評価特徴 4 種（`attritionRacePressure` / `attritionRaceHorizon` / `deckStockValue` / `drawOverflowPenalty`）は重み 0 の不活性でコードに温存
+- 対人ログから GameState を復元して challenger の選択とスコアトレースを突き合わせる診断ツール `scripts/diagnoseHumanBattleLogs.ts` を追加
+
+### 検証
+
+- beginner 較正（fire/water/earth、2 シード、両席 100 戦）: **fire 6.75% / water 7.0% / earth 8.5% — 2026-07-10 A案採用時の基準値と完全一致**
+- 6 デッキリーグ（100 games/pair、seed 4101 / 730001 平均): **break 43.5% / control 52.6% / fire 55.0% / water 45.9% / wind 52.6% / earth 47.7% / 先攻 47.9% — A案採用時の基準値と全項目一致**（決定性シミュレーションのためバグ前世界の完全復旧を意味する）。fire 上端と先攻 0.1pt 未達は A案採用時からの既知の監視項目で、新規の逸脱なし
+- 対人ログ 4 戦の再現局面: 修正前後で challenger の選択が 31 手変化し、「2 アクション以上残しのターン終了」が 16→5 へ激減。end 連打の大半が準備完了のアップグレードへ置換
+- `npm run check` / 公平性ガードテスト / `npm run test:balance` green
+
+### 判断
+
+エンジン修正のみ採用。CPU 評価関数の変更は不採用（バグ入りエンジン上の候補測定は全て無効と記録）。経緯と教訓（行動スコア修正はビーム終端評価に効かない等）は `docs/strongest-cpu6-plan.md` を参照。da19212 の他の変更（`canSetDefenseCard` 厳格化・`publicHandDefenseEstimateInput` リファクタ）の仕様照合監査は別タスクとして起票済み。
+
+本修正は、下記「挑戦者CPUの全アクション放棄＋手札超過を局所修正」エントリで観測された develop のリーグドリフト（安全弁OFFで fire 60.3% / water 31.9% と帯外）の根本原因を除去する。同エントリの安全弁（手札超過時の end 差し替え）は独立の保険として維持し、develop 合流後の再検証結果を本エントリ検証欄の追記に記載する。
+
+### 検証コマンド
+
+```bash
+npx tsx scripts/diagnoseResourceBurn.ts --out tmp/strongest-cpu6/beginner-fixed.json
+npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/strongest-cpu6/league-fixed-4101
+npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/strongest-cpu6/league-fixed-730001
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/strongest-cpu6/league-fixed-4101 tmp/strongest-cpu6/league-fixed-730001
+npx tsx scripts/diagnoseHumanBattleLogs.ts --log <対人ログ.jsonl> --out tmp/diag.json
+npm run test:balance && npm run check
+```
+
 ## 2026-07-12 挑戦者CPUの全アクション放棄＋手札超過を局所修正
 
 ### 背景
@@ -66,6 +105,7 @@ npm run sim -- simulate --games 1000 --seed 4101 --first-deck break --second-dec
 python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/cpu-end-turn-fix/full-pass-final-excitement
 npm run check
 ```
+
 
 ## 2026-07-10 fair-gen006世界の条件付きアンチスワーム: A案で部分採用
 
