@@ -151,6 +151,7 @@ export function useAcceleratorMemoryInDraft(draft: GameState, playerIndex: numbe
   const removedCards = removeFieldStack(player, fieldIndex);
   player.discard.push(...removedCards);
   player.acceleratorUsed = true;
+  draft.actionResolvedThisTurn = true;
   const before = draft.actionsRemaining;
   draft.actionsRemaining = Math.min(CONFIG.actionsPerTurn + 1, draft.actionsRemaining + 1);
   addLog(draft, `${player.name}は${player.memory!.name}で${sacrificed.name}をトラッシュし、残りアクションを${before}から${draft.actionsRemaining}に増やした。`);
@@ -174,6 +175,7 @@ export function chargeHandCardInDraft(
   player.hand.splice(handIndex, 1);
   player.discard.push(charged);
   player.chargeUsed = true;
+  draft.actionResolvedThisTurn = true;
   const before = draft.actionsRemaining;
   draft.actionsRemaining = Math.min(CONFIG.actionsPerTurn + 1, draft.actionsRemaining + 1);
   draft.chargedActionsRemaining += draft.actionsRemaining > before ? 1 : 0;

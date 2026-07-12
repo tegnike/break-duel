@@ -31,3 +31,9 @@ jq -c '{sequence,type,actor,new_log_entries,result,turn:.state.turn,life:[.state
 ```
 
 AIには `match_start` のルール・デッキを読ませ、各 `state_transition` の遷移前後と `new_log_entries` を照合し、特に `actor: "human"` の選択をCPUの候補手と比較させる。
+
+CPUがアクションを残して終了した局面を現行評価で再判定する場合は、ログディレクトリを指定して次を実行する。
+
+```bash
+npm run analyze:human-battle-ai -- tmp/human-battle-logs
+```

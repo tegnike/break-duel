@@ -11,6 +11,7 @@ export type HumanBattleSnapshot = {
   active_player_index: number;
   actions_remaining: number;
   charged_actions_remaining: number;
+  action_resolved_this_turn?: boolean;
   winner: number | null;
   draw: boolean;
   selected: GameState["selected"];
@@ -126,6 +127,7 @@ export function serializeHumanBattleState(game: GameState): HumanBattleSnapshot 
     active_player_index: game.active,
     actions_remaining: game.actionsRemaining,
     charged_actions_remaining: game.chargedActionsRemaining,
+    action_resolved_this_turn: game.actionResolvedThisTurn,
     winner: game.winner,
     draw: game.draw,
     selected: game.selected ? { ...game.selected } : null,

@@ -260,6 +260,7 @@ export type GameState = {
   turn: number;
   actionsRemaining: number;
   chargedActionsRemaining: number;
+  actionResolvedThisTurn: boolean;
   winner: number | null;
   draw: boolean;
   selected: Selection;
@@ -1014,6 +1015,7 @@ export function createGameCore(seed: number, rng: () => number, setup: DuelSetup
     turn: 0,
     actionsRemaining: 0,
     chargedActionsRemaining: 0,
+    actionResolvedThisTurn: false,
     winner: null,
     draw: false,
     selected: null,
@@ -1094,6 +1096,7 @@ export function startTurn(game: GameState): void {
   game.turn += 1;
   game.actionsRemaining = actionsForTurn(game);
   game.chargedActionsRemaining = 0;
+  game.actionResolvedThisTurn = false;
   game.players.forEach((player) => {
     player.handDefensesUsed = 0;
     player.playerAttacksThisTurn = 0;
@@ -1286,6 +1289,7 @@ export function finishTurn(game: GameState, logEnd: boolean): Card[] {
 }
 
 export function useAction(game: GameState, cost = 1, kind: "normal" | "attack" = "normal"): void {
+  game.actionResolvedThisTurn = true;
   if (kind !== "attack") {
     game.chargedActionsRemaining = Math.max(0, game.chargedActionsRemaining - Math.min(cost, game.chargedActionsRemaining));
   }
@@ -2443,8 +2447,11 @@ function chooseBeginnerAiAction(game: GameState): AiAction {
 
 function chooseChallengerAiAction(game: GameState): AiAction {
   const beamWidth = Math.max(1, Math.floor(CHALLENGER_WEIGHTS.turnPlanBeamWidth));
-  if (beamWidth > 1) return choosePlannedChallengerAiAction(game, beamWidth);
-  return chooseGreedyChallengerAiAction(game);
+  const chosen = beamWidth > 1
+    ? choosePlannedChallengerAiAction(game, beamWidth)
+    : chooseGreedyChallengerAiAction(game);
+  if (chosen.type !== "end") return chosen;
+  return bestHandOverflowReliefAction(game) ?? chosen;
 }
 
 function chooseGreedyChallengerAiAction(game: GameState): AiAction {
@@ -2632,6 +2639,29 @@ function rankedAiActions(game: GameState): AiAction[] {
     ));
 }
 
+function bestHandOverflowReliefAction(game: GameState): AiAction | null {
+  const player = activePlayer(game);
+  if (
+    CHALLENGER_WEIGHTS.handOverflowRelief <= 0
+    || CONFIG.handLimit === null
+    || player.hand.length <= CONFIG.handLimit
+    || game.actionResolvedThisTurn
+    || game.actionsRemaining !== CONFIG.actionsPerTurn
+  ) return null;
+  const seat = game.active;
+  const before = player.hand.length;
+  const options = rankedAiActions(game).flatMap((action) => {
+    if (action.type === "end") return [];
+    const next = cloneGame(game);
+    performAiActionInDraft(next, action);
+    if (next.players[seat].hand.length >= before) return [];
+    if (next.active === seat && next.winner === null && !next.draw) finishTurn(next, false);
+    return [{ action, score: turnEndPlanScore(next, seat) }];
+  });
+  options.sort((a, b) => b.score - a.score || aiActionTieBreak(b.action) - aiActionTieBreak(a.action));
+  return options[0]?.action ?? null;
+}
+
 function plannedAiActions(game: GameState, beamWidth: number): AiAction[] {
   const ranked = rankedAiActions(game);
   const selected = ranked.slice(0, beamWidth);
@@ -2751,6 +2781,7 @@ export const CHALLENGER_WEIGHTS = {
   classicChargeActionCap: 3,
   strikeTieBreakPriority: 7,
   turnPlanBeamWidth: 7,
+  handOverflowRelief: 1,
   publicHandDefenseWeight: 1,
   memoryIndividualValueScale: 1,
   chargeFuturePlan: 1,

@@ -1,8 +1,71 @@
 # Break Duel バランス履歴
 
-最終更新: 2026-07-10
+最終更新: 2026-07-12
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
+
+## 2026-07-12 挑戦者CPUの全アクション放棄＋手札超過を局所修正
+
+### 背景
+
+人間対CPUの実戦ログ4戦を再解析したところ、CPU 41ターン中28ターンでアクションを残して終了し、12ターンは3アクションを全て放棄していた。手札上限トラッシュは13ターン・18枚で発生し、3アクション全残しと手札7枚以上が重なった明白な停止は5局面あった。原因は、beam 7が常に`end`を比較できる一方、終端盤面評価が手札を使う行動固有価値を持たず、浅い`end`を優先することだった。
+
+### 採用変更
+
+- fair-gen006のbeam 7と既存重みは維持する。
+- beamが`end`を選び、3アクションを全て残し、手札が上限6枚を超える場合だけ安全弁を発火する。
+- 手札を実際に減らす合法手を複製盤面で実行してターン終了まで進め、従来の終端盤面評価が最も高い1手を選ぶ。
+- すでに1回以上行動したターン、手札6枚以下、初心者CPUでは従来挙動を維持する。
+- 実戦ログ再判定用に`scripts/analyzeHumanBattleAi.ts`と`npm run analyze:human-battle-ai`を追加した。
+- 旧fair世代JSONに後発の評価キーが欠け、現行`aiGauntlet`で読めなかったため、履歴挙動を変えない値0で不足キーを補完した。fair-gen006だけ安全弁を1に更新した。
+
+### 検証
+
+**実戦ログ4戦**:
+
+- 41 CPUターン / 未使用アクション終了28 / 手札上限トラッシュ18枚。
+- 旧評価は問題28局面すべてで再び`end`を選択。
+- 採用安全弁は最も明白な5局面を救済し、術式2回・チャージ3回を選択。攻撃だけして手札を捨てる候補は選ばなかった。
+
+**同一シードA/B・6デッキリーグ**（seed 4101 / 730001、100 games/ordered pair、各3000戦）:
+
+| 指標 | 安全弁OFF | 安全弁ON |
+| --- | ---: | ---: |
+| fire | 60.3% | 57.6% |
+| water | 31.9% | 41.0% |
+| wind | 54.9% | 57.2% |
+| earth | 48.9% | 46.7% |
+| 先攻 | 50.8% | 50.5% |
+
+現developは安全弁OFFの時点で過去のfair-gen006基準からドリフトし、fire / waterが帯外だった。安全弁はwaterを+9.1pt、fireを-2.7pt改善した一方、windを+2.3pt悪化させた。単色全帯は未達のため、別タームで現developを再ベースラインして調整する。
+
+**盛り上がり**（break vs control、seed 4101、各1000戦）:
+
+| 指標 | 安全弁OFF | 安全弁ON |
+| --- | ---: | ---: |
+| 平均ターン | 30.1 | 29.9 |
+| draw | 1.0% | 1.2% |
+| リード交代あり | 38.5% | 38.4% |
+| 2点ビハインド逆転 | 21.7% | 20.2% |
+| 先に2点差側の勝率 | 80.0% | 81.2% |
+
+全面候補も比較した。行動固有価値を全局面へ10%戻す案は実戦28局面を全救済し対fair-gen006 60.7%だったが、平均17.9ターン、water 40.8% / earth 56.0%まで変形したため不採用。beam 1は平均19.2ターン・リード交代71.4%まで改善したが、対fair-gen006 36.1%で明確に弱く不採用。全手札超過へ介入する案もデッキ相性を大きく崩したため不採用。
+
+### 判断
+
+局所安全弁として採用する。CPU全面強化や新世代ではなく、人間から見て最も不自然な「3アクション全放棄の直後に手札を捨てる」だけを除く。現develop全体の長期化・逆転率低下とfire / water / windの帯外はこの安全弁だけでは解決しないため、別の再ベースライン課題として残す。
+
+### 検証コマンド
+
+```bash
+npm run analyze:human-battle-ai -- tmp/human-battle-logs
+npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/cpu-end-turn-fix/full-pass-final-league-4101
+npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/cpu-end-turn-fix/full-pass-final-league-730001
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/cpu-end-turn-fix/full-pass-final-league-4101 tmp/cpu-end-turn-fix/full-pass-final-league-730001
+npm run sim -- simulate --games 1000 --seed 4101 --first-deck break --second-deck control --out tmp/cpu-end-turn-fix/full-pass-final-excitement
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/cpu-end-turn-fix/full-pass-final-excitement
+npm run check
+```
 
 ## 2026-07-10 fair-gen006世界の条件付きアンチスワーム: A案で部分採用
 
