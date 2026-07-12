@@ -211,9 +211,18 @@ describe("ai strategy", () => {
       game.players[1].discard = ["CMD-PATCH", "AI-EARTH-2", "CMD-COMEBACK-RITE", "CMD-PURGE", "AI-EARTH-2B", "AI-EARTH-4", "AI-EARTH-1", "CMD-EARTH-RITE", "AI-EARTH-1", "AI-EARTH-1B", "AI-EARTH-2D", "CMD-COMEBACK-RITE"].map(card);
 
       CHALLENGER_WEIGHTS.turnPlanBeamWidth = 7;
+
+      // アップグレード消耗回帰の修正後は、安全弁なしでもビーム自身が生産的な
+      // アップグレード（未消耗で着地して攻撃に使える）を選ぶ
+      CHALLENGER_WEIGHTS.handOverflowRelief = 0;
+      expect(chooseAiAction(game, "challenger")).toEqual({ type: "upgrade", handIndex: 0, fieldIndex: 1 });
+      CHALLENGER_WEIGHTS.handOverflowRelief = 1;
+      expect(chooseAiAction(game, "challenger")).toEqual({ type: "upgrade", handIndex: 0, fieldIndex: 1 });
+
+      // アップグレード先が無い変種ではビームが end を選ぶため、安全弁が手札消化行動へ差し替える
+      game.players[1].hand[0] = card("AI-EARTH-1");
       CHALLENGER_WEIGHTS.handOverflowRelief = 0;
       expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
-
       CHALLENGER_WEIGHTS.handOverflowRelief = 1;
       expect(chooseAiAction(game, "challenger")).toEqual({ type: "command", index: 4 });
 

@@ -64,6 +64,7 @@ type Snapshot = {
   active_player_index: number;
   actions_remaining: number;
   charged_actions_remaining: number;
+  action_resolved_this_turn?: boolean;
   winner: number | null;
   draw: boolean;
   selected: GameState["selected"];
@@ -134,6 +135,9 @@ export function reifyGame(snapshot: Snapshot): GameState {
     turn: snapshot.turn,
     actionsRemaining: snapshot.actions_remaining,
     chargedActionsRemaining: snapshot.charged_actions_remaining,
+    // 旧形式ログにはフィールドが無いため、アクション消費の有無から近似する
+    actionResolvedThisTurn: snapshot.action_resolved_this_turn
+      ?? snapshot.actions_remaining !== CONFIG.actionsPerTurn,
     winner: snapshot.winner,
     draw: snapshot.draw,
     selected: snapshot.selected,
