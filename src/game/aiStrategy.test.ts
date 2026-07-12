@@ -51,6 +51,8 @@ describe("ai strategy", () => {
     expect(CHALLENGER_WEIGHTS.handLimitAwareness).toBe(1);
     expect(CHALLENGER_WEIGHTS.lifeJudgementPressure).toBe(0);
     expect(CHALLENGER_WEIGHTS.power4UnblockableAttack).toBe(0);
+    expect(CHALLENGER_WEIGHTS.attritionRacePressure).toBe(0);
+    expect(CHALLENGER_WEIGHTS.deckStockValue).toBe(0);
   });
 
   it("scores fatigue urgency, hand cap, and late life judgement from public state", () => {

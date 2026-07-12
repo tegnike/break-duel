@@ -2793,6 +2793,10 @@ export const CHALLENGER_WEIGHTS = {
   lifeJudgementPressure: 0,
   power4UnblockableAttack: 0,
   deckTypeConditionalBias: 0,
+  attritionRacePressure: 0,
+  attritionRaceHorizon: 12,
+  deckStockValue: 0,
+  drawOverflowPenalty: 0,
 };
 const CHALLENGER_SELF_DEFEAT_ATTACK_SCORE = -10000;
 
@@ -2915,6 +2919,11 @@ function boardAiScore(game: GameState, ai: PlayerState, opponent: PlayerState): 
   const lifeJudgementPhase = CONFIG.turnLimitResult === "life_judgement"
     ? Math.max(0, Math.min(1, (game.turn - (CONFIG.maxTurns - 10)) / 10))
     : 0;
+  // 衰弱時計での残り寿命の近似: 山札が尽きるまで deck.length ターン、その後 life ターンで衰弱死する。
+  // horizon で飽和させ、両者の寿命が horizon より長い序中盤は項を不活性に保つ
+  const attritionHorizon = Math.max(1, CHALLENGER_WEIGHTS.attritionRaceHorizon);
+  const aiAttritionDoom = Math.min(attritionHorizon, ai.deck.length + ai.life);
+  const opponentAttritionDoom = Math.min(attritionHorizon, opponent.deck.length + opponent.life);
   return (
     (opponent.life - ai.life) * -CHALLENGER_WEIGHTS.lowLifePressure
     + ai.field.reduce((sum, card) => sum + aiCardValue(card), 0) * 0.35
@@ -2928,6 +2937,10 @@ function boardAiScore(game: GameState, ai: PlayerState, opponent: PlayerState): 
     + (ai.deck.length - opponent.deck.length) * CHALLENGER_WEIGHTS.deckOutPressure
     + (opponentFatigueUrgency - aiFatigueUrgency) * CHALLENGER_WEIGHTS.fatigueClockPressure
     + (ai.life - opponent.life) * lifeJudgementPhase * CHALLENGER_WEIGHTS.lifeJudgementPressure
+    + (opponentAttritionDoom - aiAttritionDoom) * CHALLENGER_WEIGHTS.attritionRacePressure
+    // 時計世界では自分の山札1枚=将来の1ターン+1枚。handCard より安く保ち、
+    // 手札に収まる正当なドローは純増、上限トラッシュ行きの引き過ぎだけを損にする
+    + ai.deck.length * CHALLENGER_WEIGHTS.deckStockValue
   );
 }
 
@@ -3324,7 +3337,40 @@ export function aiCardValue(card: Card): number {
     + (drawsOnSuccessfulDefense(card) ? CHALLENGER_WEIGHTS.cardValueDrawsOnSuccessfulDefense : 0);
 }
 
+// 山札から引くコマンド/チャージ効果のドロー枚数と、解決前に手札から減る枚数
+const COMMAND_DECK_DRAWS: Record<string, { draws: number; discards: number }> = {
+  optimize: { draws: 2, discards: 1 },
+  patch: { draws: 1, discards: 0 },
+  water_rite: { draws: 2, discards: 0 },
+  comeback_rite: { draws: 2, discards: 0 },
+  overdrive: { draws: 2, discards: 0 },
+  deep_current: { draws: 3, discards: 1 },
+};
+const CHARGE_DECK_DRAWS: Record<string, { draws: number; discards: number }> = {
+  charge_draw: { draws: 1, discards: 0 },
+  charge_draw_if_discard_ai: { draws: 1, discards: 0 },
+  charge_surge_draw: { draws: 2, discards: 0 },
+  charge_filter_draw: { draws: 1, discards: 0 },
+};
+
+// 手札上限を超えて山札から引く分は、ターン終了時トラッシュ行きの山札浪費として行動スコアから減点する。
+// 盤面評価への静的課税（deckStockValue）と違い、火力デッキの攻撃サイクルや正当なドローには影響しない
+function drawOverflowPenaltyValue(ai: PlayerState, spec: { draws: number; discards: number } | undefined, spentFromHand: number): number {
+  if (!spec || CHALLENGER_WEIGHTS.drawOverflowPenalty === 0 || CONFIG.handLimit === null) return 0;
+  const draws = Math.min(spec.draws, ai.deck.length);
+  if (draws <= 0) return 0;
+  const handBeforeDraws = ai.hand.length - spentFromHand - spec.discards;
+  const wasted = Math.max(0, Math.min(draws, handBeforeDraws + draws - CONFIG.handLimit));
+  return wasted * CHALLENGER_WEIGHTS.drawOverflowPenalty;
+}
+
 function commandAiValue(game: GameState, command: Card): number {
+  const ai = activePlayer(game);
+  return commandAiBaseValue(game, command)
+    - drawOverflowPenaltyValue(ai, COMMAND_DECK_DRAWS[command.effect ?? ""], 1);
+}
+
+function commandAiBaseValue(game: GameState, command: Card): number {
   const ai = activePlayer(game);
   const opponent = opponentPlayer(game);
   if (command.effect === "trinity") return opponent.life <= 1 ? 165 : 92;
@@ -3363,6 +3409,12 @@ function commandAiValue(game: GameState, command: Card): number {
 }
 
 function chargeAiValue(game: GameState, fuel: Card): number {
+  const ai = activePlayer(game);
+  return chargeAiBaseValue(game, fuel)
+    - drawOverflowPenaltyValue(ai, CHARGE_DECK_DRAWS[fuel.effect ?? ""], 1);
+}
+
+function chargeAiBaseValue(game: GameState, fuel: Card): number {
   const ai = activePlayer(game);
   const opponent = opponentPlayer(game);
   if (fuel.effect === "charge_pressure") return opponent.hand.length >= 3 ? 50 : 8;
