@@ -2445,6 +2445,9 @@ function chooseBeginnerAiAction(game: GameState): AiAction {
   return { type: "end" };
 }
 
+// 先読み用ドラフトの共通エフェクト。人間防御側の攻撃解決を公開情報の推定で行う
+const PLANNING_DRAFT_EFFECTS = { planningDraft: true } as const;
+
 function chooseChallengerAiAction(game: GameState): AiAction {
   const beamWidth = Math.max(1, Math.floor(CHALLENGER_WEIGHTS.turnPlanBeamWidth));
   const chosen = beamWidth > 1
@@ -2502,7 +2505,7 @@ function choosePlannedChallengerAiAction(game: GameState, beamWidth: number): Ai
   if (initialOptions.length === 0) return { type: "end" };
   let beam: PlanNode[] = initialOptions.map((action) => {
     const next = cloneGame(game);
-    performAiActionInDraft(next, action);
+    performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
     return {
       game: next,
       firstAction: action,
@@ -2521,7 +2524,7 @@ function choosePlannedChallengerAiAction(game: GameState, beamWidth: number): Ai
       const actions = plannedAiActions(node.game, beamWidth);
       for (const action of actions) {
         const next = cloneGame(node.game);
-        performAiActionInDraft(next, action);
+        performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
         expanded.push({
           game: next,
           firstAction: node.firstAction,
@@ -2543,7 +2546,7 @@ export function debugChallengerActionScores(game: GameState): AiActionPlanDebugE
   return legalAiActions(game)
     .map((action) => {
       const next = cloneGame(game);
-      performAiActionInDraft(next, action);
+      performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
       return {
         action,
         immediateScore: scoreAiAction(game, action, classic),
@@ -2563,7 +2566,7 @@ export function debugChallengerBeam(game: GameState, beamWidth: number): AiPlanB
   const initialOptions = plannedAiActions(game, beamWidth);
   let beam: AiPlanBeamDebugNode[] = initialOptions.map((action) => {
     const next = cloneGame(game);
-    performAiActionInDraft(next, action);
+    performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
     const cumulativeScore = scorePlannedAction(game, action);
     const turnEndScore = turnEndPlanScore(next, activeSeat);
     return {
@@ -2582,7 +2585,7 @@ export function debugChallengerBeam(game: GameState, beamWidth: number): AiPlanB
   const games = new Map<AiPlanBeamDebugNode, GameState>();
   for (const node of beam) {
     const next = cloneGame(game);
-    for (const action of node.actions) performAiActionInDraft(next, action);
+    for (const action of node.actions) performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
     games.set(node, next);
   }
   const maxDepth = CONFIG.actionsPerTurn + 1;
@@ -2600,7 +2603,7 @@ export function debugChallengerBeam(game: GameState, beamWidth: number): AiPlanB
       const actions = plannedAiActions(nodeGame, beamWidth);
       for (const action of actions) {
         const next = cloneGame(nodeGame);
-        performAiActionInDraft(next, action);
+        performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
         const cumulativeScore = node.cumulativeScore + scorePlannedAction(nodeGame, action);
         const turnEndScore = turnEndPlanScore(next, activeSeat);
         const nextNode: AiPlanBeamDebugNode = {
@@ -2653,7 +2656,7 @@ function bestHandOverflowReliefAction(game: GameState): AiAction | null {
   const options = rankedAiActions(game).flatMap((action) => {
     if (action.type === "end") return [];
     const next = cloneGame(game);
-    performAiActionInDraft(next, action);
+    performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
     if (next.players[seat].hand.length >= before) return [];
     if (next.active === seat && next.winner === null && !next.draw) finishTurn(next, false);
     return [{ action, score: turnEndPlanScore(next, seat) }];
@@ -3046,7 +3049,7 @@ function attackAiValue(game: GameState, attacker: Card, attackerFieldIndex: numb
 
 type AttackEvaluationDefenseChoice = DefenseChoice & { estimatedValue?: number };
 
-function chooseAttackEvaluationDefense(
+export function chooseAttackEvaluationDefense(
   defender: PlayerState,
   attackCard: Card,
   attackContext?: AttackContext,

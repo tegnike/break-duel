@@ -31,6 +31,7 @@ import {
   checkTurnLimit,
   checkWinner,
   chooseAiDefense,
+  chooseAttackEvaluationDefense,
   chooseStrikeFieldDefense,
   chooseStrikeHandDefense,
   cardNameList,
@@ -89,6 +90,9 @@ export type GameActionEffects = {
   playSfx?: (kind: string) => void;
   showDuelEvent?: (event: DuelEventPayload) => void;
   suppressEntryCutIn?: boolean;
+  /** CPUの先読み（ビーム）用ドラフト。人間防御側の攻撃解決をUIの選択待ちにせず、
+   * 公開情報のみの防御推定で解決する */
+  planningDraft?: boolean;
 };
 
 function trumpCutInForPower4Entry(player: PlayerState, card: Card): DuelEventPayload["cutIn"] | undefined {
@@ -844,6 +848,16 @@ export function beginAttackInDraft(
   if (!defender.isHuman) {
     const attackContext = { attacker, attackerFieldIndex: fieldIndex };
     resolveDefenseInDraft(draft, aiDefenseOverride ?? chooseAiDefense(defender, attackCard, defender.aiProfile, attackContext), effects);
+  } else if (effects.planningDraft) {
+    // 先読み中は人間の防御選択を待てないため、攻撃評価と同じ公開情報のみの防御推定で解決する。
+    // 手札防御と推定された場合はカードを実体化できないため未解決のまま残す（悲観側の近似）
+    const attackContext = { attacker, attackerFieldIndex: fieldIndex };
+    const estimated = chooseAttackEvaluationDefense(defender, attackCard, attackContext);
+    if (estimated.type === "field") {
+      resolveDefenseInDraft(draft, { type: "field", index: estimated.index }, effects);
+    } else if (estimated.type === "none") {
+      resolveDefenseInDraft(draft, { type: "none" }, effects);
+    }
   }
 }
 
@@ -1224,7 +1238,15 @@ export function strikeInDraft(
   }
   if (attackerIndex === draft.active && CONFIG.attackLimitCountsStrike) attacker.playerAttacksThisTurn += 1;
   if (CONFIG.handDefenseVsStrike !== "off" && aiDefenseOverride?.type !== "none") {
-    if (defender.isHuman) {
+    if (defender.isHuman && effects.planningDraft) {
+      // 先読み中の人間防御側: 場での迎撃は公開情報なので解決し、
+      // 手札介入の期待値は行動スコア側の推定で織り込み済みのため介入なしとして進める
+      const interceptFieldIndex = chooseStrikeFieldDefense(defender, attackCard, targetIndex, attackContext);
+      if (interceptFieldIndex !== null) {
+        resolveStrikeFieldDefenseInDraft(draft, attackerIndex, fieldIndex, targetIndex, interceptFieldIndex, effects);
+        return;
+      }
+    } else if (defender.isHuman) {
       if (
         legalStrikeFieldDefenders(defender, attackCard, targetIndex, attackContext).length > 0
         || legalHandDefenders(defender, attackCard, attackContext).length > 0
