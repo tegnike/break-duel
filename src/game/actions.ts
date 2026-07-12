@@ -357,11 +357,14 @@ export function applyPlayEffects(
   effects: GameActionEffects = {},
 ): string {
   let text = "";
-  if (CONFIG.power3EntersSpent && card.power === 3) {
+  // excludedRecoverCard はアップグレード元カード。仕様（game-spec §基本ルール）により
+  // power 3 / 4 の登場時消耗は通常召喚のみで、アップグレード登場は未消耗で場に出る
+  const arrivedByUpgrade = excludedRecoverCard !== undefined;
+  if (CONFIG.power3EntersSpent && card.power === 3 && !arrivedByUpgrade) {
     player.spentFieldIndexes.add(fieldIndex);
     text += " 出たターンは消耗。";
   }
-  if (CONFIG.power4EntersSpent && card.power === 4) {
+  if (CONFIG.power4EntersSpent && card.power === 4 && !arrivedByUpgrade) {
     player.spentFieldIndexes.add(fieldIndex);
     text += " 出たターンは消耗。";
   }
