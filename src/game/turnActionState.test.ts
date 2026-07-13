@@ -74,6 +74,36 @@ describe("turn action state", () => {
   });
 
   it("lets challenger avoid overextending with depleted resources", () => {
+    // 詰みが存在しない盤面（相手はライフ8+未消耗の高防御壁3体、こちらはp1のみ）では
+    // 攻撃を自滅と評価してターンを返す
+    const game = createGame(
+      15,
+      { kind: "custom", name: "Test Player", cardIds: ["AI-EARTH-3", "MEM-ECHO-URN"] },
+      { kind: "custom", name: "Test Rival", cardIds: ["AI-EARTH-1C", "MEM-FIREWALL"] },
+    );
+    game.active = 1;
+    game.turn = 20;
+    game.actionsRemaining = CONFIG.actionsPerTurn;
+    game.chargedActionsRemaining = 0;
+    game.players[0].deck = [];
+    game.players[0].hand = [];
+    game.players[0].field = [card("AI-EARTH-3"), card("AI-EARTH-3"), card("AI-EARTH-2D")];
+    game.players[0].memory = card("MEM-ECHO-URN");
+    game.players[0].life = 8;
+    game.players[1].deck = [card("AI-EARTH-1C")];
+    game.players[1].hand = [];
+    game.players[1].field = [card("AI-EARTH-1C"), card("AI-EARTH-1C"), card("AI-EARTH-1C")];
+    game.players[1].memory = card("MEM-FIREWALL");
+    game.players[1].spentFieldIndexes.clear();
+
+    const action = chooseAiAction(game, "challenger");
+
+    expect(action).toEqual({ type: "end" });
+  });
+
+  it("finds a two-step lethal through a human defender's wall in planning", () => {
+    // 人間防御側でも先読みが攻撃を解決できることの回帰テスト:
+    // p1の囮攻撃で壁（苔纏いドルモ）を防御消耗させ、続くp3攻撃がライフ2へ直撃する詰み
     const game = createGame(
       15,
       { kind: "custom", name: "Test Player", cardIds: ["AI-EARTH-2D", "MEM-ECHO-URN"] },
@@ -96,7 +126,7 @@ describe("turn action state", () => {
 
     const action = chooseAiAction(game, "challenger");
 
-    expect(action).toEqual({ type: "end" });
+    expect(action.type).toBe("attack");
   });
 
   it("uses life totals to decide the winner when the turn limit is reached", () => {

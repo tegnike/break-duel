@@ -2,7 +2,7 @@
   "id": "fair-gen006",
   "created": "2026-07-09",
   "source": "strongest-cpu5 clock-world retuning: beam7 plus W1 best plus hand-limit awareness",
-  "notes": "Adopts the W4 three-part composite after the endgame clock-world rules reset the evaluation landscape. Direct fair-gen005 gauntlets reached 65.01% and 62.28% with deck floors 58.75% and 56.67%. Uses only public state, keeps deterministic planning, and remains far below the one-second browser budget.",
+  "notes": "Adopts the W4 three-part composite after the endgame clock-world rules reset the evaluation landscape. Direct fair-gen005 gauntlets reached 65.01% and 62.28% with deck floors 58.75% and 56.67%. The 2026-07-12 safety patch adds terminal-board-ranked hand overflow relief only when all three actions would otherwise be passed. Uses only public state, keeps deterministic planning, and remains far below the one-second browser budget.",
   "weights": {
     "attackPower": 14,
     "badAttack": -71,
@@ -51,6 +51,7 @@
     "tempoAction": 16,
     "tradeAttack": 42,
     "turnPlanBeamWidth": 7,
+    "handOverflowRelief": 1,
     "upgrade": 83
   }
 }

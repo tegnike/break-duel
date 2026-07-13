@@ -41,12 +41,17 @@
     "classicChargeActionCap": 3,
     "strikeTieBreakPriority": 7,
     "turnPlanBeamWidth": 3,
+    "handOverflowRelief": 0,
     "publicHandDefenseWeight": 1,
     "memoryIndividualValueScale": 1,
     "chargeFuturePlan": 0,
     "chargeBeforeAttackPenalty": 0,
     "lifeRacePressure": 0,
     "deckOutPressure": 0,
-    "deckTypeConditionalBias": 0
+    "deckTypeConditionalBias": 0,
+    "fatigueClockPressure": 0,
+    "handLimitAwareness": 0,
+    "lifeJudgementPressure": 0,
+    "power4UnblockableAttack": 0
   }
 }

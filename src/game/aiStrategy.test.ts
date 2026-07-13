@@ -51,6 +51,8 @@ describe("ai strategy", () => {
     expect(CHALLENGER_WEIGHTS.handLimitAwareness).toBe(1);
     expect(CHALLENGER_WEIGHTS.lifeJudgementPressure).toBe(0);
     expect(CHALLENGER_WEIGHTS.power4UnblockableAttack).toBe(0);
+    expect(CHALLENGER_WEIGHTS.attritionRacePressure).toBe(0);
+    expect(CHALLENGER_WEIGHTS.deckStockValue).toBe(0);
   });
 
   it("scores fatigue urgency, hand cap, and late life judgement from public state", () => {
@@ -177,6 +179,62 @@ describe("ai strategy", () => {
 
       expect(debugChallengerBeam(game, 5)[0]?.firstAction).toEqual({ type: "end" });
       expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
+    } finally {
+      Object.assign(CHALLENGER_WEIGHTS, original);
+    }
+  });
+
+  it("beam planning uses a productive action instead of discarding an overflowing hand", () => {
+    const original = { ...CHALLENGER_WEIGHTS };
+    try {
+      const game = makeGame(4114466439);
+      game.turn = 16;
+      game.active = 1;
+      game.actionsRemaining = CONFIG.actionsPerTurn;
+      game.players[0].deckName = "覇王結束デッキ";
+      game.players[0].life = 8;
+      game.players[0].deck = ["AI-WATER-2B", "CMD-SANDBOX", "CMD-DISRUPT", "CMD-PURGE", "AI-FIRE-4", "AI-EARTH-2", "AI-WIND-2", "AI-WIND-2", "AI-FIRE-2", "AI-FIRE-3"].map(card);
+      game.players[0].hand = ["MEM-RECOVERY-CACHE", "AI-EARTH-2"].map(card);
+      game.players[0].field = ["AI-FIRE-1C", "AI-WATER-4"].map(card);
+      game.players[0].memory = card("MEM-TIDAL-MIRROR");
+      game.players[0].spentFieldIndexes = new Set([1]);
+
+      game.players[1].name = "ニケ";
+      game.players[1].deckName = "土単色デッキ";
+      game.players[1].isHuman = false;
+      game.players[1].aiProfile = "challenger";
+      game.players[1].life = 2;
+      game.players[1].deck = ["AI-EARTH-2B", "AI-EARTH-3B"].map(card);
+      game.players[1].hand = ["AI-EARTH-3", "MEM-FIREWALL", "MEM-CACHE", "MEM-GROVE", "CMD-DISRUPT", "AI-EARTH-1C", "AI-EARTH-2C"].map(card);
+      game.players[1].field = ["AI-EARTH-2", "AI-EARTH-2D", "AI-EARTH-2C"].map(card);
+      game.players[1].fieldStacks = [[card("AI-EARTH-1C")], [], []];
+      game.players[1].discard = ["CMD-PATCH", "AI-EARTH-2", "CMD-COMEBACK-RITE", "CMD-PURGE", "AI-EARTH-2B", "AI-EARTH-4", "AI-EARTH-1", "CMD-EARTH-RITE", "AI-EARTH-1", "AI-EARTH-1B", "AI-EARTH-2D", "CMD-COMEBACK-RITE"].map(card);
+
+      CHALLENGER_WEIGHTS.turnPlanBeamWidth = 7;
+
+      // アップグレード消耗回帰の修正後は、安全弁なしでもビーム自身が生産的な
+      // アップグレード（未消耗で着地して攻撃に使える）を選ぶ
+      CHALLENGER_WEIGHTS.handOverflowRelief = 0;
+      expect(chooseAiAction(game, "challenger")).toEqual({ type: "upgrade", handIndex: 0, fieldIndex: 1 });
+      CHALLENGER_WEIGHTS.handOverflowRelief = 1;
+      expect(chooseAiAction(game, "challenger")).toEqual({ type: "upgrade", handIndex: 0, fieldIndex: 1 });
+
+      // アップグレード先が無い変種ではビームが end を選ぶため、安全弁が手札消化行動へ差し替える
+      game.players[1].hand[0] = card("AI-EARTH-1");
+      CHALLENGER_WEIGHTS.handOverflowRelief = 0;
+      expect(chooseAiAction(game, "challenger")).toEqual({ type: "end" });
+      CHALLENGER_WEIGHTS.handOverflowRelief = 1;
+      expect(chooseAiAction(game, "challenger")).toEqual({ type: "command", index: 4 });
+
+      game.players[1].hand.push(card("AI-EARTH-1"));
+      CHALLENGER_WEIGHTS.handOverflowRelief = 0;
+      performAiActionInDraft(game, { type: "charge", index: 0 });
+      expect(game.actionsRemaining).toBe(CONFIG.actionsPerTurn + 1);
+      expect(game.actionResolvedThisTurn).toBe(true);
+      const actionAfterCharge = chooseAiAction(game, "challenger");
+
+      CHALLENGER_WEIGHTS.handOverflowRelief = 1;
+      expect(chooseAiAction(game, "challenger")).toEqual(actionAfterCharge);
     } finally {
       Object.assign(CHALLENGER_WEIGHTS, original);
     }

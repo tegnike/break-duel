@@ -1,8 +1,152 @@
 # Break Duel バランス履歴
 
-最終更新: 2026-07-10
+最終更新: 2026-07-13
 
 この文書は、デッキやルールのバランス変更で採用判断に使った主要な検証結果を残す履歴です。現行ルールの正仕様は `docs/game-spec.md`、実装構成は `docs/architecture.md` を参照します。
+
+## 2026-07-13 対人先読みの攻撃未解決バグ修正: challenger が人間に攻撃しない真因
+
+### 背景
+
+アップグレード消耗回帰の修正後も、対人戦で challenger が「蒼殻バリアを発動したのにアクションを2残してミストラルで攻撃しない」（2026-07-12 の対人ログ seed 2701614265 T14）という受け身が報告された。診断の結果、`beginAttackInDraft` / `strikeInDraft` は防御側が人間だと防御選択待ち（pendingAttack）で停止する実装であり、これは実対戦の UI としては正しいが、**CPU のビーム先読みが使う同じドラフト経路でも停止していた**。そのため先読み内では人間への攻撃が永遠に未解決＝ダメージも戦果も出ない手として終端評価され、攻撃プランが構造的に選ばれない。CPU 同士のシミュレーション（ガントレット・リーグ・較正）では防御が自動解決されるため、**対人戦専用の欠陥として一切検出できなかった**。旧対人 4 戦の「攻撃 5 回・対人攻撃ダメージ 0」の主因もこれだった。
+
+### 採用変更
+
+- `GameActionEffects` に `planningDraft` フラグを追加し、ビーム先読み（`choosePlannedChallengerAiAction` / debug 系 / 手札超過安全弁）の全ドラフト実行に付与
+- `beginAttackInDraft`: 先読み中の人間防御側は、攻撃の即時評価と同じ**公開情報のみ**の防御推定 `chooseAttackEvaluationDefense` で解決する（場防御・防御なしを実体化。手札防御と推定された場合はカードを実体化できないため未解決のまま＝悲観側の近似）
+- `strikeInDraft`: 先読み中の人間防御側は、公開情報の場迎撃のみ解決し、手札介入は行動スコア側の推定に委ねて介入なしとして進める
+- 実対戦の UI フロー（防御選択待ち）は無変更。CPU 同士の経路（ガントレット・sim）も無変更のため、シミュレーション系の基準値には構造的に影響しない
+
+### 検証
+
+- 報告局面（seed 2701614265 T14）の再現: 蒼殻バリア発動→end だった選択が **1 手目「雲海航路ミストラルで攻撃」**に変化。2 手目も黒蔦の足止め（相手の壁の消耗）へ改善
+- 旧対人 4 戦の再現局面: 攻撃系の選択が 3→10 に増加。山札 0 で衰弱死待ちだった局面（seed 1664610365 T14 など）が strike へ転換
+- 先読みは「p1 の囮攻撃で壁を防御消耗させ、続く p3 攻撃を通す」**2 手詰めのリーサル**も発見できるようになった（turnActionState.test.ts に回帰テスト追加）。旧テスト「lets challenger avoid overextending」はこの詰みが見えない前提のピン留めだったため、詰みが存在しない盤面へシナリオを更新
+- 全 283 テスト green（公平性ガード含む。防御推定は公開情報のみのため公平性は不変）、`npm run check` green
+
+### 判断
+
+エンジン先読み経路の欠陥修正として採用。CPU 重み・カード・ルールは無変更。修正後エンジンでの対人ログ収集を再開し、残る受け身（消耗レース切迫時の判断）は継続監視する。
+
+### 検証コマンド
+
+```bash
+npx tsx scripts/diagnoseHumanBattleLogs.ts --log <対人ログ.jsonl> --turn <n> --beam --out tmp/diag.json
+npx vitest run src/game/turnActionState.test.ts src/game/aiStrategy.test.ts
+npm run check
+```
+
+## 2026-07-12 アップグレード消耗回帰の修正: 基準世界の完全復旧
+
+### 背景
+
+対人戦ログ 4 戦（2026-07-11、challenger 相手に人間が 3 勝、全てニケの衰弱死）の分析で、challenger の極端な受け身（攻撃 4 戦で 5 回・対人攻撃ダメージ 0）とデッキアウト自滅が発覚した。評価関数の調査中に、beginner 較正の基準値が現 HEAD で再現しない（fire 6.75% → 35.75%）ことを発見し、fire 単独 1 シードの高速較正でバイセクトした結果、`da19212`（Fix CodeRabbit review findings）が破壊コミットと特定した。
+
+同コミットは `performAiActionInDraft` から「power 3/4 のアップグレード登場は未消耗」（`docs/game-spec.md` §基本ルール、および「アップグレードで消耗を解除できる既存挙動は維持」）の実装を冗長コードと誤認して削除し、`upgrade.test.ts` のアサーションも逆向きに書き換えてバグを固定化していた。ブラウザの人間操作パスは元から同じ違反を持っており、同コミットは両パスの食い違いを仕様違反側へ統一していた。challenger は評価上アップグレードを多用するため実質的な大幅弱体化となり、対人の受け身・溜め込み・衰弱死の主因だった。
+
+### 採用変更
+
+- `applyPlayEffects` にアップグレード判定（アップグレード元カード引数の有無）を一元実装し、power 3/4 の登場時消耗を通常召喚のみに限定。CPU ドラフトパスと人間操作パスが同時に仕様準拠へ復旧
+- `upgrade.test.ts` のアサーションをバグ導入前の期待値（アップグレードで消耗解除）へ復元し、power 3/4 のアップグレード未消耗を明示する回帰テストを追加
+- CPU は fair-gen006 凍結を維持（重み変更なし）。調査中に実装した評価特徴 4 種（`attritionRacePressure` / `attritionRaceHorizon` / `deckStockValue` / `drawOverflowPenalty`）は重み 0 の不活性でコードに温存
+- 対人ログから GameState を復元して challenger の選択とスコアトレースを突き合わせる診断ツール `scripts/diagnoseHumanBattleLogs.ts` を追加
+
+### 検証
+
+- beginner 較正（fire/water/earth、2 シード、両席 100 戦）: **fire 6.75% / water 7.0% / earth 8.5% — 2026-07-10 A案採用時の基準値と完全一致**
+- 6 デッキリーグ（100 games/pair、seed 4101 / 730001 平均): **break 43.5% / control 52.6% / fire 55.0% / water 45.9% / wind 52.6% / earth 47.7% / 先攻 47.9% — A案採用時の基準値と全項目一致**（決定性シミュレーションのためバグ前世界の完全復旧を意味する）。fire 上端と先攻 0.1pt 未達は A案採用時からの既知の監視項目で、新規の逸脱なし
+- 対人ログ 4 戦の再現局面: 修正前後で challenger の選択が 31 手変化し、「2 アクション以上残しのターン終了」が 16→5 へ激減。end 連打の大半が準備完了のアップグレードへ置換
+- `npm run check` / 公平性ガードテスト / `npm run test:balance` green
+
+### 判断
+
+エンジン修正のみ採用。CPU 評価関数の変更は不採用（バグ入りエンジン上の候補測定は全て無効と記録）。経緯と教訓（行動スコア修正はビーム終端評価に効かない等）は `docs/strongest-cpu6-plan.md` を参照。da19212 の他の変更（`canSetDefenseCard` 厳格化・`publicHandDefenseEstimateInput` リファクタ）の仕様照合監査は 2026-07-12 に完了し、いずれも仕様違反なし・コード修正不要（前者は不活性の実験機能への意図的変更として archive/endgame-redesign2-plan.md の P4b 節へ注記、後者は公平 CPU の公開情報原則に準拠した改善。詳細は `docs/strongest-cpu6-plan.md` §7）。
+<<<<<<< HEAD
+
+本修正は、下記「挑戦者CPUの全アクション放棄＋手札超過を局所修正」エントリで観測された develop のリーグドリフト（安全弁OFFで fire 60.3% / water 31.9% と帯外）の根本原因を除去する。同エントリの安全弁（手札超過時の end 差し替え）は独立の保険として維持する。
+
+**develop 合流後の再検証（2026-07-12、本修正 + #46 安全弁）**:
+
+- beginner 較正: fire 7.0% / water 7.0% / earth 8.5% — 全デッキ帯内（基準 6.75 / 7.0 / 8.5 とほぼ一致）
+- 6 デッキリーグ 2 シード平均: break 43.7% / control 52.2% / fire 55.3% / water 45.6% / wind 55.6% / earth 44.9% / 先攻 47.9%。#46 時点の大幅帯外（fire 60.3% / water 31.9%）は解消。残差は wind +3.0pt / earth -2.8pt / fire +0.3pt の帯際で、安全弁由来とみられる軽微なもの。単色帯の厳密収束は #46 エントリ記載どおり別タームの再ベースライン課題として残す
+- typecheck / ガードテスト（公平性・チュートリアル・アップグレード）45 件 / npm run check green。#46 の安全弁テストは、本修正後は元シナリオでビーム自身が生産的アップグレードを選ぶため、安全弁の発火経路をアップグレード先の無い変種シナリオで検証する形に再構成した
+=======
+>>>>>>> a2cf2d2 (docs: da19212残り変更の仕様照合監査を完了として記録)
+
+### 検証コマンド
+
+```bash
+npx tsx scripts/diagnoseResourceBurn.ts --out tmp/strongest-cpu6/beginner-fixed.json
+npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/strongest-cpu6/league-fixed-4101
+npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/strongest-cpu6/league-fixed-730001
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/strongest-cpu6/league-fixed-4101 tmp/strongest-cpu6/league-fixed-730001
+npx tsx scripts/diagnoseHumanBattleLogs.ts --log <対人ログ.jsonl> --out tmp/diag.json
+npm run test:balance && npm run check
+```
+
+## 2026-07-12 挑戦者CPUの全アクション放棄＋手札超過を局所修正
+
+### 背景
+
+人間対CPUの実戦ログ4戦を再解析したところ、CPU 41ターン中28ターンでアクションを残して終了し、12ターンは3アクションを全て放棄していた。手札上限トラッシュは13ターン・18枚で発生し、3アクション全残しと手札7枚以上が重なった明白な停止は5局面あった。原因は、beam 7が常に`end`を比較できる一方、終端盤面評価が手札を使う行動固有価値を持たず、浅い`end`を優先することだった。
+
+### 採用変更
+
+- fair-gen006のbeam 7と既存重みは維持する。
+- beamが`end`を選び、3アクションを全て残し、手札が上限6枚を超える場合だけ安全弁を発火する。
+- 手札を実際に減らす合法手を複製盤面で実行してターン終了まで進め、従来の終端盤面評価が最も高い1手を選ぶ。
+- すでに1回以上行動したターン、手札6枚以下、初心者CPUでは従来挙動を維持する。
+- 実戦ログ再判定用に`scripts/analyzeHumanBattleAi.ts`と`npm run analyze:human-battle-ai`を追加した。
+- 旧fair世代JSONに後発の評価キーが欠け、現行`aiGauntlet`で読めなかったため、履歴挙動を変えない値0で不足キーを補完した。fair-gen006だけ安全弁を1に更新した。
+
+### 検証
+
+**実戦ログ4戦**:
+
+- 41 CPUターン / 未使用アクション終了28 / 手札上限トラッシュ18枚。
+- 旧評価は問題28局面すべてで再び`end`を選択。
+- 採用安全弁は最も明白な5局面を救済し、術式2回・チャージ3回を選択。攻撃だけして手札を捨てる候補は選ばなかった。
+
+**同一シードA/B・6デッキリーグ**（seed 4101 / 730001、100 games/ordered pair、各3000戦）:
+
+| 指標 | 安全弁OFF | 安全弁ON |
+| --- | ---: | ---: |
+| fire | 60.3% | 57.6% |
+| water | 31.9% | 41.0% |
+| wind | 54.9% | 57.2% |
+| earth | 48.9% | 46.7% |
+| 先攻 | 50.8% | 50.5% |
+
+現developは安全弁OFFの時点で過去のfair-gen006基準からドリフトし、fire / waterが帯外だった。安全弁はwaterを+9.1pt、fireを-2.7pt改善した一方、windを+2.3pt悪化させた。単色全帯は未達のため、別タームで現developを再ベースラインして調整する。
+
+**盛り上がり**（break vs control、seed 4101、各1000戦）:
+
+| 指標 | 安全弁OFF | 安全弁ON |
+| --- | ---: | ---: |
+| 平均ターン | 30.1 | 29.9 |
+| draw | 1.0% | 1.2% |
+| リード交代あり | 38.5% | 38.4% |
+| 2点ビハインド逆転 | 21.7% | 20.2% |
+| 先に2点差側の勝率 | 80.0% | 81.2% |
+
+全面候補も比較した。行動固有価値を全局面へ10%戻す案は実戦28局面を全救済し対fair-gen006 60.7%だったが、平均17.9ターン、water 40.8% / earth 56.0%まで変形したため不採用。beam 1は平均19.2ターン・リード交代71.4%まで改善したが、対fair-gen006 36.1%で明確に弱く不採用。全手札超過へ介入する案もデッキ相性を大きく崩したため不採用。
+
+### 判断
+
+局所安全弁として採用する。CPU全面強化や新世代ではなく、人間から見て最も不自然な「3アクション全放棄の直後に手札を捨てる」だけを除く。現develop全体の長期化・逆転率低下とfire / water / windの帯外はこの安全弁だけでは解決しないため、別の再ベースライン課題として残す。
+
+### 検証コマンド
+
+```bash
+npm run analyze:human-battle-ai -- tmp/human-battle-logs
+npm run sim -- league --games-per-pair 100 --seed 4101 --decks break control fire water wind earth --out tmp/cpu-end-turn-fix/full-pass-final-league-4101
+npm run sim -- league --games-per-pair 100 --seed 730001 --decks break control fire water wind earth --out tmp/cpu-end-turn-fix/full-pass-final-league-730001
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/league_report.py tmp/cpu-end-turn-fix/full-pass-final-league-4101 tmp/cpu-end-turn-fix/full-pass-final-league-730001
+npm run sim -- simulate --games 1000 --seed 4101 --first-deck break --second-deck control --out tmp/cpu-end-turn-fix/full-pass-final-excitement
+python3 .agents/skills/ai-break-duel-balance-tuning/scripts/excitement_metrics.py tmp/cpu-end-turn-fix/full-pass-final-excitement
+npm run check
+```
+
 
 ## 2026-07-10 fair-gen006世界の条件付きアンチスワーム: A案で部分採用
 

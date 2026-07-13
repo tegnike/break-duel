@@ -184,7 +184,7 @@ describe("アップグレード", () => {
     expect(player.spentFieldIndexes.has(0)).toBe(false);
   });
 
-  it("power3 の回復遅延はアップグレードで解消され、アップグレード後の消耗は保持される", () => {
+  it("power3 の回復遅延はアップグレードで解消される", () => {
     const game = setupGame();
     const player = game.players[0];
     player.field = [card("AI-FIRE-3")];
@@ -199,8 +199,35 @@ describe("アップグレード", () => {
     performAiActionInDraft(game, { type: "upgrade", handIndex: 0, fieldIndex: 0 });
 
     expect(player.field[0].id).toBe("AI-FIRE-4");
-    expect(player.spentFieldIndexes.has(0)).toBe(true);
+    expect(player.spentFieldIndexes.has(0)).toBe(false);
     expect(player.power3RecoveryDelayedFieldIndexes.size).toBe(0);
+  });
+
+  it("power3/4 のアップグレード登場は未消耗で場に出る（通常召喚のみ登場時消耗）", () => {
+    // 通常召喚: power3 は登場時消耗
+    const playGame = setupGame();
+    const playPlayer = playGame.players[0];
+    playPlayer.hand = [card("AI-FIRE-3")];
+    playGame.players[1].hand = [card("CMD-OPTIMIZE")];
+    performAiActionInDraft(playGame, { type: "play", index: 0 });
+    expect(playPlayer.field[0].id).toBe("AI-FIRE-3");
+    expect(playPlayer.spentFieldIndexes.has(0)).toBe(true);
+
+    // アップグレード登場: power3 も power4 も未消耗（game-spec: アップグレード登場では通常通り未消耗状態で場に出る）
+    const game = setupGame();
+    const player = game.players[0];
+    player.field = [card("AI-FIRE-1")];
+    player.fieldStacks = [[]];
+    player.hand = [card("AI-FIRE-3"), card("AI-FIRE-4")];
+    game.players[1].hand = [card("CMD-OPTIMIZE")];
+    performAiActionInDraft(game, { type: "upgrade", handIndex: 0, fieldIndex: 0 });
+    expect(player.field[0].id).toBe("AI-FIRE-3");
+    expect(player.spentFieldIndexes.has(0)).toBe(false);
+
+    game.actionsRemaining = 3;
+    performAiActionInDraft(game, { type: "upgrade", handIndex: 0, fieldIndex: 0 });
+    expect(player.field[0].id).toBe("AI-FIRE-4");
+    expect(player.spentFieldIndexes.has(0)).toBe(false);
   });
 
   it("アップグレードしても手札の他カードは失われない", () => {

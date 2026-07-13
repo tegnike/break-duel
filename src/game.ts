@@ -260,6 +260,7 @@ export type GameState = {
   turn: number;
   actionsRemaining: number;
   chargedActionsRemaining: number;
+  actionResolvedThisTurn: boolean;
   winner: number | null;
   draw: boolean;
   selected: Selection;
@@ -1014,6 +1015,7 @@ export function createGameCore(seed: number, rng: () => number, setup: DuelSetup
     turn: 0,
     actionsRemaining: 0,
     chargedActionsRemaining: 0,
+    actionResolvedThisTurn: false,
     winner: null,
     draw: false,
     selected: null,
@@ -1094,6 +1096,7 @@ export function startTurn(game: GameState): void {
   game.turn += 1;
   game.actionsRemaining = actionsForTurn(game);
   game.chargedActionsRemaining = 0;
+  game.actionResolvedThisTurn = false;
   game.players.forEach((player) => {
     player.handDefensesUsed = 0;
     player.playerAttacksThisTurn = 0;
@@ -1286,6 +1289,7 @@ export function finishTurn(game: GameState, logEnd: boolean): Card[] {
 }
 
 export function useAction(game: GameState, cost = 1, kind: "normal" | "attack" = "normal"): void {
+  game.actionResolvedThisTurn = true;
   if (kind !== "attack") {
     game.chargedActionsRemaining = Math.max(0, game.chargedActionsRemaining - Math.min(cost, game.chargedActionsRemaining));
   }
@@ -2441,10 +2445,16 @@ function chooseBeginnerAiAction(game: GameState): AiAction {
   return { type: "end" };
 }
 
+// 先読み用ドラフトの共通エフェクト。人間防御側の攻撃解決を公開情報の推定で行う
+const PLANNING_DRAFT_EFFECTS = { planningDraft: true } as const;
+
 function chooseChallengerAiAction(game: GameState): AiAction {
   const beamWidth = Math.max(1, Math.floor(CHALLENGER_WEIGHTS.turnPlanBeamWidth));
-  if (beamWidth > 1) return choosePlannedChallengerAiAction(game, beamWidth);
-  return chooseGreedyChallengerAiAction(game);
+  const chosen = beamWidth > 1
+    ? choosePlannedChallengerAiAction(game, beamWidth)
+    : chooseGreedyChallengerAiAction(game);
+  if (chosen.type !== "end") return chosen;
+  return bestHandOverflowReliefAction(game) ?? chosen;
 }
 
 function chooseGreedyChallengerAiAction(game: GameState): AiAction {
@@ -2495,7 +2505,7 @@ function choosePlannedChallengerAiAction(game: GameState, beamWidth: number): Ai
   if (initialOptions.length === 0) return { type: "end" };
   let beam: PlanNode[] = initialOptions.map((action) => {
     const next = cloneGame(game);
-    performAiActionInDraft(next, action);
+    performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
     return {
       game: next,
       firstAction: action,
@@ -2514,7 +2524,7 @@ function choosePlannedChallengerAiAction(game: GameState, beamWidth: number): Ai
       const actions = plannedAiActions(node.game, beamWidth);
       for (const action of actions) {
         const next = cloneGame(node.game);
-        performAiActionInDraft(next, action);
+        performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
         expanded.push({
           game: next,
           firstAction: node.firstAction,
@@ -2536,7 +2546,7 @@ export function debugChallengerActionScores(game: GameState): AiActionPlanDebugE
   return legalAiActions(game)
     .map((action) => {
       const next = cloneGame(game);
-      performAiActionInDraft(next, action);
+      performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
       return {
         action,
         immediateScore: scoreAiAction(game, action, classic),
@@ -2556,7 +2566,7 @@ export function debugChallengerBeam(game: GameState, beamWidth: number): AiPlanB
   const initialOptions = plannedAiActions(game, beamWidth);
   let beam: AiPlanBeamDebugNode[] = initialOptions.map((action) => {
     const next = cloneGame(game);
-    performAiActionInDraft(next, action);
+    performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
     const cumulativeScore = scorePlannedAction(game, action);
     const turnEndScore = turnEndPlanScore(next, activeSeat);
     return {
@@ -2575,7 +2585,7 @@ export function debugChallengerBeam(game: GameState, beamWidth: number): AiPlanB
   const games = new Map<AiPlanBeamDebugNode, GameState>();
   for (const node of beam) {
     const next = cloneGame(game);
-    for (const action of node.actions) performAiActionInDraft(next, action);
+    for (const action of node.actions) performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
     games.set(node, next);
   }
   const maxDepth = CONFIG.actionsPerTurn + 1;
@@ -2593,7 +2603,7 @@ export function debugChallengerBeam(game: GameState, beamWidth: number): AiPlanB
       const actions = plannedAiActions(nodeGame, beamWidth);
       for (const action of actions) {
         const next = cloneGame(nodeGame);
-        performAiActionInDraft(next, action);
+        performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
         const cumulativeScore = node.cumulativeScore + scorePlannedAction(nodeGame, action);
         const turnEndScore = turnEndPlanScore(next, activeSeat);
         const nextNode: AiPlanBeamDebugNode = {
@@ -2630,6 +2640,29 @@ function rankedAiActions(game: GameState): AiAction[] {
       scoreAiAction(game, b, classic) - scoreAiAction(game, a, classic)
       || aiActionTieBreak(b) - aiActionTieBreak(a)
     ));
+}
+
+function bestHandOverflowReliefAction(game: GameState): AiAction | null {
+  const player = activePlayer(game);
+  if (
+    CHALLENGER_WEIGHTS.handOverflowRelief <= 0
+    || CONFIG.handLimit === null
+    || player.hand.length <= CONFIG.handLimit
+    || game.actionResolvedThisTurn
+    || game.actionsRemaining !== CONFIG.actionsPerTurn
+  ) return null;
+  const seat = game.active;
+  const before = player.hand.length;
+  const options = rankedAiActions(game).flatMap((action) => {
+    if (action.type === "end") return [];
+    const next = cloneGame(game);
+    performAiActionInDraft(next, action, PLANNING_DRAFT_EFFECTS);
+    if (next.players[seat].hand.length >= before) return [];
+    if (next.active === seat && next.winner === null && !next.draw) finishTurn(next, false);
+    return [{ action, score: turnEndPlanScore(next, seat) }];
+  });
+  options.sort((a, b) => b.score - a.score || aiActionTieBreak(b.action) - aiActionTieBreak(a.action));
+  return options[0]?.action ?? null;
 }
 
 function plannedAiActions(game: GameState, beamWidth: number): AiAction[] {
@@ -2751,6 +2784,7 @@ export const CHALLENGER_WEIGHTS = {
   classicChargeActionCap: 3,
   strikeTieBreakPriority: 7,
   turnPlanBeamWidth: 7,
+  handOverflowRelief: 1,
   publicHandDefenseWeight: 1,
   memoryIndividualValueScale: 1,
   chargeFuturePlan: 1,
@@ -2762,6 +2796,10 @@ export const CHALLENGER_WEIGHTS = {
   lifeJudgementPressure: 0,
   power4UnblockableAttack: 0,
   deckTypeConditionalBias: 0,
+  attritionRacePressure: 0,
+  attritionRaceHorizon: 12,
+  deckStockValue: 0,
+  drawOverflowPenalty: 0,
 };
 const CHALLENGER_SELF_DEFEAT_ATTACK_SCORE = -10000;
 
@@ -2884,6 +2922,11 @@ function boardAiScore(game: GameState, ai: PlayerState, opponent: PlayerState): 
   const lifeJudgementPhase = CONFIG.turnLimitResult === "life_judgement"
     ? Math.max(0, Math.min(1, (game.turn - (CONFIG.maxTurns - 10)) / 10))
     : 0;
+  // 衰弱時計での残り寿命の近似: 山札が尽きるまで deck.length ターン、その後 life ターンで衰弱死する。
+  // horizon で飽和させ、両者の寿命が horizon より長い序中盤は項を不活性に保つ
+  const attritionHorizon = Math.max(1, CHALLENGER_WEIGHTS.attritionRaceHorizon);
+  const aiAttritionDoom = Math.min(attritionHorizon, ai.deck.length + ai.life);
+  const opponentAttritionDoom = Math.min(attritionHorizon, opponent.deck.length + opponent.life);
   return (
     (opponent.life - ai.life) * -CHALLENGER_WEIGHTS.lowLifePressure
     + ai.field.reduce((sum, card) => sum + aiCardValue(card), 0) * 0.35
@@ -2897,6 +2940,10 @@ function boardAiScore(game: GameState, ai: PlayerState, opponent: PlayerState): 
     + (ai.deck.length - opponent.deck.length) * CHALLENGER_WEIGHTS.deckOutPressure
     + (opponentFatigueUrgency - aiFatigueUrgency) * CHALLENGER_WEIGHTS.fatigueClockPressure
     + (ai.life - opponent.life) * lifeJudgementPhase * CHALLENGER_WEIGHTS.lifeJudgementPressure
+    + (opponentAttritionDoom - aiAttritionDoom) * CHALLENGER_WEIGHTS.attritionRacePressure
+    // 時計世界では自分の山札1枚=将来の1ターン+1枚。handCard より安く保ち、
+    // 手札に収まる正当なドローは純増、上限トラッシュ行きの引き過ぎだけを損にする
+    + ai.deck.length * CHALLENGER_WEIGHTS.deckStockValue
   );
 }
 
@@ -3002,7 +3049,7 @@ function attackAiValue(game: GameState, attacker: Card, attackerFieldIndex: numb
 
 type AttackEvaluationDefenseChoice = DefenseChoice & { estimatedValue?: number };
 
-function chooseAttackEvaluationDefense(
+export function chooseAttackEvaluationDefense(
   defender: PlayerState,
   attackCard: Card,
   attackContext?: AttackContext,
@@ -3293,7 +3340,40 @@ export function aiCardValue(card: Card): number {
     + (drawsOnSuccessfulDefense(card) ? CHALLENGER_WEIGHTS.cardValueDrawsOnSuccessfulDefense : 0);
 }
 
+// 山札から引くコマンド/チャージ効果のドロー枚数と、解決前に手札から減る枚数
+const COMMAND_DECK_DRAWS: Record<string, { draws: number; discards: number }> = {
+  optimize: { draws: 2, discards: 1 },
+  patch: { draws: 1, discards: 0 },
+  water_rite: { draws: 2, discards: 0 },
+  comeback_rite: { draws: 2, discards: 0 },
+  overdrive: { draws: 2, discards: 0 },
+  deep_current: { draws: 3, discards: 1 },
+};
+const CHARGE_DECK_DRAWS: Record<string, { draws: number; discards: number }> = {
+  charge_draw: { draws: 1, discards: 0 },
+  charge_draw_if_discard_ai: { draws: 1, discards: 0 },
+  charge_surge_draw: { draws: 2, discards: 0 },
+  charge_filter_draw: { draws: 1, discards: 0 },
+};
+
+// 手札上限を超えて山札から引く分は、ターン終了時トラッシュ行きの山札浪費として行動スコアから減点する。
+// 盤面評価への静的課税（deckStockValue）と違い、火力デッキの攻撃サイクルや正当なドローには影響しない
+function drawOverflowPenaltyValue(ai: PlayerState, spec: { draws: number; discards: number } | undefined, spentFromHand: number): number {
+  if (!spec || CHALLENGER_WEIGHTS.drawOverflowPenalty === 0 || CONFIG.handLimit === null) return 0;
+  const draws = Math.min(spec.draws, ai.deck.length);
+  if (draws <= 0) return 0;
+  const handBeforeDraws = ai.hand.length - spentFromHand - spec.discards;
+  const wasted = Math.max(0, Math.min(draws, handBeforeDraws + draws - CONFIG.handLimit));
+  return wasted * CHALLENGER_WEIGHTS.drawOverflowPenalty;
+}
+
 function commandAiValue(game: GameState, command: Card): number {
+  const ai = activePlayer(game);
+  return commandAiBaseValue(game, command)
+    - drawOverflowPenaltyValue(ai, COMMAND_DECK_DRAWS[command.effect ?? ""], 1);
+}
+
+function commandAiBaseValue(game: GameState, command: Card): number {
   const ai = activePlayer(game);
   const opponent = opponentPlayer(game);
   if (command.effect === "trinity") return opponent.life <= 1 ? 165 : 92;
@@ -3332,6 +3412,12 @@ function commandAiValue(game: GameState, command: Card): number {
 }
 
 function chargeAiValue(game: GameState, fuel: Card): number {
+  const ai = activePlayer(game);
+  return chargeAiBaseValue(game, fuel)
+    - drawOverflowPenaltyValue(ai, CHARGE_DECK_DRAWS[fuel.effect ?? ""], 1);
+}
+
+function chargeAiBaseValue(game: GameState, fuel: Card): number {
   const ai = activePlayer(game);
   const opponent = opponentPlayer(game);
   if (fuel.effect === "charge_pressure") return opponent.hand.length >= 3 ? 50 : 8;
